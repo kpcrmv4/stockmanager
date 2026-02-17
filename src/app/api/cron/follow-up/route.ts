@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   const { data: pendingComparisons } = await supabase
     .from('comparisons')
-    .select('*, store:stores(store_name, line_group_id)')
+    .select('*, store:stores(store_name, line_token, staff_group_id)')
     .eq('status', 'pending')
     .lt('created_at', fourHoursAgo.toISOString());
 
@@ -32,15 +32,15 @@ export async function GET(request: NextRequest) {
     }
 
     for (const [, comps] of byStore) {
-      const store = comps[0]?.store as { store_name: string; line_group_id: string } | null;
-      if (!store?.line_group_id) continue;
+      const store = comps[0]?.store as { store_name: string; line_token: string; staff_group_id: string } | null;
+      if (!store?.staff_group_id || !store?.line_token) continue;
 
       try {
         const message = {
           type: 'text' as const,
           text: `📋 ติดตามผล: มีรายการผลต่างสต๊อก ${comps.length} รายการ ที่ยังไม่มีคำอธิบาย\n\nกรุณาเข้าระบบเพื่ออธิบายผลต่าง`,
         };
-        await pushMessage(store.line_group_id, [message]);
+        await pushMessage(store.staff_group_id, [message], { token: store.line_token });
 
         for (const comp of comps) {
           results.push({ comp_id: comp.id, sent: true });
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 
   const { data: pendingWithdrawals } = await supabase
     .from('withdrawals')
-    .select('*, store:stores(store_name, line_group_id)')
+    .select('*, store:stores(store_name, line_token, staff_group_id)')
     .eq('status', 'pending')
     .lt('created_at', twoHoursAgo.toISOString());
 
@@ -73,15 +73,15 @@ export async function GET(request: NextRequest) {
     }
 
     for (const [, withdrawals] of byStore) {
-      const store = withdrawals[0]?.store as { store_name: string; line_group_id: string } | null;
-      if (!store?.line_group_id) continue;
+      const store = withdrawals[0]?.store as { store_name: string; line_token: string; staff_group_id: string } | null;
+      if (!store?.staff_group_id || !store?.line_token) continue;
 
       try {
         const message = {
           type: 'text' as const,
           text: `🍷 ติดตามผล: มีคำขอเบิกเหล้า ${withdrawals.length} รายการ ที่รอดำเนินการ\n\nกรุณาเข้าระบบเพื่อดำเนินการ`,
         };
-        await pushMessage(store.line_group_id, [message]);
+        await pushMessage(store.staff_group_id, [message], { token: store.line_token });
         withdrawalNotified += withdrawals.length;
       } catch {
         // Ignore send errors

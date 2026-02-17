@@ -37,7 +37,9 @@ interface StoreData {
   store_name: string;
   is_central: boolean;
   line_token: string | null;
-  line_group_id: string | null;
+  line_channel_id: string | null;
+  staff_group_id: string | null;
+  bar_group_id: string | null;
 }
 
 interface StoreSettingsData {
@@ -100,7 +102,9 @@ export default function StoreDetailSettingsPage() {
 
   // LINE settings
   const [lineToken, setLineToken] = useState('');
-  const [lineGroupId, setLineGroupId] = useState('');
+  const [lineChannelId, setLineChannelId] = useState('');
+  const [staffGroupId, setStaffGroupId] = useState('');
+  const [barGroupId, setBarGroupId] = useState('');
 
   // Stock settings
   const [notifyTime, setNotifyTime] = useState('09:00');
@@ -145,7 +149,7 @@ export default function StoreDetailSettingsPage() {
     // Load store info
     const { data: store } = await supabase
       .from('stores')
-      .select('id, store_code, store_name, is_central, line_token, line_group_id')
+      .select('id, store_code, store_name, is_central, line_token, line_channel_id, staff_group_id, bar_group_id')
       .eq('id', storeId)
       .single();
 
@@ -154,7 +158,9 @@ export default function StoreDetailSettingsPage() {
       setStoreName(store.store_name || '');
       setIsCentral(store.is_central || false);
       setLineToken(store.line_token || '');
-      setLineGroupId(store.line_group_id || '');
+      setLineChannelId(store.line_channel_id || '');
+      setStaffGroupId(store.staff_group_id || '');
+      setBarGroupId(store.bar_group_id || '');
     }
 
     // Load store settings
@@ -212,7 +218,9 @@ export default function StoreDetailSettingsPage() {
         store_name: storeName.trim(),
         is_central: isCentral,
         line_token: lineToken || null,
-        line_group_id: lineGroupId || null,
+        line_channel_id: lineChannelId || null,
+        staff_group_id: staffGroupId || null,
+        bar_group_id: barGroupId || null,
       })
       .eq('id', storeId);
 
@@ -397,7 +405,7 @@ export default function StoreDetailSettingsPage() {
       <Card padding="none">
         <CardHeader
           title="ตั้งค่า LINE"
-          description="เชื่อมต่อ LINE สำหรับส่งแจ้งเตือนพนักงาน"
+          description="เชื่อมต่อ LINE OA ของสาขานี้ (แต่ละสาขามี LINE OA แยก)"
           action={
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
               <MessageCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -410,15 +418,34 @@ export default function StoreDetailSettingsPage() {
             value={lineToken}
             onChange={(e) => setLineToken(e.target.value)}
             placeholder="วาง token ที่นี่"
-            hint="ได้จาก LINE Developers Console"
+            hint="ได้จาก LINE Developers Console → Messaging API → Channel access token"
           />
           <Input
-            label="LINE Group ID"
-            value={lineGroupId}
-            onChange={(e) => setLineGroupId(e.target.value)}
-            placeholder="เช่น Cxxxxxxxxxx"
-            hint="ID ของ LINE group สำหรับส่งแจ้งเตือนพนักงาน"
+            label="LINE Channel ID"
+            value={lineChannelId}
+            onChange={(e) => setLineChannelId(e.target.value)}
+            placeholder="เช่น Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            hint="ใช้ระบุว่า webhook มาจากสาขาไหน (ดูได้จาก LINE Developers Console → Basic settings → Bot basic ID)"
           />
+          <Input
+            label="Staff Group ID (กลุ่มพนักงาน)"
+            value={staffGroupId}
+            onChange={(e) => setStaffGroupId(e.target.value)}
+            placeholder="เช่น Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            hint="ID กลุ่ม LINE สำหรับแจ้งเตือนพนักงาน (เชิญ bot เข้ากลุ่ม → ดู log ใน Vercel)"
+          />
+          <Input
+            label="Bar Group ID (กลุ่มบาร์)"
+            value={barGroupId}
+            onChange={(e) => setBarGroupId(e.target.value)}
+            placeholder="เช่น Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            hint="ID กลุ่ม LINE สำหรับแจ้งเตือนหัวหน้าบาร์ (ไม่บังคับ)"
+          />
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+            <p className="text-xs text-blue-700 dark:text-blue-400">
+              <strong>วิธีดู Group ID:</strong> เชิญ bot เข้ากลุ่ม LINE → bot จะ log Group ID ออกมา → คัดลอกมาวางที่นี่
+            </p>
+          </div>
         </CardContent>
       </Card>
 

@@ -37,16 +37,17 @@ export async function GET(request: NextRequest) {
       continue;
     }
 
-    // Get LINE group ID for staff notification
-    const groupId = store.line_group_id;
-    if (!groupId) {
-      results.push({ store: store.store_name, sent: false, error: 'No LINE group ID' });
+    // Get LINE staff group ID + token for notification
+    const groupId = store.staff_group_id;
+    const storeToken = store.line_token;
+    if (!groupId || !storeToken) {
+      results.push({ store: store.store_name, sent: false, error: 'No LINE group ID or token' });
       continue;
     }
 
     try {
       const flex = dailyReminderTemplate(store.store_name);
-      await pushMessage(groupId, [{ type: 'flex', altText: 'เตือนนับสต๊อก', contents: flex }]);
+      await pushMessage(groupId, [{ type: 'flex', altText: 'เตือนนับสต๊อก', contents: flex }], { token: storeToken });
       results.push({ store: store.store_name, sent: true });
     } catch (error) {
       results.push({

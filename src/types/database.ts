@@ -17,7 +17,9 @@ export interface Store {
   store_code: string;
   store_name: string;
   line_token: string | null;
-  line_group_id: string | null;
+  line_channel_id: string | null;
+  staff_group_id: string | null;
+  bar_group_id: string | null;
   manager_id: string | null;
   is_central: boolean;
   active: boolean;

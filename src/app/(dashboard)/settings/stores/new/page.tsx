@@ -48,7 +48,9 @@ export default function CreateStoreWizardPage() {
 
   // Step 2: LINE settings
   const [lineToken, setLineToken] = useState('');
-  const [lineGroupId, setLineGroupId] = useState('');
+  const [lineChannelId, setLineChannelId] = useState('');
+  const [staffGroupId, setStaffGroupId] = useState('');
+  const [barGroupId, setBarGroupId] = useState('');
 
   // Step 3: Products (placeholder)
   const [importFrom, setImportFrom] = useState('');
@@ -83,7 +85,9 @@ export default function CreateStoreWizardPage() {
         store_code: storeCode.trim().toUpperCase(),
         store_name: storeName.trim(),
         line_token: lineToken || null,
-        line_group_id: lineGroupId || null,
+        line_channel_id: lineChannelId || null,
+        staff_group_id: staffGroupId || null,
+        bar_group_id: barGroupId || null,
         is_central: isCentral,
         manager_id: user.id,
         active: true,
@@ -242,14 +246,28 @@ export default function CreateStoreWizardPage() {
                 value={lineToken}
                 onChange={(e) => setLineToken(e.target.value)}
                 placeholder="วาง token ที่นี่"
-                hint="ได้จาก LINE Developers Console"
+                hint="ได้จาก LINE Developers Console → Messaging API"
               />
               <Input
-                label="LINE Group ID (กลุ่มพนักงาน)"
-                value={lineGroupId}
-                onChange={(e) => setLineGroupId(e.target.value)}
+                label="LINE Channel ID"
+                value={lineChannelId}
+                onChange={(e) => setLineChannelId(e.target.value)}
+                placeholder="เช่น Uxxxxxxxxxx"
+                hint="ใช้ระบุว่า webhook มาจากสาขาไหน"
+              />
+              <Input
+                label="Staff Group ID (กลุ่มพนักงาน)"
+                value={staffGroupId}
+                onChange={(e) => setStaffGroupId(e.target.value)}
                 placeholder="เช่น Cxxxxxxxxxx"
-                hint="ID ของ LINE group สำหรับส่งแจ้งเตือนพนักงาน"
+                hint="ID กลุ่ม LINE สำหรับแจ้งเตือนพนักงาน"
+              />
+              <Input
+                label="Bar Group ID (กลุ่มบาร์)"
+                value={barGroupId}
+                onChange={(e) => setBarGroupId(e.target.value)}
+                placeholder="เช่น Cxxxxxxxxxx"
+                hint="ID กลุ่ม LINE สำหรับแจ้งเตือนหัวหน้าบาร์ (ไม่บังคับ)"
               />
               <p className="text-xs text-gray-400 dark:text-gray-500">
                 ข้ามขั้นตอนนี้ได้ สามารถตั้งค่าภายหลัง
