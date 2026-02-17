@@ -21,6 +21,8 @@ import {
   Percent,
   Save,
   ChevronRight,
+  MessageCircle,
+  Loader2,
 } from 'lucide-react';
 
 interface StoreInfo {
@@ -52,6 +54,12 @@ export default function SettingsPage() {
   const [diffTolerance, setDiffTolerance] = useState('5');
   const [registrationCode, setRegistrationCode] = useState('');
 
+  // Central LINE Bot settings
+  const [centralToken, setCentralToken] = useState('');
+  const [centralGroupId, setCentralGroupId] = useState('');
+  const [centralChannelSecret, setCentralChannelSecret] = useState('');
+  const [isSavingCentral, setIsSavingCentral] = useState(false);
+
   const loadStores = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
@@ -81,10 +89,27 @@ export default function SettingsPage() {
     setIsLoading(false);
   }, [currentStoreId]);
 
+  const loadCentralSettings = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('app_settings')
+      .select('key, value')
+      .in('key', ['LINE_CENTRAL_TOKEN', 'LINE_CENTRAL_GROUP_ID', 'LINE_CENTRAL_CHANNEL_SECRET']);
+
+    if (data) {
+      for (const row of data) {
+        if (row.key === 'LINE_CENTRAL_TOKEN') setCentralToken(row.value || '');
+        if (row.key === 'LINE_CENTRAL_GROUP_ID') setCentralGroupId(row.value || '');
+        if (row.key === 'LINE_CENTRAL_CHANNEL_SECRET') setCentralChannelSecret(row.value || '');
+      }
+    }
+  }, []);
+
   useEffect(() => {
     loadStores();
     loadSettings();
-  }, [loadStores, loadSettings]);
+    loadCentralSettings();
+  }, [loadStores, loadSettings, loadCentralSettings]);
 
   const handleSaveSettings = async () => {
     if (!currentStoreId) return;
@@ -110,6 +135,28 @@ export default function SettingsPage() {
       toast({ type: 'success', title: 'บันทึกการตั้งค่าสำเร็จ' });
     }
     setIsSaving(false);
+  };
+
+  const handleSaveCentralSettings = async () => {
+    setIsSavingCentral(true);
+    const supabase = createClient();
+
+    const updates = [
+      { key: 'LINE_CENTRAL_TOKEN', value: centralToken, type: 'secret', description: 'LINE Channel Access Token สำหรับ bot กลาง' },
+      { key: 'LINE_CENTRAL_GROUP_ID', value: centralGroupId, type: 'string', description: 'LINE Group ID ของกลุ่มคลังกลาง' },
+      { key: 'LINE_CENTRAL_CHANNEL_SECRET', value: centralChannelSecret, type: 'secret', description: 'LINE Channel Secret สำหรับ verify webhook signature' },
+    ];
+
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert(updates, { onConflict: 'key' });
+
+    if (error) {
+      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: error.message });
+    } else {
+      toast({ type: 'success', title: 'บันทึกการตั้งค่า LINE Bot กลางสำเร็จ' });
+    }
+    setIsSavingCentral(false);
   };
 
   const dayLabels: Record<string, string> = {
@@ -265,6 +312,63 @@ export default function SettingsPage() {
           </Card>
         </>
       )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Central LINE Bot Settings (owner only)                              */}
+      {/* ------------------------------------------------------------------ */}
+      <Card padding="none">
+        <CardHeader
+          title="ตั้งค่า LINE Bot กลาง"
+          description="Bot กลางใช้สำหรับแจ้งเตือนคลังกลางและโอนสต๊อกระหว่างสาขา (แยกจาก LINE OA ของแต่ละสาขา)"
+          action={
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
+              <MessageCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+          }
+        />
+        <CardContent className="space-y-4">
+          <Input
+            label="LINE Channel Access Token (Bot กลาง)"
+            value={centralToken}
+            onChange={(e) => setCentralToken(e.target.value)}
+            placeholder="วาง token ที่นี่"
+            hint="ได้จาก LINE Developers Console → Messaging API → Channel access token"
+          />
+          <Input
+            label="LINE Channel Secret (Bot กลาง)"
+            value={centralChannelSecret}
+            onChange={(e) => setCentralChannelSecret(e.target.value)}
+            placeholder="วาง channel secret ที่นี่"
+            hint="ใช้ verify webhook signature — ได้จาก LINE Developers Console → Basic settings"
+          />
+          <Input
+            label="Central Group ID (กลุ่มคลังกลาง)"
+            value={centralGroupId}
+            onChange={(e) => setCentralGroupId(e.target.value)}
+            placeholder="เช่น Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            hint="Group ID ของกลุ่ม LINE สำหรับเจ้าหน้าที่คลังกลาง"
+          />
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+            <p className="text-xs text-blue-700 dark:text-blue-400">
+              <strong>หมายเหตุ:</strong> Bot กลางแยกจาก LINE OA ของแต่ละสาขา ใช้สำหรับ:
+            </p>
+            <ul className="mt-1 list-inside list-disc text-xs text-blue-600 dark:text-blue-500">
+              <li>แจ้งเตือนโอนสต๊อกเข้า/ออกคลังกลาง</li>
+              <li>แจ้งเตือนคำขอโอนจากสาขา</li>
+              <li>การสื่อสารระหว่างสาขา</li>
+            </ul>
+          </div>
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSaveCentralSettings}
+              isLoading={isSavingCentral}
+              icon={<Save className="h-4 w-4" />}
+            >
+              บันทึก LINE Bot กลาง
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
