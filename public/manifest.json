@@ -1,11 +1,11 @@
 {
-  "name": "StockManager - ระบบจัดการสต๊อกเหล้า",
+  "name": "StockManager - ระบบจัดการสต๊อกเครื่องดื่ม",
   "short_name": "StockManager",
-  "description": "ระบบจัดการสต๊อกเหล้าและฝากเหล้า สำหรับร้านเหล้าหลายสาขา",
+  "description": "ระบบจัดการสต๊อกเครื่องดื่มและฝากเหล้า สำหรับร้านอาหารและบาร์",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#1DB446",
+  "theme_color": "#4f46e5",
   "orientation": "portrait-primary",
   "lang": "th",
   "icons": [
