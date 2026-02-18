@@ -293,6 +293,7 @@ export default function UsersPage() {
               { value: 'bar', label: 'หัวหน้าบาร์ (Bar)' },
               { value: 'manager', label: 'ผู้จัดการ (Manager)' },
               { value: 'accountant', label: 'บัญชี (Accountant)' },
+              { value: 'hq', label: 'พนักงานคลังกลาง (HQ)' },
             ]}
           />
           <Select

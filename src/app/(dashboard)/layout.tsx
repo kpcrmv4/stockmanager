@@ -43,7 +43,7 @@ export default async function DashboardLayout({
 
   // ดึงข้อมูลร้านค้า
   let stores: Store[] = [];
-  if (profile.role === 'owner' || profile.role === 'accountant') {
+  if (profile.role === 'owner' || profile.role === 'accountant' || profile.role === 'hq') {
     // เจ้าของร้านและบัญชี เห็นทุกสาขา
     const { data } = await supabase
       .from('stores')

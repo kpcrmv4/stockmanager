@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth-store';
+import { useSessionRefresh } from '@/hooks/use-session-refresh';
 import { DesktopLayout } from '@/components/layout/desktop-layout';
 import { MobileLayout } from '@/components/layout/mobile-layout';
 import type { AuthUser } from '@/lib/auth/permissions';
@@ -12,7 +13,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 60 * 1000,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
     },
   },
 });
@@ -31,6 +32,9 @@ export function DashboardLayoutClient({
   useDesktop,
 }: DashboardLayoutClientProps) {
   const { setUser } = useAuthStore();
+
+  // Refresh session เมื่อกลับมาจากพับจอ/ปิดหน้าจอ
+  useSessionRefresh();
 
   // ตั้งค่าข้อมูลผู้ใช้ใน Zustand store
   useEffect(() => {

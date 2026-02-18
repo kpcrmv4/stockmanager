@@ -28,7 +28,7 @@ import {
 
 const steps = [
   { id: 1, label: 'ข้อมูลสาขา', icon: Store },
-  { id: 2, label: 'ตั้งค่า LINE', icon: MessageCircle },
+  { id: 2, label: 'กลุ่ม LINE', icon: MessageCircle },
   { id: 3, label: 'สินค้า', icon: Package },
   { id: 4, label: 'พนักงาน', icon: Users },
   { id: 5, label: 'แจ้งเตือน', icon: Bell },
@@ -46,11 +46,10 @@ export default function CreateStoreWizardPage() {
   const [storeName, setStoreName] = useState('');
   const [isCentral, setIsCentral] = useState(false);
 
-  // Step 2: LINE settings
-  const [lineToken, setLineToken] = useState('');
-  const [lineChannelId, setLineChannelId] = useState('');
-  const [staffGroupId, setStaffGroupId] = useState('');
-  const [barGroupId, setBarGroupId] = useState('');
+  // Step 2: LINE group settings
+  const [stockNotifyGroupId, setStockNotifyGroupId] = useState('');
+  const [depositNotifyGroupId, setDepositNotifyGroupId] = useState('');
+  const [barNotifyGroupId, setBarNotifyGroupId] = useState('');
 
   // Step 3: Products (placeholder)
   const [importFrom, setImportFrom] = useState('');
@@ -84,10 +83,9 @@ export default function CreateStoreWizardPage() {
       .insert({
         store_code: storeCode.trim().toUpperCase(),
         store_name: storeName.trim(),
-        line_token: lineToken || null,
-        line_channel_id: lineChannelId || null,
-        staff_group_id: staffGroupId || null,
-        bar_group_id: barGroupId || null,
+        stock_notify_group_id: stockNotifyGroupId || null,
+        deposit_notify_group_id: depositNotifyGroupId || null,
+        bar_notify_group_id: barNotifyGroupId || null,
         is_central: isCentral,
         manager_id: user.id,
         active: true,
@@ -241,33 +239,29 @@ export default function CreateStoreWizardPage() {
 
           {currentStep === 2 && (
             <>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                ตั้งค่ากลุ่ม LINE สำหรับรับแจ้งเตือนของสาขานี้ (เชิญ bot เข้ากลุ่ม → bot จะตอบ Group ID ให้คัดลอก)
+              </p>
               <Input
-                label="LINE Channel Access Token"
-                value={lineToken}
-                onChange={(e) => setLineToken(e.target.value)}
-                placeholder="วาง token ที่นี่"
-                hint="ได้จาก LINE Developers Console → Messaging API"
-              />
-              <Input
-                label="LINE Channel ID"
-                value={lineChannelId}
-                onChange={(e) => setLineChannelId(e.target.value)}
-                placeholder="เช่น Uxxxxxxxxxx"
-                hint="ใช้ระบุว่า webhook มาจากสาขาไหน"
-              />
-              <Input
-                label="Staff Group ID (กลุ่มพนักงาน)"
-                value={staffGroupId}
-                onChange={(e) => setStaffGroupId(e.target.value)}
+                label="กลุ่มแจ้งเตือนสต๊อก"
+                value={stockNotifyGroupId}
+                onChange={(e) => setStockNotifyGroupId(e.target.value)}
                 placeholder="เช่น Cxxxxxxxxxx"
-                hint="ID กลุ่ม LINE สำหรับแจ้งเตือนพนักงาน"
+                hint="กลุ่ม LINE สำหรับแจ้งเตือนนับสต๊อก, ผลต่าง, อนุมัติ"
               />
               <Input
-                label="Bar Group ID (กลุ่มบาร์)"
-                value={barGroupId}
-                onChange={(e) => setBarGroupId(e.target.value)}
+                label="กลุ่มแจ้งเตือนฝาก/เบิกเหล้า"
+                value={depositNotifyGroupId}
+                onChange={(e) => setDepositNotifyGroupId(e.target.value)}
                 placeholder="เช่น Cxxxxxxxxxx"
-                hint="ID กลุ่ม LINE สำหรับแจ้งเตือนหัวหน้าบาร์ (ไม่บังคับ)"
+                hint="กลุ่ม LINE สำหรับแจ้งเตือนพนักงานเรื่องฝาก/เบิกเหล้า"
+              />
+              <Input
+                label="กลุ่มบาร์ยืนยันรับเหล้า"
+                value={barNotifyGroupId}
+                onChange={(e) => setBarNotifyGroupId(e.target.value)}
+                placeholder="เช่น Cxxxxxxxxxx"
+                hint="กลุ่ม LINE สำหรับแจ้งเตือนหัวหน้าบาร์ (ไม่บังคับ)"
               />
               <p className="text-xs text-gray-400 dark:text-gray-500">
                 ข้ามขั้นตอนนี้ได้ สามารถตั้งค่าภายหลัง

@@ -30,6 +30,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { notifyStaff } from '@/lib/notifications/client';
 
 interface DepositRequest {
   id: string;
@@ -100,8 +102,21 @@ export default function DepositRequestsPage() {
     const supabase = createClient();
 
     if (approvalAction === 'approve') {
-      // Generate deposit code
-      const depositCode = `DEP-${String(Date.now()).slice(-5)}${Math.random().toString(36).slice(2, 4).toUpperCase()}`;
+      // Fetch store_code for deposit code format
+      const { data: storeData } = await supabase
+        .from('stores')
+        .select('store_code')
+        .eq('id', currentStoreId)
+        .single();
+      const storeCode = storeData?.store_code || 'UNKNOWN';
+
+      // Generate deposit code: DEP-{STORE_CODE}-{5 random alphanumeric}
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let randomPart = '';
+      for (let i = 0; i < 5; i++) {
+        randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      const depositCode = `DEP-${storeCode}-${randomPart}`;
 
       // Calculate expiry date (30 days from now)
       const expiryDate = new Date();
@@ -118,7 +133,7 @@ export default function DepositRequestsPage() {
         quantity: selectedRequest.quantity,
         remaining_qty: selectedRequest.quantity,
         remaining_percent: 100,
-        status: 'in_store',
+        status: 'pending_confirm',
         expiry_date: expiryDate.toISOString(),
         received_by: user.id,
         notes: approvalNotes || null,
@@ -139,7 +154,30 @@ export default function DepositRequestsPage() {
       if (updateError) {
         toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถอัปเดตสถานะได้' });
       } else {
-        toast({ type: 'success', title: 'อนุมัติคำขอสำเร็จ', message: `สร้างรายการฝาก ${depositCode}` });
+        toast({ type: 'success', title: 'อนุมัติคำขอสำเร็จ', message: `สร้างรายการฝาก ${depositCode} - รอบาร์ยืนยัน` });
+
+        // Notify bar staff about the new deposit from LIFF request
+        notifyStaff({
+          storeId: currentStoreId,
+          type: 'new_deposit',
+          title: 'มีรายการฝากเหล้าใหม่',
+          body: `${selectedRequest.customer_name} ฝาก ${selectedRequest.product_name} x${selectedRequest.quantity}`,
+          data: { deposit_code: depositCode },
+          excludeUserId: user?.id,
+        });
+
+        await logAudit({
+          store_id: currentStoreId,
+          action_type: AUDIT_ACTIONS.DEPOSIT_REQUEST_APPROVED,
+          table_name: 'deposit_requests',
+          record_id: selectedRequest.id,
+          new_value: {
+            customer_name: selectedRequest.customer_name,
+            product_name: selectedRequest.product_name,
+            deposit_code: depositCode,
+          },
+          changed_by: user?.id || null,
+        });
       }
     } else {
       // Reject
@@ -152,6 +190,14 @@ export default function DepositRequestsPage() {
         toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถปฏิเสธคำขอได้' });
       } else {
         toast({ type: 'warning', title: 'ปฏิเสธคำขอแล้ว' });
+        await logAudit({
+          store_id: currentStoreId,
+          action_type: AUDIT_ACTIONS.DEPOSIT_REQUEST_REJECTED,
+          table_name: 'deposit_requests',
+          record_id: selectedRequest.id,
+          new_value: { customer_name: selectedRequest.customer_name, reason: approvalNotes || null },
+          changed_by: user?.id || null,
+        });
       }
     }
 

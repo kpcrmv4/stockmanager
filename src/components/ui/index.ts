@@ -11,5 +11,6 @@ export { Card, CardHeader, CardContent } from './card';
 export { Badge } from './badge';
 export { Tabs } from './tabs';
 export { EmptyState } from './empty-state';
+export { PhotoUpload } from './photo-upload';
 export { toast, dismissToast, ToastContainer } from './toast';
 export type { ToastData } from './toast';

@@ -2,11 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, Bell, ChevronDown, LogOut, User, Settings } from 'lucide-react';
+import { Menu, ChevronDown, LogOut, User, Settings, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
-import { useNotificationStore } from '@/stores/notification-store';
+import { NotificationCenter } from '@/components/layout/notification-center';
 import { ROLE_LABELS } from '@/types/roles';
 import type { Store } from '@/types/database';
 
@@ -30,7 +30,6 @@ export function TopBar({
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const { currentStoreId } = useAppStore();
-  const { unreadCount } = useNotificationStore();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -91,28 +90,7 @@ export function TopBar({
       {/* ขวา: การแจ้งเตือน + User avatar */}
       <div className="flex items-center gap-2">
         {/* ปุ่มแจ้งเตือน */}
-        <button
-          type="button"
-          onClick={() => router.push('/notifications')}
-          className={cn(
-            'relative flex h-10 w-10 items-center justify-center rounded-lg',
-            'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800',
-            'transition-colors duration-150'
-          )}
-          aria-label="การแจ้งเตือน"
-        >
-          <Bell className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <span
-              className={cn(
-                'absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1',
-                'bg-red-500 text-[10px] font-bold text-white'
-              )}
-            >
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
-        </button>
+        <NotificationCenter />
 
         {/* User Avatar Dropdown */}
         <div ref={userMenuRef} className="relative">
@@ -176,6 +154,17 @@ export function TopBar({
                 >
                   <User className="h-4 w-4" />
                   <span>โปรไฟล์</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    router.push('/profile');
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <Bell className="h-4 w-4" />
+                  <span>ตั้งค่าแจ้งเตือน</span>
                 </button>
                 <button
                   type="button"

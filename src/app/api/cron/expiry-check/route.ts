@@ -81,16 +81,30 @@ export async function GET(request: NextRequest) {
 
       // Create in-app notification
       if (deposit.customer_id) {
+        const daysLeft = Math.ceil(
+          (new Date(deposit.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        );
         await supabase.from('notifications').insert({
           user_id: deposit.customer_id,
           store_id: deposit.store_id,
           title: 'เหล้าใกล้หมดอายุ',
-          body: `${deposit.product_name} (${deposit.deposit_code}) จะหมดอายุในอีก ${Math.ceil(
-            (new Date(deposit.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-          )} วัน`,
+          body: `${deposit.product_name} (${deposit.deposit_code}) จะหมดอายุในอีก ${daysLeft} วัน`,
           type: 'deposit_expiry',
           data: { deposit_id: deposit.id, deposit_code: deposit.deposit_code },
         });
+
+        // Also send PWA push if applicable
+        try {
+          const { sendPushToUser } = await import('@/lib/notifications/push');
+          await sendPushToUser(deposit.customer_id, {
+            title: 'เหล้าใกล้หมดอายุ',
+            body: `${deposit.product_name} (${deposit.deposit_code}) จะหมดอายุในอีก ${daysLeft} วัน`,
+            url: '/customer',
+            data: { deposit_id: deposit.id, type: 'deposit_expiry' },
+          });
+        } catch (pushErr) {
+          console.error('[CRON] PWA push failed:', pushErr);
+        }
       }
     }
   }
@@ -101,7 +115,21 @@ export async function GET(request: NextRequest) {
     .update({ status: 'expired' })
     .eq('status', 'in_store')
     .lte('expiry_date', new Date().toISOString())
-    .select('deposit_code');
+    .select('id, deposit_code, store_id, status');
+
+  if (expired) {
+    for (const deposit of expired) {
+      await supabase.from('audit_logs').insert({
+        store_id: deposit.store_id,
+        action_type: 'CRON_DEPOSIT_EXPIRED',
+        table_name: 'deposits',
+        record_id: deposit.id,
+        old_value: { status: 'in_store' },
+        new_value: { status: 'expired', deposit_code: deposit.deposit_code },
+        changed_by: null,
+      });
+    }
+  }
 
   return NextResponse.json({
     status: 'ok',

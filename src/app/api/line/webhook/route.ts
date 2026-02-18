@@ -7,6 +7,7 @@ import {
   createFlexMessage,
 } from '@/lib/line/messaging';
 import { approvalRequestTemplate } from '@/lib/line/flex-templates';
+import { generateCustomerUrl } from '@/lib/auth/customer-token';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,9 +30,13 @@ interface StoreInfo {
   id: string;
   store_name: string;
   line_token: string;
-  staff_group_id: string | null;
-  bar_group_id: string | null;
+  line_channel_secret: string | null;
+  deposit_notify_group_id: string | null;
+  bar_notify_group_id: string | null;
+  stock_notify_group_id: string | null;
 }
+
+type SupabaseClient = ReturnType<typeof createServiceClient>;
 
 // ---------------------------------------------------------------------------
 // Signature Verification
@@ -50,6 +55,80 @@ function verifySignature(
 }
 
 // ---------------------------------------------------------------------------
+// Store Resolution — หาสาขาจากหลายทาง
+//
+// ลำดับ:
+//   1. destination (channel_id) → multi-bot mode (แต่ละสาขามี bot แยก)
+//   2. groupId → หาจากกลุ่ม LINE ที่ตั้งค่าไว้
+//   3. lineUserId → หาจาก deposits ของลูกค้า (single-bot + 1-to-1 chat)
+// ---------------------------------------------------------------------------
+
+const STORE_SELECT =
+  'id, store_name, line_token, line_channel_secret, deposit_notify_group_id, bar_notify_group_id, stock_notify_group_id';
+
+async function resolveStore(
+  supabase: SupabaseClient,
+  destination: string,
+  event: LineEvent,
+): Promise<StoreInfo | null> {
+  // --- 1. จาก destination (channel_id ของ bot สาขา) ---
+  if (destination) {
+    const { data: store } = await supabase
+      .from('stores')
+      .select(STORE_SELECT)
+      .eq('line_channel_id', destination)
+      .eq('active', true)
+      .single();
+
+    if (store?.line_token) return store as StoreInfo;
+  }
+
+  // --- 2. จาก groupId (ข้อความส่งมาจากกลุ่ม LINE) ---
+  const groupId = event.source.groupId;
+  if (groupId) {
+    // ค้นหาสาขาที่มี group ID นี้ในคอลัมน์ใดคอลัมน์หนึ่ง
+    const { data: storeByGroup } = await supabase
+      .from('stores')
+      .select(STORE_SELECT)
+      .eq('active', true)
+      .or(
+        `stock_notify_group_id.eq.${groupId},deposit_notify_group_id.eq.${groupId},bar_notify_group_id.eq.${groupId}`,
+      )
+      .limit(1)
+      .single();
+
+    if (storeByGroup) return storeByGroup as StoreInfo;
+  }
+
+  // --- 3. จาก deposits ของลูกค้า (1-to-1 chat, single-bot mode) ---
+  const userId = event.source.userId;
+  if (userId && event.source.type === 'user') {
+    // หาสาขาที่ลูกค้ามี deposit ล่าสุด
+    const { data: recentDeposit } = await supabase
+      .from('deposits')
+      .select('store_id')
+      .eq('line_user_id', userId)
+      .in('status', ['in_store', 'pending_confirm', 'pending_withdrawal'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (recentDeposit) {
+      const { data: store } = await supabase
+        .from('stores')
+        .select(STORE_SELECT)
+        .eq('id', recentDeposit.store_id)
+        .eq('active', true)
+        .single();
+
+      if (store) return store as StoreInfo;
+    }
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // POST handler
 // ---------------------------------------------------------------------------
 
@@ -63,30 +142,24 @@ export async function POST(request: NextRequest) {
   const supabase = createServiceClient();
 
   // -----------------------------------------------------------------------
-  // 1. หาว่า webhook มาจาก bot ของสาขาไหน ตาม destination (channel_id)
+  // 1. Verify webhook signature (ใช้ channel_secret ของสาขาหรือ central)
   // -----------------------------------------------------------------------
-  let storeInfo: StoreInfo | null = null;
   let channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 
+  // ลองหา channel_secret จากสาขาก่อน (multi-bot mode)
   if (destination) {
     const { data: store } = await supabase
       .from('stores')
-      .select('id, store_name, line_token, staff_group_id, bar_group_id')
+      .select('line_channel_secret')
       .eq('line_channel_id', destination)
       .eq('active', true)
       .single();
 
-    if (store && store.line_token) {
-      storeInfo = store as StoreInfo;
-
-      // TODO: ถ้าแต่ละสาขามี channel_secret แยก ให้ lookup จาก DB
-      // ปัจจุบันใช้ env.LINE_CHANNEL_SECRET เป็น default
+    if (store?.line_channel_secret) {
+      channelSecret = store.line_channel_secret;
     }
   }
 
-  // -----------------------------------------------------------------------
-  // 2. Verify webhook signature
-  // -----------------------------------------------------------------------
   if (!channelSecret) {
     return NextResponse.json(
       { error: 'No channel secret configured' },
@@ -102,10 +175,13 @@ export async function POST(request: NextRequest) {
   }
 
   // -----------------------------------------------------------------------
-  // 3. Process events
+  // 2. Process events
   // -----------------------------------------------------------------------
   for (const event of parsed.events) {
     try {
+      // Resolve store สำหรับ event นี้
+      const storeInfo = await resolveStore(supabase, destination, event);
+
       if (event.type === 'message' && event.message?.type === 'text') {
         await handleTextMessage(supabase, event, storeInfo);
       } else if (event.type === 'postback') {
@@ -114,8 +190,24 @@ export async function POST(request: NextRequest) {
         // Bot ถูกเชิญเข้ากลุ่ม → log group ID เพื่อใช้ตั้งค่า
         console.log(
           `[LINE] Bot joined group: ${event.source.groupId} ` +
-            `(store: ${storeInfo?.store_name || 'central'})`,
+            `(store: ${storeInfo?.store_name || 'unknown — ใส่ Group ID นี้ในตั้งค่าสาขา'})`,
         );
+
+        // ตอบกลับเพื่อให้ admin เห็น group ID
+        if (event.source.groupId) {
+          const botToken =
+            storeInfo?.line_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+          await replyMessage(
+            event.replyToken!,
+            [
+              {
+                type: 'text',
+                text: `✅ Bot เข้ากลุ่มเรียบร้อย\n\n📋 Group ID:\n${event.source.groupId}\n\nกรุณาคัดลอก Group ID นี้ไปวางในตั้งค่าสาขา`,
+              },
+            ],
+            botToken,
+          );
+        }
       }
     } catch (error) {
       console.error('[LINE] Error handling event:', error);
@@ -130,7 +222,7 @@ export async function POST(request: NextRequest) {
 // ---------------------------------------------------------------------------
 
 async function handleTextMessage(
-  supabase: ReturnType<typeof createServiceClient>,
+  supabase: SupabaseClient,
   event: LineEvent,
   storeInfo: StoreInfo | null,
 ) {
@@ -139,7 +231,7 @@ async function handleTextMessage(
 
   if (!userId || !event.replyToken) return;
 
-  // token สำหรับ reply (ต้องใช้ token ของ bot ที่รับ webhook)
+  // token สำหรับ reply (ใช้ token สาขา หรือ central bot)
   const botToken =
     storeInfo?.line_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
@@ -149,7 +241,7 @@ async function handleTextMessage(
   if (/^DEP-/i.test(text)) {
     const query = supabase
       .from('deposits')
-      .select('*')
+      .select('*, store:stores(store_name)')
       .ilike('deposit_code', text);
 
     if (storeInfo) {
@@ -159,12 +251,15 @@ async function handleTextMessage(
     const { data: deposit } = await query.single();
 
     if (deposit) {
+      const rawStore = deposit.store as unknown;
+      const storeName =
+        (Array.isArray(rawStore) ? rawStore[0]?.store_name : (rawStore as { store_name: string } | null)?.store_name) || '';
       await replyMessage(
         event.replyToken,
         [
           {
             type: 'text',
-            text: `🔍 รหัส: ${deposit.deposit_code}\nสินค้า: ${deposit.product_name}\nคงเหลือ: ${deposit.remaining_qty}\nสถานะ: ${deposit.status}`,
+            text: `🔍 รหัส: ${deposit.deposit_code}\nสินค้า: ${deposit.product_name}\nคงเหลือ: ${deposit.remaining_qty}\nสถานะ: ${deposit.status}${storeName ? `\nสาขา: ${storeName}` : ''}`,
           },
         ],
         botToken,
@@ -183,53 +278,60 @@ async function handleTextMessage(
   // Pattern: ระบบฝากเหล้า / ฝากเหล้า → ข้อมูลฝากเหล้าของลูกค้า
   // -----------------------------------------------------------------------
   if (/ฝากเหล้า|ระบบฝาก/.test(text)) {
+    // Query deposits — ถ้ารู้สาขา filter ตามสาขา, ถ้าไม่รู้ดึงทุกสาขา
+    const query = supabase
+      .from('deposits')
+      .select('deposit_code, product_name, remaining_qty, status, store:stores(store_name)')
+      .eq('line_user_id', userId)
+      .in('status', ['in_store', 'pending_confirm'])
+      .order('created_at', { ascending: false })
+      .limit(10);
+
     if (storeInfo) {
-      const { data: deposits } = await supabase
-        .from('deposits')
-        .select('deposit_code, product_name, remaining_qty, status')
-        .eq('store_id', storeInfo.id)
-        .eq('line_user_id', userId)
-        .in('status', ['in_store', 'pending_confirm'])
-        .order('created_at', { ascending: false })
-        .limit(5);
+      query.eq('store_id', storeInfo.id);
+    }
 
-      if (deposits && deposits.length > 0) {
-        const list = deposits
-          .map(
-            (d) =>
-              `📦 ${d.deposit_code}\n   ${d.product_name} (เหลือ ${d.remaining_qty})`,
-          )
-          .join('\n\n');
+    const { data: deposits } = await query;
 
-        await replyMessage(
-          event.replyToken,
-          [
-            {
-              type: 'text',
-              text: `🍾 ของฝากของคุณที่ ${storeInfo.store_name}\n\n${list}\n\nพิมพ์รหัส DEP-xxxxx เพื่อดูรายละเอียดเพิ่ม`,
-            },
-          ],
-          botToken,
-        );
-      } else {
-        await replyMessage(
-          event.replyToken,
-          [
-            {
-              type: 'text',
-              text: `📋 ยังไม่มีของฝากที่ ${storeInfo.store_name}\n\nติดต่อพนักงานเพื่อฝากเหล้า`,
-            },
-          ],
-          botToken,
-        );
-      }
-    } else {
+    const portalUrl = generateCustomerUrl(userId);
+    const storeName = storeInfo?.store_name || '';
+
+    if (deposits && deposits.length > 0) {
+      const list = deposits
+        .map((d) => {
+          const raw = d.store as unknown;
+          const dStore =
+            (Array.isArray(raw) ? raw[0]?.store_name : (raw as { store_name: string } | null)?.store_name) || '';
+          const storeLabel = !storeInfo && dStore ? ` [${dStore}]` : '';
+          return `📦 ${d.deposit_code}${storeLabel}\n   ${d.product_name} (เหลือ ${d.remaining_qty})`;
+        })
+        .join('\n\n');
+
+      const header = storeName
+        ? `🍾 ของฝากของคุณที่ ${storeName}`
+        : '🍾 ของฝากของคุณ';
+
       await replyMessage(
         event.replyToken,
         [
           {
             type: 'text',
-            text: '📋 กรุณาติดต่อสาขาที่คุณต้องการฝากเหล้าโดยตรง',
+            text: `${header}\n\n${list}\n\nพิมพ์รหัส DEP-xxxxx เพื่อดูรายละเอียด\n\n🔗 ดูทั้งหมด: ${portalUrl}`,
+          },
+        ],
+        botToken,
+      );
+    } else {
+      const noDepositMsg = storeName
+        ? `📋 ยังไม่มีของฝากที่ ${storeName}`
+        : '📋 ยังไม่มีของฝาก';
+
+      await replyMessage(
+        event.replyToken,
+        [
+          {
+            type: 'text',
+            text: `${noDepositMsg}\n\nติดต่อพนักงานเพื่อฝากเหล้า\n\n🔗 เปิดหน้าลูกค้า: ${portalUrl}`,
           },
         ],
         botToken,
@@ -239,18 +341,19 @@ async function handleTextMessage(
   }
 
   // -----------------------------------------------------------------------
-  // Default: Help message
+  // Default: Help message + Customer portal link
   // -----------------------------------------------------------------------
   const storeSuffix = storeInfo
     ? `\n\n📍 สาขา: ${storeInfo.store_name}`
     : '';
+  const portalLink = generateCustomerUrl(userId);
 
   await replyMessage(
     event.replyToken,
     [
       {
         type: 'text',
-        text: `📋 StockManager\n\n• พิมพ์รหัสฝาก (DEP-xxxxx) เพื่อตรวจสอบสถานะ\n• พิมพ์ "ฝากเหล้า" เพื่อดูของฝากของคุณ\n• เปิดเว็บแอปเพื่อจัดการระบบ${storeSuffix}`,
+        text: `📋 StockManager\n\n• พิมพ์รหัสฝาก (DEP-xxxxx) เพื่อตรวจสอบสถานะ\n• พิมพ์ "ฝากเหล้า" เพื่อดูของฝากของคุณ\n\n🔗 เปิดหน้าลูกค้า: ${portalLink}${storeSuffix}`,
       },
     ],
     botToken,
@@ -262,7 +365,7 @@ async function handleTextMessage(
 // ---------------------------------------------------------------------------
 
 async function handlePostback(
-  supabase: ReturnType<typeof createServiceClient>,
+  supabase: SupabaseClient,
   event: LineEvent,
   storeInfo: StoreInfo | null,
 ) {
@@ -312,7 +415,7 @@ async function handlePostback(
 
     const { data: deposit } = await supabase
       .from('deposits')
-      .select('*')
+      .select('*, store:stores(store_name, line_token, deposit_notify_group_id)')
       .eq('id', depositId)
       .single();
 
@@ -328,6 +431,18 @@ async function handlePostback(
       });
 
       if (!error) {
+        await supabase.from('audit_logs').insert({
+          store_id: deposit.store_id,
+          action_type: 'CUSTOMER_WITHDRAWAL_REQUEST',
+          table_name: 'withdrawals',
+          new_value: {
+            customer_name: deposit.customer_name,
+            product_name: deposit.product_name,
+            line_user_id: userId,
+          },
+          changed_by: null,
+        });
+
         await replyMessage(
           event.replyToken,
           [
@@ -339,22 +454,37 @@ async function handlePostback(
           botToken,
         );
 
-        // แจ้ง staff group ของสาขา
-        if (storeInfo?.staff_group_id && storeInfo.line_token) {
+        // แจ้ง staff ของสาขา — ใช้ข้อมูลจาก deposit.store (ไม่ต้องพึ่ง storeInfo)
+        const depositStore = deposit.store as {
+          store_name: string;
+          line_token: string | null;
+          deposit_notify_group_id: string | null;
+        } | null;
+
+        const notifyGroupId =
+          storeInfo?.deposit_notify_group_id ||
+          depositStore?.deposit_notify_group_id;
+        const notifyToken =
+          storeInfo?.line_token ||
+          depositStore?.line_token ||
+          process.env.LINE_CHANNEL_ACCESS_TOKEN ||
+          '';
+        const notifyStoreName =
+          storeInfo?.store_name ||
+          depositStore?.store_name ||
+          '';
+
+        if (notifyGroupId && notifyToken) {
           const flexMsg = createFlexMessage(
             'คำขอเบิกเหล้า',
             approvalRequestTemplate(
               deposit.customer_name,
               deposit.product_name,
               'withdrawal',
-              storeInfo.store_name,
+              notifyStoreName,
             ),
           );
-          await pushToStaffGroup(
-            storeInfo.staff_group_id,
-            [flexMsg],
-            storeInfo.line_token,
-          );
+          await pushToStaffGroup(notifyGroupId, [flexMsg], notifyToken);
         }
       }
     }

@@ -18,8 +18,13 @@ export interface Store {
   store_name: string;
   line_token: string | null;
   line_channel_id: string | null;
-  staff_group_id: string | null;
-  bar_group_id: string | null;
+  line_channel_secret: string | null;
+  /** กลุ่มแจ้งเตือนสต๊อก (daily reminder, comparison, approval) */
+  stock_notify_group_id: string | null;
+  /** กลุ่มแจ้งเตือนฝาก/เบิกเหล้า (staff) */
+  deposit_notify_group_id: string | null;
+  /** กลุ่มบาร์ยืนยันรับเหล้า (bar confirm) */
+  bar_notify_group_id: string | null;
   manager_id: string | null;
   is_central: boolean;
   active: boolean;
@@ -134,7 +139,14 @@ export interface Deposit {
   expiry_date: string | null;
   received_by: string | null;
   notes: string | null;
+  /** backward compat — รูปหลัก (ImgBB URL เดิม หรือ Supabase URL ใหม่) */
   photo_url: string | null;
+  /** รูปที่ลูกค้าถ่ายส่งมาตอนฝาก (ผ่าน LIFF) */
+  customer_photo_url: string | null;
+  /** รูปที่ Staff ถ่ายตอนรับของเข้าร้าน */
+  received_photo_url: string | null;
+  /** รูปที่ Bar ถ่ายตอนยืนยัน */
+  confirm_photo_url: string | null;
   created_at: string;
 }
 
@@ -153,6 +165,7 @@ export interface Withdrawal {
   status: WithdrawalStatus;
   processed_by: string | null;
   notes: string | null;
+  photo_url: string | null;
   created_at: string;
 }
 
@@ -164,6 +177,8 @@ export interface DepositRequest {
   customer_phone: string | null;
   product_name: string | null;
   quantity: number | null;
+  table_number: string | null;
+  customer_photo_url: string | null;
   notes: string | null;
   status: string;
   created_at: string;
@@ -182,7 +197,69 @@ export interface Transfer {
   requested_by: string | null;
   confirmed_by: string | null;
   notes: string | null;
+  photo_url: string | null;
+  confirm_photo_url: string | null;
   created_at: string;
+}
+
+export type HqDepositStatus = 'awaiting_withdrawal' | 'withdrawn';
+
+export interface HqDeposit {
+  id: string;
+  transfer_id: string | null;
+  deposit_id: string | null;
+  from_store_id: string | null;
+  product_name: string | null;
+  customer_name: string | null;
+  deposit_code: string | null;
+  category: string | null;
+  quantity: number | null;
+  status: HqDepositStatus;
+  received_by: string | null;
+  received_photo_url: string | null;
+  received_at: string;
+  withdrawn_by: string | null;
+  withdrawal_notes: string | null;
+  withdrawn_at: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export type BorrowStatus = 'pending_approval' | 'approved' | 'pos_adjusting' | 'completed' | 'rejected';
+
+export interface Borrow {
+  id: string;
+  from_store_id: string;
+  to_store_id: string;
+  requested_by: string | null;
+  status: BorrowStatus;
+  notes: string | null;
+  borrower_photo_url: string | null;
+  lender_photo_url: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  borrower_pos_confirmed: boolean;
+  lender_pos_confirmed: boolean;
+  borrower_pos_confirmed_by: string | null;
+  borrower_pos_confirmed_at: string | null;
+  lender_pos_confirmed_by: string | null;
+  lender_pos_confirmed_at: string | null;
+  rejected_by: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BorrowItem {
+  id: string;
+  borrow_id: string;
+  product_name: string;
+  category: string | null;
+  quantity: number;
+  unit: string | null;
+  notes: string | null;
 }
 
 export interface StoreSettings {
@@ -199,6 +276,12 @@ export interface StoreSettings {
   customer_notify_deposit_enabled: boolean;
   customer_notify_promotion_enabled: boolean;
   customer_notify_channels: string[];
+  /** เปิด/ปิดการส่งแจ้งเตือนผ่าน LINE ทั้งหมดของสาขา */
+  line_notify_enabled: boolean;
+  /** เปิด/ปิดเตือนนับสต๊อกประจำวัน (Cron Job 1) */
+  daily_reminder_enabled: boolean;
+  /** เปิด/ปิดติดตามรายการค้าง (Cron Job 3) */
+  follow_up_enabled: boolean;
 }
 
 export interface Notification {

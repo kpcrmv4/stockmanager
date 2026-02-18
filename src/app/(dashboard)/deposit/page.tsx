@@ -48,6 +48,9 @@ interface Deposit {
   received_by: string | null;
   notes: string | null;
   photo_url: string | null;
+  customer_photo_url: string | null;
+  received_photo_url: string | null;
+  confirm_photo_url: string | null;
   created_at: string;
 }
 

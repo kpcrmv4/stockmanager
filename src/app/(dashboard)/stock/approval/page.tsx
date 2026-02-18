@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { Button, Input, Badge, Card, CardHeader, Tabs, EmptyState, toast } from '@/components/ui';
 import { formatThaiDate, formatNumber, formatPercent } from '@/lib/utils/format';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { sendNotification } from '@/lib/notifications/client';
 import type { Comparison } from '@/types/database';
 import {
   ArrowLeft,
@@ -134,6 +136,16 @@ export default function ApprovalPage() {
 
       if (error) throw error;
 
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.STOCK_APPROVED,
+        table_name: 'comparisons',
+        record_id: comparisonId,
+        old_value: { status: 'explained' },
+        new_value: { status: 'approved', owner_notes: ownerNotes[comparisonId]?.trim() || null },
+        changed_by: user?.id || null,
+      });
+
       setComparisons((prev) =>
         prev.map((c) =>
           c.id === comparisonId
@@ -153,6 +165,23 @@ export default function ApprovalPage() {
         title: 'อนุมัติสำเร็จ',
         message: 'อนุมัติคำชี้แจงเรียบร้อย',
       });
+
+      // Notify the staff who submitted the explanation
+      const comparison = comparisons.find((c) => c.id === comparisonId);
+      if (comparison?.explained_by) {
+        sendNotification({
+          userId: comparison.explained_by,
+          storeId: currentStoreId!,
+          type: 'approval_result',
+          title: 'คำชี้แจงได้รับการอนุมัติ',
+          body: `${comparison.product_name} - อนุมัติแล้ว`,
+          data: {
+            comparison_id: comparisonId,
+            result: 'approved',
+            url: '/stock/explanation',
+          },
+        });
+      }
     } catch (error) {
       console.error('Error approving:', error);
       toast({
@@ -192,6 +221,16 @@ export default function ApprovalPage() {
 
       if (error) throw error;
 
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.STOCK_REJECTED,
+        table_name: 'comparisons',
+        record_id: comparisonId,
+        old_value: { status: 'explained' },
+        new_value: { status: 'rejected', owner_notes: ownerNotes[comparisonId]?.trim() || null },
+        changed_by: user?.id || null,
+      });
+
       setComparisons((prev) =>
         prev.map((c) =>
           c.id === comparisonId
@@ -211,6 +250,24 @@ export default function ApprovalPage() {
         title: 'ปฏิเสธสำเร็จ',
         message: 'ปฏิเสธคำชี้แจงเรียบร้อย',
       });
+
+      // Notify the staff who submitted the explanation
+      const comparison = comparisons.find((c) => c.id === comparisonId);
+      if (comparison?.explained_by) {
+        sendNotification({
+          userId: comparison.explained_by,
+          storeId: currentStoreId!,
+          type: 'approval_result',
+          title: 'คำชี้แจงถูกปฏิเสธ',
+          body: `${comparison.product_name} - กรุณาชี้แจงใหม่`,
+          data: {
+            comparison_id: comparisonId,
+            result: 'rejected',
+            owner_notes: notes,
+            url: '/stock/explanation',
+          },
+        });
+      }
     } catch (error) {
       console.error('Error rejecting:', error);
       toast({
@@ -271,6 +328,14 @@ export default function ApprovalPage() {
 
       await Promise.all(updates);
 
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.STOCK_BATCH_APPROVED,
+        table_name: 'comparisons',
+        new_value: { count: selectedIds.size, status: 'approved' },
+        changed_by: user?.id || null,
+      });
+
       setComparisons((prev) =>
         prev.map((c) =>
           selectedIds.has(c.id)
@@ -289,6 +354,29 @@ export default function ApprovalPage() {
         type: 'success',
         title: 'อนุมัติสำเร็จ',
         message: `อนุมัติ ${selectedIds.size} รายการเรียบร้อย`,
+      });
+
+      // Notify each unique staff member who submitted explanations
+      const approvedItems = comparisons.filter((c) => selectedIds.has(c.id));
+      const staffToNotify = new Map<string, number>();
+      approvedItems.forEach((c) => {
+        if (c.explained_by) {
+          staffToNotify.set(c.explained_by, (staffToNotify.get(c.explained_by) || 0) + 1);
+        }
+      });
+      staffToNotify.forEach((count, staffId) => {
+        sendNotification({
+          userId: staffId,
+          storeId: currentStoreId!,
+          type: 'approval_result',
+          title: 'คำชี้แจงได้รับการอนุมัติ',
+          body: `อนุมัติ ${count} รายการเรียบร้อย`,
+          data: {
+            result: 'approved',
+            count,
+            url: '/stock/explanation',
+          },
+        });
       });
 
       setSelectedIds(new Set());
@@ -332,6 +420,14 @@ export default function ApprovalPage() {
 
       await Promise.all(updates);
 
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.STOCK_BATCH_REJECTED,
+        table_name: 'comparisons',
+        new_value: { count: selectedIds.size, status: 'rejected' },
+        changed_by: user?.id || null,
+      });
+
       setComparisons((prev) =>
         prev.map((c) =>
           selectedIds.has(c.id)
@@ -350,6 +446,29 @@ export default function ApprovalPage() {
         type: 'success',
         title: 'ปฏิเสธสำเร็จ',
         message: `ปฏิเสธ ${selectedIds.size} รายการเรียบร้อย`,
+      });
+
+      // Notify each unique staff member whose explanations were rejected
+      const rejectedItems = comparisons.filter((c) => selectedIds.has(c.id));
+      const staffToNotify = new Map<string, number>();
+      rejectedItems.forEach((c) => {
+        if (c.explained_by) {
+          staffToNotify.set(c.explained_by, (staffToNotify.get(c.explained_by) || 0) + 1);
+        }
+      });
+      staffToNotify.forEach((count, staffId) => {
+        sendNotification({
+          userId: staffId,
+          storeId: currentStoreId!,
+          type: 'approval_result',
+          title: 'คำชี้แจงถูกปฏิเสธ',
+          body: `ปฏิเสธ ${count} รายการ - กรุณาชี้แจงใหม่`,
+          data: {
+            result: 'rejected',
+            count,
+            url: '/stock/explanation',
+          },
+        });
       });
 
       setSelectedIds(new Set());

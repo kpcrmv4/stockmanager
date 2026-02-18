@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   const { data: pendingComparisons } = await supabase
     .from('comparisons')
-    .select('*, store:stores(store_name, line_token, staff_group_id)')
+    .select('*, store:stores(store_name, line_token, stock_notify_group_id, settings:store_settings(line_notify_enabled, follow_up_enabled))')
     .eq('status', 'pending')
     .lt('created_at', fourHoursAgo.toISOString());
 
@@ -32,15 +32,31 @@ export async function GET(request: NextRequest) {
     }
 
     for (const [, comps] of byStore) {
-      const store = comps[0]?.store as { store_name: string; line_token: string; staff_group_id: string } | null;
-      if (!store?.staff_group_id || !store?.line_token) continue;
+      const store = comps[0]?.store as { store_name: string; line_token: string | null; stock_notify_group_id: string | null; settings: { line_notify_enabled: boolean; follow_up_enabled: boolean } | { line_notify_enabled: boolean; follow_up_enabled: boolean }[] | null } | null;
+      if (!store?.stock_notify_group_id) continue;
+
+      // Check settings
+      const storeSettings = Array.isArray(store.settings) ? store.settings[0] : store.settings;
+      if (storeSettings?.line_notify_enabled === false) continue;
+      if (storeSettings?.follow_up_enabled === false) continue;
+
+      // ใช้ token ของสาขาถ้ามี, ถ้าไม่มีจะ fall back เป็น central token
+      const token = store.line_token || undefined;
 
       try {
         const message = {
           type: 'text' as const,
           text: `📋 ติดตามผล: มีรายการผลต่างสต๊อก ${comps.length} รายการ ที่ยังไม่มีคำอธิบาย\n\nกรุณาเข้าระบบเพื่ออธิบายผลต่าง`,
         };
-        await pushMessage(store.staff_group_id, [message], { token: store.line_token });
+        await pushMessage(store.stock_notify_group_id, [message], { token });
+
+        await supabase.from('audit_logs').insert({
+          store_id: comps[0].store_id,
+          action_type: 'CRON_FOLLOW_UP_SENT',
+          table_name: 'comparisons',
+          new_value: { store_name: store.store_name, type: 'comparison', count: comps.length },
+          changed_by: null,
+        });
 
         for (const comp of comps) {
           results.push({ comp_id: comp.id, sent: true });
@@ -59,7 +75,7 @@ export async function GET(request: NextRequest) {
 
   const { data: pendingWithdrawals } = await supabase
     .from('withdrawals')
-    .select('*, store:stores(store_name, line_token, staff_group_id)')
+    .select('*, store:stores(store_name, line_token, deposit_notify_group_id, settings:store_settings(line_notify_enabled, follow_up_enabled))')
     .eq('status', 'pending')
     .lt('created_at', twoHoursAgo.toISOString());
 
@@ -73,15 +89,32 @@ export async function GET(request: NextRequest) {
     }
 
     for (const [, withdrawals] of byStore) {
-      const store = withdrawals[0]?.store as { store_name: string; line_token: string; staff_group_id: string } | null;
-      if (!store?.staff_group_id || !store?.line_token) continue;
+      const store = withdrawals[0]?.store as { store_name: string; line_token: string | null; deposit_notify_group_id: string | null; settings: { line_notify_enabled: boolean; follow_up_enabled: boolean } | { line_notify_enabled: boolean; follow_up_enabled: boolean }[] | null } | null;
+      if (!store?.deposit_notify_group_id) continue;
+
+      // Check settings
+      const wStoreSettings = Array.isArray(store.settings) ? store.settings[0] : store.settings;
+      if (wStoreSettings?.line_notify_enabled === false) continue;
+      if (wStoreSettings?.follow_up_enabled === false) continue;
+
+      // ใช้ token ของสาขาถ้ามี, ถ้าไม่มีจะ fall back เป็น central token
+      const token = store.line_token || undefined;
 
       try {
         const message = {
           type: 'text' as const,
           text: `🍷 ติดตามผล: มีคำขอเบิกเหล้า ${withdrawals.length} รายการ ที่รอดำเนินการ\n\nกรุณาเข้าระบบเพื่อดำเนินการ`,
         };
-        await pushMessage(store.staff_group_id, [message], { token: store.line_token });
+        await pushMessage(store.deposit_notify_group_id, [message], { token });
+
+        await supabase.from('audit_logs').insert({
+          store_id: withdrawals[0].store_id,
+          action_type: 'CRON_FOLLOW_UP_SENT',
+          table_name: 'withdrawals',
+          new_value: { store_name: store.store_name, type: 'withdrawal', count: withdrawals.length },
+          changed_by: null,
+        });
+
         withdrawalNotified += withdrawals.length;
       } catch {
         // Ignore send errors

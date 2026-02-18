@@ -16,6 +16,7 @@ import {
   Input,
   Textarea,
   toast,
+  PhotoUpload,
 } from '@/components/ui';
 import { formatThaiDateTime, formatNumber } from '@/lib/utils/format';
 import { WITHDRAWAL_STATUS_LABELS } from '@/lib/utils/constants';
@@ -32,6 +33,8 @@ import {
   Wine,
 } from 'lucide-react';
 import Link from 'next/link';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { notifyStaff } from '@/lib/notifications/client';
 
 interface Withdrawal {
   id: string;
@@ -46,6 +49,7 @@ interface Withdrawal {
   status: string;
   processed_by: string | null;
   notes: string | null;
+  photo_url: string | null;
   created_at: string;
 }
 
@@ -76,6 +80,7 @@ export default function WithdrawalsPage() {
   const [actualQty, setActualQty] = useState('');
   const [processNotes, setProcessNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [withdrawalPhotoUrl, setWithdrawalPhotoUrl] = useState<string | null>(null);
 
   const loadWithdrawals = useCallback(async () => {
     if (!currentStoreId) return;
@@ -115,6 +120,7 @@ export default function WithdrawalsPage() {
     setProcessAction(action);
     setActualQty(action === 'complete' ? String(withdrawal.requested_qty) : '');
     setProcessNotes('');
+    setWithdrawalPhotoUrl(null);
     setShowProcessModal(true);
   };
 
@@ -139,6 +145,7 @@ export default function WithdrawalsPage() {
           actual_qty: qty,
           processed_by: user.id,
           notes: processNotes || null,
+          photo_url: withdrawalPhotoUrl,
         })
         .eq('id', selectedWithdrawal.id);
 
@@ -171,6 +178,29 @@ export default function WithdrawalsPage() {
       }
 
       toast({ type: 'success', title: 'เบิกเหล้าสำเร็จ', message: `เบิก ${qty} หน่วย` });
+
+      // Notify bar staff about the completed withdrawal
+      notifyStaff({
+        storeId: currentStoreId!,
+        type: 'withdrawal_request',
+        title: 'มีคำขอเบิกเหล้า',
+        body: `${selectedWithdrawal.customer_name} ขอเบิก ${selectedWithdrawal.product_name} x${qty}`,
+        data: { withdrawal_id: selectedWithdrawal.id },
+        excludeUserId: user?.id,
+      });
+
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.WITHDRAWAL_COMPLETED,
+        table_name: 'withdrawals',
+        record_id: selectedWithdrawal.id,
+        new_value: {
+          customer_name: selectedWithdrawal.customer_name,
+          product_name: selectedWithdrawal.product_name,
+          actual_qty: qty,
+        },
+        changed_by: user?.id || null,
+      });
     } else {
       // Reject withdrawal
       const { error } = await supabase
@@ -196,6 +226,18 @@ export default function WithdrawalsPage() {
         .eq('status', 'pending_withdrawal');
 
       toast({ type: 'warning', title: 'ปฏิเสธรายการเบิกเหล้าแล้ว' });
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.WITHDRAWAL_REJECTED,
+        table_name: 'withdrawals',
+        record_id: selectedWithdrawal.id,
+        new_value: {
+          customer_name: selectedWithdrawal.customer_name,
+          product_name: selectedWithdrawal.product_name,
+          reason: processNotes || null,
+        },
+        changed_by: user?.id || null,
+      });
     }
 
     setIsSubmitting(false);
@@ -350,6 +392,16 @@ export default function WithdrawalsPage() {
                     </div>
                   </div>
 
+                  {withdrawal.photo_url && (
+                    <div className="mb-3">
+                      <img
+                        src={withdrawal.photo_url}
+                        alt="รูปถ่ายเบิกเหล้า"
+                        className="h-20 w-20 rounded-lg object-cover"
+                      />
+                    </div>
+                  )}
+
                   {withdrawal.notes && (
                     <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
                       หมายเหตุ: {withdrawal.notes}
@@ -433,20 +485,13 @@ export default function WithdrawalsPage() {
                 hint="ระบุจำนวนที่เบิกให้ลูกค้าจริง"
               />
 
-              {/* Photo Upload Placeholder */}
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  ถ่ายรูปประกอบ (ไม่บังคับ)
-                </label>
-                <div className="flex h-32 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 transition-colors hover:border-indigo-400 hover:bg-indigo-50/50 dark:border-gray-600 dark:hover:border-indigo-500 dark:hover:bg-indigo-900/10">
-                  <div className="text-center">
-                    <Camera className="mx-auto h-8 w-8 text-gray-400" />
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      แตะเพื่อถ่ายรูปหรือเลือกรูป
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <PhotoUpload
+                value={withdrawalPhotoUrl}
+                onChange={(url) => setWithdrawalPhotoUrl(url)}
+                folder="withdrawals"
+                label="ถ่ายรูปประกอบ (ไม่บังคับ)"
+                compact={true}
+              />
             </>
           )}
 

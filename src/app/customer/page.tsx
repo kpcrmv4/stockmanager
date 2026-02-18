@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import liff from '@line/liff';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useCustomerAuth } from './_components/customer-provider';
 import { cn } from '@/lib/utils/cn';
 import { DEPOSIT_STATUS_LABELS } from '@/lib/utils/constants';
 import { formatThaiDate, formatPercent, daysUntil } from '@/lib/utils/format';
@@ -12,7 +13,6 @@ import {
   Package,
   Loader2,
   AlertCircle,
-  ChevronRight,
   QrCode,
 } from 'lucide-react';
 
@@ -21,104 +21,155 @@ interface DepositItem {
   code: string;
   productName: string;
   remainingPercent: number;
-  expiryDate: string;
+  remainingQty: number;
+  expiryDate: string | null;
   status: string;
   storeName: string;
   depositDate: string;
 }
 
-// Placeholder data — replace with real API calls
-const mockDeposits: DepositItem[] = [
-  {
-    id: '1',
-    code: 'DEP-20250218-001',
-    productName: 'Johnnie Walker Black Label',
-    remainingPercent: 60,
-    expiryDate: '2025-05-18',
-    status: 'in_store',
-    storeName: 'ร้านสาขา 1 สุขุมวิท',
-    depositDate: '2025-02-01',
-  },
-  {
-    id: '2',
-    code: 'DEP-20250210-002',
-    productName: 'Chivas Regal 18',
-    remainingPercent: 35,
-    expiryDate: '2025-04-10',
-    status: 'in_store',
-    storeName: 'ร้านสาขา 1 สุขุมวิท',
-    depositDate: '2025-01-10',
-  },
-  {
-    id: '3',
-    code: 'DEP-20250215-003',
-    productName: 'Hennessy VSOP',
-    remainingPercent: 80,
-    expiryDate: '2025-06-15',
-    status: 'pending_withdrawal',
-    storeName: 'ร้านสาขา 2 ทองหล่อ',
-    depositDate: '2025-02-15',
-  },
-];
-
-const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || '';
-
 export default function CustomerPage() {
-  const [isLiffReady, setIsLiffReady] = useState(false);
+  const { lineUserId, displayName, mode, isLoading: authLoading, error: authError } = useCustomerAuth();
+  const searchParams = useSearchParams();
+
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [deposits, setDeposits] = useState<DepositItem[]>(mockDeposits);
+  const [deposits, setDeposits] = useState<DepositItem[]>([]);
   const [requestingId, setRequestingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // ------------------------------------------------------------------
+  // Auth credentials สำหรับเรียก API
+  // ------------------------------------------------------------------
+
+  const getAuthPayload = useCallback(() => {
+    if (mode === 'token') {
+      const token = searchParams.get('token');
+      return { token };
+    }
+    // LIFF mode: ใช้ cached access token
+    return { accessToken: sessionStorage.getItem('liff_access_token') };
+  }, [mode, searchParams]);
+
+  // ------------------------------------------------------------------
+  // Load deposits (ทั้ง 2 mode ใช้ server API เหมือนกัน)
+  // ------------------------------------------------------------------
+
+  const loadDeposits = useCallback(async () => {
+    if (!lineUserId) return;
+    setIsLoading(true);
+
+    try {
+      const auth = getAuthPayload();
+      let res: Response;
+
+      if (auth.token) {
+        // Token mode: GET with token param
+        res = await fetch(`/api/customer/deposits?token=${encodeURIComponent(auth.token)}`);
+      } else if (auth.accessToken) {
+        // LIFF mode: POST with access token
+        res = await fetch('/api/customer/deposits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken: auth.accessToken }),
+        });
+      } else {
+        setError('ไม่สามารถโหลดข้อมูลได้');
+        setIsLoading(false);
+        return;
+      }
+
+      if (res.ok) {
+        const data = await res.json();
+        setDeposits(mapDeposits(data.deposits));
+      } else {
+        setError('ไม่สามารถโหลดข้อมูลได้');
+      }
+    } catch {
+      setError('ไม่สามารถโหลดข้อมูลได้');
+    }
+
+    setIsLoading(false);
+  }, [lineUserId, getAuthPayload]);
 
   useEffect(() => {
-    const initLiff = async () => {
-      try {
-        if (LIFF_ID) {
-          await liff.init({ liffId: LIFF_ID });
-          setIsLiffReady(true);
+    if (lineUserId) {
+      loadDeposits();
+    } else if (!authLoading) {
+      setIsLoading(false);
+    }
+  }, [lineUserId, authLoading, loadDeposits]);
 
-          if (!liff.isLoggedIn()) {
-            liff.login();
-            return;
-          }
-        }
-        // TODO: Fetch real deposit data from API
-        setIsLoading(false);
-      } catch (err) {
-        console.error('LIFF init error:', err);
-        setError('ไม่สามารถเชื่อมต่อ LINE ได้ กรุณาลองใหม่อีกครั้ง');
-        setIsLoading(false);
-      }
-    };
+  // ------------------------------------------------------------------
+  // Map raw deposit data to DepositItem
+  // ------------------------------------------------------------------
 
-    initLiff();
-  }, []);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function mapDeposits(raw: any[]): DepositItem[] {
+    return raw.map((d) => ({
+      id: d.id,
+      code: d.deposit_code,
+      productName: d.product_name,
+      remainingPercent: d.remaining_percent ?? 0,
+      remainingQty: d.remaining_qty ?? 0,
+      expiryDate: d.expiry_date,
+      status: d.status,
+      storeName: d.store?.store_name || '',
+      depositDate: d.created_at,
+    }));
+  }
 
-  const filteredDeposits = deposits.filter(
-    (d) =>
-      d.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.productName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // ------------------------------------------------------------------
+  // Request withdrawal (ใช้ server API — ทั้ง token และ LIFF mode)
+  // ------------------------------------------------------------------
 
-  const handleRequestWithdrawal = async (depositId: string) => {
-    setRequestingId(depositId);
+  const handleRequestWithdrawal = async (deposit: DepositItem) => {
+    setRequestingId(deposit.id);
+    setError(null);
+
     try {
-      // TODO: Call API to request withdrawal
-      await new Promise((r) => setTimeout(r, 1500));
+      const auth = getAuthPayload();
+      const res = await fetch('/api/customer/withdrawal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          depositId: deposit.id,
+          customerName: displayName || 'ลูกค้า',
+          token: auth.token || undefined,
+          accessToken: auth.accessToken || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Request failed');
+      }
+
+      // อัพเดท UI
       setDeposits((prev) =>
         prev.map((d) =>
-          d.id === depositId ? { ...d, status: 'pending_withdrawal' } : d
-        )
+          d.id === deposit.id ? { ...d, status: 'pending_withdrawal' } : d,
+        ),
       );
     } catch {
-      setError('ไม่สามารถส่งคำขอเบิกได้ กรุณาลองใหม่อีกครั้ง');
+      setError('ไม่สามารถส่งคำขอเบิกได้ กรุณาลองใหม่');
     } finally {
       setRequestingId(null);
     }
   };
 
-  const getExpiryColor = (expiryDate: string) => {
+  // ------------------------------------------------------------------
+  // UI Helpers
+  // ------------------------------------------------------------------
+
+  const filteredDeposits = deposits.filter(
+    (d) =>
+      d.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.productName.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  const getExpiryColor = (expiryDate: string | null) => {
+    if (!expiryDate) return 'text-gray-500';
     const days = daysUntil(expiryDate);
     if (days <= 0) return 'text-red-600';
     if (days <= 7) return 'text-red-500';
@@ -126,7 +177,8 @@ export default function CustomerPage() {
     return 'text-gray-500';
   };
 
-  const getExpiryText = (expiryDate: string) => {
+  const getExpiryText = (expiryDate: string | null) => {
+    if (!expiryDate) return 'ไม่มีกำหนด';
     const days = daysUntil(expiryDate);
     if (days <= 0) return 'หมดอายุแล้ว';
     if (days === 1) return 'หมดอายุพรุ่งนี้';
@@ -139,9 +191,13 @@ export default function CustomerPage() {
     return 'bg-red-400';
   };
 
-  if (isLoading) {
+  // ------------------------------------------------------------------
+  // Loading / Error states
+  // ------------------------------------------------------------------
+
+  if (authLoading || isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#EDEDED]">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-[#06C755]" />
           <p className="text-sm text-gray-500">กำลังโหลด...</p>
@@ -150,12 +206,12 @@ export default function CustomerPage() {
     );
   }
 
-  if (error && !deposits.length) {
+  if (authError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#EDEDED] px-6">
+      <div className="flex min-h-[60vh] items-center justify-center px-6">
         <div className="flex flex-col items-center gap-3 text-center">
           <AlertCircle className="h-12 w-12 text-red-400" />
-          <p className="text-sm text-gray-600">{error}</p>
+          <p className="text-sm text-gray-600">{authError}</p>
           <button
             onClick={() => window.location.reload()}
             className="rounded-full bg-[#06C755] px-6 py-2 text-sm font-medium text-white"
@@ -167,13 +223,19 @@ export default function CustomerPage() {
     );
   }
 
+  // ------------------------------------------------------------------
+  // Render
+  // ------------------------------------------------------------------
+
   return (
     <div className="min-h-screen bg-[#EDEDED]">
       {/* Header — LINE green theme */}
       <div className="bg-[#06C755] px-4 pb-6 pt-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-white">เหล้าฝากของฉัน</h1>
+            <h1 className="text-lg font-bold text-white">
+              {displayName ? `สวัสดี ${displayName}` : 'เหล้าฝากของฉัน'}
+            </h1>
             <p className="text-sm text-white/80">
               {filteredDeposits.length} รายการที่ใช้งาน
             </p>
@@ -244,7 +306,7 @@ export default function CustomerPage() {
                         deposit.status === 'expired' &&
                           'bg-red-50 text-red-700',
                         deposit.status === 'pending_confirm' &&
-                          'bg-gray-100 text-gray-600'
+                          'bg-gray-100 text-gray-600',
                       )}
                     >
                       {DEPOSIT_STATUS_LABELS[deposit.status] || deposit.status}
@@ -270,7 +332,7 @@ export default function CustomerPage() {
                       <div
                         className={cn(
                           'h-full rounded-full transition-all',
-                          getRemainingBarColor(deposit.remainingPercent)
+                          getRemainingBarColor(deposit.remainingPercent),
                         )}
                         style={{
                           width: `${deposit.remainingPercent}%`,
@@ -287,12 +349,16 @@ export default function CustomerPage() {
                         หมดอายุ
                       </span>
                       <span className={getExpiryColor(deposit.expiryDate)}>
-                        {formatThaiDate(deposit.expiryDate)} ({getExpiryText(deposit.expiryDate)})
+                        {deposit.expiryDate
+                          ? `${formatThaiDate(deposit.expiryDate)} (${getExpiryText(deposit.expiryDate)})`
+                          : 'ไม่มีกำหนด'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400">ร้าน</span>
-                      <span className="text-gray-700">{deposit.storeName}</span>
+                      <span className="text-gray-700">
+                        {deposit.storeName}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400">วันที่ฝาก</span>
@@ -317,13 +383,13 @@ export default function CustomerPage() {
                     </div>
                   ) : (
                     <button
-                      onClick={() => handleRequestWithdrawal(deposit.id)}
+                      onClick={() => handleRequestWithdrawal(deposit)}
                       disabled={!canWithdraw}
                       className={cn(
                         'flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold transition-colors',
                         canWithdraw
                           ? 'bg-[#06C755] text-white active:bg-[#05a849]'
-                          : 'bg-gray-100 text-gray-400'
+                          : 'bg-gray-100 text-gray-400',
                       )}
                     >
                       {isRequesting ? (
@@ -341,7 +407,6 @@ export default function CustomerPage() {
         )}
       </div>
 
-      {/* Bottom Padding for mobile safe area */}
       <div className="h-8" />
     </div>
   );

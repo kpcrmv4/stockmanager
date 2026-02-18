@@ -27,6 +27,7 @@ import {
   Phone,
   Package,
   Calendar,
+  CalendarPlus,
   Clock,
   Hash,
   MapPin,
@@ -39,7 +40,9 @@ import {
   History,
   Printer,
   Tag,
+  Image as ImageIcon,
 } from 'lucide-react';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import type { ReceiptSettings } from '@/types/database';
 
 interface Deposit {
@@ -61,6 +64,9 @@ interface Deposit {
   received_by: string | null;
   notes: string | null;
   photo_url: string | null;
+  customer_photo_url: string | null;
+  received_photo_url: string | null;
+  confirm_photo_url: string | null;
   created_at: string;
 }
 
@@ -125,6 +131,10 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   // Transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferNotes, setTransferNotes] = useState('');
+
+  // Extend expiry modal
+  const [showExtendExpiryModal, setShowExtendExpiryModal] = useState(false);
+  const [extendDays, setExtendDays] = useState('30');
 
   // Print state
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
@@ -279,6 +289,52 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     refreshDeposit();
   };
 
+  const handleExtendExpiry = async () => {
+    if (!user || !currentStoreId) return;
+    const days = parseInt(extendDays);
+    if (isNaN(days) || days <= 0) {
+      toast({ type: 'error', title: 'กรุณาระบุจำนวนวันที่ถูกต้อง' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    const supabase = createClient();
+
+    const oldExpiryDate = deposit.expiry_date;
+    const baseDate = oldExpiryDate ? new Date(oldExpiryDate) : new Date();
+    const newExpiryDate = new Date(baseDate);
+    newExpiryDate.setDate(newExpiryDate.getDate() + days);
+
+    const { error } = await supabase
+      .from('deposits')
+      .update({ expiry_date: newExpiryDate.toISOString() })
+      .eq('id', deposit.id);
+
+    if (error) {
+      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถขยายวันหมดอายุได้' });
+    } else {
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.DEPOSIT_STATUS_CHANGED,
+        table_name: 'deposits',
+        record_id: deposit.id,
+        old_value: { expiry_date: oldExpiryDate },
+        new_value: { expiry_date: newExpiryDate.toISOString(), extended_days: days },
+        changed_by: user?.id || null,
+      });
+      toast({
+        type: 'success',
+        title: 'ขยายวันหมดอายุสำเร็จ',
+        message: `ขยายเพิ่ม ${days} วัน`,
+      });
+    }
+
+    setShowExtendExpiryModal(false);
+    setExtendDays('30');
+    setIsSubmitting(false);
+    refreshDeposit();
+  };
+
   // --- Print handlers ---
   const handlePrint = async (jobType: 'receipt' | 'label') => {
     if (!user || !currentStoreId) return;
@@ -327,6 +383,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   const canWithdraw = deposit.status === 'in_store' && deposit.remaining_qty > 0;
   const canMarkExpired = deposit.status === 'in_store' || deposit.status === 'pending_confirm';
   const canTransfer = deposit.status === 'in_store';
+  const canExtendExpiry = deposit.status === 'in_store';
 
   return (
     <div className="space-y-6">
@@ -369,6 +426,65 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             รายการนี้จะหมดอายุใน {expiryDays} วัน กรุณาแจ้งลูกค้า
           </p>
         </div>
+      )}
+
+      {/* Photo Gallery */}
+      {(deposit.customer_photo_url || deposit.received_photo_url || deposit.confirm_photo_url || deposit.photo_url) && (
+        <Card padding="none">
+          <CardHeader title="รูปถ่าย" />
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {deposit.customer_photo_url && (
+                <div className="space-y-2">
+                  <div className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                    <img
+                      src={deposit.customer_photo_url}
+                      alt="รูปจากลูกค้า"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปจากลูกค้า</p>
+                </div>
+              )}
+              {deposit.received_photo_url && (
+                <div className="space-y-2">
+                  <div className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                    <img
+                      src={deposit.received_photo_url}
+                      alt="รูปรับเข้าร้าน (Staff)"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปรับเข้าร้าน (Staff)</p>
+                </div>
+              )}
+              {deposit.confirm_photo_url && (
+                <div className="space-y-2">
+                  <div className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                    <img
+                      src={deposit.confirm_photo_url}
+                      alt="รูปยืนยัน (Bar)"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปยืนยัน (Bar)</p>
+                </div>
+              )}
+              {deposit.photo_url && (
+                <div className="space-y-2">
+                  <div className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                    <img
+                      src={deposit.photo_url}
+                      alt="รูปหลัก"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปหลัก</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Detail Info */}
@@ -618,7 +734,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           </Card>
 
           {/* Actions */}
-          {(canWithdraw || canMarkExpired || canTransfer) && (
+          {(canWithdraw || canMarkExpired || canTransfer || canExtendExpiry) && (
             <Card padding="none">
               <CardHeader title="ดำเนินการ" />
               <CardContent>
@@ -651,6 +767,16 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       onClick={() => setShowTransferModal(true)}
                     >
                       โอนรายการ
+                    </Button>
+                  )}
+                  {canExtendExpiry && (
+                    <Button
+                      className="min-h-[44px] w-full justify-start"
+                      variant="outline"
+                      icon={<CalendarPlus className="h-4 w-4" />}
+                      onClick={() => setShowExtendExpiryModal(true)}
+                    >
+                      ขยายวันหมดอายุ
                     </Button>
                   )}
                 </div>
@@ -879,6 +1005,66 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             icon={<ArrowRightLeft className="h-4 w-4" />}
           >
             ยืนยันโอน
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Extend Expiry Modal */}
+      <Modal
+        isOpen={showExtendExpiryModal}
+        onClose={() => {
+          setShowExtendExpiryModal(false);
+          setExtendDays('30');
+        }}
+        title="ขยายวันหมดอายุ"
+        description={deposit.product_name}
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500 dark:text-gray-400">วันหมดอายุปัจจุบัน</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {deposit.expiry_date ? formatThaiDate(deposit.expiry_date) : 'ไม่ระบุ'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <Input
+            label="จำนวนวันที่ต้องการขยาย"
+            type="number"
+            value={extendDays}
+            onChange={(e) => setExtendDays(e.target.value)}
+            placeholder="30"
+            hint={
+              extendDays && parseInt(extendDays) > 0 && deposit.expiry_date
+                ? `วันหมดอายุใหม่: ${formatThaiDate(
+                    new Date(
+                      new Date(deposit.expiry_date).getTime() + parseInt(extendDays) * 86400000
+                    ).toISOString()
+                  )}`
+                : 'ระบุจำนวนวันที่ต้องการขยาย'
+            }
+          />
+        </div>
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowExtendExpiryModal(false);
+              setExtendDays('30');
+            }}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            onClick={handleExtendExpiry}
+            isLoading={isSubmitting}
+            disabled={!extendDays || parseInt(extendDays) <= 0}
+            icon={<CalendarPlus className="h-4 w-4" />}
+          >
+            ยืนยันขยาย
           </Button>
         </ModalFooter>
       </Modal>

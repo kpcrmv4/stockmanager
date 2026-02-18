@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { Button, Input, Card, CardHeader, CardContent, Tabs, EmptyState, toast } from '@/components/ui';
 import { formatThaiDate, formatNumber } from '@/lib/utils/format';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import type { Product } from '@/types/database';
 import {
   Search,
@@ -207,6 +208,14 @@ export default function DailyCheckPage() {
         .insert(upsertData);
 
       if (error) throw error;
+
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.STOCK_COUNT_SAVED,
+        table_name: 'manual_counts',
+        new_value: { count_date: today, items_count: entries.length },
+        changed_by: user.id,
+      });
 
       toast({
         type: 'success',

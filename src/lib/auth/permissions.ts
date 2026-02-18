@@ -30,12 +30,12 @@ export function hasAllPermissions(user: AuthUser, permissions: Permission[]): bo
 }
 
 export function canAccessStore(user: AuthUser, storeId: string): boolean {
-  if (user.role === 'owner' || user.role === 'accountant') return true;
+  if (user.role === 'owner' || user.role === 'accountant' || user.role === 'hq') return true;
   return user.storeIds.includes(storeId);
 }
 
 export function isDesktopRole(role: UserRole): boolean {
-  return ['owner', 'accountant', 'manager'].includes(role);
+  return ['owner', 'accountant', 'manager', 'hq'].includes(role);
 }
 
 export function isMobileRole(role: UserRole): boolean {

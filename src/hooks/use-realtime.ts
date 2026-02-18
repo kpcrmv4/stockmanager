@@ -10,7 +10,10 @@ type TableName =
   | 'comparisons'
   | 'notifications'
   | 'deposit_requests'
-  | 'announcements';
+  | 'announcements'
+  | 'transfers'
+  | 'hq_deposits'
+  | 'borrows';
 
 interface UseRealtimeOptions<T> {
   table: TableName;

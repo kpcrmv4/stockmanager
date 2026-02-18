@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { Button, Input, Badge, Card, CardHeader, Tabs, EmptyState, Textarea, toast } from '@/components/ui';
 import { formatThaiDate, formatNumber, formatPercent } from '@/lib/utils/format';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { notifyOwners } from '@/lib/notifications/client';
 import type { Comparison } from '@/types/database';
 import {
   ArrowLeft,
@@ -130,6 +132,15 @@ export default function ExplanationPage() {
 
       if (error) throw error;
 
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.STOCK_EXPLANATION_SUBMITTED,
+        table_name: 'comparisons',
+        record_id: comparisonId,
+        new_value: { explanation, status: 'explained' },
+        changed_by: user?.id || null,
+      });
+
       // Update local state
       setComparisons((prev) =>
         prev.map((c) =>
@@ -144,6 +155,22 @@ export default function ExplanationPage() {
         title: 'บันทึกสำเร็จ',
         message: 'ส่งคำชี้แจงเรียบร้อย',
       });
+
+      // Notify owners about the submitted explanation
+      const comparison = comparisons.find((c) => c.id === comparisonId);
+      if (comparison) {
+        notifyOwners({
+          storeId: currentStoreId!,
+          type: 'explanation_submitted',
+          title: 'มีคำชี้แจงส่วนต่างสต๊อก',
+          body: `${comparison.product_name} - ส่วนต่าง ${formatNumber(comparison.difference ?? 0)} (${formatPercent(comparison.diff_percent ?? 0)})`,
+          data: {
+            comparison_id: comparisonId,
+            product_name: comparison.product_name,
+            url: '/stock/approval',
+          },
+        });
+      }
     } catch (error) {
       console.error('Error submitting explanation:', error);
       toast({
@@ -188,6 +215,14 @@ export default function ExplanationPage() {
 
       await Promise.all(updates);
 
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.STOCK_EXPLANATION_BATCH,
+        table_name: 'comparisons',
+        new_value: { submitted_count: itemsToSubmit.length, status: 'explained' },
+        changed_by: user?.id || null,
+      });
+
       // Update local state
       const submittedIds = new Set(itemsToSubmit.map((i) => i.id));
       setComparisons((prev) =>
@@ -207,6 +242,15 @@ export default function ExplanationPage() {
         type: 'success',
         title: 'บันทึกสำเร็จ',
         message: `ส่งคำชี้แจง ${itemsToSubmit.length} รายการเรียบร้อย`,
+      });
+
+      // Notify owners once for the batch submission
+      notifyOwners({
+        storeId: currentStoreId!,
+        type: 'explanation_submitted',
+        title: 'มีคำชี้แจงส่วนต่างสต๊อก',
+        body: `ส่งคำชี้แจง ${itemsToSubmit.length} รายการ`,
+        data: { url: '/stock/approval' },
       });
     } catch (error) {
       console.error('Error submitting all explanations:', error);

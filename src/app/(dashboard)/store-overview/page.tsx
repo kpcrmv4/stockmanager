@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { cn } from '@/lib/utils/cn';
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
-import { formatThaiDate } from '@/lib/utils/format';
+import { formatThaiDate, formatNumber } from '@/lib/utils/format';
+import { cn } from '@/lib/utils/cn';
+import { toast } from '@/components/ui';
 import {
   Store,
   Users,
@@ -16,131 +19,389 @@ import {
   Package,
   CheckCircle2,
   ArrowRight,
-  TrendingUp,
+  Loader2,
+  Inbox,
+  CalendarClock,
+  BarChart3,
+  XCircle,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface StoreOption {
   id: string;
-  name: string;
-  branch: string;
+  store_code: string;
+  store_name: string;
 }
 
 interface StoreStats {
   staffCount: number;
+  activeDeposits: number;
   pendingDeposits: number;
   pendingWithdrawals: number;
-  activeDeposits: number;
   stockAlerts: number;
+  expiringSoon: number;
+  lastStockCheck: string | null;
 }
 
-interface RecentActivity {
+interface AuditLogEntry {
   id: string;
-  message: string;
-  time: string;
-  type: 'deposit' | 'withdrawal' | 'stock' | 'approval';
+  action_type: string;
+  table_name: string | null;
+  created_at: string;
+  changed_by_name: string | null;
 }
 
-// Placeholder data — replace with real API calls
-const stores: StoreOption[] = [
-  { id: 's1', name: 'ร้านสาขา 1', branch: 'สุขุมวิท' },
-  { id: 's2', name: 'ร้านสาขา 2', branch: 'ทองหล่อ' },
-  { id: 's3', name: 'ร้านสาขา 3', branch: 'เอกมัย' },
-];
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-const mockStats: Record<string, StoreStats> = {
-  s1: {
-    staffCount: 8,
-    pendingDeposits: 3,
-    pendingWithdrawals: 1,
-    activeDeposits: 45,
-    stockAlerts: 0,
-  },
-  s2: {
-    staffCount: 6,
-    pendingDeposits: 2,
-    pendingWithdrawals: 2,
-    activeDeposits: 32,
-    stockAlerts: 2,
-  },
-  s3: {
-    staffCount: 5,
-    pendingDeposits: 0,
-    pendingWithdrawals: 0,
-    activeDeposits: 28,
-    stockAlerts: 1,
-  },
-};
+/** Thai relative-time string from an ISO timestamp */
+function relativeTime(isoDate: string): string {
+  const now = Date.now();
+  const then = new Date(isoDate).getTime();
+  const diffSec = Math.floor((now - then) / 1000);
 
-const mockActivities: RecentActivity[] = [
-  {
-    id: 'a1',
-    message: 'พนักงาน สมหญิง ทำเรื่องฝากเหล้า Johnnie Walker',
-    time: '15 นาทีที่แล้ว',
-    type: 'deposit',
-  },
-  {
-    id: 'a2',
-    message: 'หัวหน้าบาร์อนุมัติการเบิก Chivas Regal 18',
-    time: '30 นาทีที่แล้ว',
-    type: 'approval',
-  },
-  {
-    id: 'a3',
-    message: 'นับสต๊อกประจำวัน เสร็จสิ้น',
-    time: '1 ชั่วโมงที่แล้ว',
-    type: 'stock',
-  },
-  {
-    id: 'a4',
-    message: 'ลูกค้าขอเบิก Absolut Vodka ผ่าน LINE',
-    time: '2 ชั่วโมงที่แล้ว',
-    type: 'withdrawal',
-  },
-];
+  if (diffSec < 60) return 'เมื่อสักครู่';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} ชั่วโมงที่แล้ว`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 7) return `${diffDay} วันที่แล้ว`;
+  return formatThaiDate(isoDate);
+}
 
-function getActivityIcon(type: string) {
-  switch (type) {
-    case 'deposit':
-      return Wine;
-    case 'withdrawal':
-      return Package;
-    case 'stock':
-      return ClipboardCheck;
-    case 'approval':
-      return CheckCircle2;
-    default:
-      return Clock;
+/** Map audit_logs action to Thai label + icon + color */
+function mapActivity(
+  actionType: string,
+  tableName: string | null
+): { label: string; icon: LucideIcon; colorClass: string } {
+  if (actionType === 'INSERT' && tableName === 'deposits') {
+    return { label: 'ฝากเหล้าใหม่', icon: Wine, colorClass: 'text-emerald-500' };
   }
+  if (actionType === 'INSERT' && tableName === 'withdrawals') {
+    return { label: 'เบิกเหล้า', icon: Package, colorClass: 'text-blue-500' };
+  }
+  if (actionType === 'UPDATE' && tableName === 'comparisons') {
+    return {
+      label: 'อัพเดตผลเปรียบเทียบ',
+      icon: BarChart3,
+      colorClass: 'text-amber-500',
+    };
+  }
+  if (actionType === 'INSERT' && tableName === 'deposit_requests') {
+    return {
+      label: 'คำขอฝากเหล้าใหม่',
+      icon: ClipboardCheck,
+      colorClass: 'text-indigo-500',
+    };
+  }
+  if (actionType === 'UPDATE' && tableName === 'deposits') {
+    return {
+      label: 'อัพเดตสถานะฝากเหล้า',
+      icon: CheckCircle2,
+      colorClass: 'text-teal-500',
+    };
+  }
+  if (actionType === 'INSERT' && tableName === 'manual_counts') {
+    return {
+      label: 'นับสต๊อก',
+      icon: ClipboardCheck,
+      colorClass: 'text-violet-500',
+    };
+  }
+  if (actionType === 'AUTO_DEACTIVATE') {
+    return { label: 'ปิดสินค้าอัตโนมัติ', icon: XCircle, colorClass: 'text-red-500' };
+  }
+  if (actionType === 'AUTO_REACTIVATE') {
+    return {
+      label: 'เปิดสินค้าอัตโนมัติ',
+      icon: CheckCircle2,
+      colorClass: 'text-emerald-500',
+    };
+  }
+  return { label: actionType || 'กิจกรรม', icon: Clock, colorClass: 'text-gray-400' };
 }
 
-function getActivityColor(type: string) {
-  switch (type) {
-    case 'deposit':
-      return 'text-amber-500';
-    case 'withdrawal':
-      return 'text-blue-500';
-    case 'stock':
-      return 'text-emerald-500';
-    case 'approval':
-      return 'text-indigo-500';
-    default:
-      return 'text-gray-400';
-  }
-}
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export default function StoreOverviewPage() {
   const { user } = useAuthStore();
   const { currentStoreId, setCurrentStoreId } = useAppStore();
+
+  const [stores, setStores] = useState<StoreOption[]>([]);
+  const [stats, setStats] = useState<StoreStats | null>(null);
+  const [activities, setActivities] = useState<AuditLogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showStoreSelector, setShowStoreSelector] = useState(false);
 
+  // Determine the active store id (fall back to first store in list)
   const selectedStoreId = currentStoreId || stores[0]?.id || '';
   const selectedStore = stores.find((s) => s.id === selectedStoreId) || stores[0];
-  const stats = mockStats[selectedStoreId] || mockStats[stores[0]?.id];
+
+  // -----------------------------------------------------------------------
+  // Fetch stores list
+  // -----------------------------------------------------------------------
+
+  const fetchStores = useCallback(async () => {
+    try {
+      const supabase = createClient();
+
+      if (!user) return;
+
+      // If the user is an owner, load all active stores.
+      // Otherwise load only stores assigned via user_stores.
+      const isOwner = user.role === 'owner';
+
+      if (isOwner) {
+        const { data, error } = await supabase
+          .from('stores')
+          .select('id, store_code, store_name')
+          .eq('active', true)
+          .order('store_code');
+        if (error) throw error;
+        setStores(data || []);
+      } else {
+        // Get store IDs for this user, then fetch store details
+        const { data: userStores, error: usError } = await supabase
+          .from('user_stores')
+          .select('store_id')
+          .eq('user_id', user.id);
+        if (usError) throw usError;
+
+        const storeIds = (userStores || []).map((us) => us.store_id);
+        if (storeIds.length === 0) {
+          setStores([]);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('stores')
+          .select('id, store_code, store_name')
+          .in('id', storeIds)
+          .eq('active', true)
+          .order('store_code');
+        if (error) throw error;
+        setStores(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching stores:', error);
+      toast({
+        type: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        message: 'ไม่สามารถโหลดรายชื่อร้านค้าได้',
+      });
+    }
+  }, [user]);
+
+  // -----------------------------------------------------------------------
+  // Fetch stats + activities for the selected store
+  // -----------------------------------------------------------------------
+
+  const fetchStoreData = useCallback(async () => {
+    if (!selectedStoreId) {
+      setStats(null);
+      setActivities([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      const storeId = selectedStoreId;
+
+      // --- Staff count (users assigned to this store) ---
+      const { count: staffCount } = await supabase
+        .from('user_stores')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', storeId);
+
+      // --- Active deposits (status = 'in_store') ---
+      const { count: activeDeposits } = await supabase
+        .from('deposits')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', storeId)
+        .eq('status', 'in_store');
+
+      // --- Pending deposit requests (status = 'pending') ---
+      const { count: pendingDeposits } = await supabase
+        .from('deposit_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', storeId)
+        .eq('status', 'pending');
+
+      // --- Pending withdrawals (status IN 'pending', 'approved') ---
+      const { count: pendingWithdrawals } = await supabase
+        .from('withdrawals')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', storeId)
+        .in('status', ['pending', 'approved']);
+
+      // --- Stock alerts (unexplained comparisons, status = 'pending') ---
+      const { count: stockAlerts } = await supabase
+        .from('comparisons')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', storeId)
+        .eq('status', 'pending');
+
+      // --- Expiring soon (in_store + expiry_date within 7 days) ---
+      const now = new Date();
+      const sevenDaysFromNow = new Date();
+      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+
+      const { count: expiringSoon } = await supabase
+        .from('deposits')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', storeId)
+        .eq('status', 'in_store')
+        .gt('expiry_date', now.toISOString())
+        .lt('expiry_date', sevenDaysFromNow.toISOString());
+
+      // --- Last stock check (latest manual_counts.count_date) ---
+      const { data: latestCount } = await supabase
+        .from('manual_counts')
+        .select('count_date')
+        .eq('store_id', storeId)
+        .order('count_date', { ascending: false })
+        .limit(1)
+        .single();
+
+      setStats({
+        staffCount: staffCount || 0,
+        activeDeposits: activeDeposits || 0,
+        pendingDeposits: pendingDeposits || 0,
+        pendingWithdrawals: pendingWithdrawals || 0,
+        stockAlerts: stockAlerts || 0,
+        expiringSoon: expiringSoon || 0,
+        lastStockCheck: latestCount?.count_date || null,
+      });
+
+      // --- Recent activities (last 10 audit_logs for this store) ---
+      const { data: logs } = await supabase
+        .from('audit_logs')
+        .select('id, action_type, table_name, created_at, changed_by')
+        .eq('store_id', storeId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (logs && logs.length > 0) {
+        // Resolve display names from profiles
+        const userIds = [
+          ...new Set(logs.map((l) => l.changed_by).filter(Boolean)),
+        ] as string[];
+        let nameMap: Record<string, string> = {};
+
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, display_name, username')
+            .in('id', userIds);
+          if (profiles) {
+            nameMap = Object.fromEntries(
+              profiles.map((p) => [p.id, p.display_name || p.username])
+            );
+          }
+        }
+
+        setActivities(
+          logs.map((l) => ({
+            id: l.id,
+            action_type: l.action_type,
+            table_name: l.table_name,
+            created_at: l.created_at,
+            changed_by_name: l.changed_by ? nameMap[l.changed_by] || null : null,
+          }))
+        );
+      } else {
+        setActivities([]);
+      }
+    } catch (error) {
+      console.error('Error fetching store data:', error);
+      toast({
+        type: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        message: 'ไม่สามารถโหลดข้อมูลร้านค้าได้',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedStoreId]);
+
+  // -----------------------------------------------------------------------
+  // Effects
+  // -----------------------------------------------------------------------
+
+  // Load stores on mount (and when user changes)
+  useEffect(() => {
+    fetchStores();
+  }, [fetchStores]);
+
+  // Load store data when selected store changes
+  useEffect(() => {
+    fetchStoreData();
+  }, [fetchStoreData]);
+
+  // -----------------------------------------------------------------------
+  // Store selection handler
+  // -----------------------------------------------------------------------
 
   const handleSelectStore = (storeId: string) => {
     setCurrentStoreId(storeId);
     setShowStoreSelector(false);
   };
+
+  // -----------------------------------------------------------------------
+  // Loading state
+  // -----------------------------------------------------------------------
+
+  if (loading && stores.length === 0) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // No stores available
+  // -----------------------------------------------------------------------
+
+  if (stores.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+            ภาพรวมร้าน
+          </h1>
+          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+            จัดการและติดตามสถานะร้านค้า
+          </p>
+        </div>
+        <div className="flex flex-col items-center justify-center rounded-xl bg-white py-16 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-700">
+            <Store className="h-8 w-8 text-gray-400 dark:text-gray-500" />
+          </div>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+            ไม่พบร้านค้า
+          </h3>
+          <p className="mt-1 max-w-sm text-center text-sm text-gray-500 dark:text-gray-400">
+            ยังไม่มีร้านค้าที่กำหนดให้คุณ กรุณาติดต่อผู้ดูแลระบบ
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
 
   return (
     <div className="space-y-4">
@@ -170,10 +431,10 @@ export default function StoreOverviewPage() {
             </div>
             <div className="text-left">
               <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                {selectedStore?.name}
+                {selectedStore?.store_name || 'เลือกร้าน'}
               </p>
               <p className="text-xs text-gray-400 dark:text-gray-500">
-                สาขา {selectedStore?.branch}
+                รหัสร้าน {selectedStore?.store_code || '-'}
               </p>
             </div>
           </div>
@@ -216,10 +477,10 @@ export default function StoreOverviewPage() {
                         : 'text-gray-900 dark:text-white'
                     )}
                   >
-                    {store.name}
+                    {store.store_name}
                   </p>
                   <p className="text-xs text-gray-400 dark:text-gray-500">
-                    สาขา {store.branch}
+                    รหัสร้าน {store.store_code}
                   </p>
                 </div>
               </button>
@@ -228,9 +489,17 @@ export default function StoreOverviewPage() {
         )}
       </div>
 
+      {/* Loading indicator for stats */}
+      {loading && (
+        <div className="flex h-32 items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
+        </div>
+      )}
+
       {/* Stats Cards */}
-      {stats && (
+      {!loading && stats && (
         <div className="grid grid-cols-2 gap-3">
+          {/* Staff count */}
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-indigo-500" />
@@ -239,11 +508,12 @@ export default function StoreOverviewPage() {
               </span>
             </div>
             <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
-              {stats.staffCount}
+              {formatNumber(stats.staffCount)}
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500">คน</p>
           </div>
 
+          {/* Active deposits */}
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
             <div className="flex items-center gap-2">
               <Wine className="h-4 w-4 text-emerald-500" />
@@ -252,11 +522,12 @@ export default function StoreOverviewPage() {
               </span>
             </div>
             <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
-              {stats.activeDeposits}
+              {formatNumber(stats.activeDeposits)}
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500">รายการ</p>
           </div>
 
+          {/* Pending (deposits + withdrawals) */}
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
             <div className="flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4 text-amber-500" />
@@ -265,13 +536,15 @@ export default function StoreOverviewPage() {
               </span>
             </div>
             <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
-              {stats.pendingDeposits + stats.pendingWithdrawals}
+              {formatNumber(stats.pendingDeposits + stats.pendingWithdrawals)}
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              ฝาก {stats.pendingDeposits} / เบิก {stats.pendingWithdrawals}
+              ฝาก {formatNumber(stats.pendingDeposits)} / เบิก{' '}
+              {formatNumber(stats.pendingWithdrawals)}
             </p>
           </div>
 
+          {/* Stock alerts */}
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
             <div className="flex items-center gap-2">
               <AlertTriangle
@@ -292,48 +565,125 @@ export default function StoreOverviewPage() {
                   : 'text-gray-900 dark:text-white'
               )}
             >
-              {stats.stockAlerts}
+              {formatNumber(stats.stockAlerts)}
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500">รายการ</p>
+          </div>
+
+          {/* Expiring soon */}
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+            <div className="flex items-center gap-2">
+              <CalendarClock
+                className={cn(
+                  'h-4 w-4',
+                  stats.expiringSoon > 0 ? 'text-orange-500' : 'text-gray-300'
+                )}
+              />
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                ใกล้หมดอายุ
+              </span>
+            </div>
+            <p
+              className={cn(
+                'mt-1 text-xl font-bold',
+                stats.expiringSoon > 0
+                  ? 'text-orange-600 dark:text-orange-400'
+                  : 'text-gray-900 dark:text-white'
+              )}
+            >
+              {formatNumber(stats.expiringSoon)}
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              ภายใน 7 วัน
+            </p>
+          </div>
+
+          {/* Last stock check */}
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+            <div className="flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4 text-violet-500" />
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                เช็คสต๊อกล่าสุด
+              </span>
+            </div>
+            <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white">
+              {stats.lastStockCheck
+                ? formatThaiDate(stats.lastStockCheck)
+                : 'ยังไม่เคยนับ'}
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              {stats.lastStockCheck
+                ? relativeTime(stats.lastStockCheck)
+                : '-'}
+            </p>
           </div>
         </div>
       )}
 
       {/* Recent Activity */}
-      <div className="rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
-        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-700">
-          <h2 className="font-semibold text-gray-900 dark:text-white">
-            กิจกรรมล่าสุด
-          </h2>
-          <button className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300">
-            ดูทั้งหมด
-            <ArrowRight className="h-3 w-3" />
-          </button>
-        </div>
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
-          {mockActivities.map((activity) => {
-            const ActivityIcon = getActivityIcon(activity.type);
-            return (
-              <div
-                key={activity.id}
-                className="flex items-start gap-3 px-4 py-3"
-              >
-                <div className={cn('mt-0.5', getActivityColor(activity.type))}>
-                  <ActivityIcon className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
-                    {activity.message}
-                  </p>
-                  <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                    {activity.time}
-                  </p>
-                </div>
+      {!loading && (
+        <div className="rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-700">
+            <h2 className="font-semibold text-gray-900 dark:text-white">
+              กิจกรรมล่าสุด
+            </h2>
+            <Link
+              href="/activity"
+              className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+            >
+              ดูทั้งหมด
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+
+          {activities.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-700">
+                <Inbox className="h-8 w-8 text-gray-400 dark:text-gray-500" />
               </div>
-            );
-          })}
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                ยังไม่มีกิจกรรม
+              </h3>
+              <p className="mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">
+                กิจกรรมต่าง ๆ ของร้านนี้จะปรากฏที่นี่
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+              {activities.map((activity) => {
+                const mapped = mapActivity(
+                  activity.action_type,
+                  activity.table_name
+                );
+                const ActivityIcon = mapped.icon;
+                return (
+                  <div
+                    key={activity.id}
+                    className="flex items-start gap-3 px-4 py-3"
+                  >
+                    <div className={cn('mt-0.5', mapped.colorClass)}>
+                      <ActivityIcon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        {mapped.label}
+                        {activity.changed_by_name && (
+                          <span className="ml-1 text-gray-400 dark:text-gray-500">
+                            &mdash; {activity.changed_by_name}
+                          </span>
+                        )}
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                        {relativeTime(activity.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

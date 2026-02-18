@@ -36,10 +36,12 @@ interface StoreData {
   store_code: string;
   store_name: string;
   is_central: boolean;
-  line_token: string | null;
-  line_channel_id: string | null;
-  staff_group_id: string | null;
-  bar_group_id: string | null;
+  /** กลุ่มแจ้งเตือนสต๊อก (daily reminder, comparison, approval) */
+  stock_notify_group_id: string | null;
+  /** กลุ่มแจ้งเตือนฝาก/เบิกเหล้า (staff) */
+  deposit_notify_group_id: string | null;
+  /** กลุ่มบาร์ยืนยันรับเหล้า (bar confirm) */
+  bar_notify_group_id: string | null;
 }
 
 interface StoreSettingsData {
@@ -53,6 +55,9 @@ interface StoreSettingsData {
   customer_notify_deposit_enabled: boolean;
   customer_notify_promotion_enabled: boolean;
   customer_notify_channels: string[];
+  line_notify_enabled: boolean;
+  daily_reminder_enabled: boolean;
+  follow_up_enabled: boolean;
 }
 
 const settingsDefaults: StoreSettingsData = {
@@ -66,6 +71,9 @@ const settingsDefaults: StoreSettingsData = {
   customer_notify_deposit_enabled: true,
   customer_notify_promotion_enabled: true,
   customer_notify_channels: ['pwa', 'line'],
+  line_notify_enabled: true,
+  daily_reminder_enabled: true,
+  follow_up_enabled: true,
 };
 
 const dayLabels: Record<string, string> = {
@@ -100,11 +108,11 @@ export default function StoreDetailSettingsPage() {
   const [storeName, setStoreName] = useState('');
   const [isCentral, setIsCentral] = useState(false);
 
-  // LINE settings
-  const [lineToken, setLineToken] = useState('');
-  const [lineChannelId, setLineChannelId] = useState('');
-  const [staffGroupId, setStaffGroupId] = useState('');
-  const [barGroupId, setBarGroupId] = useState('');
+  // LINE group settings
+  const [stockNotifyGroupId, setStockNotifyGroupId] = useState('');
+  const [depositNotifyGroupId, setDepositNotifyGroupId] = useState('');
+  const [barNotifyGroupId, setBarNotifyGroupId] = useState('');
+  const [lineNotifyEnabled, setLineNotifyEnabled] = useState(true);
 
   // Stock settings
   const [notifyTime, setNotifyTime] = useState('09:00');
@@ -119,6 +127,8 @@ export default function StoreDetailSettingsPage() {
   ]);
   const [diffTolerance, setDiffTolerance] = useState('5');
   const [registrationCode, setRegistrationCode] = useState('');
+  const [dailyReminderEnabled, setDailyReminderEnabled] = useState(true);
+  const [followUpEnabled, setFollowUpEnabled] = useState(true);
 
   // Customer notification settings
   const [customerExpiryEnabled, setCustomerExpiryEnabled] = useState(true);
@@ -149,7 +159,7 @@ export default function StoreDetailSettingsPage() {
     // Load store info
     const { data: store } = await supabase
       .from('stores')
-      .select('id, store_code, store_name, is_central, line_token, line_channel_id, staff_group_id, bar_group_id')
+      .select('id, store_code, store_name, is_central, stock_notify_group_id, deposit_notify_group_id, bar_notify_group_id')
       .eq('id', storeId)
       .single();
 
@@ -157,10 +167,9 @@ export default function StoreDetailSettingsPage() {
       setStoreCode(store.store_code || '');
       setStoreName(store.store_name || '');
       setIsCentral(store.is_central || false);
-      setLineToken(store.line_token || '');
-      setLineChannelId(store.line_channel_id || '');
-      setStaffGroupId(store.staff_group_id || '');
-      setBarGroupId(store.bar_group_id || '');
+      setStockNotifyGroupId(store.stock_notify_group_id || '');
+      setDepositNotifyGroupId(store.deposit_notify_group_id || '');
+      setBarNotifyGroupId(store.bar_notify_group_id || '');
     }
 
     // Load store settings
@@ -181,6 +190,9 @@ export default function StoreDetailSettingsPage() {
       setCustomerDepositEnabled(settings.customer_notify_deposit_enabled ?? true);
       setCustomerPromotionEnabled(settings.customer_notify_promotion_enabled ?? true);
       setCustomerChannels(settings.customer_notify_channels ?? ['pwa', 'line']);
+      setLineNotifyEnabled(settings.line_notify_enabled ?? true);
+      setDailyReminderEnabled(settings.daily_reminder_enabled ?? true);
+      setFollowUpEnabled(settings.follow_up_enabled ?? true);
 
       // Load receipt settings from JSONB
       const rs = settings.receipt_settings as ReceiptSettings | null;
@@ -217,10 +229,9 @@ export default function StoreDetailSettingsPage() {
       .update({
         store_name: storeName.trim(),
         is_central: isCentral,
-        line_token: lineToken || null,
-        line_channel_id: lineChannelId || null,
-        staff_group_id: staffGroupId || null,
-        bar_group_id: barGroupId || null,
+        stock_notify_group_id: stockNotifyGroupId || null,
+        deposit_notify_group_id: depositNotifyGroupId || null,
+        bar_notify_group_id: barNotifyGroupId || null,
       })
       .eq('id', storeId);
 
@@ -246,6 +257,9 @@ export default function StoreDetailSettingsPage() {
           customer_notify_deposit_enabled: customerDepositEnabled,
           customer_notify_promotion_enabled: customerPromotionEnabled,
           customer_notify_channels: customerChannels,
+          line_notify_enabled: lineNotifyEnabled,
+          daily_reminder_enabled: dailyReminderEnabled,
+          follow_up_enabled: followUpEnabled,
           receipt_settings: {
             logo_url: null,
             header_text: receiptHeaderText,
@@ -400,12 +414,12 @@ export default function StoreDetailSettingsPage() {
       </Card>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Section 2: ตั้งค่า LINE (LINE Settings)                             */}
+      {/* Section 2: กลุ่ม LINE แจ้งเตือน                                     */}
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title="ตั้งค่า LINE"
-          description="เชื่อมต่อ LINE OA ของสาขานี้ (แต่ละสาขามี LINE OA แยก)"
+          title="กลุ่ม LINE แจ้งเตือน"
+          description="ตั้งค่ากลุ่ม LINE สำหรับรับแจ้งเตือนของสาขานี้"
           action={
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
               <MessageCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -414,36 +428,51 @@ export default function StoreDetailSettingsPage() {
         />
         <CardContent className="space-y-4">
           <Input
-            label="LINE Channel Access Token"
-            value={lineToken}
-            onChange={(e) => setLineToken(e.target.value)}
-            placeholder="วาง token ที่นี่"
-            hint="ได้จาก LINE Developers Console → Messaging API → Channel access token"
-          />
-          <Input
-            label="LINE Channel ID"
-            value={lineChannelId}
-            onChange={(e) => setLineChannelId(e.target.value)}
-            placeholder="เช่น Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            hint="ใช้ระบุว่า webhook มาจากสาขาไหน (ดูได้จาก LINE Developers Console → Basic settings → Bot basic ID)"
-          />
-          <Input
-            label="Staff Group ID (กลุ่มพนักงาน)"
-            value={staffGroupId}
-            onChange={(e) => setStaffGroupId(e.target.value)}
+            label="กลุ่มแจ้งเตือนสต๊อก"
+            value={stockNotifyGroupId}
+            onChange={(e) => setStockNotifyGroupId(e.target.value)}
             placeholder="เช่น Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            hint="ID กลุ่ม LINE สำหรับแจ้งเตือนพนักงาน (เชิญ bot เข้ากลุ่ม → ดู log ใน Vercel)"
+            hint="กลุ่ม LINE สำหรับแจ้งเตือนนับสต๊อก, ผลต่าง, อนุมัติ"
           />
           <Input
-            label="Bar Group ID (กลุ่มบาร์)"
-            value={barGroupId}
-            onChange={(e) => setBarGroupId(e.target.value)}
+            label="กลุ่มแจ้งเตือนฝาก/เบิกเหล้า"
+            value={depositNotifyGroupId}
+            onChange={(e) => setDepositNotifyGroupId(e.target.value)}
             placeholder="เช่น Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            hint="ID กลุ่ม LINE สำหรับแจ้งเตือนหัวหน้าบาร์ (ไม่บังคับ)"
+            hint="กลุ่ม LINE สำหรับแจ้งเตือนพนักงานเมื่อมีลูกค้าฝาก/ขอเบิกเหล้า"
           />
+          <Input
+            label="กลุ่มบาร์ยืนยันรับเหล้า"
+            value={barNotifyGroupId}
+            onChange={(e) => setBarNotifyGroupId(e.target.value)}
+            placeholder="เช่น Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            hint="กลุ่ม LINE สำหรับแจ้งเตือนหัวหน้าบาร์ให้ยืนยันรับเหล้า (ไม่บังคับ)"
+          />
+          {/* LINE Notify Toggle */}
+          <div className="flex items-center justify-between rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">เปิดการแจ้งเตือนผ่าน LINE</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                ปิดเพื่อหยุดส่ง LINE push ทั้งหมดของสาขานี้ (ยังคงแจ้งผ่าน PWA)
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLineNotifyEnabled(!lineNotifyEnabled)}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                lineNotifyEnabled ? 'bg-emerald-600' : 'bg-gray-200 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                  lineNotifyEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
             <p className="text-xs text-blue-700 dark:text-blue-400">
-              <strong>วิธีดู Group ID:</strong> เชิญ bot เข้ากลุ่ม LINE → bot จะ log Group ID ออกมา → คัดลอกมาวางที่นี่
+              <strong>วิธีดู Group ID:</strong> เชิญ bot เข้ากลุ่ม LINE → bot จะตอบ Group ID ให้คัดลอกมาวางที่นี่
             </p>
           </div>
         </CardContent>
@@ -463,7 +492,54 @@ export default function StoreDetailSettingsPage() {
           }
         />
         <CardContent className="space-y-4">
+          {/* Daily Reminder Toggle */}
+          <div className="flex items-center justify-between rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">เตือนนับสต๊อกประจำวัน</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                ส่งแจ้งเตือนพนักงานให้นับสต๊อกอัตโนมัติ (LINE + In-App)
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDailyReminderEnabled(!dailyReminderEnabled)}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                dailyReminderEnabled ? 'bg-amber-600' : 'bg-gray-200 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                  dailyReminderEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Follow-up Toggle */}
+          <div className="flex items-center justify-between rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">ติดตามรายการค้าง</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                ส่งแจ้งเตือนติดตามผลต่างสต๊อกและคำขอเบิกเหล้าที่ค้างนาน (ทุก 4 ชม.)
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFollowUpEnabled(!followUpEnabled)}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                followUpEnabled ? 'bg-amber-600' : 'bg-gray-200 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                  followUpEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Notify time */}
+          {dailyReminderEnabled && (
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
               เวลาแจ้งเตือนนับสต๊อกประจำวัน
@@ -474,8 +550,10 @@ export default function StoreDetailSettingsPage() {
               onChange={(e) => setNotifyTime(e.target.value)}
             />
           </div>
+          )}
 
           {/* Notify days */}
+          {dailyReminderEnabled && (
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
               วันที่ต้องนับสต๊อก
@@ -497,6 +575,7 @@ export default function StoreDetailSettingsPage() {
               ))}
             </div>
           </div>
+          )}
 
           {/* Diff tolerance */}
           <Input

@@ -16,6 +16,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Package,
+  Activity,
+  Warehouse,
+  Repeat,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAppStore } from '@/stores/app-store';
@@ -33,9 +36,12 @@ const iconMap: Record<string, LucideIcon> = {
   truck: Truck,
   'bar-chart-3': BarChart3,
   megaphone: Megaphone,
+  activity: Activity,
   users: Users,
   settings: Settings,
   package: Package,
+  warehouse: Warehouse,
+  repeat: Repeat,
 };
 
 interface SidebarProps {

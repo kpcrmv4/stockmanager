@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   Bell,
   CheckCircle,
+  Repeat,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
@@ -25,6 +26,7 @@ interface NavItem {
 const staffNavItems: NavItem[] = [
   { label: 'งานของฉัน', href: '/my-tasks', icon: ClipboardList },
   { label: 'ฝาก/เบิก', href: '/deposit', icon: Wine },
+  { label: 'ยืมสินค้า', href: '/borrow', icon: Repeat },
   { label: 'นับสต๊อก', href: '/stock', icon: ClipboardCheck },
   { label: 'แจ้งเตือน', href: '/notifications', icon: Bell },
 ];

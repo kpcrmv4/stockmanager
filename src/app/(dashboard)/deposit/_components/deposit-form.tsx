@@ -13,12 +13,15 @@ import {
   Select,
   Textarea,
   toast,
+  PhotoUpload,
 } from '@/components/ui';
 import {
   ArrowLeft,
   Wine,
   Save,
 } from 'lucide-react';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { notifyStaff } from '@/lib/notifications/client';
 
 interface DepositFormProps {
   onBack: () => void;
@@ -40,10 +43,25 @@ const categoryOptions = [
   { value: 'other', label: 'อื่นๆ' },
 ];
 
-function generateDepositCode(): string {
-  const timestamp = String(Date.now()).slice(-5);
-  const random = Math.random().toString(36).slice(2, 5).toUpperCase();
-  return `DEP-${timestamp}${random}`;
+function generateRandomAlphanumeric(length: number): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+async function generateDepositCode(storeId: string): Promise<string> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('stores')
+    .select('store_code')
+    .eq('id', storeId)
+    .single();
+  const storeCode = data?.store_code || 'UNKNOWN';
+  const random = generateRandomAlphanumeric(5);
+  return `DEP-${storeCode}-${random}`;
 }
 
 export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
@@ -58,6 +76,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
   const [tableNumber, setTableNumber] = useState('');
   const [notes, setNotes] = useState('');
   const [expiryDays, setExpiryDays] = useState('30');
+  const [receivedPhotoUrl, setReceivedPhotoUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Validation
@@ -88,7 +107,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
 
     setIsSubmitting(true);
     const supabase = createClient();
-    const depositCode = generateDepositCode();
+    const depositCode = await generateDepositCode(currentStoreId);
 
     // Calculate expiry date
     const expiryDate = new Date();
@@ -107,10 +126,11 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
       remaining_qty: qty,
       remaining_percent: 100,
       table_number: tableNumber.trim() || null,
-      status: 'in_store',
+      status: 'pending_confirm',
       expiry_date: expiryDate.toISOString(),
       received_by: user.id,
       notes: notes.trim() || null,
+      received_photo_url: receivedPhotoUrl || null,
     });
 
     if (error) {
@@ -120,11 +140,36 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
         message: 'ไม่สามารถบันทึกรายการฝากเหล้าได้',
       });
     } else {
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.DEPOSIT_CREATED,
+        table_name: 'deposits',
+        record_id: depositCode,
+        new_value: {
+          deposit_code: depositCode,
+          customer_name: customerName.trim(),
+          product_name: productName.trim(),
+          quantity: qty,
+          category: category || null,
+        },
+        changed_by: user?.id || null,
+      });
       toast({
         type: 'success',
         title: 'บันทึกสำเร็จ',
         message: `สร้างรายการฝากเหล้า ${depositCode}`,
       });
+
+      // Notify bar staff about the new deposit
+      notifyStaff({
+        storeId: currentStoreId,
+        type: 'new_deposit',
+        title: 'มีรายการฝากเหล้าใหม่',
+        body: `${customerName.trim()} ฝาก ${productName.trim()} x${qty}`,
+        data: { deposit_code: depositCode },
+        excludeUserId: user?.id,
+      });
+
       onSuccess();
     }
     setIsSubmitting(false);
@@ -245,6 +290,12 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
               onChange={(e) => setNotes(e.target.value)}
               placeholder="เช่น เหลือประมาณ 60%, ขวดใหม่ยังไม่เปิด"
               rows={3}
+            />
+            <PhotoUpload
+              value={receivedPhotoUrl}
+              onChange={(url) => setReceivedPhotoUrl(url)}
+              folder="deposits"
+              label="ถ่ายรูปเหล้า"
             />
           </div>
         </CardContent>

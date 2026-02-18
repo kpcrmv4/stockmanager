@@ -1,11 +1,18 @@
 -- ==========================================
+-- StockManager — Full Schema
+-- รวม migration ทั้งหมดเป็นไฟล์เดียว (fresh install)
+-- ==========================================
+
+-- ==========================================
 -- ENUMS
 -- ==========================================
-CREATE TYPE user_role AS ENUM ('owner', 'accountant', 'manager', 'bar', 'staff', 'customer');
+CREATE TYPE user_role AS ENUM ('owner', 'accountant', 'manager', 'bar', 'staff', 'customer', 'hq');
 CREATE TYPE deposit_status AS ENUM ('pending_confirm', 'in_store', 'pending_withdrawal', 'withdrawn', 'expired', 'transferred_out');
 CREATE TYPE comparison_status AS ENUM ('pending', 'explained', 'approved', 'rejected');
 CREATE TYPE withdrawal_status AS ENUM ('pending', 'approved', 'completed', 'rejected');
 CREATE TYPE transfer_status AS ENUM ('pending', 'confirmed', 'rejected');
+CREATE TYPE print_job_status AS ENUM ('pending', 'printing', 'completed', 'failed');
+CREATE TYPE print_job_type AS ENUM ('receipt', 'label');
 
 -- ==========================================
 -- CORE TABLES
@@ -37,7 +44,14 @@ CREATE TABLE stores (
   store_code TEXT UNIQUE NOT NULL,
   store_name TEXT NOT NULL,
   line_token TEXT,
-  line_group_id TEXT,
+  line_channel_id TEXT,
+  line_channel_secret TEXT,
+  /** กลุ่มแจ้งเตือนสต๊อก (daily reminder, comparison, approval) */
+  stock_notify_group_id TEXT,
+  /** กลุ่มแจ้งเตือนฝาก/เบิกเหล้า (staff) */
+  deposit_notify_group_id TEXT,
+  /** กลุ่มบาร์ยืนยันรับเหล้า (bar confirm) */
+  bar_notify_group_id TEXT,
   manager_id UUID REFERENCES profiles(id),
   is_central BOOLEAN DEFAULT false,
   active BOOLEAN DEFAULT true,
@@ -144,7 +158,14 @@ CREATE TABLE deposits (
   expiry_date TIMESTAMPTZ,
   received_by UUID REFERENCES profiles(id),
   notes TEXT,
+  /** backward compat — รูปหลัก (ImgBB URL เดิม หรือ Supabase URL ใหม่) */
   photo_url TEXT,
+  /** รูปที่ลูกค้าถ่ายส่งมาตอนฝาก (ผ่าน LIFF) */
+  customer_photo_url TEXT,
+  /** รูปที่ Staff ถ่ายตอนรับของเข้าร้าน */
+  received_photo_url TEXT,
+  /** รูปที่ Bar ถ่ายตอนยืนยัน */
+  confirm_photo_url TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -161,6 +182,7 @@ CREATE TABLE withdrawals (
   status withdrawal_status DEFAULT 'pending',
   processed_by UUID REFERENCES profiles(id),
   notes TEXT,
+  photo_url TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -172,6 +194,8 @@ CREATE TABLE deposit_requests (
   customer_phone TEXT,
   product_name TEXT,
   quantity NUMERIC(10,2),
+  table_number TEXT,
+  customer_photo_url TEXT,
   notes TEXT,
   status TEXT DEFAULT 'pending',
   created_at TIMESTAMPTZ DEFAULT now()
@@ -192,7 +216,73 @@ CREATE TABLE transfers (
   requested_by UUID REFERENCES profiles(id),
   confirmed_by UUID REFERENCES profiles(id),
   notes TEXT,
+  photo_url TEXT,
+  confirm_photo_url TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TYPE hq_deposit_status AS ENUM ('awaiting_withdrawal', 'withdrawn');
+
+CREATE TABLE hq_deposits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transfer_id UUID REFERENCES transfers(id),
+  deposit_id UUID REFERENCES deposits(id),
+  from_store_id UUID REFERENCES stores(id),
+  product_name TEXT,
+  customer_name TEXT,
+  deposit_code TEXT,
+  category TEXT,
+  quantity NUMERIC(10,2),
+  status hq_deposit_status DEFAULT 'awaiting_withdrawal',
+  received_by UUID REFERENCES profiles(id),
+  received_photo_url TEXT,
+  received_at TIMESTAMPTZ DEFAULT now(),
+  withdrawn_by UUID REFERENCES profiles(id),
+  withdrawal_notes TEXT,
+  withdrawn_at TIMESTAMPTZ,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ==========================================
+-- BORROW MODULE (ยืมสินค้าระหว่างสาขา)
+-- ==========================================
+
+CREATE TYPE borrow_status AS ENUM ('pending_approval', 'approved', 'pos_adjusting', 'completed', 'rejected');
+
+CREATE TABLE borrows (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  from_store_id UUID REFERENCES stores(id),      -- สาขาที่ขอยืม (borrower)
+  to_store_id UUID REFERENCES stores(id),        -- สาขาเจ้าของสินค้า (lender)
+  requested_by UUID REFERENCES profiles(id),     -- คนที่สร้างคำขอ
+  status borrow_status DEFAULT 'pending_approval',
+  notes TEXT,
+  borrower_photo_url TEXT,                       -- รูปที่สาขาผู้ยืมถ่าย
+  lender_photo_url TEXT,                         -- รูปที่สาขาผู้ให้ยืมถ่าย
+  approved_by UUID REFERENCES profiles(id),
+  approved_at TIMESTAMPTZ,
+  borrower_pos_confirmed BOOLEAN DEFAULT false,
+  lender_pos_confirmed BOOLEAN DEFAULT false,
+  borrower_pos_confirmed_by UUID REFERENCES profiles(id),
+  borrower_pos_confirmed_at TIMESTAMPTZ,
+  lender_pos_confirmed_by UUID REFERENCES profiles(id),
+  lender_pos_confirmed_at TIMESTAMPTZ,
+  rejected_by UUID REFERENCES profiles(id),
+  rejected_at TIMESTAMPTZ,
+  rejection_reason TEXT,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE borrow_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  borrow_id UUID REFERENCES borrows(id) ON DELETE CASCADE,
+  product_name TEXT NOT NULL,
+  category TEXT,
+  quantity NUMERIC(10,2) NOT NULL,
+  unit TEXT,
+  notes TEXT
 );
 
 -- ==========================================
@@ -212,7 +302,13 @@ CREATE TABLE store_settings (
   customer_notify_withdrawal_enabled BOOLEAN DEFAULT true,
   customer_notify_deposit_enabled BOOLEAN DEFAULT true,
   customer_notify_promotion_enabled BOOLEAN DEFAULT true,
-  customer_notify_channels TEXT[] DEFAULT '{pwa,line}'
+  customer_notify_channels TEXT[] DEFAULT '{pwa,line}',
+  /** เปิด/ปิดการส่งแจ้งเตือนผ่าน LINE ทั้งหมดของสาขา */
+  line_notify_enabled BOOLEAN DEFAULT true,
+  /** เปิด/ปิดเตือนนับสต๊อกประจำวัน (Cron Job 1) */
+  daily_reminder_enabled BOOLEAN DEFAULT true,
+  /** เปิด/ปิดติดตามรายการค้าง (Cron Job 3) */
+  follow_up_enabled BOOLEAN DEFAULT true
 );
 
 CREATE TABLE app_settings (
@@ -299,6 +395,24 @@ CREATE TABLE announcements (
 );
 
 -- ==========================================
+-- PRINT QUEUE
+-- ==========================================
+
+CREATE TABLE print_queue (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id UUID REFERENCES stores(id) ON DELETE CASCADE,
+  deposit_id UUID REFERENCES deposits(id) ON DELETE SET NULL,
+  job_type print_job_type NOT NULL DEFAULT 'receipt',
+  status print_job_status NOT NULL DEFAULT 'pending',
+  copies INTEGER DEFAULT 1,
+  payload JSONB NOT NULL,
+  requested_by UUID REFERENCES profiles(id),
+  printed_at TIMESTAMPTZ,
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ==========================================
 -- INDEXES
 -- ==========================================
 
@@ -318,7 +432,19 @@ CREATE INDEX idx_audit_logs_store_id ON audit_logs(store_id);
 CREATE INDEX idx_announcements_store_id ON announcements(store_id);
 CREATE INDEX idx_announcements_active ON announcements(active, start_date, end_date);
 CREATE INDEX idx_profiles_line_user_id ON profiles(line_user_id);
+CREATE INDEX idx_deposit_requests_store_status ON deposit_requests(store_id, status);
 CREATE INDEX idx_products_store_id ON products(store_id);
+CREATE INDEX idx_hq_deposits_status ON hq_deposits(status);
+CREATE INDEX idx_hq_deposits_from_store ON hq_deposits(from_store_id);
+CREATE INDEX idx_hq_deposits_transfer ON hq_deposits(transfer_id);
+CREATE INDEX idx_borrows_from_store ON borrows(from_store_id);
+CREATE INDEX idx_borrows_to_store ON borrows(to_store_id);
+CREATE INDEX idx_borrows_status ON borrows(status);
+CREATE INDEX idx_borrows_created_at ON borrows(created_at);
+CREATE INDEX idx_borrow_items_borrow ON borrow_items(borrow_id);
+CREATE INDEX idx_stores_line_channel_id ON stores(line_channel_id) WHERE line_channel_id IS NOT NULL;
+CREATE INDEX idx_print_queue_store_status ON print_queue(store_id, status);
+CREATE INDEX idx_print_queue_created_at ON print_queue(created_at);
 
 -- ==========================================
 -- ROW LEVEL SECURITY
@@ -343,6 +469,10 @@ ALTER TABLE penalties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE print_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE borrows ENABLE ROW LEVEL SECURITY;
+ALTER TABLE borrow_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hq_deposits ENABLE ROW LEVEL SECURITY;
 
 -- Helper function to check user role
 CREATE OR REPLACE FUNCTION get_user_role()
@@ -354,7 +484,7 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE;
 CREATE OR REPLACE FUNCTION is_admin()
 RETURNS BOOLEAN AS $$
   SELECT EXISTS (
-    SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('owner', 'accountant')
+    SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('owner', 'accountant', 'hq')
   );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
@@ -509,6 +639,52 @@ CREATE POLICY "Staff manage deposit_requests" ON deposit_requests
 CREATE POLICY "Admin see audit_logs" ON audit_logs
   FOR SELECT USING (is_admin() OR store_id IN (SELECT get_user_store_ids()));
 
+-- Print queue policies
+CREATE POLICY "Staff see store print jobs" ON print_queue
+  FOR SELECT USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
+CREATE POLICY "Staff manage print jobs" ON print_queue
+  FOR ALL USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
+
+-- Borrows policies
+CREATE POLICY "Staff see related borrows" ON borrows
+  FOR SELECT USING (
+    from_store_id IN (SELECT get_user_store_ids())
+    OR to_store_id IN (SELECT get_user_store_ids())
+    OR is_admin()
+  );
+CREATE POLICY "Staff manage related borrows" ON borrows
+  FOR ALL USING (
+    from_store_id IN (SELECT get_user_store_ids())
+    OR to_store_id IN (SELECT get_user_store_ids())
+    OR is_admin()
+  );
+
+-- Borrow items policies
+CREATE POLICY "Staff see borrow items" ON borrow_items
+  FOR SELECT USING (
+    borrow_id IN (
+      SELECT id FROM borrows
+      WHERE from_store_id IN (SELECT get_user_store_ids())
+        OR to_store_id IN (SELECT get_user_store_ids())
+    )
+    OR is_admin()
+  );
+CREATE POLICY "Staff manage borrow items" ON borrow_items
+  FOR ALL USING (
+    borrow_id IN (
+      SELECT id FROM borrows
+      WHERE from_store_id IN (SELECT get_user_store_ids())
+        OR to_store_id IN (SELECT get_user_store_ids())
+    )
+    OR is_admin()
+  );
+
+-- HQ deposits policies
+CREATE POLICY "HQ and admin see hq_deposits" ON hq_deposits
+  FOR SELECT USING (is_admin());
+CREATE POLICY "HQ and admin manage hq_deposits" ON hq_deposits
+  FOR ALL USING (is_admin());
+
 -- ==========================================
 -- TRIGGERS: Auto-create profile on signup
 -- ==========================================
@@ -540,3 +716,35 @@ ALTER PUBLICATION supabase_realtime ADD TABLE comparisons;
 ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
 ALTER PUBLICATION supabase_realtime ADD TABLE deposit_requests;
 ALTER PUBLICATION supabase_realtime ADD TABLE announcements;
+ALTER PUBLICATION supabase_realtime ADD TABLE print_queue;
+ALTER PUBLICATION supabase_realtime ADD TABLE borrows;
+
+-- ==========================================
+-- APP SETTINGS: Central bot config
+-- ==========================================
+
+INSERT INTO app_settings (key, value, type, description) VALUES
+  ('LINE_CENTRAL_TOKEN', '', 'secret', 'LINE Channel Access Token สำหรับ bot กลาง'),
+  ('LINE_CENTRAL_GROUP_ID', '', 'string', 'LINE Group ID ของกลุ่มคลังกลาง'),
+  ('LINE_CENTRAL_CHANNEL_SECRET', '', 'secret', 'LINE Channel Secret สำหรับ verify webhook signature'),
+  ('OWNER_GROUP_LINE_ID', '', 'string', 'LINE Group ID ของกลุ่ม owner/admin สำหรับแจ้งเตือนผลต่างสต๊อก')
+ON CONFLICT (key) DO NOTHING;
+
+-- ==========================================
+-- SUPABASE STORAGE: Bucket สำหรับรูปฝากเหล้า
+-- ==========================================
+
+INSERT INTO storage.buckets (id, name, public) VALUES ('deposit-photos', 'deposit-photos', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- RLS: authenticated users สามารถอัปโหลดได้
+CREATE POLICY "Authenticated users can upload deposit photos"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'deposit-photos');
+
+-- RLS: ทุกคนดูได้ (public bucket สำหรับ LINE Flex)
+CREATE POLICY "Public read access for deposit photos"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'deposit-photos');

@@ -1,6 +1,538 @@
 import { formatThaiDate, formatNumber, formatPercent } from '@/lib/utils/format';
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface FlexMessage {
+  type: 'flex';
+  altText: string;
+  contents: FlexBubble;
+}
+
+interface FlexBubble {
+  type: 'bubble';
+  size?: string;
+  header?: FlexBox;
+  body: FlexBox;
+  footer?: FlexBox;
+  styles?: {
+    header?: { backgroundColor: string };
+    body?: Record<string, unknown>;
+    footer?: { separator?: boolean };
+  };
+}
+
+interface FlexBox {
+  type: 'box';
+  layout: string;
+  contents: Record<string, unknown>[];
+  [key: string]: unknown;
+}
+
 type FlexContainer = Record<string, unknown>;
+
+// ---------------------------------------------------------------------------
+// Colors
+// ---------------------------------------------------------------------------
+
+const COLORS = {
+  green: '#1DB446',
+  greenBg: '#E8F5E9',
+  blue: '#0066CC',
+  blueBg: '#E3F2FD',
+  orange: '#FF8C00',
+  orangeBg: '#FFF3E0',
+  amber: '#F59E0B',
+  amberBg: '#FFFBEB',
+  red: '#DC2626',
+  redBg: '#FEE2E2',
+  textPrimary: '#111111',
+  textSecondary: '#555555',
+  textMuted: '#999999',
+  separator: '#EEEEEE',
+  white: '#FFFFFF',
+} as const;
+
+// ---------------------------------------------------------------------------
+// Helper builders
+// ---------------------------------------------------------------------------
+
+function textComponent(
+  text: string,
+  opts: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return { type: 'text', text, ...opts };
+}
+
+function separatorComponent(): Record<string, unknown> {
+  return { type: 'separator', margin: 'lg', color: COLORS.separator };
+}
+
+function labelValueRow(
+  label: string,
+  value: string,
+  valueOpts: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    type: 'box',
+    layout: 'horizontal',
+    contents: [
+      textComponent(label, {
+        size: 'sm',
+        color: COLORS.textMuted,
+        flex: 0,
+        wrap: false,
+      }),
+      textComponent(value, {
+        size: 'sm',
+        color: COLORS.textPrimary,
+        align: 'end',
+        weight: 'bold',
+        flex: 1,
+        wrap: true,
+        ...valueOpts,
+      }),
+    ],
+    margin: 'md',
+  };
+}
+
+function headerBox(
+  title: string,
+  headerColor: string,
+): FlexBox {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    contents: [
+      textComponent(title, {
+        size: 'lg',
+        weight: 'bold',
+        color: COLORS.white,
+      }),
+    ],
+    paddingAll: 'lg',
+  };
+}
+
+function bodyBox(contents: Record<string, unknown>[]): FlexBox {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    contents,
+    paddingAll: 'lg',
+    spacing: 'none',
+  };
+}
+
+function footerBox(contents: Record<string, unknown>[]): FlexBox {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    contents,
+    paddingAll: 'lg',
+    spacing: 'sm',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (a) depositConfirmedFlex
+// ---------------------------------------------------------------------------
+
+interface DepositConfirmedParams {
+  deposit_code: string;
+  product_name: string;
+  quantity: number;
+  store_name: string;
+  expiry_date: string;
+}
+
+/**
+ * Flex message sent to customer when the bar confirms their deposit.
+ * Green accent.
+ */
+export function depositConfirmedFlex(params: DepositConfirmedParams): FlexMessage {
+  const { deposit_code, product_name, quantity, store_name, expiry_date } = params;
+
+  return {
+    type: 'flex',
+    altText: `ฝากเหล้าสำเร็จ - ${product_name}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('ฝากเหล้าสำเร็จ', COLORS.green),
+      body: bodyBox([
+        textComponent(product_name, {
+          size: 'xl',
+          weight: 'bold',
+          color: COLORS.textPrimary,
+          wrap: true,
+        }),
+        textComponent(store_name, {
+          size: 'xs',
+          color: COLORS.textMuted,
+          margin: 'sm',
+        }),
+        separatorComponent(),
+        labelValueRow('รหัสฝาก', deposit_code, { color: COLORS.green }),
+        labelValueRow('จำนวน', `${formatNumber(quantity)} ขวด`),
+        labelValueRow('หมดอายุ', formatThaiDate(expiry_date)),
+      ]),
+      footer: footerBox([
+        textComponent('กรุณาแสดงรหัสฝากเมื่อต้องการเบิก', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          wrap: true,
+          align: 'center',
+        }),
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.green },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (b) withdrawalCompletedFlex
+// ---------------------------------------------------------------------------
+
+interface WithdrawalCompletedParams {
+  product_name: string;
+  actual_qty: number;
+  remaining_qty: number;
+  store_name: string;
+}
+
+/**
+ * Flex message sent to customer when withdrawal is completed.
+ * Blue accent.
+ */
+export function withdrawalCompletedFlex(params: WithdrawalCompletedParams): FlexMessage {
+  const { product_name, actual_qty, remaining_qty, store_name } = params;
+
+  return {
+    type: 'flex',
+    altText: `เบิกเหล้าสำเร็จ - ${product_name}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('เบิกเหล้าสำเร็จ', COLORS.blue),
+      body: bodyBox([
+        textComponent(product_name, {
+          size: 'xl',
+          weight: 'bold',
+          color: COLORS.textPrimary,
+          wrap: true,
+        }),
+        textComponent(store_name, {
+          size: 'xs',
+          color: COLORS.textMuted,
+          margin: 'sm',
+        }),
+        separatorComponent(),
+        labelValueRow('จำนวนที่เบิก', `${formatNumber(actual_qty)} ขวด`),
+        labelValueRow('คงเหลือ', `${formatNumber(remaining_qty)} ขวด`, {
+          color: remaining_qty > 0 ? COLORS.green : COLORS.red,
+        }),
+      ]),
+      footer: footerBox([
+        textComponent(
+          remaining_qty > 0
+            ? 'ยังมีเหล้าคงเหลือ สามารถเบิกเพิ่มได้'
+            : 'เบิกครบแล้ว ไม่มีคงเหลือ',
+          {
+            size: 'xs',
+            color: COLORS.textMuted,
+            wrap: true,
+            align: 'center',
+          },
+        ),
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.blue },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (c) depositExpiryWarningFlex
+// ---------------------------------------------------------------------------
+
+interface DepositExpiryWarningParams {
+  deposit_code: string;
+  product_name: string;
+  remaining_qty: number;
+  expiry_date: string;
+  days_remaining: number;
+}
+
+/**
+ * Flex message sent to customer when their deposit is expiring soon.
+ * Orange/amber accent.
+ */
+export function depositExpiryWarningFlex(params: DepositExpiryWarningParams): FlexMessage {
+  const { deposit_code, product_name, remaining_qty, expiry_date, days_remaining } = params;
+
+  const urgencyColor = days_remaining <= 3 ? COLORS.red : COLORS.orange;
+
+  return {
+    type: 'flex',
+    altText: `เหล้าใกล้หมดอายุ - ${product_name} (เหลือ ${days_remaining} วัน)`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('เหล้าใกล้หมดอายุ', COLORS.orange),
+      body: bodyBox([
+        textComponent(product_name, {
+          size: 'xl',
+          weight: 'bold',
+          color: COLORS.textPrimary,
+          wrap: true,
+        }),
+        {
+          type: 'box',
+          layout: 'horizontal',
+          contents: [
+            textComponent(`เหลืออีก ${days_remaining} วัน`, {
+              size: 'md',
+              weight: 'bold',
+              color: urgencyColor,
+            }),
+          ],
+          margin: 'md',
+          paddingAll: 'sm',
+          backgroundColor: days_remaining <= 3 ? COLORS.redBg : COLORS.orangeBg,
+          cornerRadius: 'sm',
+        },
+        separatorComponent(),
+        labelValueRow('รหัสฝาก', deposit_code),
+        labelValueRow('คงเหลือ', `${formatNumber(remaining_qty)} ขวด`),
+        labelValueRow('หมดอายุ', formatThaiDate(expiry_date), { color: urgencyColor }),
+      ]),
+      footer: footerBox([
+        textComponent('กรุณามาเบิกก่อนหมดอายุ', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          wrap: true,
+          align: 'center',
+        }),
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.orange },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (d) newDepositNotifyFlex
+// ---------------------------------------------------------------------------
+
+interface NewDepositNotifyParams {
+  deposit_code: string;
+  product_name: string;
+  customer_name: string;
+  quantity: number;
+  table_number?: string;
+  staff_name?: string;
+}
+
+/**
+ * Flex message sent to bar GROUP when a new deposit needs confirmation.
+ * Amber accent.
+ */
+export function newDepositNotifyFlex(params: NewDepositNotifyParams): FlexMessage {
+  const { deposit_code, product_name, customer_name, quantity, table_number, staff_name } = params;
+
+  const bodyContents: Record<string, unknown>[] = [
+    textComponent(product_name, {
+      size: 'xl',
+      weight: 'bold',
+      color: COLORS.textPrimary,
+      wrap: true,
+    }),
+    separatorComponent(),
+    labelValueRow('รหัสฝาก', deposit_code, { color: COLORS.amber }),
+    labelValueRow('ลูกค้า', customer_name),
+    labelValueRow('จำนวน', `${formatNumber(quantity)} ขวด`),
+  ];
+
+  if (table_number) {
+    bodyContents.push(labelValueRow('โต๊ะ', table_number));
+  }
+
+  if (staff_name) {
+    bodyContents.push(labelValueRow('พนักงาน', staff_name));
+  }
+
+  return {
+    type: 'flex',
+    altText: `ฝากเหล้ารอยืนยัน - ${customer_name} (${product_name})`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('ฝากเหล้ารอยืนยัน', COLORS.amber),
+      body: bodyBox(bodyContents),
+      footer: footerBox([
+        textComponent('กรุณาเข้าระบบเพื่อยืนยัน', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          wrap: true,
+          align: 'center',
+        }),
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.amber },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (e) withdrawalRequestNotifyFlex
+// ---------------------------------------------------------------------------
+
+interface WithdrawalRequestNotifyParams {
+  product_name: string;
+  customer_name: string;
+  requested_qty: number;
+  table_number?: string;
+}
+
+/**
+ * Flex message sent to bar GROUP when customer requests withdrawal.
+ * Blue accent.
+ */
+export function withdrawalRequestNotifyFlex(params: WithdrawalRequestNotifyParams): FlexMessage {
+  const { product_name, customer_name, requested_qty, table_number } = params;
+
+  const bodyContents: Record<string, unknown>[] = [
+    textComponent(product_name, {
+      size: 'xl',
+      weight: 'bold',
+      color: COLORS.textPrimary,
+      wrap: true,
+    }),
+    separatorComponent(),
+    labelValueRow('ลูกค้า', customer_name),
+    labelValueRow('จำนวนขอเบิก', `${formatNumber(requested_qty)} ขวด`),
+  ];
+
+  if (table_number) {
+    bodyContents.push(labelValueRow('โต๊ะ', table_number));
+  }
+
+  return {
+    type: 'flex',
+    altText: `ขอเบิกเหล้า - ${customer_name} (${product_name})`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('ขอเบิกเหล้า', COLORS.blue),
+      body: bodyBox(bodyContents),
+      footer: footerBox([
+        textComponent('กรุณาเข้าระบบเพื่อดำเนินการ', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          wrap: true,
+          align: 'center',
+        }),
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.blue },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (f) stockComparisonFlex
+// ---------------------------------------------------------------------------
+
+interface StockComparisonParams {
+  store_name: string;
+  date: string;
+  total_items: number;
+  over_threshold_count: number;
+  summary: string;
+}
+
+/**
+ * Flex message sent to stock GROUP when comparison has differences.
+ * Red accent for issues.
+ */
+export function stockComparisonFlex(params: StockComparisonParams): FlexMessage {
+  const { store_name, date, total_items, over_threshold_count, summary } = params;
+
+  const hasIssues = over_threshold_count > 0;
+  const accentColor = hasIssues ? COLORS.red : COLORS.green;
+  const bgColor = hasIssues ? COLORS.red : COLORS.green;
+
+  return {
+    type: 'flex',
+    altText: `ผลเปรียบเทียบสต๊อก - ${store_name} (${over_threshold_count} รายการเกินเกณฑ์)`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('ผลเปรียบเทียบสต๊อก', bgColor),
+      body: bodyBox([
+        textComponent(store_name, {
+          size: 'xl',
+          weight: 'bold',
+          color: COLORS.textPrimary,
+          wrap: true,
+        }),
+        textComponent(formatThaiDate(date), {
+          size: 'xs',
+          color: COLORS.textMuted,
+          margin: 'sm',
+        }),
+        separatorComponent(),
+        labelValueRow('รายการทั้งหมด', `${formatNumber(total_items)} รายการ`),
+        labelValueRow('เกินเกณฑ์', `${formatNumber(over_threshold_count)} รายการ`, {
+          color: accentColor,
+        }),
+        separatorComponent(),
+        textComponent('สรุป', {
+          size: 'sm',
+          weight: 'bold',
+          color: COLORS.textSecondary,
+          margin: 'md',
+        }),
+        textComponent(summary, {
+          size: 'sm',
+          color: COLORS.textPrimary,
+          wrap: true,
+          margin: 'sm',
+        }),
+      ]),
+      footer: footerBox([
+        textComponent('กรุณาเข้าระบบเพื่อตรวจสอบรายละเอียด', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          wrap: true,
+          align: 'center',
+        }),
+      ]),
+      styles: {
+        header: { backgroundColor: bgColor },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Legacy templates (kept for backward compatibility)
+// ---------------------------------------------------------------------------
 
 function flexBubble(body: Record<string, unknown>, header?: Record<string, unknown>): FlexContainer {
   return {
@@ -144,6 +676,241 @@ export function approvalRequestTemplate(
       flexText('กรุณาเข้าระบบเพื่ออนุมัติ', { size: 'sm', color: '#999999', margin: 'md' }),
     ])
   );
+}
+
+// ---------------------------------------------------------------------------
+// (g) borrowRequestFlex — ส่งไปกลุ่ม LINE ของสาขาผู้ให้ยืม
+// ---------------------------------------------------------------------------
+
+interface BorrowRequestFlexParams {
+  from_store_name: string;
+  to_store_name: string;
+  requester_name: string;
+  items: { product_name: string; quantity: number; unit?: string }[];
+  notes?: string;
+}
+
+export function borrowRequestFlex(params: BorrowRequestFlexParams): FlexMessage {
+  const { from_store_name, to_store_name, requester_name, items, notes } = params;
+
+  const itemSummary = items
+    .map((i) => `${i.product_name} x${formatNumber(i.quantity)}${i.unit ? ` ${i.unit}` : ''}`)
+    .join(', ');
+
+  const bodyContents: Record<string, unknown>[] = [
+    textComponent(`ขอยืมสินค้า (${items.length} รายการ)`, {
+      size: 'lg',
+      weight: 'bold',
+      color: COLORS.textPrimary,
+      wrap: true,
+    }),
+    separatorComponent(),
+    labelValueRow('จากสาขา', from_store_name),
+    labelValueRow('ถึงสาขา', to_store_name),
+    labelValueRow('ผู้ขอ', requester_name),
+    separatorComponent(),
+    textComponent('รายการ:', {
+      size: 'sm',
+      weight: 'bold',
+      color: COLORS.textSecondary,
+      margin: 'md',
+    }),
+    textComponent(itemSummary, {
+      size: 'sm',
+      color: COLORS.textPrimary,
+      wrap: true,
+      margin: 'sm',
+    }),
+  ];
+
+  if (notes) {
+    bodyContents.push(labelValueRow('หมายเหตุ', notes));
+  }
+
+  return {
+    type: 'flex',
+    altText: `คำขอยืมสินค้าจาก ${from_store_name} (${items.length} รายการ)`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('คำขอยืมสินค้า', COLORS.amber),
+      body: bodyBox(bodyContents),
+      footer: footerBox([
+        textComponent('กรุณาเข้าระบบเพื่ออนุมัติ', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          wrap: true,
+          align: 'center',
+        }),
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.amber },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (h) borrowApprovedFlex — ส่งไปกลุ่ม LINE ของสาขาผู้ยืม
+// ---------------------------------------------------------------------------
+
+interface BorrowApprovedFlexParams {
+  from_store_name: string;
+  to_store_name: string;
+  approver_name: string;
+  items: { product_name: string; quantity: number; unit?: string }[];
+}
+
+export function borrowApprovedFlex(params: BorrowApprovedFlexParams): FlexMessage {
+  const { from_store_name, to_store_name, approver_name, items } = params;
+
+  const itemSummary = items
+    .map((i) => `${i.product_name} x${formatNumber(i.quantity)}${i.unit ? ` ${i.unit}` : ''}`)
+    .join(', ');
+
+  return {
+    type: 'flex',
+    altText: `อนุมัติยืมสินค้าจาก ${to_store_name} แล้ว`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('อนุมัติยืมสินค้าแล้ว', COLORS.green),
+      body: bodyBox([
+        textComponent(itemSummary, {
+          size: 'md',
+          weight: 'bold',
+          color: COLORS.textPrimary,
+          wrap: true,
+        }),
+        separatorComponent(),
+        labelValueRow('จากสาขา', from_store_name),
+        labelValueRow('ผู้ให้ยืม', to_store_name),
+        labelValueRow('อนุมัติโดย', approver_name),
+      ]),
+      footer: footerBox([
+        textComponent('กรุณาเข้าระบบเพื่อยืนยันการตัดสต๊อกในเครื่อง POS', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          wrap: true,
+          align: 'center',
+        }),
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.green },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (i) borrowRejectedFlex — ส่งไปกลุ่ม LINE ของสาขาผู้ยืม
+// ---------------------------------------------------------------------------
+
+interface BorrowRejectedFlexParams {
+  from_store_name: string;
+  to_store_name: string;
+  rejector_name: string;
+  reason?: string;
+  items: { product_name: string; quantity: number; unit?: string }[];
+}
+
+export function borrowRejectedFlex(params: BorrowRejectedFlexParams): FlexMessage {
+  const { from_store_name, to_store_name, rejector_name, reason, items } = params;
+
+  const itemSummary = items
+    .map((i) => `${i.product_name} x${formatNumber(i.quantity)}${i.unit ? ` ${i.unit}` : ''}`)
+    .join(', ');
+
+  const bodyContents: Record<string, unknown>[] = [
+    textComponent(itemSummary, {
+      size: 'md',
+      weight: 'bold',
+      color: COLORS.textPrimary,
+      wrap: true,
+    }),
+    separatorComponent(),
+    labelValueRow('จากสาขา', from_store_name),
+    labelValueRow('ถึงสาขา', to_store_name),
+    labelValueRow('ปฏิเสธโดย', rejector_name),
+  ];
+
+  if (reason) {
+    bodyContents.push(labelValueRow('เหตุผล', reason));
+  }
+
+  return {
+    type: 'flex',
+    altText: `คำขอยืมสินค้าถูกปฏิเสธโดย ${to_store_name}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('คำขอยืมถูกปฏิเสธ', COLORS.red),
+      body: bodyBox(bodyContents),
+      styles: {
+        header: { backgroundColor: COLORS.red },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (j) borrowCompletedFlex — ส่งไปกลุ่ม LINE ของทั้งสองสาขา
+// ---------------------------------------------------------------------------
+
+interface BorrowCompletedFlexParams {
+  from_store_name: string;
+  to_store_name: string;
+  items: { product_name: string; quantity: number; unit?: string }[];
+}
+
+export function borrowCompletedFlex(params: BorrowCompletedFlexParams): FlexMessage {
+  const { from_store_name, to_store_name, items } = params;
+
+  const itemSummary = items
+    .map((i) => `${i.product_name} x${formatNumber(i.quantity)}${i.unit ? ` ${i.unit}` : ''}`)
+    .join(', ');
+
+  return {
+    type: 'flex',
+    altText: `ยืมสินค้าเสร็จสมบูรณ์ — ${from_store_name} ↔ ${to_store_name}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('ยืมสินค้าเสร็จสมบูรณ์', COLORS.green),
+      body: bodyBox([
+        textComponent(itemSummary, {
+          size: 'md',
+          weight: 'bold',
+          color: COLORS.textPrimary,
+          wrap: true,
+        }),
+        separatorComponent(),
+        labelValueRow('ผู้ยืม', from_store_name),
+        labelValueRow('ผู้ให้ยืม', to_store_name),
+        {
+          type: 'box',
+          layout: 'horizontal',
+          contents: [
+            textComponent('ทั้งสองสาขาตัดสต๊อก POS แล้ว', {
+              size: 'sm',
+              weight: 'bold',
+              color: COLORS.green,
+              align: 'center',
+            }),
+          ],
+          margin: 'lg',
+          paddingAll: 'sm',
+          backgroundColor: COLORS.greenBg,
+          cornerRadius: 'sm',
+        },
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.green },
+      },
+    },
+  };
 }
 
 export function promotionTemplate(

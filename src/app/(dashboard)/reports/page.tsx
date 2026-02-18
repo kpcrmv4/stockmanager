@@ -17,6 +17,7 @@ import {
 } from '@/components/ui';
 import {
   formatThaiDate,
+  formatThaiShortDate,
   formatNumber,
   formatCurrency,
 } from '@/lib/utils/format';
@@ -44,6 +45,21 @@ import {
   Users,
   ClipboardCheck,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ReferenceLine,
+} from 'recharts';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -101,60 +117,84 @@ interface FinancialReportData {
 }
 
 // ---------------------------------------------------------------------------
-// Mock / fallback data
+// Chart data types
 // ---------------------------------------------------------------------------
 
-const MOCK_OVERVIEW: OverviewData = {
-  totalDeposits: 47,
-  totalWithdrawals: 23,
-  totalStockChecks: 28,
-  totalPenalties: 5,
-  depositsTrend: 12.5,
-  withdrawalsTrend: -8.3,
-  stockChecksTrend: 3.1,
-  penaltiesTrend: -40.0,
+interface DailyActivity {
+  date: string;
+  deposits: number;
+  withdrawals: number;
+  stockChecks: number;
+}
+
+interface DailyDiff {
+  date: string;
+  avgDiff: number;
+}
+
+interface WeeklyDepositData {
+  week: string;
+  deposits: number;
+  withdrawals: number;
+}
+
+interface MonthlyPenaltyData {
+  month: string;
+  amount: number;
+}
+
+// ---------------------------------------------------------------------------
+// Chart colors & components
+// ---------------------------------------------------------------------------
+
+const CHART_COLORS = {
+  indigo: '#6366f1',
+  emerald: '#10b981',
+  blue: '#3b82f6',
+  amber: '#f59e0b',
+  red: '#ef4444',
 };
 
-const MOCK_STOCK: StockReportData = {
-  daysChecked: 22,
-  totalDaysInRange: 30,
-  avgDiffPercent: 2.4,
-  totalDiscrepancies: 38,
-  topDiscrepancies: [
-    { productName: 'เบียร์ช้าง 620ml', productCode: 'BEER-001', totalDiff: -12, occurrences: 8 },
-    { productName: 'เหล้าขาว 350ml', productCode: 'SPIRIT-005', totalDiff: -8, occurrences: 5 },
-    { productName: 'ไวน์แดง ชิลี', productCode: 'WINE-012', totalDiff: -5, occurrences: 4 },
-    { productName: 'วิสกี้ JW Black', productCode: 'WHISKY-003', totalDiff: -4, occurrences: 3 },
-    { productName: 'โซดา 325ml', productCode: 'MIX-001', totalDiff: -3, occurrences: 6 },
-  ],
-};
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload) return null;
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+      <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
+      {payload.map((entry: any, idx: number) => (
+        <p key={idx} className="text-sm" style={{ color: entry.color }}>
+          {entry.name}: {formatNumber(entry.value)}
+        </p>
+      ))}
+    </div>
+  );
+}
 
-const MOCK_DEPOSIT: DepositReportData = {
-  totalActive: 34,
-  newDepositsInRange: 15,
-  withdrawalsInRange: 11,
-  expiringSoon: 6,
-  popularProducts: [
-    { productName: 'จอห์นนี่ วอล์กเกอร์ Black Label', count: 8 },
-    { productName: 'แอบโซลูท วอดก้า', count: 6 },
-    { productName: 'เฮนเนสซี่ V.S.O.P', count: 5 },
-    { productName: 'ชีวาส รีกัล 12 ปี', count: 4 },
-    { productName: 'แจ็ค แดเนียล', count: 3 },
-  ],
-};
+function FinancialTooltip({ active, payload, label }: any) {
+  if (!active || !payload) return null;
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+      <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
+      {payload.map((entry: any, idx: number) => (
+        <p key={idx} className="text-sm" style={{ color: entry.color }}>
+          {entry.name}: {formatCurrency(entry.value)}
+        </p>
+      ))}
+    </div>
+  );
+}
 
-const MOCK_FINANCIAL: FinancialReportData = {
-  penaltyRevenue: 15000,
-  depositFees: 8500,
-  expiredForfeit: 12000,
-  totalRevenue: 35500,
-  revenueByMonth: [
-    { month: 'ม.ค.', amount: 8200 },
-    { month: 'ก.พ.', amount: 9500 },
-    { month: 'มี.ค.', amount: 7800 },
-    { month: 'เม.ย.', amount: 10000 },
-  ],
-};
+function ChartEmptyState({ message }: { message?: string }) {
+  return (
+    <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50">
+      <div className="text-center">
+        <BarChart3 className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
+        <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">
+          {message || 'ยังไม่มีข้อมูลในช่วงนี้'}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Report tabs config
@@ -182,6 +222,42 @@ function getDefaultDateRange(): { start: string; end: string } {
   return { start: toDateString(start), end: toDateString(end) };
 }
 
+// Helper: compute trend percentage
+function computeTrend(current: number, previous: number): number {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return parseFloat(((current - previous) / previous * 100).toFixed(1));
+}
+
+// Helper: get ISO week label from a date string
+function getWeekLabel(dateStr: string): string {
+  const d = new Date(dateStr);
+  // Get Monday of the week
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diff));
+  const dd = String(monday.getDate()).padStart(2, '0');
+  const mm = String(monday.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}`;
+}
+
+// Helper: get Thai short month label from a date string
+function getMonthLabel(dateStr: string): string {
+  const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  const d = new Date(dateStr);
+  return `${months[d.getMonth()]} ${d.getFullYear() + 543}`;
+}
+
+// Helper: get YYYY-MM key from a date string
+function getMonthKey(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Helper: extract date (YYYY-MM-DD) from datetime string
+function extractDate(dateTimeStr: string): string {
+  return dateTimeStr.split('T')[0];
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -206,10 +282,43 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
 
   // Report data
-  const [overview, setOverview] = useState<OverviewData>(MOCK_OVERVIEW);
-  const [stockReport, setStockReport] = useState<StockReportData>(MOCK_STOCK);
-  const [depositReport, setDepositReport] = useState<DepositReportData>(MOCK_DEPOSIT);
-  const [financialReport, setFinancialReport] = useState<FinancialReportData>(MOCK_FINANCIAL);
+  const [overview, setOverview] = useState<OverviewData>({
+    totalDeposits: 0,
+    totalWithdrawals: 0,
+    totalStockChecks: 0,
+    totalPenalties: 0,
+    depositsTrend: 0,
+    withdrawalsTrend: 0,
+    stockChecksTrend: 0,
+    penaltiesTrend: 0,
+  });
+  const [stockReport, setStockReport] = useState<StockReportData>({
+    daysChecked: 0,
+    totalDaysInRange: 0,
+    avgDiffPercent: 0,
+    totalDiscrepancies: 0,
+    topDiscrepancies: [],
+  });
+  const [depositReport, setDepositReport] = useState<DepositReportData>({
+    totalActive: 0,
+    newDepositsInRange: 0,
+    withdrawalsInRange: 0,
+    expiringSoon: 0,
+    popularProducts: [],
+  });
+  const [financialReport, setFinancialReport] = useState<FinancialReportData>({
+    penaltyRevenue: 0,
+    depositFees: 0,
+    expiredForfeit: 0,
+    totalRevenue: 0,
+    revenueByMonth: [],
+  });
+
+  // Chart data
+  const [dailyActivity, setDailyActivity] = useState<DailyActivity[]>([]);
+  const [dailyDiffs, setDailyDiffs] = useState<DailyDiff[]>([]);
+  const [weeklyDeposits, setWeeklyDeposits] = useState<WeeklyDepositData[]>([]);
+  const [monthlyPenalties, setMonthlyPenalties] = useState<MonthlyPenaltyData[]>([]);
 
   // Whether the user can pick any store (owner / accountant)
   const canSelectStore = user?.role === 'owner' || user?.role === 'accountant';
@@ -257,7 +366,16 @@ export default function ReportsPage() {
     try {
       const supabase = createClient();
 
-      // --- Overview ---
+      // Compute previous period for trend comparison
+      const startMs = new Date(startDate).getTime();
+      const endMs = new Date(endDate).getTime();
+      const rangeDurationMs = endMs - startMs;
+      const prevEnd = new Date(startMs - 1); // day before current start
+      const prevStart = new Date(prevEnd.getTime() - rangeDurationMs);
+      const prevStartStr = toDateString(prevStart);
+      const prevEndStr = toDateString(prevEnd);
+
+      // --- Overview: current period counts ---
       const [
         { count: depositsCount },
         { count: withdrawalsCount },
@@ -271,10 +389,9 @@ export default function ReportsPage() {
           .gte('created_at', startDate)
           .lte('created_at', endDate + 'T23:59:59'),
         supabase
-          .from('deposits')
+          .from('withdrawals')
           .select('*', { count: 'exact', head: true })
           .eq('store_id', selectedStoreId)
-          .eq('status', 'withdrawn')
           .gte('created_at', startDate)
           .lte('created_at', endDate + 'T23:59:59'),
         supabase
@@ -284,33 +401,144 @@ export default function ReportsPage() {
           .gte('count_date', startDate)
           .lte('count_date', endDate),
         supabase
-          .from('comparisons')
+          .from('penalties')
           .select('*', { count: 'exact', head: true })
           .eq('store_id', selectedStoreId)
-          .eq('status', 'penalty')
-          .gte('comp_date', startDate)
-          .lte('comp_date', endDate),
+          .gte('created_at', startDate)
+          .lte('created_at', endDate + 'T23:59:59'),
       ]);
 
+      // --- Overview: previous period counts for trends ---
+      const [
+        { count: prevDepositsCount },
+        { count: prevWithdrawalsCount },
+        { count: prevStockChecksCount },
+        { count: prevPenaltiesCount },
+      ] = await Promise.all([
+        supabase
+          .from('deposits')
+          .select('*', { count: 'exact', head: true })
+          .eq('store_id', selectedStoreId)
+          .gte('created_at', prevStartStr)
+          .lte('created_at', prevEndStr + 'T23:59:59'),
+        supabase
+          .from('withdrawals')
+          .select('*', { count: 'exact', head: true })
+          .eq('store_id', selectedStoreId)
+          .gte('created_at', prevStartStr)
+          .lte('created_at', prevEndStr + 'T23:59:59'),
+        supabase
+          .from('manual_counts')
+          .select('*', { count: 'exact', head: true })
+          .eq('store_id', selectedStoreId)
+          .gte('count_date', prevStartStr)
+          .lte('count_date', prevEndStr),
+        supabase
+          .from('penalties')
+          .select('*', { count: 'exact', head: true })
+          .eq('store_id', selectedStoreId)
+          .gte('created_at', prevStartStr)
+          .lte('created_at', prevEndStr + 'T23:59:59'),
+      ]);
+
+      const curDeposits = depositsCount ?? 0;
+      const curWithdrawals = withdrawalsCount ?? 0;
+      const curStockChecks = stockChecksCount ?? 0;
+      const curPenalties = penaltiesCount ?? 0;
+
       setOverview({
-        totalDeposits: depositsCount ?? MOCK_OVERVIEW.totalDeposits,
-        totalWithdrawals: withdrawalsCount ?? MOCK_OVERVIEW.totalWithdrawals,
-        totalStockChecks: stockChecksCount ?? MOCK_OVERVIEW.totalStockChecks,
-        totalPenalties: penaltiesCount ?? MOCK_OVERVIEW.totalPenalties,
-        // Trends would require comparing two periods; use mock for now
-        depositsTrend: MOCK_OVERVIEW.depositsTrend,
-        withdrawalsTrend: MOCK_OVERVIEW.withdrawalsTrend,
-        stockChecksTrend: MOCK_OVERVIEW.stockChecksTrend,
-        penaltiesTrend: MOCK_OVERVIEW.penaltiesTrend,
+        totalDeposits: curDeposits,
+        totalWithdrawals: curWithdrawals,
+        totalStockChecks: curStockChecks,
+        totalPenalties: curPenalties,
+        depositsTrend: computeTrend(curDeposits, prevDepositsCount ?? 0),
+        withdrawalsTrend: computeTrend(curWithdrawals, prevWithdrawalsCount ?? 0),
+        stockChecksTrend: computeTrend(curStockChecks, prevStockChecksCount ?? 0),
+        penaltiesTrend: computeTrend(curPenalties, prevPenaltiesCount ?? 0),
       });
 
-      // --- Stock comparisons for stock tab ---
-      const { data: comparisons } = await supabase
-        .from('comparisons')
-        .select('comp_date, difference, product_code, status')
-        .eq('store_id', selectedStoreId)
-        .gte('comp_date', startDate)
-        .lte('comp_date', endDate);
+      // --- Overview: daily activity chart data ---
+      const [
+        { data: depositsInRange },
+        { data: withdrawalsInRange },
+        { data: countsInRange },
+      ] = await Promise.all([
+        supabase
+          .from('deposits')
+          .select('created_at')
+          .eq('store_id', selectedStoreId)
+          .gte('created_at', startDate)
+          .lte('created_at', endDate + 'T23:59:59'),
+        supabase
+          .from('withdrawals')
+          .select('created_at')
+          .eq('store_id', selectedStoreId)
+          .gte('created_at', startDate)
+          .lte('created_at', endDate + 'T23:59:59'),
+        supabase
+          .from('manual_counts')
+          .select('count_date')
+          .eq('store_id', selectedStoreId)
+          .gte('count_date', startDate)
+          .lte('count_date', endDate),
+      ]);
+
+      // Build daily activity map
+      const dateMap: Record<string, DailyActivity> = {};
+
+      // Initialize all dates in range
+      const currentDate = new Date(startDate);
+      const endDateObj = new Date(endDate);
+      while (currentDate <= endDateObj) {
+        const key = toDateString(currentDate);
+        dateMap[key] = {
+          date: formatThaiShortDate(key),
+          deposits: 0,
+          withdrawals: 0,
+          stockChecks: 0,
+        };
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      (depositsInRange || []).forEach((d) => {
+        const key = extractDate(d.created_at);
+        if (dateMap[key]) dateMap[key].deposits += 1;
+      });
+
+      (withdrawalsInRange || []).forEach((w) => {
+        const key = extractDate(w.created_at);
+        if (dateMap[key]) dateMap[key].withdrawals += 1;
+      });
+
+      (countsInRange || []).forEach((c) => {
+        const key = c.count_date;
+        if (dateMap[key]) dateMap[key].stockChecks += 1;
+      });
+
+      const dailyActivityArr = Object.keys(dateMap)
+        .sort()
+        .map((key) => dateMap[key]);
+      setDailyActivity(dailyActivityArr);
+
+      // --- Stock comparisons ---
+      const [{ data: comparisons }, { data: productsData }] = await Promise.all([
+        supabase
+          .from('comparisons')
+          .select('comp_date, difference, diff_percent, product_code, product_name, status')
+          .eq('store_id', selectedStoreId)
+          .gte('comp_date', startDate)
+          .lte('comp_date', endDate),
+        supabase
+          .from('products')
+          .select('product_code, product_name')
+          .eq('store_id', selectedStoreId),
+      ]);
+
+      // Build product code -> name map
+      const productNameMap: Record<string, string> = {};
+      (productsData || []).forEach((p) => {
+        productNameMap[p.product_code] = p.product_name;
+      });
 
       if (comparisons && comparisons.length > 0) {
         const uniqueDates = new Set(comparisons.map((c) => c.comp_date));
@@ -341,7 +569,7 @@ export default function ReportsPage() {
           .sort((a, b) => Math.abs(b[1].totalDiff) - Math.abs(a[1].totalDiff))
           .slice(0, 5)
           .map(([code, v]) => ({
-            productName: code, // We only have code here; real impl would join products table
+            productName: productNameMap[code] || code,
             productCode: code,
             totalDiff: v.totalDiff,
             occurrences: v.occurrences,
@@ -358,29 +586,56 @@ export default function ReportsPage() {
           totalDaysInRange: totalDays,
           avgDiffPercent: parseFloat(avgDiff.toFixed(1)),
           totalDiscrepancies: discrepancies.length,
-          topDiscrepancies:
-            topDisc.length > 0 ? topDisc : MOCK_STOCK.topDiscrepancies,
+          topDiscrepancies: topDisc,
         });
+
+        // Daily diff chart data
+        const diffByDate = comparisons.reduce<Record<string, number[]>>((acc, c) => {
+          if (!acc[c.comp_date]) acc[c.comp_date] = [];
+          acc[c.comp_date].push(Math.abs(c.difference ?? 0));
+          return acc;
+        }, {});
+
+        const dailyDiffArr = Object.entries(diffByDate)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, diffs]) => ({
+            date: formatThaiShortDate(date),
+            avgDiff: parseFloat((diffs.reduce((s, d) => s + d, 0) / diffs.length).toFixed(1)),
+          }));
+        setDailyDiffs(dailyDiffArr);
       } else {
-        setStockReport(MOCK_STOCK);
+        const msInDay = 1000 * 60 * 60 * 24;
+        const totalDays = Math.ceil(
+          (new Date(endDate).getTime() - new Date(startDate).getTime()) / msInDay
+        ) + 1;
+        setStockReport({
+          daysChecked: 0,
+          totalDaysInRange: totalDays,
+          avgDiffPercent: 0,
+          totalDiscrepancies: 0,
+          topDiscrepancies: [],
+        });
+        setDailyDiffs([]);
       }
 
       // --- Deposits tab ---
-      const { data: depositsData } = await supabase
-        .from('deposits')
-        .select('id, status, product_name, expiry_date, created_at')
-        .eq('store_id', selectedStoreId);
+      const [{ data: depositsData }, { data: withdrawalsData }] = await Promise.all([
+        supabase
+          .from('deposits')
+          .select('id, status, product_name, expiry_date, created_at')
+          .eq('store_id', selectedStoreId),
+        supabase
+          .from('withdrawals')
+          .select('id, created_at')
+          .eq('store_id', selectedStoreId)
+          .gte('created_at', startDate)
+          .lte('created_at', endDate + 'T23:59:59'),
+      ]);
 
       if (depositsData && depositsData.length > 0) {
         const active = depositsData.filter((d) => d.status === 'in_store');
         const newInRange = depositsData.filter(
           (d) => d.created_at >= startDate && d.created_at <= endDate + 'T23:59:59'
-        );
-        const withdrawnInRange = depositsData.filter(
-          (d) =>
-            d.status === 'withdrawn' &&
-            d.created_at >= startDate &&
-            d.created_at <= endDate + 'T23:59:59'
         );
         const now = new Date();
         const weekFromNow = new Date();
@@ -406,17 +661,95 @@ export default function ReportsPage() {
         setDepositReport({
           totalActive: active.length,
           newDepositsInRange: newInRange.length,
-          withdrawalsInRange: withdrawnInRange.length,
+          withdrawalsInRange: (withdrawalsData || []).length,
           expiringSoon: expiring.length,
-          popularProducts:
-            popular.length > 0 ? popular : MOCK_DEPOSIT.popularProducts,
+          popularProducts: popular,
         });
+
+        // Weekly deposit/withdrawal chart data
+        const weekMap: Record<string, { deposits: number; withdrawals: number }> = {};
+        newInRange.forEach((d) => {
+          const wk = getWeekLabel(d.created_at);
+          if (!weekMap[wk]) weekMap[wk] = { deposits: 0, withdrawals: 0 };
+          weekMap[wk].deposits += 1;
+        });
+        (withdrawalsData || []).forEach((w) => {
+          const wk = getWeekLabel(w.created_at);
+          if (!weekMap[wk]) weekMap[wk] = { deposits: 0, withdrawals: 0 };
+          weekMap[wk].withdrawals += 1;
+        });
+        const weeklyArr = Object.entries(weekMap)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([week, v]) => ({
+            week: `สัปดาห์ ${week}`,
+            deposits: v.deposits,
+            withdrawals: v.withdrawals,
+          }));
+        setWeeklyDeposits(weeklyArr);
       } else {
-        setDepositReport(MOCK_DEPOSIT);
+        setDepositReport({
+          totalActive: 0,
+          newDepositsInRange: 0,
+          withdrawalsInRange: (withdrawalsData || []).length,
+          expiringSoon: 0,
+          popularProducts: [],
+        });
+        setWeeklyDeposits([]);
       }
 
-      // --- Financial tab (placeholder: real data would come from a payments/transactions table) ---
-      setFinancialReport(MOCK_FINANCIAL);
+      // --- Financial tab: real data from penalties + expired deposits ---
+      const [{ data: penaltiesData }, { data: expiredDeposits }] = await Promise.all([
+        supabase
+          .from('penalties')
+          .select('id, amount, created_at, status')
+          .eq('store_id', selectedStoreId)
+          .eq('status', 'approved')
+          .gte('created_at', startDate)
+          .lte('created_at', endDate + 'T23:59:59'),
+        supabase
+          .from('deposits')
+          .select('id, created_at')
+          .eq('store_id', selectedStoreId)
+          .eq('status', 'expired')
+          .gte('created_at', startDate)
+          .lte('created_at', endDate + 'T23:59:59'),
+      ]);
+
+      const penaltyRevenue = (penaltiesData || []).reduce(
+        (sum, p) => sum + (parseFloat(String(p.amount)) || 0),
+        0
+      );
+      const expiredForfeitCount = (expiredDeposits || []).length;
+
+      // No deposit fees table exists
+      const depositFees = 0;
+      const totalRevenue = penaltyRevenue + depositFees;
+
+      // Group penalties by month for chart and table
+      const penaltyByMonth: Record<string, number> = {};
+      (penaltiesData || []).forEach((p) => {
+        const mk = getMonthKey(p.created_at);
+        const label = getMonthLabel(p.created_at);
+        if (!penaltyByMonth[mk]) penaltyByMonth[mk] = 0;
+        penaltyByMonth[mk] += parseFloat(String(p.amount)) || 0;
+      });
+
+      const monthlyPenaltyArr = Object.entries(penaltyByMonth)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([mk, amount]) => ({
+          month: getMonthLabel(mk + '-01'),
+          amount: parseFloat(amount.toFixed(2)),
+        }));
+
+      setMonthlyPenalties(monthlyPenaltyArr);
+
+      setFinancialReport({
+        penaltyRevenue,
+        depositFees,
+        expiredForfeit: expiredForfeitCount,
+        totalRevenue,
+        revenueByMonth: monthlyPenaltyArr,
+      });
     } catch (error) {
       console.error('Error fetching report data:', error);
       toast({
@@ -424,11 +757,6 @@ export default function ReportsPage() {
         title: 'เกิดข้อผิดพลาด',
         message: 'ไม่สามารถโหลดข้อมูลรายงานได้',
       });
-      // Fall back to mock
-      setOverview(MOCK_OVERVIEW);
-      setStockReport(MOCK_STOCK);
-      setDepositReport(MOCK_DEPOSIT);
-      setFinancialReport(MOCK_FINANCIAL);
     } finally {
       setLoading(false);
     }
@@ -439,7 +767,7 @@ export default function ReportsPage() {
   }, [fetchReportData]);
 
   // ------------------------------------------------------------------
-  // Export placeholders
+  // Export handlers
   // ------------------------------------------------------------------
   const handleExportPDF = () => {
     toast({
@@ -450,10 +778,61 @@ export default function ReportsPage() {
   };
 
   const handleExportCSV = () => {
+    let csvContent = '';
+    let filename = '';
+
+    if (activeTab === 'overview') {
+      csvContent = 'รายการ,จำนวน,แนวโน้ม(%)\n';
+      csvContent += `ฝากเหล้าใหม่,${overview.totalDeposits},${overview.depositsTrend}\n`;
+      csvContent += `เบิกเหล้า,${overview.totalWithdrawals},${overview.withdrawalsTrend}\n`;
+      csvContent += `ตรวจนับสต๊อก,${overview.totalStockChecks},${overview.stockChecksTrend}\n`;
+      csvContent += `บทลงโทษ,${overview.totalPenalties},${overview.penaltiesTrend}\n`;
+      filename = 'report-overview';
+    } else if (activeTab === 'stock') {
+      csvContent = 'สินค้า,รหัส,ส่วนต่างรวม,จำนวนครั้ง\n';
+      stockReport.topDiscrepancies.forEach((item) => {
+        csvContent += `"${item.productName}",${item.productCode},${item.totalDiff},${item.occurrences}\n`;
+      });
+      filename = 'report-stock';
+    } else if (activeTab === 'deposit') {
+      csvContent = 'รายการ,จำนวน\n';
+      csvContent += `ฝากอยู่ในร้าน,${depositReport.totalActive}\n`;
+      csvContent += `ฝากใหม่ในช่วงนี้,${depositReport.newDepositsInRange}\n`;
+      csvContent += `เบิกในช่วงนี้,${depositReport.withdrawalsInRange}\n`;
+      csvContent += `ใกล้หมดอายุ,${depositReport.expiringSoon}\n`;
+      csvContent += '\nสินค้ายอดนิยม,จำนวน\n';
+      depositReport.popularProducts.forEach((item) => {
+        csvContent += `"${item.productName}",${item.count}\n`;
+      });
+      filename = 'report-deposit';
+    } else if (activeTab === 'financial') {
+      csvContent = 'รายการ,จำนวน (บาท)\n';
+      csvContent += `รายได้จากค่าปรับ,${financialReport.penaltyRevenue.toFixed(2)}\n`;
+      csvContent += `ค่าบริการฝากเหล้า,${financialReport.depositFees.toFixed(2)}\n`;
+      csvContent += `เหล้าหมดอายุ (จำนวน),${financialReport.expiredForfeit}\n`;
+      csvContent += `รายได้รวม,${financialReport.totalRevenue.toFixed(2)}\n`;
+      csvContent += '\nเดือน,ยอดค่าปรับ (บาท)\n';
+      financialReport.revenueByMonth.forEach((row) => {
+        csvContent += `${row.month},${row.amount.toFixed(2)}\n`;
+      });
+      filename = 'report-financial';
+    }
+
+    if (!csvContent) return;
+
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}-${startDate}-${endDate}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+
     toast({
-      type: 'info',
-      title: 'กำลังพัฒนา',
-      message: 'ฟีเจอร์ส่งออก CSV จะเปิดใช้งานเร็ว ๆ นี้',
+      type: 'success',
+      title: 'ส่งออกสำเร็จ',
+      message: `ดาวน์โหลดไฟล์ ${filename}.csv เรียบร้อย`,
     });
   };
 
@@ -559,41 +938,50 @@ export default function ReportsPage() {
           })}
         </div>
 
-        {/* Chart placeholder - Overview activity chart */}
+        {/* Daily activity chart */}
         <Card padding="none">
           <CardHeader
             title="กิจกรรมรายวัน"
             description="ภาพรวมกิจกรรมทั้งหมดในช่วงเวลาที่เลือก"
           />
           <CardContent>
-            {/* TODO: Integrate Recharts AreaChart / BarChart here
-                - X axis: dates in range
-                - Y axis: count of activities
-                - Series: deposits, withdrawals, stock checks
-                Example:
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={dailyActivityData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="deposits" stroke="#6366f1" fill="#6366f1" fillOpacity={0.1} />
-                    <Area type="monotone" dataKey="withdrawals" stroke="#10b981" fill="#10b981" fillOpacity={0.1} />
-                    <Area type="monotone" dataKey="stockChecks" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} />
-                  </AreaChart>
-                </ResponsiveContainer>
-            */}
-            <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50">
-              <div className="text-center">
-                <BarChart3 className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
-                <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">
-                  กราฟกิจกรรมรายวัน
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">
-                  (พร้อมใช้งานเมื่อเชื่อมต่อ Recharts)
-                </p>
-              </div>
-            </div>
+            {dailyActivity.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={dailyActivity}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" allowDecimals={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Area
+                    type="monotone"
+                    dataKey="deposits"
+                    name="ฝากเหล้า"
+                    stroke={CHART_COLORS.indigo}
+                    fill={CHART_COLORS.indigo}
+                    fillOpacity={0.1}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="withdrawals"
+                    name="เบิกเหล้า"
+                    stroke={CHART_COLORS.emerald}
+                    fill={CHART_COLORS.emerald}
+                    fillOpacity={0.1}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="stockChecks"
+                    name="นับสต๊อก"
+                    stroke={CHART_COLORS.blue}
+                    fill={CHART_COLORS.blue}
+                    fillOpacity={0.1}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <ChartEmptyState />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -665,39 +1053,41 @@ export default function ReportsPage() {
           })}
         </div>
 
-        {/* Chart placeholder - Stock discrepancy trend */}
+        {/* Stock discrepancy trend chart */}
         <Card padding="none">
           <CardHeader
             title="แนวโน้มส่วนต่างสต๊อก"
-            description="เปอร์เซ็นต์ส่วนต่างเฉลี่ยรายวัน"
+            description="ค่าเฉลี่ย |ส่วนต่าง| รายวัน"
           />
           <CardContent>
-            {/* TODO: Integrate Recharts LineChart here
-                - X axis: dates
-                - Y axis: diff percentage
-                Example:
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={dailyDiffData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="diffPercent" stroke="#f59e0b" strokeWidth={2} />
-                    <ReferenceLine y={5} stroke="#ef4444" strokeDasharray="5 5" label="เกณฑ์เตือน" />
-                  </LineChart>
-                </ResponsiveContainer>
-            */}
-            <div className="flex h-56 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50">
-              <div className="text-center">
-                <TrendingUp className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
-                <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">
-                  กราฟแนวโน้มส่วนต่าง
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">
-                  (พร้อมใช้งานเมื่อเชื่อมต่อ Recharts)
-                </p>
-              </div>
-            </div>
+            {dailyDiffs.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={dailyDiffs}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <ReferenceLine
+                    y={5}
+                    stroke={CHART_COLORS.red}
+                    strokeDasharray="5 5"
+                    label={{ value: 'เกณฑ์เตือน (5)', position: 'insideTopRight', fill: CHART_COLORS.red, fontSize: 12 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="avgDiff"
+                    name="ส่วนต่างเฉลี่ย"
+                    stroke={CHART_COLORS.amber}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <ChartEmptyState />
+            )}
           </CardContent>
         </Card>
 
@@ -707,66 +1097,74 @@ export default function ReportsPage() {
             title="สินค้าที่มีส่วนต่างมากที่สุด"
             description="Top 5 สินค้าที่พบส่วนต่างบ่อยในช่วงเวลาที่เลือก"
           />
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100 dark:border-gray-700">
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    สินค้า
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    รหัส
-                  </th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    ส่วนต่างรวม
-                  </th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    จำนวนครั้ง
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                {stockReport.topDiscrepancies.map((item, idx) => (
-                  <tr
-                    key={item.productCode}
-                    className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30"
-                  >
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">
-                          {idx + 1}
-                        </span>
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          {item.productName}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="font-mono text-sm text-gray-500 dark:text-gray-400">
-                        {item.productCode}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <span
-                        className={cn(
-                          'text-sm font-semibold',
-                          item.totalDiff < 0
-                            ? 'text-red-600 dark:text-red-400'
-                            : 'text-emerald-600 dark:text-emerald-400'
-                        )}
-                      >
-                        {item.totalDiff > 0 ? '+' : ''}
-                        {formatNumber(item.totalDiff)}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <Badge variant="default">{formatNumber(item.occurrences)} ครั้ง</Badge>
-                    </td>
+          {stockReport.topDiscrepancies.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 dark:border-gray-700">
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      สินค้า
+                    </th>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      รหัส
+                    </th>
+                    <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      ส่วนต่างรวม
+                    </th>
+                    <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      จำนวนครั้ง
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                  {stockReport.topDiscrepancies.map((item, idx) => (
+                    <tr
+                      key={item.productCode}
+                      className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                            {idx + 1}
+                          </span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {item.productName}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="font-mono text-sm text-gray-500 dark:text-gray-400">
+                          {item.productCode}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <span
+                          className={cn(
+                            'text-sm font-semibold',
+                            item.totalDiff < 0
+                              ? 'text-red-600 dark:text-red-400'
+                              : 'text-emerald-600 dark:text-emerald-400'
+                          )}
+                        >
+                          {item.totalDiff > 0 ? '+' : ''}
+                          {formatNumber(item.totalDiff)}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <Badge variant="default">{formatNumber(item.occurrences)} ครั้ง</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <CardContent>
+              <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                ยังไม่มีข้อมูลในช่วงนี้
+              </div>
+            </CardContent>
+          )}
         </Card>
       </div>
     );
@@ -839,40 +1237,38 @@ export default function ReportsPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Chart placeholder - Deposit/withdrawal trend */}
+          {/* Weekly deposit/withdrawal chart */}
           <Card padding="none">
             <CardHeader
               title="แนวโน้มฝาก-เบิก"
               description="จำนวนการฝากและเบิกรายสัปดาห์"
             />
             <CardContent>
-              {/* TODO: Integrate Recharts BarChart here
-                  - X axis: weeks / dates
-                  - Y axis: count
-                  - Series: new deposits (indigo), withdrawals (emerald)
-                  Example:
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={weeklyDepositData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="week" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="deposits" fill="#6366f1" radius={[4,4,0,0]} />
-                      <Bar dataKey="withdrawals" fill="#10b981" radius={[4,4,0,0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-              */}
-              <div className="flex h-56 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50">
-                <div className="text-center">
-                  <BarChart3 className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
-                  <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">
-                    กราฟแนวโน้มฝาก-เบิก
-                  </p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">
-                    (พร้อมใช้งานเมื่อเชื่อมต่อ Recharts)
-                  </p>
-                </div>
-              </div>
+              {weeklyDeposits.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={weeklyDeposits}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="week" tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                    <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    <Bar
+                      dataKey="deposits"
+                      name="ฝากใหม่"
+                      fill={CHART_COLORS.indigo}
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="withdrawals"
+                      name="เบิก"
+                      fill={CHART_COLORS.emerald}
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <ChartEmptyState />
+              )}
             </CardContent>
           </Card>
 
@@ -882,24 +1278,32 @@ export default function ReportsPage() {
               title="สินค้ายอดนิยม"
               description="สินค้าที่ลูกค้าฝากบ่อยที่สุด"
             />
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
-              {depositReport.popularProducts.map((item, idx) => (
-                <div
-                  key={item.productName}
-                  className="flex items-center gap-4 px-5 py-3.5"
-                >
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
-                    {idx + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                      {item.productName}
-                    </p>
+            {depositReport.popularProducts.length > 0 ? (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {depositReport.popularProducts.map((item, idx) => (
+                  <div
+                    key={item.productName}
+                    className="flex items-center gap-4 px-5 py-3.5"
+                  >
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+                      {idx + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                        {item.productName}
+                      </p>
+                    </div>
+                    <Badge variant="info">{formatNumber(item.count)} ขวด</Badge>
                   </div>
-                  <Badge variant="info">{formatNumber(item.count)} ขวด</Badge>
+                ))}
+              </div>
+            ) : (
+              <CardContent>
+                <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                  ยังไม่มีข้อมูลในช่วงนี้
                 </div>
-              ))}
-            </div>
+              </CardContent>
+            )}
           </Card>
         </div>
       </div>
@@ -917,14 +1321,14 @@ export default function ReportsPage() {
       },
       {
         label: 'ค่าบริการฝากเหล้า',
-        value: formatCurrency(financialReport.depositFees),
+        value: financialReport.depositFees === 0 ? 'ไม่มีข้อมูลค่าบริการ' : formatCurrency(financialReport.depositFees),
         icon: Wine,
         lightBg: 'bg-indigo-50 dark:bg-indigo-900/20',
         textColor: 'text-indigo-600 dark:text-indigo-400',
       },
       {
         label: 'เหล้าหมดอายุ (ริบ)',
-        value: formatCurrency(financialReport.expiredForfeit),
+        value: `${formatNumber(financialReport.expiredForfeit)} รายการ`,
         icon: Clock,
         lightBg: 'bg-amber-50 dark:bg-amber-900/20',
         textColor: 'text-amber-600 dark:text-amber-400',
@@ -972,88 +1376,87 @@ export default function ReportsPage() {
           })}
         </div>
 
-        {/* Chart placeholder - Revenue by month */}
+        {/* Monthly penalties chart */}
         <Card padding="none">
           <CardHeader
-            title="รายได้รายเดือน"
-            description="สรุปรายได้แยกตามเดือน"
+            title="ค่าปรับรายเดือน"
+            description="สรุปยอดค่าปรับที่อนุมัติแล้วแยกตามเดือน"
           />
           <CardContent>
-            {/* TODO: Integrate Recharts BarChart here
-                - X axis: months
-                - Y axis: revenue (THB)
-                - Stacked bars: penalties, deposit fees, expired forfeit
-                Example:
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={financialReport.revenueByMonth}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => formatCurrency(value)} />
-                    <Bar dataKey="penalties" stackId="rev" fill="#ef4444" radius={[0,0,0,0]} />
-                    <Bar dataKey="fees" stackId="rev" fill="#6366f1" radius={[0,0,0,0]} />
-                    <Bar dataKey="forfeit" stackId="rev" fill="#f59e0b" radius={[4,4,0,0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-            */}
-            <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50">
-              <div className="text-center">
-                <DollarSign className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
-                <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">
-                  กราฟรายได้รายเดือน
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">
-                  (พร้อมใช้งานเมื่อเชื่อมต่อ Recharts)
-                </p>
-              </div>
-            </div>
+            {monthlyPenalties.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={monthlyPenalties}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                  <Tooltip content={<FinancialTooltip />} />
+                  <Legend />
+                  <Bar
+                    dataKey="amount"
+                    name="ค่าปรับ (บาท)"
+                    fill={CHART_COLORS.red}
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <ChartEmptyState />
+            )}
           </CardContent>
         </Card>
 
         {/* Monthly revenue breakdown */}
         <Card padding="none">
-          <CardHeader title="รายละเอียดรายเดือน" />
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100 dark:border-gray-700">
-                  <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    เดือน
-                  </th>
-                  <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    ยอดรายได้
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                {financialReport.revenueByMonth.map((row) => (
-                  <tr
-                    key={row.month}
-                    className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30"
-                  >
-                    <td className="px-5 py-3.5 text-sm font-medium text-gray-900 dark:text-white">
-                      {row.month}
+          <CardHeader title="รายละเอียดค่าปรับรายเดือน" />
+          {financialReport.revenueByMonth.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 dark:border-gray-700">
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      เดือน
+                    </th>
+                    <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      ยอดค่าปรับ
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                  {financialReport.revenueByMonth.map((row) => (
+                    <tr
+                      key={row.month}
+                      className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                    >
+                      <td className="px-5 py-3.5 text-sm font-medium text-gray-900 dark:text-white">
+                        {row.month}
+                      </td>
+                      <td className="px-5 py-3.5 text-right text-sm font-semibold text-gray-900 dark:text-white">
+                        {formatCurrency(row.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 dark:border-gray-600">
+                    <td className="px-5 py-3.5 text-sm font-bold text-gray-900 dark:text-white">
+                      รวมทั้งหมด
                     </td>
-                    <td className="px-5 py-3.5 text-right text-sm font-semibold text-gray-900 dark:text-white">
-                      {formatCurrency(row.amount)}
+                    <td className="px-5 py-3.5 text-right text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                      {formatCurrency(
+                        financialReport.revenueByMonth.reduce((s, r) => s + r.amount, 0)
+                      )}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-gray-200 dark:border-gray-600">
-                  <td className="px-5 py-3.5 text-sm font-bold text-gray-900 dark:text-white">
-                    รวมทั้งหมด
-                  </td>
-                  <td className="px-5 py-3.5 text-right text-sm font-bold text-indigo-600 dark:text-indigo-400">
-                    {formatCurrency(
-                      financialReport.revenueByMonth.reduce((s, r) => s + r.amount, 0)
-                    )}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                </tfoot>
+              </table>
+            </div>
+          ) : (
+            <CardContent>
+              <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                ยังไม่มีข้อมูลค่าปรับในช่วงนี้
+              </div>
+            </CardContent>
+          )}
         </Card>
       </div>
     );
