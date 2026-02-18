@@ -1,24 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
-import { UserPlus, Eye, EyeOff, Loader2, Wine, ArrowLeft } from 'lucide-react';
+import { UserPlus, Eye, EyeOff, Loader2, Wine, CheckCircle } from 'lucide-react';
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [registrationCode, setRegistrationCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [success, setSuccess] = useState<{ storeName: string } | null>(null);
 
   const validateForm = (): string | null => {
+    if (!registrationCode.trim()) {
+      return 'กรุณากรอกรหัสลงทะเบียน';
+    }
     if (!username.trim()) {
       return 'กรุณากรอกชื่อผู้ใช้';
     }
@@ -37,9 +38,6 @@ export default function RegisterPage() {
     if (password !== confirmPassword) {
       return 'รหัสผ่านไม่ตรงกัน กรุณากรอกใหม่';
     }
-    if (!registrationCode.trim()) {
-      return 'กรุณากรอกรหัสลงทะเบียน';
-    }
     return null;
   };
 
@@ -56,51 +54,25 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const supabase = createClient();
-      const email = `${username.trim().toLowerCase()}@stockmanager.app`;
-
-      // Verify registration code first
-      const { data: codeData, error: codeError } = await supabase
-        .from('registration_codes')
-        .select('*')
-        .eq('code', registrationCode.trim())
-        .eq('is_used', false)
-        .single();
-
-      if (codeError || !codeData) {
-        setError('รหัสลงทะเบียนไม่ถูกต้องหรือถูกใช้งานแล้ว');
-        setIsLoading(false);
-        return;
-      }
-
-      // Sign up
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            username: username.trim().toLowerCase(),
-            registration_code: registrationCode.trim(),
-          },
-        },
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username.trim().toLowerCase(),
+          password,
+          displayName: displayName.trim() || null,
+          registrationCode: registrationCode.trim(),
+        }),
       });
 
-      if (signUpError) {
-        if (signUpError.message.includes('already registered')) {
-          setError('ชื่อผู้ใช้นี้ถูกใช้งานแล้ว กรุณาเลือกชื่ออื่น');
-        } else {
-          setError('เกิดข้อผิดพลาดในการลงทะเบียน กรุณาลองใหม่อีกครั้ง');
-        }
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'เกิดข้อผิดพลาดในการลงทะเบียน');
         return;
       }
 
-      // Mark registration code as used
-      await supabase
-        .from('registration_codes')
-        .update({ is_used: true, used_by: email })
-        .eq('code', registrationCode.trim());
-
-      router.push('/login?registered=true');
+      setSuccess({ storeName: data.storeName });
     } catch {
       setError('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
     } finally {
@@ -108,30 +80,69 @@ export default function RegisterPage() {
     }
   };
 
+  // Success screen
+  if (success) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+        <div className="w-full max-w-md">
+          <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+            <div className="mb-6 text-center">
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                <CheckCircle className="h-7 w-7" />
+              </div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                ลงทะเบียนสำเร็จ!
+              </h1>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                บัญชีของคุณถูกสร้างและเชื่อมกับสาขา
+              </p>
+              {success.storeName && (
+                <p className="mt-1 text-base font-semibold text-indigo-600 dark:text-indigo-400">
+                  {success.storeName}
+                </p>
+              )}
+            </div>
+
+            <Link
+              href="/login"
+              className={cn(
+                'flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors',
+                'hover:bg-indigo-700 active:bg-indigo-800',
+                'dark:bg-indigo-500 dark:hover:bg-indigo-600'
+              )}
+            >
+              ไปหน้าเข้าสู่ระบบ
+            </Link>
+          </div>
+
+          <p className="mt-6 text-center text-xs text-gray-400 dark:text-gray-500">
+            &copy; {new Date().getFullYear()} StockManager. ระบบจัดการฝากเหล้า
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
       <div className="w-full max-w-md">
-        {/* Logo & Title */}
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg">
-            <Wine className="h-8 w-8" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            StockManager
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            ลงทะเบียนพนักงานใหม่
-          </p>
-        </div>
-
         {/* Registration Form */}
         <form
           onSubmit={handleRegister}
           className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700"
         >
-          <h2 className="mb-6 text-lg font-semibold text-gray-900 dark:text-white">
-            ลงทะเบียน
-          </h2>
+          {/* Logo & Title */}
+          <div className="mb-6 text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg">
+              <Wine className="h-7 w-7" />
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+              StockManager
+            </h1>
+            <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+              ลงทะเบียนพนักงานใหม่
+            </p>
+          </div>
 
           {/* Error Alert */}
           {error && (
@@ -167,6 +178,33 @@ export default function RegisterPage() {
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
               รหัสลงทะเบียนจะได้รับจากเจ้าของร้านหรือผู้จัดการ
             </p>
+          </div>
+
+          {/* Display Name */}
+          <div className="mb-4">
+            <label
+              htmlFor="displayName"
+              className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              ชื่อที่แสดง{' '}
+              <span className="font-normal text-gray-400">(ไม่บังคับ)</span>
+            </label>
+            <input
+              id="displayName"
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="เช่น สมชาย, น้องเอ"
+              disabled={isLoading}
+              className={cn(
+                'w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors',
+                'placeholder:text-gray-400',
+                'focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20',
+                'disabled:cursor-not-allowed disabled:opacity-60',
+                'dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500',
+                'dark:focus:border-indigo-400 dark:focus:ring-indigo-400/20'
+              )}
+            />
           </div>
 
           {/* Username */}
@@ -248,7 +286,7 @@ export default function RegisterPage() {
             <div className="relative">
               <input
                 id="confirmPassword"
-                type={showConfirmPassword ? 'text' : 'password'}
+                type={showPassword ? 'text' : 'password'}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="กรอกรหัสผ่านอีกครั้ง"
@@ -263,18 +301,6 @@ export default function RegisterPage() {
                   'dark:focus:border-indigo-400 dark:focus:ring-indigo-400/20'
                 )}
               />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                tabIndex={-1}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                {showConfirmPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </button>
             </div>
           </div>
 
@@ -298,13 +324,15 @@ export default function RegisterPage() {
           </button>
 
           {/* Back to Login */}
-          <Link
-            href="/login"
-            className="mt-4 flex items-center justify-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            กลับไปหน้าเข้าสู่ระบบ
-          </Link>
+          <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
+            มีบัญชีแล้ว?{' '}
+            <Link
+              href="/login"
+              className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
+            >
+              เข้าสู่ระบบ
+            </Link>
+          </p>
         </form>
 
         {/* Footer */}
