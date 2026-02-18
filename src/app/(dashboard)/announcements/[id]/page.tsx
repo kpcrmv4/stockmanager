@@ -25,6 +25,7 @@ import {
   Bell,
   Upload,
 } from 'lucide-react';
+import { toBangkokISO } from '@/lib/utils/date';
 
 interface StoreOption {
   id: string;
@@ -86,8 +87,8 @@ export default function EditAnnouncementPage() {
     setType(data.type || 'promotion');
     setTargetAudience(data.target_audience || 'customer');
     setStoreId(data.store_id || '');
-    setStartDate(data.start_date ? new Date(data.start_date).toISOString().split('T')[0] : '');
-    setEndDate(data.end_date ? new Date(data.end_date).toISOString().split('T')[0] : '');
+    setStartDate(data.start_date ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok' }).format(new Date(data.start_date)) : '');
+    setEndDate(data.end_date ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok' }).format(new Date(data.end_date)) : '');
     setImageUrl(data.image_url || '');
     setSendPush(data.send_push || false);
     setActive(data.active ?? true);
@@ -114,8 +115,8 @@ export default function EditAnnouncementPage() {
         type,
         target_audience: targetAudience,
         store_id: storeId || null,
-        start_date: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
-        end_date: endDate ? new Date(endDate).toISOString() : null,
+        start_date: startDate ? toBangkokISO(new Date(startDate + 'T00:00:00+07:00')) : toBangkokISO(),
+        end_date: endDate ? toBangkokISO(new Date(endDate + 'T23:59:59+07:00')) : null,
         image_url: imageUrl.trim() || null,
         send_push: sendPush,
         active,

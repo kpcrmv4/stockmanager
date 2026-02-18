@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { Button, Input, Card, CardHeader, CardContent, Tabs, EmptyState, toast } from '@/components/ui';
 import { formatThaiDate, formatNumber } from '@/lib/utils/format';
+import { todayBangkok } from '@/lib/utils/date';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import type { Product } from '@/types/database';
 import {
@@ -40,7 +41,7 @@ export default function DailyCheckPage() {
   const [existingCounts, setExistingCounts] = useState<Record<string, number>>({});
   const [showOcrUpload, setShowOcrUpload] = useState(false);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayBangkok();
 
   const fetchProducts = useCallback(async () => {
     if (!currentStoreId) return;

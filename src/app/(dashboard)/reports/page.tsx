@@ -22,6 +22,11 @@ import {
   formatCurrency,
 } from '@/lib/utils/format';
 import {
+  todayBangkok,
+  nowBangkok,
+  daysFromNowISO,
+} from '@/lib/utils/date';
+import {
   FileText,
   Download,
   Calendar,
@@ -216,10 +221,14 @@ function toDateString(date: Date): string {
 }
 
 function getDefaultDateRange(): { start: string; end: string } {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(start.getDate() - 30);
-  return { start: toDateString(start), end: toDateString(end) };
+  const endStr = todayBangkok();
+  const d = nowBangkok();
+  d.setDate(d.getDate() - 30);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const startStr = `${y}-${m}-${day}`;
+  return { start: startStr, end: endStr };
 }
 
 // Helper: compute trend percentage
@@ -637,14 +646,13 @@ export default function ReportsPage() {
         const newInRange = depositsData.filter(
           (d) => d.created_at >= startDate && d.created_at <= endDate + 'T23:59:59'
         );
-        const now = new Date();
-        const weekFromNow = new Date();
-        weekFromNow.setDate(weekFromNow.getDate() + 7);
+        const nowISO = new Date().toISOString();
+        const weekFromNowISO = daysFromNowISO(7);
         const expiring = active.filter(
           (d) =>
             d.expiry_date &&
-            new Date(d.expiry_date) > now &&
-            new Date(d.expiry_date) <= weekFromNow
+            d.expiry_date > nowISO &&
+            d.expiry_date <= weekFromNowISO
         );
 
         // Popular products

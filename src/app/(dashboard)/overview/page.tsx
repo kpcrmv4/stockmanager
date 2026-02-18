@@ -7,6 +7,11 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { formatThaiDate, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils/cn';
+import {
+  daysFromNowISO,
+  daysAgoBangkokISO,
+  startOfTodayBangkokISO,
+} from '@/lib/utils/date';
 import { Card, CardHeader, toast } from '@/components/ui';
 import {
   Store,
@@ -249,14 +254,12 @@ export default function OverviewPage() {
       const { count: pendingWithdrawals } = await pendingWithdrawalsQuery;
 
       // --- Expiring deposits (within 7 days) ---
-      const sevenDaysFromNow = new Date();
-      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
       const expiringQuery = supabase
         .from('deposits')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'in_store')
-        .lt('expiry_date', sevenDaysFromNow.toISOString())
-        .gt('expiry_date', new Date().toISOString());
+        .lt('expiry_date', daysFromNowISO(7))
+        .gt('expiry_date', startOfTodayBangkokISO());
       if (storeFilter) expiringQuery.eq('store_id', storeFilter);
       const { count: expiringDeposits } = await expiringQuery;
 
@@ -308,38 +311,35 @@ export default function OverviewPage() {
       const { data: latestCount } = await latestCountQuery.single();
 
       // --- Trend calculations: current period (last 30 days) vs previous period (30-60 days ago) ---
-      const now = new Date();
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(now.getDate() - 30);
-      const sixtyDaysAgo = new Date();
-      sixtyDaysAgo.setDate(now.getDate() - 60);
+      const thirtyDaysAgoISO = daysAgoBangkokISO(30);
+      const sixtyDaysAgoISO = daysAgoBangkokISO(60);
 
       // Current period queries (last 30 days)
       const curDepositsQ = supabase
         .from('deposits')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'in_store')
-        .gte('created_at', thirtyDaysAgo.toISOString());
+        .gte('created_at', thirtyDaysAgoISO);
       if (storeFilter) curDepositsQ.eq('store_id', storeFilter);
 
       const curWithdrawalsQ = supabase
         .from('deposits')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'withdrawn')
-        .gte('created_at', thirtyDaysAgo.toISOString());
+        .gte('created_at', thirtyDaysAgoISO);
       if (storeFilter) curWithdrawalsQ.eq('store_id', storeFilter);
 
       const curStockChecksQ = supabase
         .from('manual_counts')
         .select('*', { count: 'exact', head: true })
-        .gte('created_at', thirtyDaysAgo.toISOString());
+        .gte('created_at', thirtyDaysAgoISO);
       if (storeFilter) curStockChecksQ.eq('store_id', storeFilter);
 
       const curPenaltiesQ = supabase
         .from('comparisons')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'penalty')
-        .gte('created_at', thirtyDaysAgo.toISOString());
+        .gte('created_at', thirtyDaysAgoISO);
       if (storeFilter) curPenaltiesQ.eq('store_id', storeFilter);
 
       // Previous period queries (30-60 days ago)
@@ -347,31 +347,31 @@ export default function OverviewPage() {
         .from('deposits')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'in_store')
-        .gte('created_at', sixtyDaysAgo.toISOString())
-        .lt('created_at', thirtyDaysAgo.toISOString());
+        .gte('created_at', sixtyDaysAgoISO)
+        .lt('created_at', thirtyDaysAgoISO);
       if (storeFilter) prevDepositsQ.eq('store_id', storeFilter);
 
       const prevWithdrawalsQ = supabase
         .from('deposits')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'withdrawn')
-        .gte('created_at', sixtyDaysAgo.toISOString())
-        .lt('created_at', thirtyDaysAgo.toISOString());
+        .gte('created_at', sixtyDaysAgoISO)
+        .lt('created_at', thirtyDaysAgoISO);
       if (storeFilter) prevWithdrawalsQ.eq('store_id', storeFilter);
 
       const prevStockChecksQ = supabase
         .from('manual_counts')
         .select('*', { count: 'exact', head: true })
-        .gte('created_at', sixtyDaysAgo.toISOString())
-        .lt('created_at', thirtyDaysAgo.toISOString());
+        .gte('created_at', sixtyDaysAgoISO)
+        .lt('created_at', thirtyDaysAgoISO);
       if (storeFilter) prevStockChecksQ.eq('store_id', storeFilter);
 
       const prevPenaltiesQ = supabase
         .from('comparisons')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'penalty')
-        .gte('created_at', sixtyDaysAgo.toISOString())
-        .lt('created_at', thirtyDaysAgo.toISOString());
+        .gte('created_at', sixtyDaysAgoISO)
+        .lt('created_at', thirtyDaysAgoISO);
       if (storeFilter) prevPenaltiesQ.eq('store_id', storeFilter);
 
       // Execute all trend queries in parallel

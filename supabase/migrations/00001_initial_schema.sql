@@ -4,6 +4,12 @@
 -- ==========================================
 
 -- ==========================================
+-- TIMEZONE: Set database default to Asia/Bangkok (GMT+7)
+-- ==========================================
+ALTER DATABASE postgres SET timezone TO 'Asia/Bangkok';
+SET timezone = 'Asia/Bangkok';
+
+-- ==========================================
 -- ENUMS
 -- ==========================================
 CREATE TYPE user_role AS ENUM ('owner', 'accountant', 'manager', 'bar', 'staff', 'customer', 'hq');

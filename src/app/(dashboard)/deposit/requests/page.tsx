@@ -32,6 +32,7 @@ import {
 import Link from 'next/link';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
+import { expiryDateISO } from '@/lib/utils/date';
 
 interface DepositRequest {
   id: string;
@@ -118,10 +119,6 @@ export default function DepositRequestsPage() {
       }
       const depositCode = `DEP-${storeCode}-${randomPart}`;
 
-      // Calculate expiry date (30 days from now)
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + 30);
-
       // Create the deposit record
       const { error: depositError } = await supabase.from('deposits').insert({
         store_id: currentStoreId,
@@ -134,7 +131,7 @@ export default function DepositRequestsPage() {
         remaining_qty: selectedRequest.quantity,
         remaining_percent: 100,
         status: 'pending_confirm',
-        expiry_date: expiryDate.toISOString(),
+        expiry_date: expiryDateISO(30),
         received_by: user.id,
         notes: approvalNotes || null,
       });

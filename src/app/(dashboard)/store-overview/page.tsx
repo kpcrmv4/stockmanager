@@ -9,6 +9,10 @@ import { formatThaiDate, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils/cn';
 import { toast } from '@/components/ui';
 import {
+  daysFromNowISO,
+  startOfTodayBangkokISO,
+} from '@/lib/utils/date';
+import {
   Store,
   Users,
   Clock,
@@ -252,17 +256,13 @@ export default function StoreOverviewPage() {
         .eq('status', 'pending');
 
       // --- Expiring soon (in_store + expiry_date within 7 days) ---
-      const now = new Date();
-      const sevenDaysFromNow = new Date();
-      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-
       const { count: expiringSoon } = await supabase
         .from('deposits')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId)
         .eq('status', 'in_store')
-        .gt('expiry_date', now.toISOString())
-        .lt('expiry_date', sevenDaysFromNow.toISOString());
+        .gt('expiry_date', startOfTodayBangkokISO())
+        .lt('expiry_date', daysFromNowISO(7));
 
       // --- Last stock check (latest manual_counts.count_date) ---
       const { data: latestCount } = await supabase

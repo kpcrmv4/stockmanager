@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { Card, CardHeader, Tabs, EmptyState, toast } from '@/components/ui';
 import { formatThaiDate, formatThaiDateTime, formatNumber } from '@/lib/utils/format';
+import { todayBangkok, formatTimeBangkok, daysFromNowISO, startOfTodayBangkokISO, endOfTodayBangkokISO } from '@/lib/utils/date';
 import { AUDIT_ACTION_LABELS } from '@/lib/audit';
 import type { AuditLog } from '@/types/database';
 import {
@@ -130,11 +131,7 @@ const STORE_BORDER_COLORS = [
 // ---------------------------------------------------------------------------
 
 function getTodayDateString(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return todayBangkok();
 }
 
 function getRelativeTime(dateStr: string): string {
@@ -151,10 +148,7 @@ function getRelativeTime(dateStr: string): string {
 }
 
 function formatTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${hours}:${minutes}`;
+  return formatTimeBangkok(dateStr);
 }
 
 function getActionDotColor(action_type: string): string {
@@ -283,8 +277,8 @@ export default function ActivityPage() {
         const todayStart = `${date}T00:00:00`;
         const todayEnd = `${date}T23:59:59`;
 
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + 7);
+        const expiryDateISO = daysFromNowISO(7);
+        const nowISO = new Date().toISOString();
 
         const summaries: StoreSummary[] = await Promise.all(
           storeList.map(async (store) => {
@@ -325,8 +319,8 @@ export default function ActivityPage() {
                 .select('*', { count: 'exact', head: true })
                 .eq('store_id', store.id)
                 .eq('status', 'in_store')
-                .lte('expiry_date', expiryDate.toISOString())
-                .gte('expiry_date', new Date().toISOString()),
+                .lte('expiry_date', expiryDateISO)
+                .gte('expiry_date', nowISO),
 
               // Stock: counted today
               supabase
@@ -409,6 +403,8 @@ export default function ActivityPage() {
       setLoadingLogs(true);
       try {
         const supabase = createClient();
+        // If querying for today, use Bangkok-aware boundaries;
+        // otherwise, use the selected date string with T00/T23:59:59
         const todayStart = `${date}T00:00:00`;
         const todayEnd = `${date}T23:59:59`;
 

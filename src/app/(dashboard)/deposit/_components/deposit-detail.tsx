@@ -43,6 +43,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { extendExpiryISO } from '@/lib/utils/date';
 import type { ReceiptSettings } from '@/types/database';
 
 interface Deposit {
@@ -301,13 +302,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     const supabase = createClient();
 
     const oldExpiryDate = deposit.expiry_date;
-    const baseDate = oldExpiryDate ? new Date(oldExpiryDate) : new Date();
-    const newExpiryDate = new Date(baseDate);
-    newExpiryDate.setDate(newExpiryDate.getDate() + days);
+    const newExpiryISO = extendExpiryISO(oldExpiryDate, days);
 
     const { error } = await supabase
       .from('deposits')
-      .update({ expiry_date: newExpiryDate.toISOString() })
+      .update({ expiry_date: newExpiryISO })
       .eq('id', deposit.id);
 
     if (error) {
@@ -319,7 +318,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         table_name: 'deposits',
         record_id: deposit.id,
         old_value: { expiry_date: oldExpiryDate },
-        new_value: { expiry_date: newExpiryDate.toISOString(), extended_days: days },
+        new_value: { expiry_date: newExpiryISO, extended_days: days },
         changed_by: user?.id || null,
       });
       toast({

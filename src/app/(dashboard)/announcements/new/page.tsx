@@ -15,6 +15,7 @@ import {
   toast,
 } from '@/components/ui';
 import { ArrowLeft, Megaphone, Upload, Bell } from 'lucide-react';
+import { todayBangkok, toBangkokISO } from '@/lib/utils/date';
 
 interface StoreOption {
   id: string;
@@ -33,7 +34,7 @@ export default function NewAnnouncementPage() {
   const [type, setType] = useState('promotion');
   const [targetAudience, setTargetAudience] = useState('customer');
   const [storeId, setStoreId] = useState('');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(todayBangkok());
   const [endDate, setEndDate] = useState('');
   const [sendPush, setSendPush] = useState(false);
 
@@ -64,8 +65,8 @@ export default function NewAnnouncementPage() {
       body: body.trim() || null,
       type,
       target_audience: targetAudience,
-      start_date: new Date(startDate).toISOString(),
-      end_date: endDate ? new Date(endDate).toISOString() : null,
+      start_date: toBangkokISO(new Date(startDate + 'T00:00:00+07:00')),
+      end_date: endDate ? toBangkokISO(new Date(endDate + 'T23:59:59+07:00')) : null,
       send_push: sendPush,
       active: true,
       created_by: user.id,

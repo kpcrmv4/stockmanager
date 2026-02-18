@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
+import { expiryDateISO } from '@/lib/utils/date';
+import { formatThaiDate } from '@/lib/utils/format';
 
 interface DepositFormProps {
   onBack: () => void;
@@ -109,10 +111,6 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
     const supabase = createClient();
     const depositCode = await generateDepositCode(currentStoreId);
 
-    // Calculate expiry date
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + parseInt(expiryDays));
-
     const qty = parseFloat(quantity);
 
     const { error } = await supabase.from('deposits').insert({
@@ -127,7 +125,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
       remaining_percent: 100,
       table_number: tableNumber.trim() || null,
       status: 'pending_confirm',
-      expiry_date: expiryDate.toISOString(),
+      expiry_date: expiryDateISO(parseInt(expiryDays)),
       received_by: user.id,
       notes: notes.trim() || null,
       received_photo_url: receivedPhotoUrl || null,
@@ -279,7 +277,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
               placeholder="30"
               hint={
                 expiryDays && parseInt(expiryDays) > 0
-                  ? `หมดอายุประมาณ ${new Date(Date.now() + parseInt(expiryDays) * 86400000).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}`
+                  ? `หมดอายุประมาณ ${formatThaiDate(new Date(Date.now() + parseInt(expiryDays) * 86400000))}`
                   : 'ระบุจำนวนวันที่เก็บรักษา'
               }
               error={errors.expiryDays}

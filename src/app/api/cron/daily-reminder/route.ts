@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { pushMessage } from '@/lib/line/messaging';
 import { dailyReminderTemplate } from '@/lib/line/flex-templates';
+import { dayOfWeekBangkok } from '@/lib/utils/date';
 
 export async function GET(request: NextRequest) {
   // Verify cron secret
@@ -22,8 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ status: 'no stores' });
   }
 
-  const now = new Date();
-  const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][now.getDay()];
+  const dayOfWeek = dayOfWeekBangkok();
   const results: Array<{ store: string; sent: boolean; error?: string }> = [];
 
   for (const store of stores) {

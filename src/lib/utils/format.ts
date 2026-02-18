@@ -48,9 +48,13 @@ export function formatPercent(value: number): string {
   return `${formatNumber(value, 1)}%`;
 }
 
+/**
+ * Calculate days until a target date.
+ * Uses absolute UTC timestamps — timezone-independent because both
+ * endpoints reference the same instant.
+ */
 export function daysUntil(date: string | Date): number {
-  const target = new Date(date);
-  const now = new Date();
-  const diff = target.getTime() - now.getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  const target = new Date(date).getTime();
+  const now = Date.now();
+  return Math.ceil((target - now) / (1000 * 60 * 60 * 24));
 }

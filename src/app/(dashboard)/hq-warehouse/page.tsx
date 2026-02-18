@@ -26,6 +26,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useRealtime } from '@/hooks/use-realtime';
 import { formatThaiDateTime } from '@/lib/utils/format';
+import { todayBangkok, startOfTodayBangkokISO, daysAgoBangkokISO } from '@/lib/utils/date';
 import { PhotoUpload } from '@/components/ui/photo-upload';
 import { toast } from '@/components/ui';
 import type { Store } from '@/types/database';
@@ -441,19 +442,17 @@ export default function HqWarehousePage() {
     let result = withdrawnItems;
     if (filterBranch) result = result.filter((i) => i.from_store_id === filterBranch);
 
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
     if (withdrawnDateFilter === 'today') {
+      const todayStr = todayBangkok(); // "YYYY-MM-DD"
       result = result.filter((i) => {
         if (!i.withdrawn_at) return false;
-        const d = new Date(i.withdrawn_at);
-        d.setHours(0, 0, 0, 0);
-        return d.getTime() === now.getTime();
+        // Format withdrawn_at in Bangkok timezone to compare date strings
+        const dStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok' }).format(new Date(i.withdrawn_at));
+        return dStr === todayStr;
       });
     } else if (withdrawnDateFilter === 'week') {
-      const weekAgo = new Date(now);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      result = result.filter((i) => i.withdrawn_at && new Date(i.withdrawn_at) >= weekAgo);
+      const weekAgoISO = daysAgoBangkokISO(7);
+      result = result.filter((i) => i.withdrawn_at && new Date(i.withdrawn_at) >= new Date(weekAgoISO));
     }
 
     if (searchQuery) {

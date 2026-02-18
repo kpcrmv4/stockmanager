@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { pushMessage } from '@/lib/line/messaging';
+import { hoursAgoISO } from '@/lib/utils/date';
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -11,14 +12,13 @@ export async function GET(request: NextRequest) {
   const supabase = createServiceClient();
 
   // Find pending comparisons that need follow-up (more than 4 hours old)
-  const fourHoursAgo = new Date();
-  fourHoursAgo.setHours(fourHoursAgo.getHours() - 4);
+  const fourHoursAgoISO = hoursAgoISO(4);
 
   const { data: pendingComparisons } = await supabase
     .from('comparisons')
     .select('*, store:stores(store_name, line_token, stock_notify_group_id, settings:store_settings(line_notify_enabled, follow_up_enabled))')
     .eq('status', 'pending')
-    .lt('created_at', fourHoursAgo.toISOString());
+    .lt('created_at', fourHoursAgoISO);
 
   const results: Array<{ comp_id: string; sent: boolean }> = [];
 
@@ -70,14 +70,13 @@ export async function GET(request: NextRequest) {
   }
 
   // Check pending withdrawal requests older than 2 hours
-  const twoHoursAgo = new Date();
-  twoHoursAgo.setHours(twoHoursAgo.getHours() - 2);
+  const twoHoursAgoISO = hoursAgoISO(2);
 
   const { data: pendingWithdrawals } = await supabase
     .from('withdrawals')
     .select('*, store:stores(store_name, line_token, deposit_notify_group_id, settings:store_settings(line_notify_enabled, follow_up_enabled))')
     .eq('status', 'pending')
-    .lt('created_at', twoHoursAgo.toISOString());
+    .lt('created_at', twoHoursAgoISO);
 
   let withdrawalNotified = 0;
   if (pendingWithdrawals) {

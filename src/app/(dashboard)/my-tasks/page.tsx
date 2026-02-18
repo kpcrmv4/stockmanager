@@ -20,6 +20,7 @@ import { notifyStaff } from '@/lib/notifications/client';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { formatThaiDate } from '@/lib/utils/format';
 import { cn } from '@/lib/utils/cn';
+import { bangkokDateParts, expiryDateISO } from '@/lib/utils/date';
 import { ScanLine, Wine, Package } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -99,8 +100,8 @@ const defaultAcceptForm: AcceptFormState = {
 // ---------------------------------------------------------------------------
 
 function generateDepositCode(): string {
-  const now = new Date();
-  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+  const { year, month, day } = bangkokDateParts();
+  const dateStr = `${year}${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
   const random = Math.random().toString(36).substring(2, 5).toUpperCase();
   return `DEP-${dateStr}-${random}`;
 }
@@ -290,8 +291,7 @@ export default function MyTasksPage() {
     const supabase = createClient();
     const depositCode = generateDepositCode();
 
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + days);
+    const expiryISO = expiryDateISO(days);
 
     const raw = selectedItem.rawData as Record<string, unknown>;
 
@@ -311,7 +311,7 @@ export default function MyTasksPage() {
         status: 'pending_confirm',
         customer_photo_url: selectedItem.photoUrl || null,
         received_by: user.id,
-        expiry_date: expiryDate.toISOString(),
+        expiry_date: expiryISO,
         deposit_code: depositCode,
       });
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { pushMessage } from '@/lib/line/messaging';
 import { expiryWarningTemplate } from '@/lib/line/flex-templates';
+import { daysFromNowISO } from '@/lib/utils/date';
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -25,8 +26,7 @@ export async function GET(request: NextRequest) {
 
   for (const setting of storeSettings) {
     const warningDays = setting.customer_notify_expiry_days || 7;
-    const warningDate = new Date();
-    warningDate.setDate(warningDate.getDate() + warningDays);
+    const warningDateISO = daysFromNowISO(warningDays);
 
     // Find deposits expiring within the warning period
     const { data: expiringDeposits } = await supabase
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       .select('*, store:stores(store_name)')
       .eq('store_id', setting.store_id)
       .eq('status', 'in_store')
-      .lte('expiry_date', warningDate.toISOString())
+      .lte('expiry_date', warningDateISO)
       .gt('expiry_date', new Date().toISOString());
 
     if (!expiringDeposits) continue;

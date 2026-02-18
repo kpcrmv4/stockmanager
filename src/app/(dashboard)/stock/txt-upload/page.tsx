@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { Button, Badge, Card, CardHeader, CardContent, EmptyState, toast } from '@/components/ui';
 import { formatThaiDate, formatNumber } from '@/lib/utils/format';
+import { todayBangkok } from '@/lib/utils/date';
 import {
   ArrowLeft,
   Upload,
@@ -153,7 +154,7 @@ export default function TxtUploadPage() {
   const [summary, setSummary] = useState<ProcessSummary | null>(null);
   const [ocrLogId, setOcrLogId] = useState<string | null>(null);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayBangkok();
 
   // ── Classify items against existing products ──
   const classifyItems = useCallback(
