@@ -9,7 +9,7 @@ import { LogIn, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,8 +19,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
 
-    if (!username.trim()) {
-      setError('กรุณากรอกชื่อผู้ใช้');
+    if (!identifier.trim()) {
+      setError('กรุณากรอกชื่อผู้ใช้หรืออีเมล');
       return;
     }
     if (!password) {
@@ -32,7 +32,8 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient();
-      const email = `${username.trim().toLowerCase()}@stockmanager.app`;
+      const trimmed = identifier.trim().toLowerCase();
+      const email = trimmed.includes('@') ? trimmed : `${trimmed}@stockmanager.app`;
 
       const { error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -74,14 +75,14 @@ export default function LoginPage() {
           htmlFor="username"
           className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
         >
-          ชื่อผู้ใช้
+          ชื่อผู้ใช้หรืออีเมล
         </label>
         <input
           id="username"
           type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="กรอกชื่อผู้ใช้"
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+          placeholder="กรอกชื่อผู้ใช้หรืออีเมล"
           autoComplete="username"
           disabled={isLoading}
           className={cn(
