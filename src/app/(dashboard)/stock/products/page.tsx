@@ -74,7 +74,7 @@ export default function ProductsPage() {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
-  const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
+  const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive' | 'excluded'>('all');
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -155,6 +155,7 @@ export default function ProductsPage() {
     { value: 'all', label: 'ทั้งหมด' },
     { value: 'active', label: 'เปิดใช้' },
     { value: 'inactive', label: 'ปิดใช้' },
+    { value: 'excluded', label: 'ยกเว้นการนับ' },
   ];
 
   const filteredProducts = useMemo(() => {
@@ -165,6 +166,8 @@ export default function ProductsPage() {
       result = result.filter((p) => p.active);
     } else if (filterActive === 'inactive') {
       result = result.filter((p) => !p.active);
+    } else if (filterActive === 'excluded') {
+      result = result.filter((p) => p.active && p.count_status === 'excluded');
     }
 
     // Category filter
@@ -588,7 +591,7 @@ export default function ProductsPage() {
             options={activeFilterOptions}
             value={filterActive}
             onChange={(e) =>
-              setFilterActive(e.target.value as 'all' | 'active' | 'inactive')
+              setFilterActive(e.target.value as 'all' | 'active' | 'inactive' | 'excluded')
             }
           />
         </div>
