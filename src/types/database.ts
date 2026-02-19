@@ -54,6 +54,7 @@ export interface Product {
   unit: string | null;
   price: number | null;
   active: boolean;
+  count_status: 'active' | 'excluded';
   created_at: string;
 }
 

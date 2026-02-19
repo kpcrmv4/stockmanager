@@ -50,12 +50,13 @@ export default function DailyCheckPage() {
     try {
       const supabase = createClient();
 
-      // Fetch active products
+      // Fetch active products ที่ต้องนับ (active=true AND count_status='active')
       const { data: productData, error: productError } = await supabase
         .from('products')
         .select('*')
         .eq('store_id', currentStoreId)
         .eq('active', true)
+        .eq('count_status', 'active')
         .order('category', { ascending: true })
         .order('product_name', { ascending: true });
 

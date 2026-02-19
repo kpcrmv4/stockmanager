@@ -26,6 +26,7 @@ interface ImportRow {
   unit: string;
   price: number | null;
   active: boolean;
+  count_status: 'active' | 'excluded';
 }
 
 interface ImportCSVModalProps {
@@ -151,6 +152,7 @@ export function ImportCSVModal({
         const costPriceIdx = header.findIndex((h) => h === 'cost_price');
         const sellingPriceIdx = header.findIndex((h) => h === 'selling_price');
         const activeIdx = header.findIndex((h) => h === 'active');
+        const countStatusIdx = header.findIndex((h) => h === 'count_status');
 
         if (codeIdx === -1 || nameIdx === -1) {
           setParseError(
@@ -182,6 +184,13 @@ export function ImportCSVModal({
             activeIdx >= 0 ? row[activeIdx]?.toUpperCase() : 'TRUE';
           const active = activeStr !== 'FALSE';
 
+          const countStatusRaw =
+            countStatusIdx >= 0
+              ? row[countStatusIdx]?.trim().toLowerCase()
+              : 'active';
+          const count_status: 'active' | 'excluded' =
+            countStatusRaw === 'excluded' ? 'excluded' : 'active';
+
           return {
             product_code: row[codeIdx]?.trim() || '',
             product_name: row[nameIdx]?.trim() || '',
@@ -190,6 +199,7 @@ export function ImportCSVModal({
             unit,
             price: price && !isNaN(price) ? price : null,
             active,
+            count_status,
           };
         });
 
@@ -238,6 +248,7 @@ export function ImportCSVModal({
         unit: row.unit || null,
         price: row.price,
         active: row.active,
+        count_status: row.count_status,
       }));
 
       // Batch upsert เพื่อไม่ให้ request ใหญ่เกินไป
@@ -300,6 +311,7 @@ export function ImportCSVModal({
 
   const activeCount = rows.filter((r) => r.active).length;
   const inactiveCount = rows.length - activeCount;
+  const excludedCount = rows.filter((r) => r.count_status === 'excluded').length;
   const categories = [...new Set(rows.map((r) => r.category).filter(Boolean))];
   const sampleRows = rows.slice(0, 5);
 
@@ -374,7 +386,7 @@ export function ImportCSVModal({
             </p>
             <p className="mt-1 text-xs text-blue-600 dark:text-blue-400/80">
               product_code, product_name, category, unit, cost_price,
-              selling_price, active
+              selling_price, active, count_status
             </p>
           </div>
         </div>
@@ -397,7 +409,7 @@ export function ImportCSVModal({
           </div>
 
           {/* Summary */}
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-4 gap-3 text-center">
             <div className="rounded-lg bg-blue-50 px-3 py-2.5 dark:bg-blue-900/20">
               <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
                 {rows.length}
@@ -420,6 +432,14 @@ export function ImportCSVModal({
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 ปิดใช้
+              </p>
+            </div>
+            <div className="rounded-lg bg-amber-50 px-3 py-2.5 dark:bg-amber-900/20">
+              <p className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                {excludedCount}
+              </p>
+              <p className="text-xs text-amber-600/70 dark:text-amber-400/70">
+                ยกเว้นนับ
               </p>
             </div>
           </div>

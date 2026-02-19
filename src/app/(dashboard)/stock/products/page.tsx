@@ -45,6 +45,7 @@ interface ProductForm {
   unit: string;
   price: string;
   active: boolean;
+  count_status: 'active' | 'excluded';
 }
 
 const emptyForm: ProductForm = {
@@ -55,6 +56,7 @@ const emptyForm: ProductForm = {
   unit: '',
   price: '',
   active: true,
+  count_status: 'active',
 };
 
 // ---------------------------------------------------------------------------
@@ -191,7 +193,8 @@ export default function ProductsPage() {
     const total = products.length;
     const active = products.filter((p) => p.active).length;
     const inactive = total - active;
-    return { total, active, inactive };
+    const excluded = products.filter((p) => p.count_status === 'excluded').length;
+    return { total, active, inactive, excluded };
   }, [products]);
 
   // ---------------------------------------------------------------------------
@@ -215,6 +218,7 @@ export default function ProductsPage() {
       unit: product.unit || '',
       price: product.price != null ? String(product.price) : '',
       active: product.active,
+      count_status: product.count_status || 'active',
     });
     setFormErrors({});
     setShowModal(true);
@@ -256,6 +260,7 @@ export default function ProductsPage() {
         unit: form.unit.trim(),
         price: form.price ? Number(form.price) : null,
         active: form.active,
+        count_status: form.count_status,
       };
 
       if (editingProduct) {
@@ -552,6 +557,13 @@ export default function ProductsPage() {
             {formatNumber(stats.inactive)}
           </span>
         </span>
+        <span className="text-gray-300 dark:text-gray-600">|</span>
+        <span>
+          ยกเว้นการนับ{' '}
+          <span className="font-semibold text-amber-600 dark:text-amber-400">
+            {formatNumber(stats.excluded)}
+          </span>
+        </span>
       </div>
 
       {/* ---- Filters ---- */}
@@ -657,11 +669,16 @@ export default function ProductsPage() {
                             : '-'}
                         </td>
                         <td className="px-5 py-3 text-center">
-                          {product.active ? (
-                            <Badge variant="success">เปิดใช้</Badge>
-                          ) : (
-                            <Badge variant="default">ปิดใช้</Badge>
-                          )}
+                          <div className="flex flex-col items-center gap-1">
+                            {product.active ? (
+                              <Badge variant="success">เปิดใช้</Badge>
+                            ) : (
+                              <Badge variant="default">ปิดใช้</Badge>
+                            )}
+                            {product.count_status === 'excluded' && (
+                              <Badge variant="warning">ยกเว้นนับ</Badge>
+                            )}
+                          </div>
                         </td>
                         {canEdit && (
                           <td className="px-5 py-3">
@@ -732,6 +749,11 @@ export default function ProductsPage() {
                       ) : (
                         <Badge variant="default" size="sm">
                           ปิดใช้
+                        </Badge>
+                      )}
+                      {product.count_status === 'excluded' && (
+                        <Badge variant="warning" size="sm">
+                          ยกเว้นนับ
                         </Badge>
                       )}
                     </div>
@@ -878,7 +900,7 @@ export default function ProductsPage() {
                 สถานะสินค้า
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {form.active ? 'เปิดใช้งาน - แสดงในรายการนับสต๊อก' : 'ปิดใช้งาน - ซ่อนจากรายการนับสต๊อก'}
+                {form.active ? 'เปิดใช้งาน - สินค้ายังมีในระบบ' : 'ปิดใช้งาน - ซ่อนจากทุกที่'}
               </p>
             </div>
             <button
@@ -893,6 +915,43 @@ export default function ProductsPage() {
                 className={cn(
                   'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform',
                   form.active ? 'translate-x-5' : 'translate-x-0'
+                )}
+              />
+            </button>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 dark:border-gray-600">
+            <div>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                สถานะการนับสต๊อก
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {form.count_status === 'active'
+                  ? 'นับปกติ - แสดงในรายการนับสต๊อก'
+                  : 'ยกเว้นการนับ - มีในระบบแต่ไม่ต้องนับ'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setForm((f) => ({
+                  ...f,
+                  count_status:
+                    f.count_status === 'active' ? 'excluded' : 'active',
+                }))
+              }
+              className={cn(
+                'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2',
+                form.count_status === 'active'
+                  ? 'bg-blue-500'
+                  : 'bg-amber-400 dark:bg-amber-500'
+              )}
+            >
+              <span
+                className={cn(
+                  'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform',
+                  form.count_status === 'active'
+                    ? 'translate-x-5'
+                    : 'translate-x-0'
                 )}
               />
             </button>
