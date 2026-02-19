@@ -29,7 +29,9 @@ import {
   Loader2,
   Package,
   RefreshCw,
+  Upload,
 } from 'lucide-react';
+import { ImportCSVModal } from './import-csv-modal';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,6 +84,9 @@ export default function ProductsPage() {
   // Delete confirm
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Import modal
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Permission helpers
   const canEdit = user
@@ -504,13 +509,23 @@ export default function ProductsPage() {
             รีเฟรช
           </Button>
           {canEdit && (
-            <Button
-              size="sm"
-              icon={<Plus className="h-4 w-4" />}
-              onClick={openAddModal}
-            >
-              เพิ่มสินค้า
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<Upload className="h-4 w-4" />}
+                onClick={() => setShowImportModal(true)}
+              >
+                นำเข้า CSV
+              </Button>
+              <Button
+                size="sm"
+                icon={<Plus className="h-4 w-4" />}
+                onClick={openAddModal}
+              >
+                เพิ่มสินค้า
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -919,6 +934,13 @@ export default function ProductsPage() {
           </Button>
         </ModalFooter>
       </Modal>
+
+      {/* ---- Import CSV Modal ---- */}
+      <ImportCSVModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImported={fetchProducts}
+      />
     </div>
   );
 }
