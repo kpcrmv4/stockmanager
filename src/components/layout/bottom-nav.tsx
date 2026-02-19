@@ -9,6 +9,8 @@ import {
   Bell,
   CheckCircle,
   Repeat,
+  LayoutDashboard,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
@@ -21,6 +23,15 @@ interface NavItem {
   icon: LucideIcon;
   activeIcon?: LucideIcon;
 }
+
+// เมนูสำหรับ owner/manager/accountant/hq — มี ภาพรวม
+const desktopRoleNavItems: NavItem[] = [
+  { label: 'ภาพรวม', href: '/overview', icon: LayoutDashboard },
+  { label: 'สต๊อก', href: '/stock', icon: ClipboardCheck },
+  { label: 'ฝาก/เบิก', href: '/deposit', icon: Wine },
+  { label: 'รายงาน', href: '/reports', icon: BarChart3 },
+  { label: 'แจ้งเตือน', href: '/notifications', icon: Bell },
+];
 
 // เมนูสำหรับ staff
 const staffNavItems: NavItem[] = [
@@ -46,7 +57,12 @@ export function BottomNav() {
 
   if (!user) return null;
 
-  const navItems = user.role === 'bar' ? barNavItems : staffNavItems;
+  const desktopRoles = ['owner', 'accountant', 'manager', 'hq'];
+  const navItems = desktopRoles.includes(user.role)
+    ? desktopRoleNavItems
+    : user.role === 'bar'
+      ? barNavItems
+      : staffNavItems;
 
   return (
     <nav

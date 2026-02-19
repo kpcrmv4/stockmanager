@@ -13,6 +13,14 @@ export interface ModuleConfig {
 
 export const modules: ModuleConfig[] = [
   {
+    id: 'overview',
+    name: 'ภาพรวม',
+    description: 'แดชบอร์ดภาพรวมระบบ',
+    icon: 'layout-dashboard',
+    href: '/overview',
+    roles: ['owner', 'accountant', 'manager', 'hq'],
+  },
+  {
     id: 'stock',
     name: 'เช็คสต๊อก',
     description: 'นับสต๊อก เปรียบเทียบ อธิบายผลต่าง',

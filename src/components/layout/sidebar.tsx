@@ -19,6 +19,7 @@ import {
   Activity,
   Warehouse,
   Repeat,
+  LayoutDashboard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAppStore } from '@/stores/app-store';
@@ -31,6 +32,7 @@ import type { LucideIcon } from 'lucide-react';
 
 // แมปชื่อ icon string จาก registry กับ Lucide component
 const iconMap: Record<string, LucideIcon> = {
+  'layout-dashboard': LayoutDashboard,
   'clipboard-list': ClipboardList,
   wine: Wine,
   truck: Truck,
@@ -72,10 +74,12 @@ export function Sidebar({ stores }: SidebarProps) {
         collapsed ? 'w-16' : 'w-64'
       )}
     >
-      {/* โลโก้และชื่อแอป */}
-      <div
+      {/* โลโก้และชื่อแอป — คลิกกลับหน้า overview */}
+      <Link
+        href="/overview"
         className={cn(
           'flex h-16 items-center border-b border-gray-200 px-4 dark:border-gray-800',
+          'transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50',
           collapsed ? 'justify-center' : 'gap-3'
         )}
       >
@@ -85,7 +89,7 @@ export function Sidebar({ stores }: SidebarProps) {
             StockManager
           </span>
         )}
-      </div>
+      </Link>
 
       {/* Store Switcher */}
       <div className={cn('border-b border-gray-200 p-3 dark:border-gray-800')}>
