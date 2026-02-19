@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Class-based dark mode แทน prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-sans: var(--font-noto-sans-thai), system-ui, -apple-system, sans-serif;
 }

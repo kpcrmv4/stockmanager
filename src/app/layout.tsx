@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Noto_Sans_Thai } from 'next/font/google';
 import { ToastContainer } from '@/components/ui/toast';
+import { ThemeSync } from '@/components/theme-sync';
 import './globals.css';
 
 const notoSansThai = Noto_Sans_Thai({
@@ -38,10 +39,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th" suppressHydrationWarning>
+      <head>
+        {/* ป้องกันจอขาว flash ก่อน React hydrate โดยอ่าน theme จาก localStorage ทันที */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var d=JSON.parse(localStorage.getItem('stockmanager-app')||'{}');if(d.state&&d.state.theme==='dark')document.documentElement.classList.add('dark')}catch(e){}`,
+          }}
+        />
+      </head>
       <body
         className={`${notoSansThai.variable} font-sans antialiased bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100`}
       >
         {children}
+        <ThemeSync />
         <ToastContainer />
       </body>
     </html>
