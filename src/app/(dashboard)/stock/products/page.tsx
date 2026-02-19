@@ -193,7 +193,7 @@ export default function ProductsPage() {
     const total = products.length;
     const active = products.filter((p) => p.active).length;
     const inactive = total - active;
-    const excluded = products.filter((p) => p.count_status === 'excluded').length;
+    const excluded = products.filter((p) => p.active && p.count_status === 'excluded').length;
     return { total, active, inactive, excluded };
   }, [products]);
 
