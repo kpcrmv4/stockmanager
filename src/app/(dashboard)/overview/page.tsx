@@ -308,7 +308,7 @@ export default function OverviewPage() {
         .order('count_date', { ascending: false })
         .limit(1);
       if (storeFilter) latestCountQuery.eq('store_id', storeFilter);
-      const { data: latestCount } = await latestCountQuery.single();
+      const { data: latestCount } = await latestCountQuery.maybeSingle();
 
       // --- Trend calculations: current period (last 30 days) vs previous period (30-60 days ago) ---
       const thirtyDaysAgoISO = daysAgoBangkokISO(30);
@@ -338,7 +338,7 @@ export default function OverviewPage() {
       const curPenaltiesQ = supabase
         .from('comparisons')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'penalty')
+        .eq('status', 'rejected')
         .gte('created_at', thirtyDaysAgoISO);
       if (storeFilter) curPenaltiesQ.eq('store_id', storeFilter);
 
@@ -369,7 +369,7 @@ export default function OverviewPage() {
       const prevPenaltiesQ = supabase
         .from('comparisons')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'penalty')
+        .eq('status', 'rejected')
         .gte('created_at', sixtyDaysAgoISO)
         .lt('created_at', thirtyDaysAgoISO);
       if (storeFilter) prevPenaltiesQ.eq('store_id', storeFilter);

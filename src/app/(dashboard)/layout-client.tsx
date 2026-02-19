@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth-store';
 import { useSessionRefresh } from '@/hooks/use-session-refresh';
+import { useMediaQuery } from '@/hooks/use-media-query';
 import { DesktopLayout } from '@/components/layout/desktop-layout';
 import { MobileLayout } from '@/components/layout/mobile-layout';
 import type { AuthUser } from '@/lib/auth/permissions';
@@ -32,6 +33,7 @@ export function DashboardLayoutClient({
   useDesktop,
 }: DashboardLayoutClientProps) {
   const { setUser } = useAuthStore();
+  const isLargeScreen = useMediaQuery('(min-width: 1024px)');
 
   // Refresh session เมื่อกลับมาจากพับจอ/ปิดหน้าจอ
   useSessionRefresh();
@@ -41,9 +43,12 @@ export function DashboardLayoutClient({
     setUser(user);
   }, [user, setUser]);
 
+  // Desktop layout เฉพาะเมื่อ role เป็น desktop AND หน้าจอใหญ่พอ
+  const showDesktop = useDesktop && isLargeScreen;
+
   return (
     <QueryClientProvider client={queryClient}>
-      {useDesktop ? (
+      {showDesktop ? (
         <DesktopLayout stores={stores}>{children}</DesktopLayout>
       ) : (
         <MobileLayout stores={stores}>{children}</MobileLayout>
