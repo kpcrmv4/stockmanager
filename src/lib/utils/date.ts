@@ -66,6 +66,19 @@ export function todayBangkok(): string {
 }
 
 /**
+ * "Yesterday" as YYYY-MM-DD in Bangkok timezone.
+ * Bars operate past midnight, so the business date = yesterday.
+ */
+export function yesterdayBangkok(): string {
+  const d = nowBangkok();
+  d.setDate(d.getDate() - 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
  * Convert a Date to an ISO-8601 string **in the Bangkok timezone** (+07:00).
  * Useful when storing timestamps that must reflect the Bangkok wall-clock.
  */

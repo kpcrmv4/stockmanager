@@ -1,26 +1,40 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
-import { Button, Input, Card, CardHeader, CardContent, Tabs, EmptyState, toast } from '@/components/ui';
+import {
+  Button,
+  Input,
+  Card,
+  CardHeader,
+  CardContent,
+  Tabs,
+  EmptyState,
+  toast,
+} from '@/components/ui';
 import { formatThaiDate, formatNumber } from '@/lib/utils/format';
-import { todayBangkok } from '@/lib/utils/date';
+import { yesterdayBangkok } from '@/lib/utils/date';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import {
+  runAutoCompare,
+  type AutoCompareResult,
+} from '@/lib/stock/auto-compare';
 import type { Product } from '@/types/database';
 import {
   Search,
   Save,
-  Camera,
-  Upload,
   Package,
   Loader2,
   CheckCircle2,
   ArrowLeft,
   RotateCcw,
-  FileUp,
+  AlertTriangle,
+  ArrowRight,
+  Info,
+  Check,
 } from 'lucide-react';
 
 interface CountEntry {
@@ -38,11 +52,215 @@ export default function DailyCheckPage() {
   const [counts, setCounts] = useState<Record<string, CountEntry>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
-  const [existingCounts, setExistingCounts] = useState<Record<string, number>>({});
-  const [showOcrUpload, setShowOcrUpload] = useState(false);
+  const [existingCounts, setExistingCounts] = useState<Record<string, number>>(
+    {},
+  );
+  const [showZeroConfirm, setShowZeroConfirm] = useState(false);
+  const [savingItem, setSavingItem] = useState<string | null>(null);
+  const [savedItems, setSavedItems] = useState<Set<string>>(new Set());
 
-  const today = todayBangkok();
+  // Auto-compare state
+  const [comparing, setComparing] = useState(false);
+  const [compareResult, setCompareResult] =
+    useState<AutoCompareResult | null>(null);
 
+  // Supplementary count state
+  const [supplementaryItems, setSupplementaryItems] = useState<
+    Array<{ product_code: string; product_name: string }>
+  >([]);
+  const [supplementaryCounts, setSupplementaryCounts] = useState<
+    Record<string, { count_quantity: number | ''; notes: string }>
+  >({});
+  const [savingSupplementary, setSavingSupplementary] = useState(false);
+
+  // Business date = yesterday (bars operate past midnight)
+  const businessDate = yesterdayBangkok();
+
+  // Track whether this component triggered the realtime event (skip echo)
+  const skipRealtimeRef = useRef<Set<string>>(new Set());
+
+  // ── Upsert a single manual_count row ──
+  const upsertSingleCount = useCallback(
+    async (
+      productCode: string,
+      quantity: number,
+      notes: string | null,
+    ): Promise<boolean> => {
+      if (!currentStoreId || !user) return false;
+
+      try {
+        const supabase = createClient();
+        const { error } = await supabase.from('manual_counts').upsert(
+          {
+            store_id: currentStoreId,
+            count_date: businessDate,
+            product_code: productCode,
+            count_quantity: quantity,
+            user_id: user.id,
+            notes: notes || null,
+            verified: false,
+          },
+          { onConflict: 'store_id,count_date,product_code' },
+        );
+
+        if (error) throw error;
+        return true;
+      } catch (error) {
+        console.error('Error upserting count:', error);
+        return false;
+      }
+    },
+    [currentStoreId, businessDate, user],
+  );
+
+  // ── On blur: auto-save individual count ──
+  const handleCountBlur = useCallback(
+    async (productCode: string) => {
+      const entry = counts[productCode];
+      if (
+        entry?.count_quantity === '' ||
+        entry?.count_quantity === undefined
+      )
+        return;
+      if (!currentStoreId || !user) return;
+
+      // Skip if value hasn't changed
+      if (existingCounts[productCode] === Number(entry.count_quantity)) return;
+
+      setSavingItem(productCode);
+      skipRealtimeRef.current.add(productCode);
+
+      const ok = await upsertSingleCount(
+        productCode,
+        Number(entry.count_quantity),
+        entry.notes,
+      );
+
+      if (ok) {
+        setExistingCounts((prev) => ({
+          ...prev,
+          [productCode]: Number(entry.count_quantity),
+        }));
+        setSavedItems((prev) => new Set(prev).add(productCode));
+        // Clear saved indicator after 2s
+        setTimeout(() => {
+          setSavedItems((prev) => {
+            const next = new Set(prev);
+            next.delete(productCode);
+            return next;
+          });
+          skipRealtimeRef.current.delete(productCode);
+        }, 2000);
+      }
+
+      setSavingItem(null);
+    },
+    [counts, currentStoreId, user, existingCounts, upsertSingleCount],
+  );
+
+  // ── On blur: auto-save notes ──
+  const handleNotesBlur = useCallback(
+    async (productCode: string) => {
+      const entry = counts[productCode];
+      if (
+        entry?.count_quantity === '' ||
+        entry?.count_quantity === undefined
+      )
+        return;
+      if (!currentStoreId || !user) return;
+
+      skipRealtimeRef.current.add(productCode);
+      await upsertSingleCount(
+        productCode,
+        Number(entry.count_quantity),
+        entry.notes,
+      );
+      setTimeout(() => skipRealtimeRef.current.delete(productCode), 2000);
+    },
+    [counts, currentStoreId, user, upsertSingleCount],
+  );
+
+  // ── Check for POS items not yet counted (supplementary) ──
+  const checkSupplementaryItems = useCallback(
+    async (
+      storeId: string,
+      date: string,
+      productCodes: Set<string>,
+      manualCodes: Set<string>,
+    ) => {
+      try {
+        const supabase = createClient();
+
+        const { data: ocrLogs } = await supabase
+          .from('ocr_logs')
+          .select('id')
+          .eq('store_id', storeId)
+          .eq('upload_date', date)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (!ocrLogs || ocrLogs.length === 0) return;
+
+        const { data: ocrItems } = await supabase
+          .from('ocr_items')
+          .select('product_code, product_name')
+          .eq('ocr_log_id', ocrLogs[0].id);
+
+        if (!ocrItems || ocrItems.length === 0) return;
+
+        const { data: activeProducts } = await supabase
+          .from('products')
+          .select('product_code, product_name')
+          .eq('store_id', storeId)
+          .eq('active', true)
+          .eq('count_status', 'active');
+
+        const activeMap = new Map(
+          (activeProducts || []).map((p) => [p.product_code, p.product_name]),
+        );
+        const alreadyCounted = new Set([...productCodes, ...manualCodes]);
+
+        const seen = new Set<string>();
+        const missing: Array<{ product_code: string; product_name: string }> =
+          [];
+
+        for (const oi of ocrItems) {
+          if (
+            oi.product_code &&
+            activeMap.has(oi.product_code) &&
+            !alreadyCounted.has(oi.product_code) &&
+            !seen.has(oi.product_code)
+          ) {
+            seen.add(oi.product_code);
+            missing.push({
+              product_code: oi.product_code,
+              product_name:
+                activeMap.get(oi.product_code) ||
+                oi.product_name ||
+                oi.product_code,
+            });
+          }
+        }
+
+        if (missing.length > 0) {
+          setSupplementaryItems(missing);
+          const init: Record<
+            string,
+            { count_quantity: number | ''; notes: string }
+          > = {};
+          missing.forEach((m) => {
+            init[m.product_code] = { count_quantity: '', notes: '' };
+          });
+          setSupplementaryCounts(init);
+        }
+      } catch (error) {
+        console.error('Error checking supplementary items:', error);
+      }
+    },
+    [],
+  );
+
+  // ── Fetch products and existing counts ──
   const fetchProducts = useCallback(async () => {
     if (!currentStoreId) return;
 
@@ -50,7 +268,6 @@ export default function DailyCheckPage() {
     try {
       const supabase = createClient();
 
-      // Fetch active products ที่ต้องนับ (active=true AND count_status='active')
       const { data: productData, error: productError } = await supabase
         .from('products')
         .select('*')
@@ -64,7 +281,6 @@ export default function DailyCheckPage() {
 
       setProducts(productData || []);
 
-      // Initialize counts map
       const initialCounts: Record<string, CountEntry> = {};
       (productData || []).forEach((p) => {
         initialCounts[p.product_code] = {
@@ -74,12 +290,11 @@ export default function DailyCheckPage() {
         };
       });
 
-      // Check for existing counts for today
       const { data: existingData } = await supabase
         .from('manual_counts')
         .select('product_code, count_quantity, notes')
         .eq('store_id', currentStoreId)
-        .eq('count_date', today);
+        .eq('count_date', businessDate);
 
       if (existingData && existingData.length > 0) {
         const existingMap: Record<string, number> = {};
@@ -91,6 +306,19 @@ export default function DailyCheckPage() {
           }
         });
         setExistingCounts(existingMap);
+
+        const productCodeSet = new Set(
+          (productData || []).map((p) => p.product_code),
+        );
+        const manualCodeSet = new Set(
+          existingData.map((e) => e.product_code),
+        );
+        await checkSupplementaryItems(
+          currentStoreId,
+          businessDate,
+          productCodeSet,
+          manualCodeSet,
+        );
       }
 
       setCounts(initialCounts);
@@ -104,13 +332,70 @@ export default function DailyCheckPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentStoreId, today]);
+  }, [currentStoreId, businessDate, checkSupplementaryItems]);
 
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  // Build category tabs
+  // ── Realtime subscription: see other staff's updates live ──
+  useEffect(() => {
+    if (!currentStoreId) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`manual-counts-${currentStoreId}-${businessDate}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'manual_counts',
+          filter: `store_id=eq.${currentStoreId}`,
+        },
+        (payload) => {
+          if (
+            payload.eventType === 'INSERT' ||
+            payload.eventType === 'UPDATE'
+          ) {
+            const record = payload.new as {
+              product_code: string;
+              count_quantity: number;
+              notes: string | null;
+              count_date: string;
+            };
+            if (record.count_date !== businessDate) return;
+
+            // Skip echo from our own saves
+            if (skipRealtimeRef.current.has(record.product_code)) return;
+
+            setCounts((prev) => {
+              if (!prev[record.product_code]) return prev;
+              return {
+                ...prev,
+                [record.product_code]: {
+                  ...prev[record.product_code],
+                  count_quantity: record.count_quantity,
+                  notes: record.notes || '',
+                },
+              };
+            });
+
+            setExistingCounts((prev) => ({
+              ...prev,
+              [record.product_code]: record.count_quantity,
+            }));
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentStoreId, businessDate]);
+
+  // ── Category tabs ──
   const categories = useMemo(() => {
     const cats = new Set<string>();
     products.forEach((p) => {
@@ -129,7 +414,7 @@ export default function DailyCheckPage() {
     return tabs;
   }, [products]);
 
-  // Filtered products
+  // ── Filtered products ──
   const filteredProducts = useMemo(() => {
     let filtered = products;
     if (activeCategory !== 'all') {
@@ -140,12 +425,13 @@ export default function DailyCheckPage() {
       filtered = filtered.filter(
         (p) =>
           p.product_name.toLowerCase().includes(query) ||
-          p.product_code.toLowerCase().includes(query)
+          p.product_code.toLowerCase().includes(query),
       );
     }
     return filtered;
   }, [products, activeCategory, searchQuery]);
 
+  // ── Handlers ──
   const handleCountChange = (productCode: string, value: string) => {
     setCounts((prev) => ({
       ...prev,
@@ -166,31 +452,23 @@ export default function DailyCheckPage() {
     }));
   };
 
-  const handleSave = async () => {
+  // ── Finalize save: validate + batch upsert + auto-compare ──
+  const doSave = async () => {
     if (!currentStoreId || !user) return;
 
-    // Collect only entries with a count
     const entries = Object.values(counts).filter(
-      (c) => c.count_quantity !== '' && c.count_quantity !== undefined
+      (c) => c.count_quantity !== '' && c.count_quantity !== undefined,
     );
 
-    if (entries.length === 0) {
-      toast({
-        type: 'warning',
-        title: 'ไม่มีข้อมูลที่จะบันทึก',
-        message: 'กรุณากรอกจำนวนนับอย่างน้อย 1 รายการ',
-      });
-      return;
-    }
-
     setSaving(true);
+    setShowZeroConfirm(false);
     try {
       const supabase = createClient();
 
-      // Upsert manual counts
+      // Batch upsert all items (catches any not yet saved via blur)
       const upsertData = entries.map((entry) => ({
         store_id: currentStoreId,
-        count_date: today,
+        count_date: businessDate,
         product_code: entry.product_code,
         count_quantity: Number(entry.count_quantity),
         user_id: user.id,
@@ -198,24 +476,21 @@ export default function DailyCheckPage() {
         verified: false,
       }));
 
-      // Delete existing counts for today, then insert fresh
-      await supabase
-        .from('manual_counts')
-        .delete()
-        .eq('store_id', currentStoreId)
-        .eq('count_date', today);
+      if (upsertData.length > 0) {
+        const { error } = await supabase
+          .from('manual_counts')
+          .upsert(upsertData, {
+            onConflict: 'store_id,count_date,product_code',
+          });
 
-      const { error } = await supabase
-        .from('manual_counts')
-        .insert(upsertData);
-
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       await logAudit({
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.STOCK_COUNT_SAVED,
         table_name: 'manual_counts',
-        new_value: { count_date: today, items_count: entries.length },
+        new_value: { count_date: businessDate, items_count: entries.length },
         changed_by: user.id,
       });
 
@@ -231,6 +506,50 @@ export default function DailyCheckPage() {
         newExisting[e.product_code] = Number(e.count_quantity);
       });
       setExistingCounts(newExisting);
+
+      // ── Auto-compare ──
+      setComparing(true);
+      try {
+        const result = await runAutoCompare(currentStoreId, businessDate);
+        setCompareResult(result);
+
+        if (result.compared) {
+          toast({
+            type: 'success',
+            title: 'เปรียบเทียบอัตโนมัติสำเร็จ',
+            message: `ตรง ${result.summary?.match || 0} | เกินเกณฑ์ ${result.summary?.over_tolerance || 0} รายการ`,
+          });
+        } else if (result.reason === 'no_pos') {
+          toast({
+            type: 'info',
+            title: 'รอข้อมูล POS',
+            message:
+              'ยังไม่มีข้อมูล POS — ระบบจะเปรียบเทียบอัตโนมัติเมื่อได้รับข้อมูล',
+          });
+        }
+
+        if (result.missingItems && result.missingItems.length > 0) {
+          setSupplementaryItems(result.missingItems);
+          const init: Record<
+            string,
+            { count_quantity: number | ''; notes: string }
+          > = {};
+          result.missingItems.forEach((item) => {
+            init[item.product_code] = { count_quantity: '', notes: '' };
+          });
+          setSupplementaryCounts(init);
+        }
+      } catch (err) {
+        console.error('Auto-compare error:', err);
+        toast({
+          type: 'warning',
+          title: 'เปรียบเทียบอัตโนมัติล้มเหลว',
+          message:
+            'สามารถเปรียบเทียบด้วยตนเองได้ที่หน้าผลเปรียบเทียบ',
+        });
+      } finally {
+        setComparing(false);
+      }
     } catch (error) {
       console.error('Error saving counts:', error);
       toast({
@@ -243,6 +562,124 @@ export default function DailyCheckPage() {
     }
   };
 
+  // ── Save button validation wrapper ──
+  const handleSave = async () => {
+    if (!currentStoreId || !user) return;
+
+    const unfilledCount = Object.values(counts).filter(
+      (c) => c.count_quantity === '' || c.count_quantity === undefined,
+    ).length;
+
+    if (unfilledCount > 0) {
+      toast({
+        type: 'warning',
+        title: 'กรุณากรอกให้ครบทุกรายการ',
+        message: `ยังไม่ได้กรอกจำนวนอีก ${unfilledCount} รายการ`,
+      });
+      return;
+    }
+
+    const zeroCount = Object.values(counts).filter(
+      (c) => c.count_quantity === 0,
+    ).length;
+
+    if (zeroCount > 0) {
+      setShowZeroConfirm(true);
+      return;
+    }
+
+    await doSave();
+  };
+
+  // ── Save supplementary counts ──
+  const handleSaveSupplementary = async () => {
+    if (!currentStoreId || !user) return;
+
+    const entries = Object.entries(supplementaryCounts)
+      .filter(
+        ([, v]) => v.count_quantity !== '' && v.count_quantity !== undefined,
+      )
+      .map(([code, v]) => ({
+        store_id: currentStoreId,
+        count_date: businessDate,
+        product_code: code,
+        count_quantity: Number(v.count_quantity),
+        user_id: user.id,
+        notes: v.notes || null,
+        verified: false,
+      }));
+
+    if (entries.length === 0) {
+      toast({
+        type: 'warning',
+        title: 'ไม่มีข้อมูล',
+        message: 'กรุณากรอกจำนวนนับรายการเพิ่มเติมอย่างน้อย 1 รายการ',
+      });
+      return;
+    }
+
+    const unfilledSup = supplementaryItems.length - entries.length;
+    if (unfilledSup > 0) {
+      toast({
+        type: 'warning',
+        title: 'กรุณากรอกให้ครบทุกรายการ',
+        message: `ยังไม่ได้กรอกรายการเพิ่มเติมอีก ${unfilledSup} รายการ`,
+      });
+      return;
+    }
+
+    setSavingSupplementary(true);
+    try {
+      const supabase = createClient();
+
+      const { error } = await supabase
+        .from('manual_counts')
+        .upsert(entries, {
+          onConflict: 'store_id,count_date,product_code',
+        });
+
+      if (error) throw error;
+
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.STOCK_COUNT_SAVED,
+        table_name: 'manual_counts',
+        new_value: {
+          count_date: businessDate,
+          items_count: entries.length,
+          type: 'supplementary',
+        },
+        changed_by: user.id,
+      });
+
+      toast({
+        type: 'success',
+        title: 'บันทึกรายการเพิ่มเติมสำเร็จ',
+        message: `บันทึก ${entries.length} รายการเรียบร้อย`,
+      });
+
+      setSupplementaryItems([]);
+      setSupplementaryCounts({});
+
+      try {
+        const result = await runAutoCompare(currentStoreId, businessDate);
+        setCompareResult(result);
+      } catch {
+        // Non-fatal
+      }
+    } catch (error) {
+      console.error('Error saving supplementary counts:', error);
+      toast({
+        type: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        message: 'ไม่สามารถบันทึกรายการเพิ่มเติมได้',
+      });
+    } finally {
+      setSavingSupplementary(false);
+    }
+  };
+
+  // ── Reset ──
   const handleReset = () => {
     const resetCounts: Record<string, CountEntry> = {};
     products.forEach((p) => {
@@ -255,10 +692,16 @@ export default function DailyCheckPage() {
     setCounts(resetCounts);
   };
 
+  // ── Computed ──
   const filledCount = Object.values(counts).filter(
-    (c) => c.count_quantity !== '' && c.count_quantity !== undefined
+    (c) => c.count_quantity !== '' && c.count_quantity !== undefined,
   ).length;
 
+  const zeroQtyCount = Object.values(counts).filter(
+    (c) => c.count_quantity === 0,
+  ).length;
+
+  // ── Loading state ──
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -284,64 +727,91 @@ export default function DailyCheckPage() {
             </h1>
           </div>
           <p className="mt-0.5 ml-9 text-sm text-gray-500 dark:text-gray-400">
-            {formatThaiDate(today)} — นับแล้ว {filledCount}/{products.length} รายการ
+            {formatThaiDate(businessDate)} — นับแล้ว {filledCount}/
+            {products.length} รายการ
           </p>
         </div>
       </div>
 
-      {/* OCR Upload Area (Placeholder) */}
-      <div
-        className={cn(
-          'rounded-xl border-2 border-dashed p-6 text-center transition-colors',
-          showOcrUpload
-            ? 'border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/20'
-            : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50'
-        )}
-      >
-        <div className="flex flex-col items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/30">
-            <Camera className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              สแกนใบเสร็จ POS (OCR)
-            </p>
-            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              อัพโหลดรูปหรือถ่ายภาพใบเสร็จเพื่อนำเข้าข้อมูลอัตโนมัติ
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={<Camera className="h-4 w-4" />}
-              onClick={() => {
-                toast({
-                  type: 'info',
-                  title: 'เร็ว ๆ นี้',
-                  message: 'ฟีเจอร์สแกน OCR กำลังพัฒนา',
-                });
-              }}
-            >
-              ถ่ายภาพ
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={<FileUp className="h-4 w-4" />}
-              onClick={() => {
-                toast({
-                  type: 'info',
-                  title: 'เร็ว ๆ นี้',
-                  message: 'ฟีเจอร์อัพโหลดไฟล์ OCR กำลังพัฒนา',
-                });
-              }}
-            >
-              อัพโหลดไฟล์
-            </Button>
+      {/* Business date info */}
+      <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+        <Info className="h-3.5 w-3.5 shrink-0" />
+        <span>
+          วันที่นับ: <strong>{formatThaiDate(businessDate)}</strong>{' '}
+          (เมื่อวาน — ร้านเปิดข้ามวัน) · บันทึกอัตโนมัติเมื่อกรอกแต่ละรายการ
+        </span>
+      </div>
+
+      {/* Auto-compare in progress */}
+      {comparing && (
+        <div className="flex items-center gap-2 rounded-xl bg-indigo-50 p-4 dark:bg-indigo-900/20">
+          <Loader2 className="h-4 w-4 animate-spin text-indigo-600 dark:text-indigo-400" />
+          <span className="text-sm text-indigo-700 dark:text-indigo-300">
+            กำลังเปรียบเทียบอัตโนมัติ...
+          </span>
+        </div>
+      )}
+
+      {/* Auto-compare result banner */}
+      {compareResult?.compared && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+                เปรียบเทียบอัตโนมัติเรียบร้อย
+              </p>
+              <div className="mt-1 flex flex-wrap gap-3 text-xs text-emerald-700 dark:text-emerald-400">
+                <span>ตรง {compareResult.summary?.match || 0}</span>
+                <span>
+                  ภายในเกณฑ์ {compareResult.summary?.within_tolerance || 0}
+                </span>
+                {(compareResult.summary?.over_tolerance || 0) > 0 && (
+                  <span className="font-medium text-red-600 dark:text-red-400">
+                    เกินเกณฑ์ {compareResult.summary?.over_tolerance}
+                  </span>
+                )}
+              </div>
+              <a
+                href="/stock/comparison"
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
+              >
+                ดูผลเปรียบเทียบ
+                <ArrowRight className="h-3 w-3" />
+              </a>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Zero qty confirmation */}
+      {showZeroConfirm && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                พบ {zeroQtyCount} รายการที่จำนวน = 0
+              </p>
+              <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
+                กรุณาตรวจสอบให้แน่ใจว่าจำนวนนับถูกต้อง
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowZeroConfirm(false)}
+                >
+                  กลับไปแก้ไข
+                </Button>
+                <Button size="sm" onClick={doSave} isLoading={saving}>
+                  ยืนยันบันทึก
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <Input
@@ -378,27 +848,42 @@ export default function DailyCheckPage() {
             const hasExisting =
               existingCounts[product.product_code] !== undefined;
             const isFilled =
-              entry?.count_quantity !== '' && entry?.count_quantity !== undefined;
+              entry?.count_quantity !== '' &&
+              entry?.count_quantity !== undefined;
+            const isZero = entry?.count_quantity === 0;
+            const isSaving = savingItem === product.product_code;
+            const justSaved = savedItems.has(product.product_code);
 
             return (
               <div
                 key={product.id}
                 className={cn(
                   'rounded-xl bg-white p-4 shadow-sm ring-1 transition-colors dark:bg-gray-800',
-                  isFilled
-                    ? 'ring-emerald-200 dark:ring-emerald-800'
-                    : 'ring-gray-200 dark:ring-gray-700'
+                  isZero
+                    ? 'ring-amber-300 dark:ring-amber-700'
+                    : isFilled
+                      ? 'ring-emerald-200 dark:ring-emerald-800'
+                      : 'ring-gray-200 dark:ring-gray-700',
                 )}
               >
                 <div className="flex items-start gap-3">
                   {/* Product Info */}
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-gray-900 dark:text-white">
                         {product.product_name}
                       </p>
-                      {hasExisting && (
+                      {isSaving && (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />
+                      )}
+                      {justSaved && !isSaving && (
+                        <Check className="h-3.5 w-3.5 text-emerald-500" />
+                      )}
+                      {hasExisting && !isSaving && !justSaved && (
                         <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                      )}
+                      {isZero && (
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
                       )}
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-400 dark:text-gray-500">
@@ -420,13 +905,16 @@ export default function DailyCheckPage() {
                       onChange={(e) =>
                         handleCountChange(product.product_code, e.target.value)
                       }
+                      onBlur={() => handleCountBlur(product.product_code)}
                       className={cn(
                         'w-20 rounded-lg border bg-white px-3 py-2 text-center text-sm font-medium outline-none transition-colors',
                         'focus:ring-2 focus:ring-offset-0',
                         'dark:bg-gray-800 dark:text-white',
-                        isFilled
-                          ? 'border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20 dark:border-emerald-700'
-                          : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500/20 dark:border-gray-600'
+                        isZero
+                          ? 'border-amber-300 focus:border-amber-500 focus:ring-amber-500/20 dark:border-amber-700'
+                          : isFilled
+                            ? 'border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20 dark:border-emerald-700'
+                            : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500/20 dark:border-gray-600',
                       )}
                     />
                     <span className="text-xs text-gray-400 dark:text-gray-500">
@@ -445,6 +933,7 @@ export default function DailyCheckPage() {
                       onChange={(e) =>
                         handleNotesChange(product.product_code, e.target.value)
                       }
+                      onBlur={() => handleNotesBlur(product.product_code)}
                       className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:placeholder:text-gray-500"
                     />
                   </div>
@@ -453,6 +942,74 @@ export default function DailyCheckPage() {
             );
           })}
         </div>
+      )}
+
+      {/* ── Supplementary Count Section ── */}
+      {supplementaryItems.length > 0 && (
+        <Card>
+          <CardHeader
+            title={`รายการเพิ่มเติมจาก POS (${supplementaryItems.length})`}
+          />
+          <CardContent>
+            <div className="mb-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                พบรายการสินค้าจาก POS ที่ยังไม่ได้นับ
+                กรุณากรอกจำนวนนับเพิ่มเติม
+              </p>
+            </div>
+            <div className="space-y-2">
+              {supplementaryItems.map((item) => (
+                <div
+                  key={item.product_code}
+                  className="flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-700/50"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {item.product_name}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {item.product_code}
+                    </p>
+                  </div>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    placeholder="0"
+                    value={
+                      supplementaryCounts[item.product_code]?.count_quantity ??
+                      ''
+                    }
+                    onChange={(e) =>
+                      setSupplementaryCounts((prev) => ({
+                        ...prev,
+                        [item.product_code]: {
+                          ...prev[item.product_code],
+                          count_quantity:
+                            e.target.value === ''
+                              ? ''
+                              : Number(e.target.value),
+                        },
+                      }))
+                    }
+                    className="w-20 rounded-lg border border-gray-300 bg-white px-3 py-2 text-center text-sm font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button
+                size="sm"
+                icon={<Save className="h-4 w-4" />}
+                isLoading={savingSupplementary}
+                onClick={handleSaveSupplementary}
+              >
+                บันทึกรายการเพิ่มเติม
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Bottom Action Bar */}
@@ -464,6 +1021,11 @@ export default function DailyCheckPage() {
                 {filledCount}
               </span>{' '}
               / {products.length} รายการ
+              {zeroQtyCount > 0 && (
+                <span className="ml-2 text-amber-500">
+                  ({zeroQtyCount} = 0)
+                </span>
+              )}
             </div>
             <div className="flex gap-2">
               <Button
@@ -477,10 +1039,10 @@ export default function DailyCheckPage() {
               <Button
                 size="sm"
                 icon={<Save className="h-4 w-4" />}
-                isLoading={saving}
+                isLoading={saving || comparing}
                 onClick={handleSave}
               >
-                บันทึก ({filledCount})
+                เสร็จสิ้น ({filledCount}/{products.length})
               </Button>
             </div>
           </div>

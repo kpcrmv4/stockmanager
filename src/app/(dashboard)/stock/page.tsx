@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { Button, Badge, Card, CardHeader, CardContent, EmptyState, toast } from '@/components/ui';
 import { formatThaiDate, formatNumber } from '@/lib/utils/format';
+import { yesterdayBangkok } from '@/lib/utils/date';
 import {
   Package,
   CalendarCheck,
@@ -21,6 +22,7 @@ import {
   Loader2,
   RefreshCw,
   Inbox,
+  Upload,
 } from 'lucide-react';
 
 interface StockSummary {
@@ -50,6 +52,22 @@ export default function StockOverviewPage() {
     pendingApprovals: 0,
   });
   const [recentChecks, setRecentChecks] = useState<RecentCheck[]>([]);
+
+  // Today's business date status card
+  const businessDate = yesterdayBangkok();
+  const [todayStatus, setTodayStatus] = useState<{
+    manualCount: number;
+    totalProducts: number;
+    posUploaded: boolean;
+    compared: boolean;
+    overTolerance: number;
+  }>({
+    manualCount: 0,
+    totalProducts: 0,
+    posUploaded: false,
+    compared: false,
+    overTolerance: 0,
+  });
 
   const fetchData = useCallback(async () => {
     if (!currentStoreId) {
@@ -96,6 +114,45 @@ export default function StockOverviewPage() {
         lastCheckDate: latestCount?.count_date || null,
         pendingExplanations: pendingExplanations || 0,
         pendingApprovals: pendingApprovals || 0,
+      });
+
+      // ── Fetch today's business date status ──
+      const { count: manualCountToday } = await supabase
+        .from('manual_counts')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', currentStoreId)
+        .eq('count_date', businessDate);
+
+      const { count: countableProducts } = await supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', currentStoreId)
+        .eq('active', true)
+        .eq('count_status', 'active');
+
+      const { data: posLogs } = await supabase
+        .from('ocr_logs')
+        .select('id')
+        .eq('store_id', currentStoreId)
+        .eq('upload_date', businessDate)
+        .limit(1);
+
+      const { data: compData } = await supabase
+        .from('comparisons')
+        .select('status')
+        .eq('store_id', currentStoreId)
+        .eq('comp_date', businessDate);
+
+      const hasComparisons = (compData?.length || 0) > 0;
+      const overTol =
+        compData?.filter((c) => c.status === 'pending').length || 0;
+
+      setTodayStatus({
+        manualCount: manualCountToday || 0,
+        totalProducts: countableProducts || 0,
+        posUploaded: (posLogs?.length || 0) > 0,
+        compared: hasComparisons,
+        overTolerance: overTol,
       });
 
       // Fetch recent comparison dates (grouped)
@@ -207,6 +264,13 @@ export default function StockOverviewPage() {
       icon: ScanLine,
       href: '/stock/daily-check',
       color: 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800',
+    },
+    {
+      label: 'อัพโหลด POS',
+      description: 'นำเข้าข้อมูลจาก .txt',
+      icon: Upload,
+      href: '/stock/txt-upload',
+      color: 'bg-cyan-600 hover:bg-cyan-700 active:bg-cyan-800',
     },
     {
       label: 'ดูผลเปรียบเทียบ',
@@ -337,6 +401,216 @@ export default function StockOverviewPage() {
           );
         })}
       </div>
+
+      {/* Today's Stock Status Card */}
+      <Card>
+        <CardHeader
+          title={`สถานะนับสต๊อก — ${formatThaiDate(businessDate)}`}
+        />
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {/* Manual Count */}
+            <div
+              className={cn(
+                'flex items-center gap-3 rounded-xl p-3',
+                todayStatus.manualCount > 0
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                  : 'bg-gray-50 dark:bg-gray-700/50',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                  todayStatus.manualCount > 0
+                    ? 'bg-emerald-100 dark:bg-emerald-900/40'
+                    : 'bg-gray-200 dark:bg-gray-600',
+                )}
+              >
+                {todayStatus.manualCount > 0 ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <Clock className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  นับ Manual
+                </p>
+                <p
+                  className={cn(
+                    'text-sm font-medium',
+                    todayStatus.manualCount > 0
+                      ? 'text-emerald-700 dark:text-emerald-400'
+                      : 'text-gray-500 dark:text-gray-400',
+                  )}
+                >
+                  {todayStatus.manualCount > 0
+                    ? `${todayStatus.manualCount}/${todayStatus.totalProducts}`
+                    : 'ยังไม่ได้นับ'}
+                </p>
+              </div>
+            </div>
+
+            {/* POS Upload */}
+            <div
+              className={cn(
+                'flex items-center gap-3 rounded-xl p-3',
+                todayStatus.posUploaded
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                  : 'bg-gray-50 dark:bg-gray-700/50',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                  todayStatus.posUploaded
+                    ? 'bg-emerald-100 dark:bg-emerald-900/40'
+                    : 'bg-gray-200 dark:bg-gray-600',
+                )}
+              >
+                {todayStatus.posUploaded ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <Upload className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  อัพโหลด POS
+                </p>
+                <p
+                  className={cn(
+                    'text-sm font-medium',
+                    todayStatus.posUploaded
+                      ? 'text-emerald-700 dark:text-emerald-400'
+                      : 'text-gray-500 dark:text-gray-400',
+                  )}
+                >
+                  {todayStatus.posUploaded ? 'อัพโหลดแล้ว' : 'ยังไม่อัพโหลด'}
+                </p>
+              </div>
+            </div>
+
+            {/* Comparison */}
+            <div
+              className={cn(
+                'flex items-center gap-3 rounded-xl p-3',
+                todayStatus.compared
+                  ? todayStatus.overTolerance > 0
+                    ? 'bg-amber-50 dark:bg-amber-900/20'
+                    : 'bg-emerald-50 dark:bg-emerald-900/20'
+                  : 'bg-gray-50 dark:bg-gray-700/50',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                  todayStatus.compared
+                    ? todayStatus.overTolerance > 0
+                      ? 'bg-amber-100 dark:bg-amber-900/40'
+                      : 'bg-emerald-100 dark:bg-emerald-900/40'
+                    : 'bg-gray-200 dark:bg-gray-600',
+                )}
+              >
+                {todayStatus.compared ? (
+                  todayStatus.overTolerance > 0 ? (
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  )
+                ) : (
+                  <BarChart3 className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  เปรียบเทียบ
+                </p>
+                <p
+                  className={cn(
+                    'text-sm font-medium',
+                    todayStatus.compared
+                      ? todayStatus.overTolerance > 0
+                        ? 'text-amber-700 dark:text-amber-400'
+                        : 'text-emerald-700 dark:text-emerald-400'
+                      : 'text-gray-500 dark:text-gray-400',
+                  )}
+                >
+                  {todayStatus.compared
+                    ? todayStatus.overTolerance > 0
+                      ? `เกินเกณฑ์ ${todayStatus.overTolerance}`
+                      : 'ผ่านทั้งหมด'
+                    : 'ยังไม่ได้เปรียบเทียบ'}
+                </p>
+              </div>
+            </div>
+
+            {/* Overall status */}
+            <div
+              className={cn(
+                'flex items-center gap-3 rounded-xl p-3',
+                todayStatus.manualCount > 0 &&
+                  todayStatus.posUploaded &&
+                  todayStatus.compared
+                  ? todayStatus.overTolerance === 0
+                    ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                    : 'bg-amber-50 dark:bg-amber-900/20'
+                  : 'bg-blue-50 dark:bg-blue-900/20',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                  todayStatus.manualCount > 0 &&
+                    todayStatus.posUploaded &&
+                    todayStatus.compared
+                    ? todayStatus.overTolerance === 0
+                      ? 'bg-emerald-100 dark:bg-emerald-900/40'
+                      : 'bg-amber-100 dark:bg-amber-900/40'
+                    : 'bg-blue-100 dark:bg-blue-900/40',
+                )}
+              >
+                {todayStatus.manualCount > 0 &&
+                todayStatus.posUploaded &&
+                todayStatus.compared ? (
+                  todayStatus.overTolerance === 0 ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  )
+                ) : (
+                  <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  สถานะรวม
+                </p>
+                <p
+                  className={cn(
+                    'text-sm font-medium',
+                    todayStatus.manualCount > 0 &&
+                      todayStatus.posUploaded &&
+                      todayStatus.compared
+                      ? todayStatus.overTolerance === 0
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-amber-700 dark:text-amber-400'
+                      : 'text-blue-700 dark:text-blue-400',
+                  )}
+                >
+                  {todayStatus.manualCount > 0 &&
+                  todayStatus.posUploaded &&
+                  todayStatus.compared
+                    ? todayStatus.overTolerance === 0
+                      ? 'เสร็จสมบูรณ์'
+                      : 'รอชี้แจง'
+                    : 'กำลังดำเนินการ'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

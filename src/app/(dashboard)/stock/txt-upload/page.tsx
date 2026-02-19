@@ -7,7 +7,13 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { Button, Badge, Card, CardHeader, CardContent, EmptyState, toast } from '@/components/ui';
 import { formatThaiDate, formatNumber } from '@/lib/utils/format';
-import { todayBangkok } from '@/lib/utils/date';
+import { yesterdayBangkok } from '@/lib/utils/date';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import {
+  runAutoCompare,
+  checkExistingPOSUpload,
+  type AutoCompareResult,
+} from '@/lib/stock/auto-compare';
 import {
   ArrowLeft,
   Upload,
@@ -154,7 +160,14 @@ export default function TxtUploadPage() {
   const [summary, setSummary] = useState<ProcessSummary | null>(null);
   const [ocrLogId, setOcrLogId] = useState<string | null>(null);
 
-  const today = todayBangkok();
+  // Auto-compare result
+  const [autoCompareResult, setAutoCompareResult] =
+    useState<AutoCompareResult | null>(null);
+  const [comparingAuto, setComparingAuto] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState(false);
+
+  // Business date = yesterday (bars operate past midnight)
+  const businessDate = yesterdayBangkok();
 
   // ── Classify items against existing products ──
   const classifyItems = useCallback(
@@ -257,6 +270,17 @@ export default function TxtUploadPage() {
 
         setParsedItems(items);
 
+        // Check for duplicate POS upload for this date
+        if (currentStoreId) {
+          const { exists } = await checkExistingPOSUpload(
+            currentStoreId,
+            businessDate,
+          );
+          if (exists) {
+            setDuplicateWarning(true);
+          }
+        }
+
         // Check for potential issues
         const errors: string[] = [];
         const noNameItems = items.filter((i) => !i.product_name);
@@ -339,7 +363,7 @@ export default function TxtUploadPage() {
         body: JSON.stringify({
           store_id: currentStoreId,
           items: parsedItems,
-          upload_date: today,
+          upload_date: businessDate,
           include_zero_qty: includeZeroQty,
         }),
       });
@@ -354,11 +378,74 @@ export default function TxtUploadPage() {
       setOcrLogId(result.ocr_log_id);
       setStep('result');
 
+      // Audit log
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.STOCK_TXT_UPLOADED,
+        table_name: 'ocr_logs',
+        record_id: result.ocr_log_id,
+        new_value: {
+          upload_date: businessDate,
+          file_name: fileName,
+          total_items: result.summary.total_items,
+          new_added: result.summary.new_added,
+        },
+      });
+
       toast({
         type: 'success',
         title: 'บันทึกสำเร็จ',
         message: `นำเข้าข้อมูล ${result.summary.total_items} รายการเรียบร้อย`,
       });
+
+      // Auto-compare after save
+      if (autoCompareAfterSave) {
+        setComparingAuto(true);
+        try {
+          const compareResult = await runAutoCompare(
+            currentStoreId,
+            businessDate,
+          );
+          setAutoCompareResult(compareResult);
+
+          if (compareResult.compared) {
+            toast({
+              type: 'success',
+              title: 'เปรียบเทียบอัตโนมัติสำเร็จ',
+              message: `ตรง ${compareResult.summary?.match || 0} | เกินเกณฑ์ ${compareResult.summary?.over_tolerance || 0} รายการ`,
+            });
+          } else if (compareResult.reason === 'no_manual') {
+            toast({
+              type: 'info',
+              title: 'รอข้อมูลนับ Manual',
+              message:
+                'ยังไม่มีข้อมูลนับ Manual — ระบบจะเปรียบเทียบอัตโนมัติเมื่อ staff บันทึกการนับ',
+            });
+          }
+
+          // Notify about supplementary items
+          if (
+            compareResult.missingItems &&
+            compareResult.missingItems.length > 0
+          ) {
+            toast({
+              type: 'warning',
+              title: 'พบรายการที่ staff ยังไม่ได้นับ',
+              message: `มี ${compareResult.missingItems.length} รายการจาก POS ที่ยังไม่มีใน Manual — จะแจ้งให้ staff นับเพิ่ม`,
+            });
+          }
+        } catch (err) {
+          console.error('Auto-compare error:', err);
+          toast({
+            type: 'warning',
+            title: 'เปรียบเทียบอัตโนมัติล้มเหลว',
+            message:
+              'สามารถเปรียบเทียบด้วยตนเองได้ที่หน้าผลเปรียบเทียบ',
+          });
+        } finally {
+          setComparingAuto(false);
+        }
+      }
     } catch (error) {
       console.error('Error saving TXT data:', error);
       toast({
@@ -383,6 +470,8 @@ export default function TxtUploadPage() {
     setParseErrors([]);
     setSummary(null);
     setOcrLogId(null);
+    setAutoCompareResult(null);
+    setDuplicateWarning(false);
   };
 
   // ── Stats for preview ──
@@ -517,7 +606,7 @@ export default function TxtUploadPage() {
               {fileName}
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {parsedItems.length} รายการ -- {formatThaiDate(today)}
+              {parsedItems.length} รายการ -- {formatThaiDate(businessDate)}
             </p>
           </div>
         </div>
@@ -530,6 +619,24 @@ export default function TxtUploadPage() {
           เปลี่ยนไฟล์
         </Button>
       </div>
+
+      {/* Duplicate upload warning */}
+      {duplicateWarning && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+            <div>
+              <p className="text-sm font-medium text-red-800 dark:text-red-300">
+                วันนี้มีการอัพโหลดข้อมูล POS แล้ว
+              </p>
+              <p className="text-xs text-red-700 dark:text-red-400">
+                วันที่ {formatThaiDate(businessDate)} มีข้อมูล POS อยู่แล้ว
+                การบันทึกจะแทนที่ข้อมูลเดิม
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Parse warnings */}
       {parseErrors.length > 0 && (
@@ -890,7 +997,7 @@ export default function TxtUploadPage() {
               นำเข้าข้อมูลสำเร็จ
             </p>
             <p className="text-xs text-emerald-700 dark:text-emerald-400">
-              ไฟล์ {fileName} -- {formatThaiDate(today)}
+              ไฟล์ {fileName} -- {formatThaiDate(businessDate)}
             </p>
           </div>
         </div>
@@ -950,6 +1057,71 @@ export default function TxtUploadPage() {
           </CardContent>
         </Card>
 
+        {/* Auto-compare result */}
+        {comparingAuto && (
+          <div className="flex items-center gap-2 rounded-xl bg-indigo-50 p-4 dark:bg-indigo-900/20">
+            <Loader2 className="h-4 w-4 animate-spin text-indigo-600 dark:text-indigo-400" />
+            <span className="text-sm text-indigo-700 dark:text-indigo-300">
+              กำลังเปรียบเทียบอัตโนมัติ...
+            </span>
+          </div>
+        )}
+
+        {autoCompareResult?.compared && (
+          <Card>
+            <CardHeader title="ผลเปรียบเทียบอัตโนมัติ" />
+            <CardContent>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-lg bg-emerald-50 px-3 py-2 text-center dark:bg-emerald-900/20">
+                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                    {autoCompareResult.summary?.match || 0}
+                  </p>
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-500">
+                    ตรงกัน
+                  </p>
+                </div>
+                <div className="rounded-lg bg-amber-50 px-3 py-2 text-center dark:bg-amber-900/20">
+                  <p className="text-lg font-bold text-amber-700 dark:text-amber-400">
+                    {autoCompareResult.summary?.within_tolerance || 0}
+                  </p>
+                  <p className="text-[10px] text-amber-600 dark:text-amber-500">
+                    ภายในเกณฑ์
+                  </p>
+                </div>
+                <div className="rounded-lg bg-red-50 px-3 py-2 text-center dark:bg-red-900/20">
+                  <p className="text-lg font-bold text-red-700 dark:text-red-400">
+                    {autoCompareResult.summary?.over_tolerance || 0}
+                  </p>
+                  <p className="text-[10px] text-red-600 dark:text-red-500">
+                    เกินเกณฑ์
+                  </p>
+                </div>
+              </div>
+              {autoCompareResult.missingItems &&
+                autoCompareResult.missingItems.length > 0 && (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                      พบ {autoCompareResult.missingItems.length} รายการจาก POS
+                      ที่ staff ยังไม่ได้นับ — แจ้งให้นับเพิ่มแล้ว
+                    </p>
+                  </div>
+                )}
+            </CardContent>
+          </Card>
+        )}
+
+        {autoCompareResult && !autoCompareResult.compared && (
+          <div className="flex items-center gap-2 rounded-xl bg-blue-50 p-4 dark:bg-blue-900/20">
+            <AlertTriangle className="h-4 w-4 text-blue-500" />
+            <span className="text-sm text-blue-700 dark:text-blue-300">
+              {autoCompareResult.reason === 'no_manual'
+                ? 'ยังไม่มีข้อมูลนับ Manual — ระบบจะเปรียบเทียบอัตโนมัติเมื่อ staff บันทึกการนับ'
+                : 'ไม่สามารถเปรียบเทียบอัตโนมัติได้'}
+            </span>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex flex-col gap-3 sm:flex-row">
           <a href="/stock/comparison" className="flex-1">
@@ -1004,7 +1176,7 @@ export default function TxtUploadPage() {
           </div>
           <p className="mt-0.5 ml-9 text-sm text-gray-500 dark:text-gray-400">
             {step === 'upload' && 'อัพโหลดไฟล์ .txt จากระบบ POS'}
-            {step === 'preview' && `ตรวจสอบข้อมูลก่อนบันทึก -- ${formatThaiDate(today)}`}
+            {step === 'preview' && `ตรวจสอบข้อมูลก่อนบันทึก -- ${formatThaiDate(businessDate)}`}
             {step === 'result' && 'ผลการนำเข้าข้อมูล'}
           </p>
         </div>
