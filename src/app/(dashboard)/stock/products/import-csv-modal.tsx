@@ -239,7 +239,14 @@ export function ImportCSVModal({
         existing?.map((p) => p.product_code) || []
       );
 
-      const payload = rows.map((row) => ({
+      // Deduplicate by product_code (keep last occurrence) —
+      // PostgreSQL upsert cannot handle duplicate keys in the same batch
+      const deduped = new Map<string, ImportRow>();
+      for (const row of rows) {
+        deduped.set(row.product_code, row);
+      }
+
+      const payload = Array.from(deduped.values()).map((row) => ({
         store_id: currentStoreId,
         product_code: row.product_code,
         product_name: row.product_name,
@@ -262,10 +269,11 @@ export function ImportCSVModal({
         if (error) throw error;
       }
 
-      const newCount = rows.filter(
+      const dedupedRows = Array.from(deduped.values());
+      const newCount = dedupedRows.filter(
         (r) => !existingCodes.has(r.product_code)
       ).length;
-      const updateCount = rows.filter((r) =>
+      const updateCount = dedupedRows.filter((r) =>
         existingCodes.has(r.product_code)
       ).length;
 
@@ -275,7 +283,7 @@ export function ImportCSVModal({
         action_type: 'products_imported',
         table_name: 'products',
         new_value: {
-          total: rows.length,
+          total: dedupedRows.length,
           created: newCount,
           updated: updateCount,
           source: fileName,
@@ -309,6 +317,7 @@ export function ImportCSVModal({
   // Derived data for preview
   // -----------------------------------------------------------------------
 
+  const uniqueRows = rows.length - new Map(rows.map((r) => [r.product_code, r])).size;
   const activeCount = rows.filter((r) => r.active).length;
   const inactiveCount = rows.length - activeCount;
   const excludedCount = rows.filter((r) => r.count_status === 'excluded').length;
@@ -516,10 +525,17 @@ export function ImportCSVModal({
           {/* Warning */}
           <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-4 py-3 dark:bg-amber-900/20">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-            <p className="text-xs text-amber-700 dark:text-amber-400">
-              สินค้าที่มี product_code ซ้ำจะถูก
-              <strong>อัปเดตทับ</strong>ข้อมูลเดิม
-            </p>
+            <div className="text-xs text-amber-700 dark:text-amber-400">
+              <p>
+                สินค้าที่มี product_code ซ้ำจะถูก
+                <strong>อัปเดตทับ</strong>ข้อมูลเดิม
+              </p>
+              {uniqueRows > 0 && (
+                <p className="mt-1">
+                  พบรหัสสินค้าซ้ำ {uniqueRows} แถวในไฟล์ (จะใช้แถวสุดท้าย)
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}
