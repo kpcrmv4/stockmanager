@@ -229,6 +229,13 @@ export default function StockOverviewPage() {
       href: '/stock/approval',
       color: 'bg-violet-600 hover:bg-violet-700 active:bg-violet-800',
     },
+    {
+      label: 'จัดการสินค้า',
+      description: 'เพิ่ม แก้ไข ลบสินค้า',
+      icon: Package,
+      href: '/stock/products',
+      color: 'bg-cyan-600 hover:bg-cyan-700 active:bg-cyan-800',
+    },
   ];
 
   function getCheckStatusBadge(status: string) {
@@ -330,7 +337,7 @@ export default function StockOverviewPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {quickActions.map((action) => {
           const ActionIcon = action.icon;
           return (
