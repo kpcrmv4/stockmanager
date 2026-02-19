@@ -5,13 +5,14 @@
 -- 1. username เป็น NULL เมื่อไม่มี metadata.username และ email เป็น NULL
 -- 2. role cast ล้มเหลวเมื่อ metadata.role ไม่ตรง enum
 -- 3. username ซ้ำ (UNIQUE violation)
+-- 4. supabase_auth_admin มี search_path ที่ไม่รวม public → หา type user_role ไม่เจอ
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
   _username TEXT;
-  _role user_role;
+  _role public.user_role;
 BEGIN
   -- ดึง username จาก metadata หรือ email หรือสร้างจาก UUID
   _username := COALESCE(
@@ -28,7 +29,7 @@ BEGIN
   -- แปลง role จาก metadata (ถ้า invalid ให้ใช้ 'staff')
   BEGIN
     _role := COALESCE(
-      NULLIF(TRIM(NEW.raw_user_meta_data->>'role'), '')::user_role,
+      NULLIF(TRIM(NEW.raw_user_meta_data->>'role'), '')::public.user_role,
       'staff'
     );
   EXCEPTION WHEN invalid_text_representation OR others THEN
@@ -44,4 +45,4 @@ EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'handle_new_user: failed to create profile for user % — %', NEW.id, SQLERRM;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
