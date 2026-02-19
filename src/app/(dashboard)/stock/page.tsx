@@ -52,7 +52,10 @@ export default function StockOverviewPage() {
   const [recentChecks, setRecentChecks] = useState<RecentCheck[]>([]);
 
   const fetchData = useCallback(async () => {
-    if (!currentStoreId) return;
+    if (!currentStoreId) {
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     try {
@@ -72,7 +75,7 @@ export default function StockOverviewPage() {
         .eq('store_id', currentStoreId)
         .order('count_date', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       // Fetch pending explanations
       const { count: pendingExplanations } = await supabase
@@ -246,6 +249,24 @@ export default function StockOverviewPage() {
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
       </div>
+    );
+  }
+
+  if (!currentStoreId) {
+    return (
+      <EmptyState
+        icon={Package}
+        title="ยังไม่มีสาขาในระบบ"
+        description="กรุณาสร้างสาขาก่อนเพื่อเริ่มใช้งานระบบนับสต๊อก"
+        action={
+          <Button
+            size="sm"
+            onClick={() => { window.location.href = '/settings'; }}
+          >
+            ไปหน้าตั้งค่า
+          </Button>
+        }
+      />
     );
   }
 
