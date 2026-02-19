@@ -22,6 +22,7 @@ import {
   LayoutDashboard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { getModuleColors } from '@/lib/utils/module-colors';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { getModulesForRole } from '@/lib/modules/registry';
@@ -103,6 +104,7 @@ export function Sidebar({ stores }: SidebarProps) {
             const Icon = iconMap[mod.icon] ?? ClipboardList;
             const isActive =
               pathname === mod.href || pathname.startsWith(mod.href + '/');
+            const colors = getModuleColors(mod.color);
 
             return (
               <li key={mod.id}>
@@ -113,7 +115,7 @@ export function Sidebar({ stores }: SidebarProps) {
                     'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
                     'transition-colors duration-150',
                     isActive
-                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                      ? cn(colors.bg, colors.text)
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100',
                     collapsed && 'justify-center px-2'
                   )}
@@ -122,7 +124,7 @@ export function Sidebar({ stores }: SidebarProps) {
                     className={cn(
                       'h-5 w-5 shrink-0',
                       isActive
-                        ? 'text-blue-600 dark:text-blue-400'
+                        ? colors.text
                         : 'text-gray-400 dark:text-gray-500'
                     )}
                   />
