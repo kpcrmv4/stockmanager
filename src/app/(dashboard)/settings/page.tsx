@@ -21,6 +21,7 @@ import {
   Save,
   ChevronRight,
   Loader2,
+  Upload,
 } from 'lucide-react';
 
 interface StoreInfo {
@@ -260,6 +261,29 @@ export default function SettingsPage() {
                   </p>
                   <p className="text-xs text-gray-400">
                     กำหนดว่าจะส่งแจ้งเตือนอะไรไปยังลูกค้า
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-gray-300" />
+            </button>
+          </Card>
+
+          {/* Import Deposits Link */}
+          <Card padding="none">
+            <button
+              onClick={() => router.push('/settings/import-deposits')}
+              className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
+                  <Upload className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    นำเข้าข้อมูลฝากเหล้า
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    นำเข้าข้อมูลฝากเหล้าจากระบบเดิม (CSV)
                   </p>
                 </div>
               </div>
