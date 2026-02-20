@@ -41,6 +41,7 @@ import {
   LayoutGrid,
   List,
 } from 'lucide-react';
+import { StockCountBanner } from '@/components/stock/stock-count-banner';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -703,6 +704,9 @@ export default function BarApprovalPage() {
           </Button>
         </div>
       </div>
+
+      {/* Stock Count Banner */}
+      <StockCountBanner />
 
       {/* Summary Counts */}
       <div className="grid grid-cols-2 gap-3">
