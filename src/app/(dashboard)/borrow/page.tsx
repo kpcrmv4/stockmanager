@@ -188,7 +188,7 @@ function StatusProgressBar({
                     : isCompleted
                       ? 'bg-emerald-500 text-white'
                       : isCurrent
-                        ? 'animate-pulse bg-amber-400 text-white'
+                        ? 'animate-pulse bg-teal-400 text-white'
                         : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
                 )}
               >
@@ -261,14 +261,14 @@ function BorrowCard({
       onClick={onClick}
       className={cn(
         'relative w-full rounded-xl border bg-white text-left shadow-sm transition-all hover:shadow-md active:scale-[0.99] dark:bg-gray-900 dark:border-gray-700',
-        fresh && 'ring-2 ring-amber-400/60 animate-pulse'
+        fresh && 'ring-2 ring-teal-400/60 animate-pulse'
       )}
     >
       <div className="p-4 sm:p-5">
         {/* Top row: store + status */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <Store className="h-4 w-4 shrink-0 text-amber-500" />
+            <Store className="h-4 w-4 shrink-0 text-teal-500" />
             <span className="font-medium truncate max-w-[180px] sm:max-w-none">
               {otherStore || 'ไม่ทราบสาขา'}
             </span>
@@ -280,7 +280,7 @@ function BorrowCard({
 
         {/* Items summary */}
         <p className="mt-2 text-sm text-gray-800 dark:text-gray-200 line-clamp-2">
-          <span className="font-medium text-amber-600 dark:text-amber-400">{totalItems} รายการ:</span>{' '}
+          <span className="font-medium text-teal-600 dark:text-teal-400">{totalItems} รายการ:</span>{' '}
           {itemsSummary}
         </p>
 
@@ -440,7 +440,7 @@ function CreateBorrowModal({
                 className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                  <span className="text-xs font-medium text-teal-600 dark:text-teal-400">
                     รายการที่ {idx + 1}
                   </span>
                   {items.length > 1 && (
@@ -485,7 +485,7 @@ function CreateBorrowModal({
           <button
             type="button"
             onClick={addItem}
-            className="mt-2 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20"
+            className="mt-2 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-teal-600 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-900/20"
           >
             <Plus className="h-4 w-4" />
             เพิ่มรายการ
@@ -520,7 +520,7 @@ function CreateBorrowModal({
           isLoading={isSubmitting}
           disabled={!isValid}
           icon={<Send className="h-4 w-4" />}
-          className="bg-amber-500 hover:bg-amber-600 active:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600"
+          className="bg-teal-500 hover:bg-teal-600 active:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600"
         >
           ส่งคำขอยืม
         </Button>
@@ -659,16 +659,16 @@ function BorrowDetailSheet({
           <StatusProgressBar status={borrow.status} />
 
           {/* Store info */}
-          <div className="flex items-center gap-3 rounded-xl bg-amber-50 p-4 dark:bg-amber-900/10">
+          <div className="flex items-center gap-3 rounded-xl bg-teal-50 p-4 dark:bg-teal-900/10">
             <div className="flex items-center gap-2 text-sm">
-              <Building2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <Building2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
               <span className="font-medium text-gray-800 dark:text-gray-200">
                 {borrow.from_store_name || 'ไม่ทราบ'}
               </span>
             </div>
-            <ArrowRightLeft className="h-4 w-4 text-amber-500" />
+            <ArrowRightLeft className="h-4 w-4 text-teal-500" />
             <div className="flex items-center gap-2 text-sm">
-              <Store className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <Store className="h-4 w-4 text-teal-600 dark:text-teal-400" />
               <span className="font-medium text-gray-800 dark:text-gray-200">
                 {borrow.to_store_name || 'ไม่ทราบ'}
               </span>
@@ -707,7 +707,7 @@ function BorrowDetailSheet({
                     )}
                   </div>
                   <div className="text-right">
-                    <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                    <span className="text-sm font-semibold text-teal-600 dark:text-teal-400">
                       {item.quantity}
                     </span>
                     {item.unit && (
@@ -927,7 +927,7 @@ function BorrowDetailSheet({
 
           {/* OUTGOING: borrower status messages & POS confirm */}
           {isBorrowerSide && borrow.status === 'pending_approval' && (
-            <div className="flex items-center gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+            <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
               <Clock className="h-4 w-4" />
               รออนุมัติจากสาขา {borrow.to_store_name || ''}
             </div>
@@ -1093,8 +1093,8 @@ export default function BorrowPage() {
       <div className="grid grid-cols-2 gap-3">
         <Card padding="md">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30">
-              <Send className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-100 to-cyan-100 dark:from-teal-900/30 dark:to-cyan-900/30">
+              <Send className="h-5 w-5 text-teal-600 dark:text-teal-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -1110,8 +1110,8 @@ export default function BorrowPage() {
         </Card>
         <Card padding="md">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30">
-              <Package className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-100 to-teal-100 dark:from-cyan-900/30 dark:to-teal-900/30">
+              <Package className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -1166,7 +1166,7 @@ export default function BorrowPage() {
       {/* ----------------------------------------------------------------- */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+          <Loader2 className="h-6 w-6 animate-spin text-teal-500" />
         </div>
       ) : borrows.length === 0 ? (
         <EmptyState
@@ -1182,7 +1182,7 @@ export default function BorrowPage() {
               <Button
                 icon={<Plus className="h-4 w-4" />}
                 onClick={() => setShowCreateModal(true)}
-                className="bg-amber-500 hover:bg-amber-600 active:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600"
+                className="bg-teal-500 hover:bg-teal-600 active:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600"
               >
                 สร้างคำขอยืม
               </Button>
@@ -1210,7 +1210,7 @@ export default function BorrowPage() {
         <button
           type="button"
           onClick={() => setShowCreateModal(true)}
-          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 transition-transform hover:scale-105 active:scale-95 sm:h-auto sm:w-auto sm:gap-2 sm:rounded-xl sm:px-5 sm:py-3"
+          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 text-white shadow-lg shadow-teal-500/30 transition-transform hover:scale-105 active:scale-95 sm:h-auto sm:w-auto sm:gap-2 sm:rounded-xl sm:px-5 sm:py-3"
         >
           <Plus className="h-6 w-6 sm:h-5 sm:w-5" />
           <span className="hidden sm:inline text-sm font-medium">
