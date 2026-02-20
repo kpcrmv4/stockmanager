@@ -25,6 +25,7 @@ import {
   Package,
   Eye,
   ChevronRight,
+  Crown,
 } from 'lucide-react';
 import { DepositForm } from './_components/deposit-form';
 import { DepositDetail } from './_components/deposit-detail';
@@ -51,6 +52,7 @@ interface Deposit {
   customer_photo_url: string | null;
   received_photo_url: string | null;
   confirm_photo_url: string | null;
+  is_vip: boolean;
   created_at: string;
 }
 
@@ -68,6 +70,7 @@ const depositTabs = [
   { id: 'in_store', label: 'ในร้าน' },
   { id: 'pending_confirm', label: 'รอยืนยัน' },
   { id: 'expired', label: 'หมดอายุ' },
+  { id: 'vip', label: 'VIP' },
 ];
 
 export default function DepositPage() {
@@ -91,7 +94,9 @@ export default function DepositPage() {
       .eq('store_id', currentStoreId)
       .order('created_at', { ascending: false });
 
-    if (activeTab !== 'all') {
+    if (activeTab === 'vip') {
+      query = query.eq('is_vip', true);
+    } else if (activeTab !== 'all') {
       query = query.eq('status', activeTab);
     }
 
@@ -122,6 +127,8 @@ export default function DepositPage() {
 
   const activeCount = deposits.filter((d) => d.status === 'in_store').length;
   const pendingCount = deposits.filter((d) => d.status === 'pending_confirm').length;
+  const expiredCount = deposits.filter((d) => d.status === 'expired').length;
+  const vipCount = deposits.filter((d) => d.is_vip).length;
   const expiringSoonCount = deposits.filter(
     (d) => d.expiry_date && d.status === 'in_store' && daysUntil(d.expiry_date) <= 7 && daysUntil(d.expiry_date) > 0
   ).length;
@@ -130,6 +137,8 @@ export default function DepositPage() {
   const tabsWithCounts = depositTabs.map((t) => {
     if (t.id === 'in_store') return { ...t, count: activeCount };
     if (t.id === 'pending_confirm') return { ...t, count: pendingCount };
+    if (t.id === 'expired') return { ...t, count: expiredCount };
+    if (t.id === 'vip') return { ...t, count: vipCount };
     return t;
   });
 
@@ -332,12 +341,22 @@ export default function DepositPage() {
                             </span>
                           </td>
                           <td className="whitespace-nowrap px-5 py-4">
-                            <Badge variant={statusVariantMap[deposit.status] || 'default'}>
-                              {DEPOSIT_STATUS_LABELS[deposit.status] || deposit.status}
-                            </Badge>
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant={statusVariantMap[deposit.status] || 'default'}>
+                                {DEPOSIT_STATUS_LABELS[deposit.status] || deposit.status}
+                              </Badge>
+                              {deposit.is_vip && (
+                                <Badge variant="warning" size="sm">
+                                  <Crown className="mr-0.5 h-3 w-3" />
+                                  VIP
+                                </Badge>
+                              )}
+                            </div>
                           </td>
                           <td className="whitespace-nowrap px-5 py-4">
-                            {deposit.expiry_date ? (
+                            {deposit.is_vip ? (
+                              <span className="text-sm font-medium text-amber-600 dark:text-amber-400">ไม่มีวันหมดอายุ</span>
+                            ) : deposit.expiry_date ? (
                               <div>
                                 <p className={cn(
                                   'text-sm',
@@ -402,6 +421,12 @@ export default function DepositPage() {
                           <Badge variant={statusVariantMap[deposit.status] || 'default'} size="sm">
                             {DEPOSIT_STATUS_LABELS[deposit.status] || deposit.status}
                           </Badge>
+                          {deposit.is_vip && (
+                            <Badge variant="warning" size="sm">
+                              <Crown className="mr-0.5 h-3 w-3" />
+                              VIP
+                            </Badge>
+                          )}
                         </div>
                         <p className="mt-1 font-medium text-gray-900 dark:text-white">
                           {deposit.product_name}
@@ -416,14 +441,16 @@ export default function DepositPage() {
                       <span>
                         คงเหลือ: {formatNumber(deposit.remaining_qty)}/{formatNumber(deposit.quantity)}
                       </span>
-                      {deposit.expiry_date && (
+                      {deposit.is_vip ? (
+                        <span className="font-medium text-amber-600 dark:text-amber-400">ไม่มีวันหมดอายุ</span>
+                      ) : deposit.expiry_date ? (
                         <span className={cn(isExpiringSoon && 'font-medium text-red-500 dark:text-red-400')}>
                           {isExpiringSoon
                             ? `หมดอายุใน ${expiryDays} วัน`
                             : `หมดอายุ: ${formatThaiDate(deposit.expiry_date)}`
                           }
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   </button>
                 </Card>

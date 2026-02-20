@@ -148,6 +148,8 @@ export interface Deposit {
   received_photo_url: string | null;
   /** รูปที่ Bar ถ่ายตอนยืนยัน */
   confirm_photo_url: string | null;
+  /** VIP = ฝากได้ไม่มีหมดอายุ */
+  is_vip: boolean;
   created_at: string;
 }
 

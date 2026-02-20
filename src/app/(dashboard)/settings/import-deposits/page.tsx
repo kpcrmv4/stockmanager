@@ -512,7 +512,11 @@ export default function ImportDepositsPage() {
             remaining_percent: remPct,
             table_number: row.raw.table_number || null,
             status: mapDepositStatus(row.raw.status),
-            expiry_date: formatDateForSupabase(row.raw.expiry_date),
+            is_vip: (row.raw.is_vip || '').toUpperCase() === 'TRUE',
+            expiry_date:
+              (row.raw.is_vip || '').toUpperCase() === 'TRUE'
+                ? null
+                : formatDateForSupabase(row.raw.expiry_date),
             notes: row.raw.notes || null,
             photo_url: row.raw.photo_url || null,
             customer_photo_url: row.raw.customer_photo_url || null,
@@ -740,7 +744,7 @@ export default function ImportDepositsPage() {
     deposits: [
       'deposit_code', 'customer_name', 'customer_phone', 'product_name',
       'category', 'quantity', 'remaining_qty', 'remaining_percent',
-      'table_number', 'deposit_date', 'expiry_date', 'status',
+      'table_number', 'deposit_date', 'expiry_date', 'is_vip', 'status',
       'line_user_id', 'photo_url', 'notes',
     ],
     deposit_requests: [
@@ -760,6 +764,7 @@ export default function ImportDepositsPage() {
   const columnGuideNotes: Record<ImportTable, string> = {
     deposits: `* deposit_id เดิมจะไม่ใช้ — ระบบสร้าง UUID ใหม่
 * store_id จะถูกแทนที่ด้วย UUID ร้านที่เลือก
+* is_vip = TRUE → ไม่มีวันหมดอายุ (VIP)
 * สถานะ "cancelled" จะถูกข้าม`,
     deposit_requests: '* line_user_id ถ้าไม่มีจะใส่ "imported"',
     withdrawals: `* deposit_code จะถูกใช้ค้นหา UUID ของ deposit ในร้านที่เลือก

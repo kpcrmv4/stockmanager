@@ -41,6 +41,7 @@ import {
   Printer,
   Tag,
   Image as ImageIcon,
+  Crown,
 } from 'lucide-react';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { extendExpiryISO } from '@/lib/utils/date';
@@ -68,6 +69,7 @@ interface Deposit {
   customer_photo_url: string | null;
   received_photo_url: string | null;
   confirm_photo_url: string | null;
+  is_vip: boolean;
   created_at: string;
 }
 
@@ -128,6 +130,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
 
   // Expiry modal
   const [showExpiryModal, setShowExpiryModal] = useState(false);
+  const [expiryNotifyCustomer, setExpiryNotifyCustomer] = useState(false);
 
   // Transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -243,7 +246,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   };
 
   const handleMarkExpired = async () => {
-    if (!user) return;
+    if (!user || !currentStoreId) return;
     setIsSubmitting(true);
     const supabase = createClient();
 
@@ -255,10 +258,73 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     if (error) {
       toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถเปลี่ยนสถานะได้' });
     } else {
+      // Audit log
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.DEPOSIT_STATUS_CHANGED,
+        table_name: 'deposits',
+        record_id: deposit.id,
+        old_value: { status: deposit.status },
+        new_value: { status: 'expired', notify_customer: expiryNotifyCustomer },
+        changed_by: user.id,
+      });
+
+      // Customer notification (if toggled on)
+      if (expiryNotifyCustomer && deposit.line_user_id) {
+        await supabase.from('notifications').insert({
+          user_id: deposit.line_user_id,
+          store_id: currentStoreId,
+          title: 'รายการฝากเหล้าหมดอายุ',
+          body: `รายการ ${deposit.deposit_code} (${deposit.product_name}) หมดอายุแล้ว`,
+          type: 'deposit_expired',
+          data: { deposit_id: deposit.id, deposit_code: deposit.deposit_code },
+        });
+      }
+
       toast({ type: 'warning', title: 'เปลี่ยนสถานะเป็นหมดอายุแล้ว' });
     }
 
     setShowExpiryModal(false);
+    setExpiryNotifyCustomer(false);
+    setIsSubmitting(false);
+    refreshDeposit();
+  };
+
+  const handleToggleVip = async () => {
+    if (!user || !currentStoreId) return;
+    setIsSubmitting(true);
+    const supabase = createClient();
+
+    const newIsVip = !deposit.is_vip;
+    const updateData: Record<string, unknown> = { is_vip: newIsVip };
+    if (newIsVip) {
+      updateData.expiry_date = null;
+    }
+
+    const { error } = await supabase
+      .from('deposits')
+      .update(updateData)
+      .eq('id', deposit.id);
+
+    if (error) {
+      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถเปลี่ยนสถานะ VIP ได้' });
+    } else {
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.DEPOSIT_STATUS_CHANGED,
+        table_name: 'deposits',
+        record_id: deposit.id,
+        old_value: { is_vip: deposit.is_vip, expiry_date: deposit.expiry_date },
+        new_value: { is_vip: newIsVip, expiry_date: newIsVip ? null : deposit.expiry_date },
+        changed_by: user.id,
+      });
+      toast({
+        type: 'success',
+        title: newIsVip ? 'เปลี่ยนเป็น VIP แล้ว' : 'ยกเลิก VIP แล้ว',
+        message: newIsVip ? 'ไม่มีวันหมดอายุ' : 'กรุณาตั้งค่าวันหมดอายุใหม่',
+      });
+    }
+
     setIsSubmitting(false);
     refreshDeposit();
   };
@@ -380,9 +446,10 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   };
 
   const canWithdraw = deposit.status === 'in_store' && deposit.remaining_qty > 0;
-  const canMarkExpired = deposit.status === 'in_store' || deposit.status === 'pending_confirm';
+  const canMarkExpired = (deposit.status === 'in_store' || deposit.status === 'pending_confirm') && !deposit.is_vip;
   const canTransfer = deposit.status === 'in_store';
-  const canExtendExpiry = deposit.status === 'in_store';
+  const canExtendExpiry = deposit.status === 'in_store' && !deposit.is_vip;
+  const canToggleVip = deposit.status === 'in_store' || deposit.status === 'pending_confirm';
 
   return (
     <div className="space-y-6">
@@ -408,6 +475,12 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 <Badge variant={statusVariantMap[deposit.status] || 'default'}>
                   {DEPOSIT_STATUS_LABELS[deposit.status] || deposit.status}
                 </Badge>
+                {deposit.is_vip && (
+                  <Badge variant="warning">
+                    <Crown className="mr-0.5 h-3 w-3" />
+                    VIP
+                  </Badge>
+                )}
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {deposit.product_name}
@@ -433,16 +506,30 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           <CardHeader title="รูปถ่าย" />
           <CardContent>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {deposit.customer_photo_url && (
+              {/* รูปหลัก (จากลูกค้า) — customer_photo_url preferred, photo_url as legacy fallback */}
+              {(deposit.customer_photo_url || deposit.photo_url) && (
                 <div className="space-y-2">
                   <div className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
                     <img
-                      src={deposit.customer_photo_url}
-                      alt="รูปจากลูกค้า"
+                      src={deposit.customer_photo_url || deposit.photo_url!}
+                      alt="รูปหลัก (จากลูกค้า)"
                       className="h-full w-full object-cover"
                     />
                   </div>
-                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปจากลูกค้า</p>
+                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปหลัก (จากลูกค้า)</p>
+                </div>
+              )}
+              {/* Show legacy photo_url separately only if both exist */}
+              {deposit.customer_photo_url && deposit.photo_url && deposit.customer_photo_url !== deposit.photo_url && (
+                <div className="space-y-2">
+                  <div className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                    <img
+                      src={deposit.photo_url}
+                      alt="รูปเพิ่มเติม"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปเพิ่มเติม</p>
                 </div>
               )}
               {deposit.received_photo_url && (
@@ -454,7 +541,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       className="h-full w-full object-cover"
                     />
                   </div>
-                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปรับเข้าร้าน (Staff)</p>
+                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปรับเข้าร้าน</p>
                 </div>
               )}
               {deposit.confirm_photo_url && (
@@ -467,18 +554,6 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                     />
                   </div>
                   <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปยืนยัน (Bar)</p>
-                </div>
-              )}
-              {deposit.photo_url && (
-                <div className="space-y-2">
-                  <div className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-                    <img
-                      src={deposit.photo_url}
-                      alt="รูปหลัก"
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปหลัก</p>
                 </div>
               )}
             </div>
@@ -584,30 +659,50 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 </div>
               </div>
 
-              {deposit.expiry_date && (
-                <div className="flex items-start gap-3">
-                  <Clock className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">วันหมดอายุ</p>
-                    <p className={cn(
-                      'font-medium',
-                      isExpiringSoon || isExpired
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-gray-900 dark:text-white'
-                    )}>
-                      {formatThaiDate(deposit.expiry_date)}
-                      {expiryDays !== null && expiryDays > 0 && (
-                        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                          (เหลือ {expiryDays} วัน)
-                        </span>
-                      )}
-                      {isExpired && (
-                        <span className="ml-1 text-xs text-red-500">(หมดอายุแล้ว)</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              )}
+              <div className="flex items-start gap-3">
+                {deposit.is_vip ? (
+                  <>
+                    <Crown className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">สถานะ VIP</p>
+                      <p className="font-medium text-amber-600 dark:text-amber-400">
+                        ไม่มีวันหมดอายุ
+                      </p>
+                    </div>
+                  </>
+                ) : deposit.expiry_date ? (
+                  <>
+                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">วันหมดอายุ</p>
+                      <p className={cn(
+                        'font-medium',
+                        isExpiringSoon || isExpired
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-gray-900 dark:text-white'
+                      )}>
+                        {formatThaiDate(deposit.expiry_date)}
+                        {expiryDays !== null && expiryDays > 0 && (
+                          <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                            (เหลือ {expiryDays} วัน)
+                          </span>
+                        )}
+                        {isExpired && (
+                          <span className="ml-1 text-xs text-red-500">(หมดอายุแล้ว)</span>
+                        )}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">วันหมดอายุ</p>
+                      <p className="font-medium text-gray-400 dark:text-gray-500">ไม่ระบุ</p>
+                    </div>
+                  </>
+                )}
+              </div>
 
               {deposit.notes && (
                 <div className="flex items-start gap-3">
@@ -733,7 +828,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           </Card>
 
           {/* Actions */}
-          {(canWithdraw || canMarkExpired || canTransfer || canExtendExpiry) && (
+          {(canWithdraw || canMarkExpired || canTransfer || canExtendExpiry || canToggleVip) && (
             <Card padding="none">
               <CardHeader title="ดำเนินการ" />
               <CardContent>
@@ -746,6 +841,17 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       onClick={() => setShowWithdrawModal(true)}
                     >
                       เบิกเหล้า
+                    </Button>
+                  )}
+                  {canToggleVip && (
+                    <Button
+                      className="min-h-[44px] w-full justify-start"
+                      variant="outline"
+                      icon={<Crown className="h-4 w-4" />}
+                      onClick={handleToggleVip}
+                      isLoading={isSubmitting}
+                    >
+                      {deposit.is_vip ? 'ยกเลิก VIP' : 'เปลี่ยนเป็น VIP'}
                     </Button>
                   )}
                   {canMarkExpired && (
@@ -924,19 +1030,43 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       {/* Mark Expired Modal */}
       <Modal
         isOpen={showExpiryModal}
-        onClose={() => setShowExpiryModal(false)}
+        onClose={() => {
+          setShowExpiryModal(false);
+          setExpiryNotifyCustomer(false);
+        }}
         title="ทำเครื่องหมายหมดอายุ"
         description="ต้องการเปลี่ยนสถานะรายการนี้เป็นหมดอายุหรือไม่?"
         size="sm"
       >
-        <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-          <p className="font-medium">คำเตือน</p>
-          <p className="mt-1">
-            การทำเครื่องหมายหมดอายุจะไม่สามารถเบิกเหล้าได้อีก กรุณาตรวจสอบก่อนดำเนินการ
-          </p>
+        <div className="space-y-4">
+          <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+            <p className="font-medium">คำเตือน</p>
+            <p className="mt-1">
+              การทำเครื่องหมายหมดอายุจะไม่สามารถเบิกเหล้าได้อีก กรุณาตรวจสอบก่อนดำเนินการ
+            </p>
+          </div>
+          {deposit.line_user_id && (
+            <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+              <input
+                type="checkbox"
+                checked={expiryNotifyCustomer}
+                onChange={(e) => setExpiryNotifyCustomer(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">แจ้งเตือนลูกค้า</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  ส่งการแจ้งเตือนไปยังลูกค้าว่ารายการฝากหมดอายุแล้ว
+                </p>
+              </div>
+            </label>
+          )}
         </div>
         <ModalFooter>
-          <Button variant="outline" onClick={() => setShowExpiryModal(false)}>
+          <Button variant="outline" onClick={() => {
+            setShowExpiryModal(false);
+            setExpiryNotifyCustomer(false);
+          }}>
             ยกเลิก
           </Button>
           <Button
