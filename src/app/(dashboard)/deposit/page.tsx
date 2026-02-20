@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
@@ -76,12 +77,23 @@ const depositTabs = [
 export default function DepositPage() {
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
+  const searchParams = useSearchParams();
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [activeTab, setActiveTab] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<Deposit | null>(null);
+
+  // Handle action query parameter (e.g. ?action=new or ?action=withdraw)
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'new') {
+      setShowNewForm(true);
+    } else if (action === 'withdraw') {
+      setActiveTab('in_store');
+    }
+  }, [searchParams]);
 
   const loadDeposits = useCallback(async () => {
     if (!currentStoreId) return;

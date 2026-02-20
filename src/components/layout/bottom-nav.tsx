@@ -34,12 +34,12 @@ const desktopRoleNavItems: NavItem[] = [
   { label: 'แจ้งเตือน', href: '/notifications', icon: Bell, color: 'rose' },
 ];
 
-// เมนูสำหรับ staff
+// เมนูสำหรับ staff — งานของฉัน ตรงกลาง (ปุ่มนูน) เป็นหน้าเริ่มต้น
 const staffNavItems: NavItem[] = [
-  { label: 'งานของฉัน', href: '/my-tasks', icon: ClipboardList, color: 'blue' },
   { label: 'ฝาก/เบิก', href: '/deposit', icon: Wine, color: 'emerald' },
-  { label: 'ยืมสินค้า', href: '/borrow', icon: Repeat, color: 'rose' },
   { label: 'นับสต๊อก', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
+  { label: 'งานของฉัน', href: '/my-tasks', icon: ClipboardList, color: 'blue' },
+  { label: 'ยืมสินค้า', href: '/borrow', icon: Repeat, color: 'rose' },
   { label: 'แจ้งเตือน', href: '/notifications', icon: Bell, color: 'pink' },
 ];
 

@@ -615,7 +615,7 @@ export default function MyTasksPage() {
       {/* ── Quick Actions ───────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3">
         <a
-          href="/stock/count"
+          href="/stock/daily-check"
           className={cn(
             'flex flex-col items-center gap-2 rounded-xl px-3 py-4 text-white transition-all',
             'bg-gradient-to-r from-purple-500 to-indigo-600',
@@ -626,7 +626,7 @@ export default function MyTasksPage() {
           <span className="text-xs font-medium">นับสต๊อก</span>
         </a>
         <a
-          href="/deposit/new"
+          href="/deposit?action=new"
           className={cn(
             'flex flex-col items-center gap-2 rounded-xl px-3 py-4 text-white transition-all',
             'bg-gradient-to-r from-teal-500 to-emerald-500',
