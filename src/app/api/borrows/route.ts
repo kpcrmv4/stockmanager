@@ -300,7 +300,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ borrows: borrows || [] });
+    // Flatten nested relations for the client
+    const result = (borrows || []).map((b: Record<string, unknown>) => {
+      const fromStore = b.from_store as Record<string, string> | null;
+      const toStore = b.to_store as Record<string, string> | null;
+      const requester = b.requester as Record<string, string> | null;
+      const approver = b.approver as Record<string, string> | null;
+      const borrowItems = b.borrow_items as unknown[];
+
+      // Remove nested objects and add flat fields
+      const { from_store, to_store, requester: _r, approver: _a, borrow_items, ...rest } = b;
+      return {
+        ...rest,
+        from_store_name: fromStore?.store_name || null,
+        to_store_name: toStore?.store_name || null,
+        requester_name: requester?.display_name || null,
+        approver_name: approver?.display_name || null,
+        items: borrowItems || [],
+      };
+    });
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('[Borrows] Unexpected error:', error);
     return NextResponse.json(

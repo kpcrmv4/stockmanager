@@ -703,17 +703,12 @@ export async function GET(
       ]);
 
     return NextResponse.json({
-      borrow: {
-        ...borrow,
-        borrow_items: itemsResult.data || [],
-        from_store: fromStoreResult.data || null,
-        to_store: toStoreResult.data || null,
-        requester: requesterResult.data || null,
-        approver: approverResult.data || null,
-        borrower_pos_confirmer: borrowerConfirmerResult.data || null,
-        lender_pos_confirmer: lenderConfirmerResult.data || null,
-        rejector: rejectorResult.data || null,
-      },
+      ...borrow,
+      items: itemsResult.data || [],
+      from_store_name: fromStoreResult.data?.store_name || null,
+      to_store_name: toStoreResult.data?.store_name || null,
+      requester_name: requesterResult.data?.display_name || null,
+      approver_name: approverResult.data?.display_name || null,
     });
   } catch (error) {
     console.error('[Borrows] Unexpected error:', error);

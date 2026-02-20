@@ -368,16 +368,16 @@ function CreateBorrowModal({
 
     try {
       const body = {
-        from_store_id: currentStoreId,
-        to_store_id: targetStore,
+        fromStoreId: currentStoreId,
+        toStoreId: targetStore,
         items: items.map((it) => ({
-          product_name: it.product_name.trim(),
+          productName: it.product_name.trim(),
           category: it.category || null,
           quantity: Number(it.quantity),
           unit: it.unit || null,
         })),
         notes: notes.trim() || null,
-        borrower_photo_url: photoUrl,
+        borrowerPhotoUrl: photoUrl,
       };
 
       const res = await fetch('/api/borrows', {
@@ -584,7 +584,7 @@ function BorrowDetailSheet({
 
   const handleApprove = () => {
     toast({ type: 'success', title: 'อนุมัติคำขอยืมแล้ว' });
-    patchBorrow({ action: 'approve', lender_photo_url: lenderPhoto });
+    patchBorrow({ action: 'approve', lenderPhotoUrl: lenderPhoto });
   };
 
   const handleReject = () => {
@@ -593,27 +593,21 @@ function BorrowDetailSheet({
       return;
     }
     toast({ type: 'warning', title: 'ปฏิเสธคำขอยืมแล้ว' });
-    patchBorrow({ action: 'reject', rejection_reason: rejectionReason.trim() });
+    patchBorrow({ action: 'reject', reason: rejectionReason.trim() });
   };
 
   const handleConfirmPos = (side: 'borrower' | 'lender') => {
     toast({ type: 'success', title: 'ยืนยันตัดสต๊อก POS แล้ว' });
-    patchBorrow({
-      action: 'confirm-pos',
-      side,
-      ...(side === 'borrower'
-        ? { borrower_photo_url: borrowerPhoto }
-        : { lender_photo_url: lenderPhoto }),
-    });
+    patchBorrow({ action: 'confirm_pos', side });
   };
 
   const handlePhotoUpload = (side: 'borrower' | 'lender', url: string | null) => {
     if (side === 'borrower') {
       setBorrowerPhoto(url);
-      if (url) patchBorrow({ action: 'upload-photo', side: 'borrower', borrower_photo_url: url });
+      if (url) patchBorrow({ action: 'upload_photo', side: 'borrower', photoUrl: url });
     } else {
       setLenderPhoto(url);
-      if (url) patchBorrow({ action: 'upload-photo', side: 'lender', lender_photo_url: url });
+      if (url) patchBorrow({ action: 'upload_photo', side: 'lender', photoUrl: url });
     }
   };
 
