@@ -393,6 +393,8 @@ export interface PrintPayload {
   created_at: string;
   store_name: string;
   received_by_name: string | null;
+  qr_code_image_url: string | null;
+  line_oa_id: string | null;
 }
 
 export interface ReceiptSettings {
@@ -404,4 +406,6 @@ export interface ReceiptSettings {
   show_qr: boolean;
   receipt_copies: number;
   label_copies: number;
+  line_oa_id: string | null;
+  qr_code_image_url: string | null;
 }

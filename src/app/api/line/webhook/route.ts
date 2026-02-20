@@ -6,7 +6,13 @@ import {
   pushToStaffGroup,
   createFlexMessage,
 } from '@/lib/line/messaging';
-import { approvalRequestTemplate } from '@/lib/line/flex-templates';
+import {
+  approvalRequestTemplate,
+  claimDepositFlex,
+  claimMultipleDepositsFlex,
+  depositLinkedFlex,
+  multipleDepositsLinkedFlex,
+} from '@/lib/line/flex-templates';
 import { generateCustomerUrl } from '@/lib/auth/customer-token';
 
 // ---------------------------------------------------------------------------
@@ -236,7 +242,7 @@ async function handleTextMessage(
     storeInfo?.line_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
   // -----------------------------------------------------------------------
-  // Pattern: DEP-XXXXX → ค้นหารหัสฝากเหล้า
+  // Pattern: DEP-XXXXX → ค้นหารหัสฝากเหล้า + Claim Flow
   // -----------------------------------------------------------------------
   if (/^DEP-/i.test(text)) {
     const query = supabase
@@ -250,26 +256,105 @@ async function handleTextMessage(
 
     const { data: deposit } = await query.single();
 
-    if (deposit) {
-      const rawStore = deposit.store as unknown;
-      const storeName =
-        (Array.isArray(rawStore) ? rawStore[0]?.store_name : (rawStore as { store_name: string } | null)?.store_name) || '';
-      await replyMessage(
-        event.replyToken,
-        [
-          {
-            type: 'text',
-            text: `🔍 รหัส: ${deposit.deposit_code}\nสินค้า: ${deposit.product_name}\nคงเหลือ: ${deposit.remaining_qty}\nสถานะ: ${deposit.status}${storeName ? `\nสาขา: ${storeName}` : ''}`,
-          },
-        ],
-        botToken,
-      );
-    } else {
+    if (!deposit) {
       await replyMessage(
         event.replyToken,
         [{ type: 'text', text: `❌ ไม่พบรหัสฝาก "${text}"` }],
         botToken,
       );
+      return;
+    }
+
+    const rawStore = deposit.store as unknown;
+    const storeName =
+      (Array.isArray(rawStore) ? rawStore[0]?.store_name : (rawStore as { store_name: string } | null)?.store_name) || '';
+
+    // Case 1: มี line_user_id แล้ว แต่ไม่ใช่คนพิมพ์ → ป้องกันคนอื่นเห็น
+    if (deposit.line_user_id && deposit.line_user_id !== userId) {
+      await replyMessage(
+        event.replyToken,
+        [{ type: 'text', text: `❌ ไม่พบรหัสฝาก "${text}"` }],
+        botToken,
+      );
+      return;
+    }
+
+    // Case 2: มี line_user_id = ผู้พิมพ์ + status expired/withdrawn → แสดงสถานะ
+    if (deposit.line_user_id === userId && ['expired', 'withdrawn'].includes(deposit.status)) {
+      const statusLabel = deposit.status === 'expired' ? 'หมดอายุแล้ว' : 'เบิกครบแล้ว';
+      await replyMessage(
+        event.replyToken,
+        [
+          {
+            type: 'text',
+            text: `📋 ${deposit.deposit_code}\n${deposit.product_name}\nสถานะ: ${statusLabel}${storeName ? `\nสาขา: ${storeName}` : ''}`,
+          },
+        ],
+        botToken,
+      );
+      return;
+    }
+
+    // Case 3: มี line_user_id = ผู้พิมพ์ → ผูกแล้ว แสดงข้อมูลเดิม
+    if (deposit.line_user_id === userId) {
+      const portalUrl = generateCustomerUrl(userId);
+      const flex = depositLinkedFlex({
+        deposit_code: deposit.deposit_code,
+        product_name: deposit.product_name,
+        customer_name: deposit.customer_name,
+        remaining_qty: deposit.remaining_qty,
+        quantity: deposit.quantity,
+        store_name: storeName,
+        expiry_date: deposit.expiry_date,
+        customer_portal_url: portalUrl,
+      });
+      await replyMessage(event.replyToken, [flex], botToken);
+      return;
+    }
+
+    // Case 4: ยังไม่มี line_user_id → ถามผูก
+    // หา related deposits จาก received_photo_url เดียวกัน (batch detection)
+    let batchCodes: string[] = [];
+    let batchProductNames: string[] = [];
+
+    if (deposit.received_photo_url) {
+      const { data: batchDeposits } = await supabase
+        .from('deposits')
+        .select('deposit_code, product_name')
+        .eq('store_id', deposit.store_id)
+        .eq('received_photo_url', deposit.received_photo_url)
+        .is('line_user_id', null)
+        .in('status', ['in_store', 'pending_confirm'])
+        .order('created_at', { ascending: true });
+
+      if (batchDeposits && batchDeposits.length > 1) {
+        batchCodes = batchDeposits.map((d) => d.deposit_code);
+        batchProductNames = batchDeposits.map((d) => d.product_name);
+      }
+    }
+
+    if (batchCodes.length > 1) {
+      // Multiple deposits in same batch
+      const flex = claimMultipleDepositsFlex({
+        codes: batchCodes,
+        product_names: batchProductNames,
+        customer_name: deposit.customer_name,
+        store_name: storeName,
+        store_id: deposit.store_id,
+        primary_code: deposit.deposit_code,
+      });
+      await replyMessage(event.replyToken, [flex], botToken);
+    } else {
+      // Single deposit
+      const flex = claimDepositFlex({
+        deposit_code: deposit.deposit_code,
+        product_name: deposit.product_name,
+        customer_name: deposit.customer_name,
+        remaining_qty: deposit.remaining_qty,
+        store_name: storeName,
+        store_id: deposit.store_id,
+      });
+      await replyMessage(event.replyToken, [flex], botToken);
     }
     return;
   }
@@ -406,7 +491,160 @@ async function handlePostback(
   }
 
   // -----------------------------------------------------------------------
-  // Action: claim_deposit (ลูกค้าขอเบิก)
+  // Action: link_deposit — ลูกค้ากดยืนยันผูก 1 รายการ
+  // -----------------------------------------------------------------------
+  if (action === 'link_deposit') {
+    const code = params.get('code');
+    const userId = event.source.userId;
+    if (!code || !userId) return;
+
+    const { data: deposit } = await supabase
+      .from('deposits')
+      .select('*, store:stores(store_name)')
+      .eq('deposit_code', code)
+      .single();
+
+    if (!deposit) {
+      await replyMessage(
+        event.replyToken,
+        [{ type: 'text', text: `❌ ไม่พบรหัสฝาก "${code}"` }],
+        botToken,
+      );
+      return;
+    }
+
+    // ถ้าผูกแล้วกับคนอื่น → ไม่อนุญาต
+    if (deposit.line_user_id && deposit.line_user_id !== userId) {
+      await replyMessage(
+        event.replyToken,
+        [{ type: 'text', text: '❌ รหัสนี้ถูกผูกกับบัญชีอื่นแล้ว' }],
+        botToken,
+      );
+      return;
+    }
+
+    // ถ้าผูกแล้วกับคนนี้ → แสดงข้อมูลเดิม
+    if (deposit.line_user_id === userId) {
+      await replyMessage(
+        event.replyToken,
+        [{ type: 'text', text: `✅ รหัส ${code} ผูกกับบัญชีของคุณแล้ว` }],
+        botToken,
+      );
+      return;
+    }
+
+    // UPDATE: ผูก line_user_id
+    const { error } = await supabase
+      .from('deposits')
+      .update({ line_user_id: userId })
+      .eq('id', deposit.id)
+      .is('line_user_id', null);
+
+    if (error) {
+      await replyMessage(
+        event.replyToken,
+        [{ type: 'text', text: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่' }],
+        botToken,
+      );
+      return;
+    }
+
+    const rawStore = deposit.store as unknown;
+    const storeName =
+      (Array.isArray(rawStore) ? rawStore[0]?.store_name : (rawStore as { store_name: string } | null)?.store_name) || '';
+    const portalUrl = generateCustomerUrl(userId);
+
+    const flex = depositLinkedFlex({
+      deposit_code: deposit.deposit_code,
+      product_name: deposit.product_name,
+      customer_name: deposit.customer_name,
+      remaining_qty: deposit.remaining_qty,
+      quantity: deposit.quantity,
+      store_name: storeName,
+      expiry_date: deposit.expiry_date,
+      customer_portal_url: portalUrl,
+    });
+
+    await replyMessage(event.replyToken, [flex], botToken);
+    return;
+  }
+
+  // -----------------------------------------------------------------------
+  // Action: link_deposits_batch — ลูกค้ากดยืนยันผูกหลายรายการ
+  // -----------------------------------------------------------------------
+  if (action === 'link_deposits_batch') {
+    const codesStr = params.get('codes');
+    const userId = event.source.userId;
+    if (!codesStr || !userId) return;
+
+    const codes = codesStr.split(',').filter(Boolean);
+    const linkedCodes: string[] = [];
+    const linkedProductNames: string[] = [];
+    let storeName = '';
+
+    for (const code of codes) {
+      const { data: deposit } = await supabase
+        .from('deposits')
+        .select('id, deposit_code, product_name, store:stores(store_name)')
+        .eq('deposit_code', code)
+        .is('line_user_id', null)
+        .single();
+
+      if (deposit) {
+        const { error } = await supabase
+          .from('deposits')
+          .update({ line_user_id: userId })
+          .eq('id', deposit.id)
+          .is('line_user_id', null);
+
+        if (!error) {
+          linkedCodes.push(deposit.deposit_code);
+          linkedProductNames.push(deposit.product_name);
+          if (!storeName) {
+            const rawStore = deposit.store as unknown;
+            storeName =
+              (Array.isArray(rawStore) ? rawStore[0]?.store_name : (rawStore as { store_name: string } | null)?.store_name) || '';
+          }
+        }
+      }
+    }
+
+    if (linkedCodes.length === 0) {
+      await replyMessage(
+        event.replyToken,
+        [{ type: 'text', text: '❌ ไม่สามารถผูกรายการได้ อาจถูกผูกไปแล้ว' }],
+        botToken,
+      );
+      return;
+    }
+
+    const portalUrl = generateCustomerUrl(userId);
+
+    const flex = multipleDepositsLinkedFlex({
+      codes: linkedCodes,
+      product_names: linkedProductNames,
+      store_name: storeName,
+      customer_portal_url: portalUrl,
+    });
+
+    await replyMessage(event.replyToken, [flex], botToken);
+    return;
+  }
+
+  // -----------------------------------------------------------------------
+  // Action: cancel_link — ลูกค้ากดไม่ใช่ของฉัน
+  // -----------------------------------------------------------------------
+  if (action === 'cancel_link') {
+    await replyMessage(
+      event.replyToken,
+      [{ type: 'text', text: '👌 ไม่มีการเปลี่ยนแปลง\n\nหากต้องการตรวจสอบข้อมูล ลองพิมพ์รหัสฝากอีกครั้ง' }],
+      botToken,
+    );
+    return;
+  }
+
+  // -----------------------------------------------------------------------
+  // Action: claim_deposit (ลูกค้าขอเบิก — legacy)
   // -----------------------------------------------------------------------
   if (action === 'claim_deposit') {
     const depositId = params.get('deposit_id');

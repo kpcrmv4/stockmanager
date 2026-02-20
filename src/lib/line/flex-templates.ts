@@ -21,6 +21,7 @@ interface FlexBubble {
     body?: Record<string, unknown>;
     footer?: { separator?: boolean };
   };
+  [key: string]: unknown;
 }
 
 interface FlexBox {
@@ -524,6 +525,351 @@ export function stockComparisonFlex(params: StockComparisonParams): FlexMessage 
       ]),
       styles: {
         header: { backgroundColor: bgColor },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (k) claimDepositFlex — ถามลูกค้า "ใช่ของคุณไหม?" (1 รายการ)
+// ---------------------------------------------------------------------------
+
+interface ClaimDepositParams {
+  deposit_code: string;
+  product_name: string;
+  customer_name: string;
+  remaining_qty: number;
+  store_name: string;
+  store_id: string;
+}
+
+export function claimDepositFlex(params: ClaimDepositParams): FlexMessage {
+  const { deposit_code, product_name, customer_name, remaining_qty, store_name, store_id } = params;
+
+  return {
+    type: 'flex',
+    altText: `ยืนยันรหัสฝาก ${deposit_code}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('ยืนยันรหัสฝากเหล้า', COLORS.orange),
+      body: bodyBox([
+        textComponent(product_name, {
+          size: 'xl',
+          weight: 'bold',
+          color: COLORS.textPrimary,
+          wrap: true,
+        }),
+        textComponent(store_name, {
+          size: 'xs',
+          color: COLORS.textMuted,
+          margin: 'sm',
+        }),
+        separatorComponent(),
+        labelValueRow('รหัสฝาก', deposit_code, { color: COLORS.orange }),
+        labelValueRow('ชื่อลูกค้า', customer_name),
+        labelValueRow('คงเหลือ', `${formatNumber(remaining_qty)} ขวด`),
+        separatorComponent(),
+        textComponent('รายการนี้เป็นของคุณใช่ไหม?', {
+          size: 'sm',
+          color: COLORS.textSecondary,
+          align: 'center',
+          margin: 'lg',
+          wrap: true,
+        }),
+      ]),
+      footer: footerBox([
+        {
+          type: 'box',
+          layout: 'horizontal',
+          contents: [
+            {
+              type: 'button',
+              action: {
+                type: 'postback',
+                label: 'ใช่ ผูกกับฉัน',
+                data: `action=link_deposit&code=${deposit_code}&store_id=${store_id}`,
+                displayText: `ยืนยันผูกรหัส ${deposit_code}`,
+              },
+              style: 'primary',
+              color: COLORS.green,
+              height: 'sm',
+            },
+            {
+              type: 'button',
+              action: {
+                type: 'postback',
+                label: 'ไม่ใช่',
+                data: `action=cancel_link&code=${deposit_code}`,
+                displayText: 'ไม่ใช่ของฉัน',
+              },
+              style: 'secondary',
+              height: 'sm',
+            },
+          ],
+          spacing: 'sm',
+        },
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.orange },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (l) claimMultipleDepositsFlex — พบหลายรายการ batch เดียวกัน
+// ---------------------------------------------------------------------------
+
+interface ClaimMultipleDepositsParams {
+  codes: string[];
+  product_names: string[];
+  customer_name: string;
+  store_name: string;
+  store_id: string;
+  primary_code: string;
+}
+
+const COLORS_PURPLE = '#7C3AED';
+
+export function claimMultipleDepositsFlex(params: ClaimMultipleDepositsParams): FlexMessage {
+  const { codes, product_names, customer_name, store_name, store_id, primary_code } = params;
+
+  const listItems: Record<string, unknown>[] = codes.map((code, i) => ({
+    type: 'box',
+    layout: 'horizontal',
+    contents: [
+      textComponent(`${i + 1}.`, { size: 'sm', color: COLORS.textMuted, flex: 0 }),
+      textComponent(`${code} — ${product_names[i] || ''}`, {
+        size: 'sm',
+        color: COLORS.textPrimary,
+        flex: 1,
+        wrap: true,
+        margin: 'sm',
+      }),
+    ],
+    margin: 'sm',
+  }));
+
+  return {
+    type: 'flex',
+    altText: `ยืนยันรหัสฝาก ${codes.length} รายการ`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox(`พบ ${codes.length} รายการ`, COLORS_PURPLE),
+      body: bodyBox([
+        textComponent(customer_name, {
+          size: 'lg',
+          weight: 'bold',
+          color: COLORS.textPrimary,
+          wrap: true,
+        }),
+        textComponent(store_name, {
+          size: 'xs',
+          color: COLORS.textMuted,
+          margin: 'sm',
+        }),
+        separatorComponent(),
+        ...listItems,
+        separatorComponent(),
+        textComponent('ต้องการผูกรายการเหล่านี้กับบัญชีของคุณ?', {
+          size: 'sm',
+          color: COLORS.textSecondary,
+          align: 'center',
+          margin: 'lg',
+          wrap: true,
+        }),
+      ]),
+      footer: footerBox([
+        {
+          type: 'button',
+          action: {
+            type: 'postback',
+            label: `ใช่ทั้งหมด (${codes.length} รายการ)`,
+            data: `action=link_deposits_batch&codes=${codes.join(',')}&store_id=${store_id}`,
+            displayText: `ยืนยันผูกทั้ง ${codes.length} รายการ`,
+          },
+          style: 'primary',
+          color: COLORS.green,
+          height: 'sm',
+        },
+        {
+          type: 'button',
+          action: {
+            type: 'postback',
+            label: `เฉพาะ ${primary_code}`,
+            data: `action=link_deposit&code=${primary_code}&store_id=${store_id}`,
+            displayText: `ยืนยันผูกเฉพาะ ${primary_code}`,
+          },
+          style: 'secondary',
+          height: 'sm',
+        },
+        {
+          type: 'button',
+          action: {
+            type: 'postback',
+            label: 'ไม่ใช่ของฉัน',
+            data: `action=cancel_link&code=${primary_code}`,
+            displayText: 'ไม่ใช่ของฉัน',
+          },
+          style: 'secondary',
+          height: 'sm',
+        },
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS_PURPLE },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (m) depositLinkedFlex — ผูกสำเร็จ (1 รายการ)
+// ---------------------------------------------------------------------------
+
+interface DepositLinkedParams {
+  deposit_code: string;
+  product_name: string;
+  customer_name: string;
+  remaining_qty: number;
+  quantity: number;
+  store_name: string;
+  expiry_date: string | null;
+  customer_portal_url: string;
+}
+
+export function depositLinkedFlex(params: DepositLinkedParams): FlexMessage {
+  const { deposit_code, product_name, customer_name, remaining_qty, quantity, store_name, expiry_date, customer_portal_url } = params;
+
+  const bodyContents: Record<string, unknown>[] = [
+    textComponent(product_name, {
+      size: 'xl',
+      weight: 'bold',
+      color: COLORS.textPrimary,
+      wrap: true,
+    }),
+    textComponent(store_name, {
+      size: 'xs',
+      color: COLORS.textMuted,
+      margin: 'sm',
+    }),
+    separatorComponent(),
+    labelValueRow('รหัสฝาก', deposit_code, { color: COLORS.green }),
+    labelValueRow('ชื่อลูกค้า', customer_name),
+    labelValueRow('คงเหลือ', `${formatNumber(remaining_qty)} / ${formatNumber(quantity)} ขวด`),
+  ];
+
+  if (expiry_date) {
+    bodyContents.push(labelValueRow('หมดอายุ', formatThaiDate(expiry_date)));
+  }
+
+  return {
+    type: 'flex',
+    altText: `ผูกรหัสฝาก ${deposit_code} สำเร็จ`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('ผูกรหัสฝากสำเร็จ', COLORS.green),
+      body: bodyBox(bodyContents),
+      footer: footerBox([
+        {
+          type: 'button',
+          action: {
+            type: 'uri',
+            label: 'ดูรายการทั้งหมด',
+            uri: customer_portal_url,
+          },
+          style: 'primary',
+          color: COLORS.blue,
+          height: 'sm',
+        },
+        textComponent('พิมพ์ "ฝากเหล้า" เพื่อดูของฝากทั้งหมด', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          wrap: true,
+          align: 'center',
+          margin: 'sm',
+        }),
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.green },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (n) multipleDepositsLinkedFlex — ผูกหลายรายการสำเร็จ
+// ---------------------------------------------------------------------------
+
+interface MultipleDepositsLinkedParams {
+  codes: string[];
+  product_names: string[];
+  store_name: string;
+  customer_portal_url: string;
+}
+
+export function multipleDepositsLinkedFlex(params: MultipleDepositsLinkedParams): FlexMessage {
+  const { codes, product_names, store_name, customer_portal_url } = params;
+
+  const listItems: Record<string, unknown>[] = codes.map((code, i) => ({
+    type: 'box',
+    layout: 'horizontal',
+    contents: [
+      textComponent('✅', { size: 'sm', flex: 0 }),
+      textComponent(`${code} — ${product_names[i] || ''}`, {
+        size: 'sm',
+        color: COLORS.textPrimary,
+        flex: 1,
+        wrap: true,
+        margin: 'sm',
+      }),
+    ],
+    margin: 'sm',
+  }));
+
+  return {
+    type: 'flex',
+    altText: `ผูกรหัสฝาก ${codes.length} รายการสำเร็จ`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox(`ผูกสำเร็จ ${codes.length} รายการ`, COLORS.green),
+      body: bodyBox([
+        textComponent(store_name, {
+          size: 'xs',
+          color: COLORS.textMuted,
+        }),
+        separatorComponent(),
+        ...listItems,
+      ]),
+      footer: footerBox([
+        {
+          type: 'button',
+          action: {
+            type: 'uri',
+            label: 'ดูรายการทั้งหมด',
+            uri: customer_portal_url,
+          },
+          style: 'primary',
+          color: COLORS.blue,
+          height: 'sm',
+        },
+        textComponent('พิมพ์ "ฝากเหล้า" เพื่อดูของฝากทั้งหมด', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          wrap: true,
+          align: 'center',
+          margin: 'sm',
+        }),
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.green },
         footer: { separator: true },
       },
     },

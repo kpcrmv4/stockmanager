@@ -654,6 +654,36 @@ function ReceiptContent({
       {/* Separator */}
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
 
+      {/* QR Code + LINE Claim Instructions */}
+      {settings?.show_qr && payload.qr_code_image_url && (
+        <>
+          <div style={{ textAlign: 'center', margin: '8px 0 4px' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={payload.qr_code_image_url}
+              alt="LINE QR Code"
+              style={{ width: '120px', height: '120px', margin: '0 auto' }}
+            />
+          </div>
+          {payload.line_oa_id && (
+            <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 'bold', margin: '2px 0' }}>
+              LINE: {payload.line_oa_id}
+            </div>
+          )}
+          <div style={{ textAlign: 'center', letterSpacing: '-1px', margin: '4px 0' }}>{DASHED_LINE}</div>
+          <div style={{ fontSize: '11px', margin: '4px 0', lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '2px' }}>
+              ตรวจสอบข้อมูลเหล้าฝาก:
+            </div>
+            <div>1. สแกน QR Code เพิ่มเพื่อน</div>
+            <div>2. พิมพ์รหัสฝากในแชท</div>
+            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px', margin: '2px 0' }}>
+              &quot;{payload.deposit_code}&quot;
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Footer text */}
       {settings?.footer_text && (
         <div style={{ textAlign: 'center', fontSize: '11px', margin: '4px 0' }}>

@@ -12,6 +12,7 @@ import {
   CardContent,
   Modal,
   ModalFooter,
+  PhotoUpload,
   toast,
 } from '@/components/ui';
 import {
@@ -146,6 +147,8 @@ export default function StoreDetailSettingsPage() {
   const [receiptShowQr, setReceiptShowQr] = useState(false);
   const [receiptCopies, setReceiptCopies] = useState('1');
   const [labelCopies, setLabelCopies] = useState('1');
+  const [lineOaId, setLineOaId] = useState('');
+  const [qrCodeImageUrl, setQrCodeImageUrl] = useState('');
 
   // ---------------------------------------------------------------------------
   // Data Loading
@@ -204,6 +207,8 @@ export default function StoreDetailSettingsPage() {
         setReceiptShowQr(rs.show_qr ?? false);
         setReceiptCopies(String(rs.receipt_copies ?? 1));
         setLabelCopies(String(rs.label_copies ?? 1));
+        setLineOaId(rs.line_oa_id || '');
+        setQrCodeImageUrl(rs.qr_code_image_url || '');
       }
     }
 
@@ -269,6 +274,8 @@ export default function StoreDetailSettingsPage() {
             show_qr: receiptShowQr,
             receipt_copies: parseInt(receiptCopies) || 1,
             label_copies: parseInt(labelCopies) || 1,
+            line_oa_id: lineOaId.trim() || null,
+            qr_code_image_url: qrCodeImageUrl.trim() || null,
           } satisfies ReceiptSettings,
         },
         { onConflict: 'store_id' }
@@ -803,7 +810,7 @@ export default function StoreDetailSettingsPage() {
             <div className="flex items-center justify-between py-3">
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">แสดง QR Code</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">แสดง QR Code ของรหัสฝากบนใบเสร็จ</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">แสดง QR Code LINE OA บนใบเสร็จ ลูกค้าสแกนเพื่อผูกรายการฝาก</p>
               </div>
               <button
                 type="button"
@@ -820,6 +827,35 @@ export default function StoreDetailSettingsPage() {
               </button>
             </div>
           </div>
+
+          {/* LINE OA QR Code settings (shown when Show QR is enabled) */}
+          {receiptShowQr && (
+            <div className="space-y-4 rounded-lg border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-800/50 dark:bg-indigo-900/10">
+              <p className="text-xs font-medium text-indigo-700 dark:text-indigo-400">
+                ตั้งค่า LINE OA สำหรับ QR Code บนใบเสร็จ
+              </p>
+              <PhotoUpload
+                value={qrCodeImageUrl || null}
+                onChange={(url) => setQrCodeImageUrl(url || '')}
+                folder="qr-codes"
+                label="รูป QR Code LINE OA"
+                placeholder="อัพโหลดรูป QR Code จาก LINE Official Account Manager"
+                compact
+              />
+              <Input
+                label="LINE OA ID"
+                value={lineOaId}
+                onChange={(e) => setLineOaId(e.target.value)}
+                placeholder="@mybottle"
+                hint="แสดงบนใบเสร็จเป็น LINE: @mybottle"
+              />
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+                <p className="text-xs text-blue-700 dark:text-blue-400">
+                  <strong>ระบบ LINE Claim:</strong> ลูกค้าสแกน QR Code เพิ่มเพื่อน LINE OA แล้วพิมพ์รหัสฝาก (DEP-XXXXX) ในแชท ระบบจะผูก LINE กับรายการฝากอัตโนมัติ
+                </p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

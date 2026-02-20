@@ -144,6 +144,9 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [isPrintingLabel, setIsPrintingLabel] = useState(false);
 
+  // Receipt settings (for print payload QR)
+  const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings | null>(null);
+
   const refreshDeposit = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
@@ -167,9 +170,24 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     setIsLoadingWithdrawals(false);
   }, [deposit.id]);
 
+  // Load receipt settings for print payload
+  const loadReceiptSettings = useCallback(async () => {
+    if (!currentStoreId) return;
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('store_settings')
+      .select('receipt_settings')
+      .eq('store_id', currentStoreId)
+      .single();
+    if (data?.receipt_settings) {
+      setReceiptSettings(data.receipt_settings as unknown as ReceiptSettings);
+    }
+  }, [currentStoreId]);
+
   useEffect(() => {
     loadWithdrawals();
-  }, [loadWithdrawals]);
+    loadReceiptSettings();
+  }, [loadWithdrawals, loadReceiptSettings]);
 
   const expiryDays = deposit.expiry_date ? daysUntil(deposit.expiry_date) : null;
   const isExpiringSoon = expiryDays !== null && expiryDays <= 7 && expiryDays > 0 && deposit.status === 'in_store';
@@ -424,6 +442,8 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       created_at: deposit.created_at,
       store_name: storeName,
       received_by_name: null,
+      qr_code_image_url: receiptSettings?.qr_code_image_url ?? null,
+      line_oa_id: receiptSettings?.line_oa_id ?? null,
     };
 
     const { error } = await supabase.from('print_queue').insert({
