@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
@@ -19,7 +19,13 @@ import {
   ArrowLeft,
   Wine,
   Save,
+  Plus,
+  X,
+  Search,
+  Loader2,
+  Package,
 } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
 import { expiryDateISO } from '@/lib/utils/date';
@@ -28,6 +34,19 @@ import { formatThaiDate } from '@/lib/utils/format';
 interface DepositFormProps {
   onBack: () => void;
   onSuccess: () => void;
+}
+
+interface ProductOption {
+  product_name: string;
+  category: string | null;
+}
+
+interface DepositItem {
+  productName: string;
+  category: string;
+  quantity: string;
+  searchQuery: string;
+  showDropdown: boolean;
 }
 
 const categoryOptions = [
@@ -44,6 +63,14 @@ const categoryOptions = [
   { value: 'soju', label: 'โซจู' },
   { value: 'other', label: 'อื่นๆ' },
 ];
+
+const EMPTY_ITEM: DepositItem = {
+  productName: '',
+  category: '',
+  quantity: '1',
+  searchQuery: '',
+  showDropdown: false,
+};
 
 function generateRandomAlphanumeric(length: number): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -66,112 +93,322 @@ async function generateDepositCode(storeId: string): Promise<string> {
   return `DEP-${storeCode}-${random}`;
 }
 
+// ---------------------------------------------------------------------------
+// Product Search Input — autocomplete from products table
+// ---------------------------------------------------------------------------
+
+function ProductSearchInput({
+  item,
+  index,
+  products,
+  onUpdate,
+  onSelectProduct,
+  error,
+}: {
+  item: DepositItem;
+  index: number;
+  products: ProductOption[];
+  onUpdate: (index: number, field: keyof DepositItem, value: string | boolean) => void;
+  onSelectProduct: (index: number, product: ProductOption) => void;
+  error?: string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const filtered = item.searchQuery
+    ? products.filter((p) =>
+        p.product_name.toLowerCase().includes(item.searchQuery.toLowerCase())
+      )
+    : products;
+
+  const handleBlur = () => {
+    // Delay to allow click on dropdown item
+    blurTimeout.current = setTimeout(() => {
+      onUpdate(index, 'showDropdown', false);
+    }, 200);
+  };
+
+  const handleFocus = () => {
+    if (blurTimeout.current) clearTimeout(blurTimeout.current);
+    onUpdate(index, 'showDropdown', true);
+  };
+
+  const handleSelect = (product: ProductOption) => {
+    if (blurTimeout.current) clearTimeout(blurTimeout.current);
+    onSelectProduct(index, product);
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+        ชื่อสินค้า *
+      </label>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          value={item.searchQuery}
+          onChange={(e) => {
+            onUpdate(index, 'searchQuery', e.target.value);
+            onUpdate(index, 'productName', e.target.value);
+            onUpdate(index, 'showDropdown', true);
+          }}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          placeholder="พิมพ์ค้นหาชื่อเหล้า..."
+          className={cn(
+            'w-full rounded-lg border bg-white py-2 pl-9 pr-3 text-sm transition-colors',
+            'focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500',
+            'dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:focus:border-indigo-400 dark:focus:ring-indigo-400',
+            error
+              ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+              : 'border-gray-300'
+          )}
+        />
+      </div>
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+
+      {/* Dropdown */}
+      {item.showDropdown && filtered.length > 0 && (
+        <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+          {filtered.slice(0, 50).map((product, pIdx) => (
+            <button
+              key={pIdx}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleSelect(product)}
+              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+            >
+              <span className="font-medium text-gray-800 dark:text-gray-200">
+                {product.product_name}
+              </span>
+              {product.category && (
+                <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                  {categoryOptions.find((c) => c.value === product.category)?.label || product.category}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* No results hint */}
+      {item.showDropdown && item.searchQuery && filtered.length === 0 && (
+        <div className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white p-3 text-center text-xs text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500">
+          ไม่พบสินค้าในระบบ — จะใช้ชื่อที่พิมพ์
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Form
+// ---------------------------------------------------------------------------
+
 export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
 
+  // ----- Shared fields -----
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [productName, setProductName] = useState('');
-  const [category, setCategory] = useState('');
-  const [quantity, setQuantity] = useState('');
   const [tableNumber, setTableNumber] = useState('');
-  const [notes, setNotes] = useState('');
   const [expiryDays, setExpiryDays] = useState('30');
+  const [notes, setNotes] = useState('');
   const [receivedPhotoUrl, setReceivedPhotoUrl] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Validation
+  // ----- Multi-item -----
+  const [items, setItems] = useState<DepositItem[]>([{ ...EMPTY_ITEM }]);
+
+  // ----- Products from DB -----
+  const [products, setProducts] = useState<ProductOption[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
+  // ----- Submit state -----
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // ----- Fetch products -----
+  const fetchProducts = useCallback(async () => {
+    if (!currentStoreId) return;
+    setLoadingProducts(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('products')
+      .select('product_name, category')
+      .eq('store_id', currentStoreId)
+      .eq('active', true)
+      .order('product_name');
+    if (data) setProducts(data);
+    setLoadingProducts(false);
+  }, [currentStoreId]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  // ----- Item helpers -----
+  const updateItem = (index: number, field: keyof DepositItem, value: string | boolean) => {
+    setItems((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+    // Clear item-level errors when user types
+    if (errors[`item_${index}_productName`] || errors[`item_${index}_quantity`]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[`item_${index}_productName`];
+        delete next[`item_${index}_quantity`];
+        return next;
+      });
+    }
+  };
+
+  const selectProduct = (index: number, product: ProductOption) => {
+    setItems((prev) => {
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        productName: product.product_name,
+        category: product.category || '',
+        searchQuery: product.product_name,
+        showDropdown: false,
+      };
+      return next;
+    });
+  };
+
+  const addItem = () => {
+    setItems((prev) => [...prev, { ...EMPTY_ITEM }]);
+  };
+
+  const removeItem = (index: number) => {
+    if (items.length <= 1) return;
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // ----- Validation -----
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (!customerName.trim()) {
       newErrors.customerName = 'กรุณาระบุชื่อลูกค้า';
     }
-    if (!productName.trim()) {
-      newErrors.productName = 'กรุณาระบุชื่อสินค้า';
-    }
-    if (!quantity || parseFloat(quantity) <= 0) {
-      newErrors.quantity = 'กรุณาระบุจำนวนที่ถูกต้อง';
-    }
     if (!expiryDays || parseInt(expiryDays) <= 0) {
       newErrors.expiryDays = 'กรุณาระบุจำนวนวันที่ถูกต้อง';
     }
+
+    items.forEach((item, idx) => {
+      if (!item.productName.trim()) {
+        newErrors[`item_${idx}_productName`] = 'กรุณาระบุชื่อสินค้า';
+      }
+      if (!item.quantity || parseFloat(item.quantity) <= 0) {
+        newErrors[`item_${idx}_quantity`] = 'กรุณาระบุจำนวนที่ถูกต้อง';
+      }
+    });
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  // ----- Submit -----
   const handleSubmit = async () => {
     if (!validate() || !currentStoreId || !user) return;
 
     setIsSubmitting(true);
     const supabase = createClient();
-    const depositCode = await generateDepositCode(currentStoreId);
 
-    const qty = parseFloat(quantity);
+    try {
+      const depositCodes: string[] = [];
 
-    const { error } = await supabase.from('deposits').insert({
-      store_id: currentStoreId,
-      deposit_code: depositCode,
-      customer_name: customerName.trim(),
-      customer_phone: customerPhone.trim() || null,
-      product_name: productName.trim(),
-      category: category || null,
-      quantity: qty,
-      remaining_qty: qty,
-      remaining_percent: 100,
-      table_number: tableNumber.trim() || null,
-      status: 'pending_confirm',
-      expiry_date: expiryDateISO(parseInt(expiryDays)),
-      received_by: user.id,
-      notes: notes.trim() || null,
-      received_photo_url: receivedPhotoUrl || null,
-    });
+      for (const item of items) {
+        const depositCode = await generateDepositCode(currentStoreId);
+        depositCodes.push(depositCode);
+        const qty = parseFloat(item.quantity);
 
-    if (error) {
-      toast({
-        type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถบันทึกรายการฝากเหล้าได้',
-      });
-    } else {
-      await logAudit({
-        store_id: currentStoreId,
-        action_type: AUDIT_ACTIONS.DEPOSIT_CREATED,
-        table_name: 'deposits',
-        record_id: depositCode,
-        new_value: {
+        const { error } = await supabase.from('deposits').insert({
+          store_id: currentStoreId,
           deposit_code: depositCode,
           customer_name: customerName.trim(),
-          product_name: productName.trim(),
+          customer_phone: customerPhone.trim() || null,
+          product_name: item.productName.trim(),
+          category: item.category || null,
           quantity: qty,
-          category: category || null,
-        },
-        changed_by: user?.id || null,
-      });
+          remaining_qty: qty,
+          remaining_percent: 100,
+          table_number: tableNumber.trim() || null,
+          status: 'pending_confirm',
+          expiry_date: expiryDateISO(parseInt(expiryDays)),
+          received_by: user.id,
+          notes: notes.trim() || null,
+          received_photo_url: receivedPhotoUrl || null,
+        });
+
+        if (error) {
+          toast({
+            type: 'error',
+            title: 'เกิดข้อผิดพลาด',
+            message: `ไม่สามารถบันทึก ${item.productName} ได้`,
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        await logAudit({
+          store_id: currentStoreId,
+          action_type: AUDIT_ACTIONS.DEPOSIT_CREATED,
+          table_name: 'deposits',
+          record_id: depositCode,
+          new_value: {
+            deposit_code: depositCode,
+            customer_name: customerName.trim(),
+            product_name: item.productName.trim(),
+            quantity: qty,
+            category: item.category || null,
+          },
+          changed_by: user?.id || null,
+        });
+      }
+
+      const itemsSummary = items
+        .map((it) => `${it.productName.trim()} x${it.quantity}`)
+        .join(', ');
+
       toast({
         type: 'success',
         title: 'บันทึกสำเร็จ',
-        message: `สร้างรายการฝากเหล้า ${depositCode}`,
+        message:
+          items.length === 1
+            ? `สร้างรายการฝากเหล้า ${depositCodes[0]}`
+            : `สร้าง ${items.length} รายการฝากเหล้า`,
       });
 
-      // Notify bar staff about the new deposit
       notifyStaff({
         storeId: currentStoreId,
         type: 'new_deposit',
         title: 'มีรายการฝากเหล้าใหม่',
-        body: `${customerName.trim()} ฝาก ${productName.trim()} x${qty}`,
-        data: { deposit_code: depositCode },
+        body: `${customerName.trim()} ฝาก ${itemsSummary}`,
+        data: { deposit_code: depositCodes[0] },
         excludeUserId: user?.id,
       });
 
       onSuccess();
+    } catch {
+      toast({
+        type: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        message: 'ลองอีกครั้ง',
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
+
+  const allItemsValid = items.every(
+    (it) => it.productName.trim() && parseFloat(it.quantity) > 0
+  );
 
   return (
     <div className="space-y-6">
@@ -197,7 +434,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
         </div>
       </div>
 
-      {/* Form */}
+      {/* Customer info */}
       <Card padding="none">
         <CardHeader title="ข้อมูลลูกค้า" description="ระบุข้อมูลลูกค้าที่ต้องการฝากเหล้า" />
         <CardContent>
@@ -231,41 +468,104 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
         </CardContent>
       </Card>
 
+      {/* Items */}
       <Card padding="none">
-        <CardHeader title="ข้อมูลสินค้า" description="ระบุรายละเอียดสินค้าที่ฝาก" />
+        <CardHeader
+          title="รายการสินค้า"
+          description={`${items.length} รายการ — พิมพ์ค้นหาเหล้าในร้านได้ทันที`}
+          action={
+            loadingProducts ? (
+              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+            ) : (
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                {products.length} สินค้าในระบบ
+              </span>
+            )
+          }
+        />
         <CardContent>
           <div className="space-y-4">
-            <Input
-              label="ชื่อสินค้า *"
-              value={productName}
-              onChange={(e) => {
-                setProductName(e.target.value);
-                if (errors.productName) setErrors((prev) => ({ ...prev, productName: '' }));
-              }}
-              placeholder="เช่น Johnnie Walker Black Label 750ml"
-              error={errors.productName}
-            />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Select
-                label="ประเภท"
-                options={categoryOptions}
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="เลือกประเภท"
-              />
-              <Input
-                label="จำนวน *"
-                type="number"
-                value={quantity}
-                onChange={(e) => {
-                  setQuantity(e.target.value);
-                  if (errors.quantity) setErrors((prev) => ({ ...prev, quantity: '' }));
-                }}
-                placeholder="1"
-                hint="จำนวนขวดหรือหน่วย"
-                error={errors.quantity}
-              />
-            </div>
+            {items.map((item, idx) => (
+              <div
+                key={idx}
+                className="relative rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/30"
+              >
+                {/* Item header */}
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
+                    <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                      รายการที่ {idx + 1}
+                    </span>
+                  </div>
+                  {items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeItem(idx)}
+                      className="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Product search */}
+                <ProductSearchInput
+                  item={item}
+                  index={idx}
+                  products={products}
+                  onUpdate={updateItem}
+                  onSelectProduct={selectProduct}
+                  error={errors[`item_${idx}_productName`]}
+                />
+
+                {/* Category + Quantity */}
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Select
+                    label="ประเภท"
+                    options={categoryOptions}
+                    value={item.category}
+                    onChange={(e) => updateItem(idx, 'category', e.target.value)}
+                    placeholder="เลือกประเภท"
+                  />
+                  <Input
+                    label="จำนวน *"
+                    type="number"
+                    value={item.quantity}
+                    onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
+                    placeholder="1"
+                    hint="จำนวนขวด"
+                    error={errors[`item_${idx}_quantity`]}
+                  />
+                </div>
+
+                {/* Auto-filled badge */}
+                {item.category && item.productName && (
+                  <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
+                    หมวดหมู่จะถูกเลือกอัตโนมัติเมื่อเลือกจากรายการ — แก้ไขได้
+                  </p>
+                )}
+              </div>
+            ))}
+
+            {/* Add item button */}
+            <button
+              type="button"
+              onClick={addItem}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm font-medium text-gray-500 transition-colors hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-400 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
+            >
+              <Plus className="h-4 w-4" />
+              เพิ่มรายการสินค้า
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Storage & Notes */}
+      <Card padding="none">
+        <CardHeader title="การจัดเก็บ" description="ระยะเวลาเก็บรักษาและหมายเหตุ" />
+        <CardContent>
+          <div className="space-y-4">
             <Input
               label="ระยะเวลาเก็บรักษา (วัน) *"
               type="number"
@@ -311,11 +611,13 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
         <Button
           onClick={handleSubmit}
           isLoading={isSubmitting}
-          disabled={!customerName || !productName || !quantity}
+          disabled={!customerName || !allItemsValid}
           icon={<Save className="h-4 w-4" />}
           className="min-h-[44px] sm:min-h-0"
         >
-          บันทึกรายการฝากเหล้า
+          {items.length > 1
+            ? `บันทึก ${items.length} รายการฝากเหล้า`
+            : 'บันทึกรายการฝากเหล้า'}
         </Button>
       </div>
     </div>
