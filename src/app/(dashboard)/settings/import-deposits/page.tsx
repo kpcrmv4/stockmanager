@@ -38,12 +38,13 @@ interface StoreOption {
   is_central: boolean;
 }
 
-type ImportTable = 'deposits' | 'deposit_requests' | 'withdrawals' | 'transfers';
+type ImportTable = 'deposits' | 'deposit_history' | 'deposit_requests' | 'withdrawals' | 'transfers';
 
 const TABLE_OPTIONS: { value: ImportTable; label: string }[] = [
-  { value: 'deposits', label: '① Deposits (รายการฝาก) — import ก่อน' },
-  { value: 'withdrawals', label: '② Withdrawals (ประวัติเบิก)' },
-  { value: 'transfers', label: '③ Transfers (โอนคลังกลาง)' },
+  { value: 'deposits', label: '① Deposits (รายการฝากที่ยังอยู่)' },
+  { value: 'deposit_history', label: '② Deposit History (เบิกหมด/หมดอายุ/โอน)' },
+  { value: 'withdrawals', label: '③ Withdrawals (ประวัติเบิก)' },
+  { value: 'transfers', label: '④ Transfers (โอนคลังกลาง)' },
   { value: 'deposit_requests', label: 'Deposit Requests (คำขอฝาก)' },
 ];
 
@@ -71,34 +72,74 @@ const VALID_TRANSFER_STATUSES = ['pending', 'confirmed', 'rejected'];
 // CSV Parser
 // ---------------------------------------------------------------------------
 
+function splitCSVLine(line: string, sep: string): string[] {
+  // Tab-separated: simple split (tabs never appear inside quoted fields)
+  if (sep === '\t') {
+    return line.split('\t').map((c) => c.trim().replace(/^["']|["']$/g, ''));
+  }
+
+  // Comma-separated: handle quoted fields e.g. "13/12/2025, 22:31:33"
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (inQuotes) {
+      if (char === '"' && line[i + 1] === '"') {
+        current += '"';
+        i++; // skip escaped quote
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        current += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
 function parseCSV(text: string): { headers: string[]; rows: string[][] } {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length === 0) return { headers: [], rows: [] };
   const sep = lines[0].includes('\t') ? '\t' : ',';
-  const headers = lines[0]
-    .split(sep)
-    .map((h) => h.trim().replace(/^["']|["']$/g, '').toLowerCase());
-  const rows = lines.slice(1).map((line) =>
-    line.split(sep).map((cell) => cell.trim().replace(/^["']|["']$/g, ''))
-  );
+  const headers = splitCSVLine(lines[0], sep).map((h) => h.toLowerCase());
+  const rows = lines.slice(1).map((line) => splitCSVLine(line, sep));
   return { headers, rows };
 }
 
 function formatDateForSupabase(dateStr: string): string | null {
   if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) {
-    const parts = dateStr.split('/');
-    if (parts.length === 3) {
-      const [day, month, year] = parts;
-      const parsed = new Date(
-        `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-      );
-      if (!isNaN(parsed.getTime())) return parsed.toISOString();
-    }
-    return null;
+
+  // ① DD/MM/YYYY with optional time — Google Sheets Thai locale
+  //    Formats: "12/11/2025", "13/12/2025, 22:31:33", "5/1/2026 9:05"
+  const match = dateStr.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/
+  );
+  if (match) {
+    const [, day, month, year, hh, mm, ss] = match;
+    const iso = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${
+      (hh || '0').padStart(2, '0')
+    }:${(mm || '00').padStart(2, '0')}:${(ss || '00').padStart(2, '0')}`;
+    const parsed = new Date(iso);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString();
   }
-  return d.toISOString();
+
+  // ② ISO or other standard formats (2025-12-13T22:31:33.000Z)
+  const d = new Date(dateStr);
+  if (!isNaN(d.getTime())) return d.toISOString();
+
+  return null;
 }
 
 function mapDepositStatus(raw: string): string {
@@ -107,6 +148,16 @@ function mapDepositStatus(raw: string): string {
   if (s === 'active' || s === 'ฝากอยู่') return 'in_store';
   if (s === 'pending' || s === 'รอยืนยัน') return 'pending_confirm';
   return 'in_store';
+}
+
+function mapHistoryStatus(raw: string): string {
+  const s = raw.toLowerCase().trim();
+  if (s === 'fully_withdrawn' || s === 'withdrawn') return 'withdrawn';
+  if (s === 'expired') return 'expired';
+  if (s === 'transferred' || s === 'transferred_out') return 'transferred_out';
+  if (s === 'disposed') return 'withdrawn';
+  if (VALID_DEPOSIT_STATUSES.includes(s)) return s;
+  return 'withdrawn';
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +211,8 @@ export default function ImportDepositsPage() {
   const centralStore = stores.find((s) => s.is_central);
   const needsResolution =
     importTable === 'withdrawals' || importTable === 'transfers';
+  const isDepositLike =
+    importTable === 'deposits' || importTable === 'deposit_history';
 
   // ── Resolve deposit_codes → UUIDs ──
   const resolveDepositCodes = useCallback(
@@ -309,6 +362,20 @@ export default function ImportDepositsPage() {
                 _valid = false;
                 _issue = 'ไม่มีชื่อลูกค้า';
               }
+            } else if (importTable === 'deposit_history') {
+              const pn = raw.product_name || '';
+              const cn = raw.customer_name || '';
+              const code = raw.deposit_code || '';
+              if (!code) {
+                _valid = false;
+                _issue = 'ไม่มี deposit_code';
+              } else if (!pn) {
+                _valid = false;
+                _issue = 'ไม่มีชื่อสินค้า';
+              } else if (!cn) {
+                _valid = false;
+                _issue = 'ไม่มีชื่อลูกค้า';
+              }
             } else if (importTable === 'withdrawals') {
               if (!raw.deposit_code) {
                 _valid = false;
@@ -342,6 +409,18 @@ export default function ImportDepositsPage() {
             warnings.push(
               `${cancelledCount} แถวมีสถานะ "cancelled" (จะข้าม)`
             );
+          }
+        }
+
+        if (importTable === 'deposit_history') {
+          const statusCounts: Record<string, number> = {};
+          parsed.filter((r) => r._valid).forEach((r) => {
+            const s = mapHistoryStatus(r.raw.final_status || r.raw.status || '');
+            statusCounts[s] = (statusCounts[s] || 0) + 1;
+          });
+          const parts = Object.entries(statusCounts).map(([s, c]) => `${s}: ${c}`);
+          if (parts.length > 0) {
+            warnings.push(`สถานะ: ${parts.join(', ')}`);
           }
         }
 
@@ -451,6 +530,29 @@ export default function ImportDepositsPage() {
         linked: 0,
         unlinked: 0,
       };
+    } else if (importTable === 'deposit_history') {
+      const valid = parsedRows.filter((r) => r._valid);
+      const invalid = parsedRows.filter((r) => !r._valid);
+      const withdrawnCount = valid.filter(
+        (r) => mapHistoryStatus(r.raw.final_status || r.raw.status || '') === 'withdrawn'
+      ).length;
+      const expiredCount = valid.filter(
+        (r) => mapHistoryStatus(r.raw.final_status || r.raw.status || '') === 'expired'
+      ).length;
+      const transferredCount = valid.filter(
+        (r) => mapHistoryStatus(r.raw.final_status || r.raw.status || '') === 'transferred_out'
+      ).length;
+      return {
+        valid: valid.length,
+        invalid: invalid.length,
+        skipped: 0,
+        inStore: 0,
+        pending: 0,
+        expired: expiredCount,
+        withdrawn: withdrawnCount,
+        linked: 0,
+        unlinked: transferredCount,
+      };
     } else {
       const valid = parsedRows.filter((r) => r._valid);
       const invalid = parsedRows.filter((r) => !r._valid);
@@ -530,6 +632,56 @@ export default function ImportDepositsPage() {
             created_at:
               formatDateForSupabase(
                 row.raw.deposit_date || row.raw.created_at
+              ) || new Date().toISOString(),
+          };
+        });
+
+        const { error } = await supabase.from('deposits').insert(records);
+        if (error) {
+          errorList.push(
+            `แถว ${i + 1}-${i + batch.length}: ${error.message}`
+          );
+          skippedCount += batch.length;
+        } else {
+          successCount += batch.length;
+        }
+      }
+    } else if (importTable === 'deposit_history') {
+      // Import archived deposits (fully withdrawn / expired / transferred)
+      // into the same deposits table with remaining_qty = 0
+      const validRows = parsedRows.filter((r) => r._valid);
+
+      for (let i = 0; i < validRows.length; i += BATCH) {
+        const batch = validRows.slice(i, i + BATCH);
+        const records = batch.map((row) => {
+          const qty = Number(row.raw.original_qty || row.raw.quantity) || 1;
+          const status = mapHistoryStatus(
+            row.raw.final_status || row.raw.status || ''
+          );
+          return {
+            store_id: selectedStoreId,
+            deposit_code: row.raw.deposit_code,
+            line_user_id: row.raw.line_user_id || null,
+            customer_name: row.raw.customer_name,
+            customer_phone: row.raw.customer_phone || null,
+            product_name: row.raw.product_name,
+            category: row.raw.category || null,
+            quantity: qty,
+            remaining_qty: 0,
+            remaining_percent: 0,
+            table_number: null,
+            status,
+            is_vip: false,
+            expiry_date: null,
+            notes: row.raw.notes || null,
+            photo_url: null,
+            customer_photo_url: null,
+            received_photo_url: null,
+            confirm_photo_url: null,
+            received_by: user.id,
+            created_at:
+              formatDateForSupabase(
+                row.raw.status_date || row.raw.archived_at || row.raw.created_at
               ) || new Date().toISOString(),
           };
         });
@@ -682,7 +834,8 @@ export default function ImportDepositsPage() {
         (r) =>
           !r._valid ||
           (importTable === 'deposits' &&
-            (r.raw.status || '').toLowerCase().trim() === 'cancelled')
+            (r.raw.status || '').toLowerCase().trim() === 'cancelled') ||
+          (needsResolution && !r._linked)
       ).length;
 
     setImportResult({
@@ -751,6 +904,11 @@ export default function ImportDepositsPage() {
       'table_number', 'deposit_date', 'expiry_date', 'is_vip', 'status',
       'line_user_id', 'photo_url', 'notes',
     ],
+    deposit_history: [
+      'deposit_code', 'customer_name', 'product_name', 'category',
+      'original_qty', 'final_status', 'status_date', 'transfer_id',
+      'notes', 'archived_at',
+    ],
     deposit_requests: [
       'customer_name', 'customer_phone', 'product_name', 'quantity',
       'table_number', 'line_user_id', 'notes', 'status', 'request_date',
@@ -770,13 +928,17 @@ export default function ImportDepositsPage() {
 * store_id จะถูกแทนที่ด้วย UUID ร้านที่เลือก
 * is_vip = TRUE → ไม่มีวันหมดอายุ (VIP)
 * สถานะ "cancelled" จะถูกข้าม`,
+    deposit_history: `* ข้อมูลจาก Deposit_History (ระบบเดิมลบจาก Deposits เมื่อเบิกหมด/หมดอายุ)
+* จะถูก import เข้า deposits table เดียวกัน โดย remaining_qty = 0
+* final_status: fully_withdrawn → withdrawn, expired → expired, transferred → transferred_out
+* ต้อง import ก่อน Withdrawals เพื่อให้ deposit_code ครบ`,
     deposit_requests: '* line_user_id ถ้าไม่มีจะใส่ "imported"',
     withdrawals: `* deposit_code จะถูกใช้ค้นหา UUID ของ deposit ในร้านที่เลือก
-* ต้อง Import Deposits ก่อน ไม่งั้นจะ resolve ไม่ได้
+* ต้อง Import Deposits + Deposit History ก่อน ไม่งั้นจะ resolve ไม่ได้
 * status เดิมจะ map เป็น "completed" ถ้าไม่ตรง`,
     transfers: `* deposit_ids อาจมีหลายรหัส (คั่นด้วย ,) → จะแยกเป็นหลาย record
 * to_store_id จะใช้ร้านคลังกลาง (is_central) อัตโนมัติ
-* ต้อง Import Deposits ก่อน`,
+* ต้อง Import Deposits + Deposit History ก่อน`,
   };
 
   // =====================================================================
@@ -821,15 +983,19 @@ export default function ImportDepositsPage() {
             </p>
             <ol className="mt-2 space-y-1 text-xs text-blue-700 dark:text-blue-400">
               <li>
-                <strong>① Deposits</strong> — import ก่อน เพื่อสร้าง
-                deposit_code → UUID ในระบบ
+                <strong>① Deposits</strong> — รายการฝากที่ยังอยู่ (active,
+                pending, partial withdrawal)
               </li>
               <li>
-                <strong>② Withdrawals</strong> — ใช้ deposit_code ค้นหา UUID
-                อัตโนมัติ
+                <strong>② Deposit History</strong> — รายการที่เบิกหมด/หมดอายุ/โอนแล้ว
+                (ระบบเดิมลบออกจาก Deposits)
               </li>
               <li>
-                <strong>③ Transfers</strong> — ใช้ deposit_ids ค้นหา UUID
+                <strong>③ Withdrawals</strong> — ใช้ deposit_code ค้นหา UUID
+                (ต้อง import ①+② ก่อน)
+              </li>
+              <li>
+                <strong>④ Transfers</strong> — ใช้ deposit_ids ค้นหา UUID
                 + ส่งไปคลังกลาง
               </li>
             </ol>
@@ -867,12 +1033,24 @@ export default function ImportDepositsPage() {
                   <div className="rounded-lg bg-amber-50 p-3 text-sm dark:bg-amber-900/10">
                     <p className="font-medium text-amber-700 dark:text-amber-400">
                       {importTable === 'withdrawals'
-                        ? 'Withdrawals ต้อง Import Deposits เข้าร้านนี้ก่อน'
-                        : 'Transfers ต้อง Import Deposits เข้าร้านนี้ก่อน'}
+                        ? 'Withdrawals ต้อง Import Deposits + Deposit History เข้าร้านนี้ก่อน'
+                        : 'Transfers ต้อง Import Deposits + Deposit History เข้าร้านนี้ก่อน'}
                     </p>
                     <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-500">
                       ระบบจะใช้ deposit_code ค้นหา UUID ของ deposit อัตโนมัติ
                       — ถ้าไม่พบจะข้ามแถวนั้น
+                    </p>
+                  </div>
+                )}
+
+                {importTable === 'deposit_history' && (
+                  <div className="rounded-lg bg-blue-50 p-3 text-sm dark:bg-blue-900/10">
+                    <p className="font-medium text-blue-700 dark:text-blue-400">
+                      Deposit History = รายการที่ระบบเดิมลบออกจาก Deposits แล้ว
+                    </p>
+                    <p className="mt-0.5 text-xs text-blue-600 dark:text-blue-500">
+                      เบิกหมด (fully_withdrawn), หมดอายุ (expired), โอนคลัง (transferred)
+                      — จะถูก import เข้า deposits table เดียวกันโดย remaining_qty = 0
                     </p>
                   </div>
                 )}
@@ -1063,7 +1241,7 @@ export default function ImportDepositsPage() {
           )}
 
           {/* Summary Stats */}
-          {importTable === 'deposits' ? (
+          {isDepositLike ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <div className="rounded-xl bg-emerald-50 px-3 py-3 text-center dark:bg-emerald-900/20">
                 <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
@@ -1081,22 +1259,45 @@ export default function ImportDepositsPage() {
                   ข้าม
                 </p>
               </div>
-              <div className="rounded-xl bg-blue-50 px-3 py-3 text-center dark:bg-blue-900/20">
-                <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
-                  {stats.inStore}
-                </p>
-                <p className="text-[10px] text-blue-600 dark:text-blue-500">
-                  ในร้าน
-                </p>
-              </div>
-              <div className="rounded-xl bg-gray-50 px-3 py-3 text-center dark:bg-gray-800">
-                <p className="text-lg font-bold text-gray-700 dark:text-gray-400">
-                  {stats.expired + stats.withdrawn}
-                </p>
-                <p className="text-[10px] text-gray-600 dark:text-gray-500">
-                  หมดอายุ/เบิก
-                </p>
-              </div>
+              {importTable === 'deposits' ? (
+                <>
+                  <div className="rounded-xl bg-blue-50 px-3 py-3 text-center dark:bg-blue-900/20">
+                    <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
+                      {stats.inStore}
+                    </p>
+                    <p className="text-[10px] text-blue-600 dark:text-blue-500">
+                      ในร้าน
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-gray-50 px-3 py-3 text-center dark:bg-gray-800">
+                    <p className="text-lg font-bold text-gray-700 dark:text-gray-400">
+                      {stats.expired + stats.withdrawn}
+                    </p>
+                    <p className="text-[10px] text-gray-600 dark:text-gray-500">
+                      หมดอายุ/เบิก
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-xl bg-gray-50 px-3 py-3 text-center dark:bg-gray-800">
+                    <p className="text-lg font-bold text-gray-700 dark:text-gray-400">
+                      {stats.withdrawn}
+                    </p>
+                    <p className="text-[10px] text-gray-600 dark:text-gray-500">
+                      เบิกหมด
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-amber-50 px-3 py-3 text-center dark:bg-amber-900/20">
+                    <p className="text-lg font-bold text-amber-700 dark:text-amber-400">
+                      {stats.expired + stats.unlinked}
+                    </p>
+                    <p className="text-[10px] text-amber-600 dark:text-amber-500">
+                      หมดอายุ/โอน
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1303,6 +1504,146 @@ export default function ImportDepositsPage() {
                             </Badge>
                           ) : (
                             statusBadge(mapDepositStatus(row.raw.status))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* ── Preview Table: Deposit History ── */}
+          {importTable === 'deposit_history' && (
+            <>
+              <div className="hidden overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700 md:block">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/80">
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                          #
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                          รหัส
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                          ลูกค้า
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                          สินค้า
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                          หมวด
+                        </th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
+                          จำนวนเดิม
+                        </th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                          สถานะ
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                          วันที่
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                      {parsedRows.map((row, idx) => {
+                        const qty =
+                          Number(row.raw.original_qty || row.raw.quantity) || 0;
+                        const status = mapHistoryStatus(
+                          row.raw.final_status || row.raw.status || ''
+                        );
+                        return (
+                          <tr
+                            key={idx}
+                            className={cn(
+                              'transition-colors',
+                              !row._valid &&
+                                'bg-red-50/50 text-red-400 dark:bg-red-900/10 dark:text-red-500',
+                              row._valid &&
+                                'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                            )}
+                          >
+                            <td className="px-3 py-2 text-xs text-gray-400">
+                              {idx + 1}
+                            </td>
+                            <td className="px-3 py-2 font-mono text-xs">
+                              {row.raw.deposit_code || '-'}
+                            </td>
+                            <td className="px-3 py-2 font-medium">
+                              {row.raw.customer_name || '-'}
+                            </td>
+                            <td className="px-3 py-2 font-medium">
+                              {row.raw.product_name || '-'}
+                            </td>
+                            <td className="px-3 py-2 text-gray-500">
+                              {row.raw.category || '-'}
+                            </td>
+                            <td className="px-3 py-2 text-right font-medium">
+                              {qty}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              {row._issue && !row._valid ? (
+                                <Badge variant="danger" size="sm">
+                                  <XCircle className="mr-1 h-3 w-3" />
+                                  {row._issue}
+                                </Badge>
+                              ) : (
+                                statusBadge(status)
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-xs text-gray-500">
+                              {row.raw.status_date || row.raw.archived_at || '-'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mobile cards */}
+              <div className="space-y-2 md:hidden">
+                {parsedRows.map((row, idx) => {
+                  const qty =
+                    Number(row.raw.original_qty || row.raw.quantity) || 0;
+                  const status = mapHistoryStatus(
+                    row.raw.final_status || row.raw.status || ''
+                  );
+                  return (
+                    <div
+                      key={idx}
+                      className={cn(
+                        'rounded-xl p-3 shadow-sm ring-1',
+                        !row._valid
+                          ? 'bg-red-50/50 ring-red-200 dark:bg-red-900/10 dark:ring-red-800'
+                          : 'bg-white ring-gray-200 dark:bg-gray-800 dark:ring-gray-700'
+                      )}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {row.raw.product_name || '-'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {row.raw.customer_name}{' '}
+                            {row.raw.deposit_code &&
+                              `• ${row.raw.deposit_code}`}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="text-sm font-bold text-gray-900 dark:text-white">
+                            {qty}
+                          </span>
+                          {row._issue && !row._valid ? (
+                            <Badge variant="danger" size="sm">
+                              {row._issue}
+                            </Badge>
+                          ) : (
+                            statusBadge(status)
                           )}
                         </div>
                       </div>
