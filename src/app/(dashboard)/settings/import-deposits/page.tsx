@@ -511,7 +511,11 @@ export default function ImportDepositsPage() {
             remaining_qty: remQty,
             remaining_percent: remPct,
             table_number: row.raw.table_number || null,
-            status: mapDepositStatus(row.raw.status),
+            status:
+              (row.raw.is_vip || '').toUpperCase() === 'TRUE' &&
+              mapDepositStatus(row.raw.status) === 'expired'
+                ? 'in_store'
+                : mapDepositStatus(row.raw.status),
             is_vip: (row.raw.is_vip || '').toUpperCase() === 'TRUE',
             expiry_date:
               (row.raw.is_vip || '').toUpperCase() === 'TRUE'

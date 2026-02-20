@@ -42,6 +42,7 @@ import {
   List,
 } from 'lucide-react';
 import { StockCountBanner } from '@/components/stock/stock-count-banner';
+import { ExpiredDepositsBanner } from '@/components/deposit/expired-deposits-banner';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -707,6 +708,9 @@ export default function BarApprovalPage() {
 
       {/* Stock Count Banner */}
       <StockCountBanner />
+
+      {/* Expired Deposits Banner */}
+      <ExpiredDepositsBanner />
 
       {/* Summary Counts */}
       <div className="grid grid-cols-2 gap-3">

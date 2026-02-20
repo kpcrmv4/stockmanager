@@ -28,12 +28,13 @@ export async function GET(request: NextRequest) {
     const warningDays = setting.customer_notify_expiry_days || 7;
     const warningDateISO = daysFromNowISO(warningDays);
 
-    // Find deposits expiring within the warning period
+    // Find deposits expiring within the warning period (exclude VIP)
     const { data: expiringDeposits } = await supabase
       .from('deposits')
       .select('*, store:stores(store_name)')
       .eq('store_id', setting.store_id)
       .eq('status', 'in_store')
+      .eq('is_vip', false)
       .lte('expiry_date', warningDateISO)
       .gt('expiry_date', new Date().toISOString());
 
@@ -109,11 +110,12 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Mark expired deposits
+  // Mark expired deposits (exclude VIP — VIP never expires)
   const { data: expired } = await supabase
     .from('deposits')
     .update({ status: 'expired' })
     .eq('status', 'in_store')
+    .eq('is_vip', false)
     .lte('expiry_date', new Date().toISOString())
     .select('id, deposit_code, store_id, status');
 

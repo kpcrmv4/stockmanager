@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils/cn';
 import { bangkokDateParts, expiryDateISO } from '@/lib/utils/date';
 import { ScanLine, Wine, Package } from 'lucide-react';
 import { StockCountBanner } from '@/components/stock/stock-count-banner';
+import { ExpiredDepositsBanner } from '@/components/deposit/expired-deposits-banner';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -607,6 +608,9 @@ export default function MyTasksPage() {
 
       {/* ── Stock Count Banner ────────────────────────────────────── */}
       <StockCountBanner />
+
+      {/* ── Expired Deposits Banner ────────────────────────────────── */}
+      <ExpiredDepositsBanner />
 
       {/* ── Quick Actions ───────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3">

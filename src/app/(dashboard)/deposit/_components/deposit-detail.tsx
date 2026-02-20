@@ -299,6 +299,10 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     const updateData: Record<string, unknown> = { is_vip: newIsVip };
     if (newIsVip) {
       updateData.expiry_date = null;
+      // VIP should never be expired — revert to in_store
+      if (deposit.status === 'expired') {
+        updateData.status = 'in_store';
+      }
     }
 
     const { error } = await supabase
@@ -314,8 +318,8 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         action_type: AUDIT_ACTIONS.DEPOSIT_STATUS_CHANGED,
         table_name: 'deposits',
         record_id: deposit.id,
-        old_value: { is_vip: deposit.is_vip, expiry_date: deposit.expiry_date },
-        new_value: { is_vip: newIsVip, expiry_date: newIsVip ? null : deposit.expiry_date },
+        old_value: { is_vip: deposit.is_vip, expiry_date: deposit.expiry_date, status: deposit.status },
+        new_value: { is_vip: newIsVip, expiry_date: newIsVip ? null : deposit.expiry_date, status: newIsVip && deposit.status === 'expired' ? 'in_store' : deposit.status },
         changed_by: user.id,
       });
       toast({
