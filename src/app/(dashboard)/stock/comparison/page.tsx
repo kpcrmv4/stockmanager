@@ -112,6 +112,7 @@ export default function ComparisonPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
   const [detailDate, setDetailDate] = useState<string | null>(null);
+  const [posFileUrl, setPosFileUrl] = useState<string | null>(null);
 
   const fetchComparisons = useCallback(async () => {
     if (!currentStoreId) return;
@@ -167,6 +168,28 @@ export default function ComparisonPage() {
   useEffect(() => {
     fetchComparisons();
   }, [fetchComparisons]);
+
+  // Fetch POS file URL for the selected date
+  useEffect(() => {
+    if (!currentStoreId || !selectedDate) {
+      setPosFileUrl(null);
+      return;
+    }
+    const supabase = createClient();
+    supabase
+      .from('ocr_logs')
+      .select('file_urls')
+      .eq('store_id', currentStoreId)
+      .eq('upload_method', 'txt')
+      .gte('upload_date', `${selectedDate}T00:00:00`)
+      .lt('upload_date', `${selectedDate}T23:59:59`)
+      .order('upload_date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        setPosFileUrl(data?.file_urls?.[0] || null);
+      });
+  }, [currentStoreId, selectedDate]);
 
   // Status filter tabs
   const statusTabs = useMemo(() => {
@@ -353,14 +376,27 @@ export default function ComparisonPage() {
             POS vs จำนวนนับจริง
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          icon={<RefreshCw className="h-4 w-4" />}
-          onClick={fetchComparisons}
-        >
-          รีเฟรช
-        </Button>
+        <div className="flex items-center gap-2">
+          {posFileUrl && (
+            <a href={posFileUrl} target="_blank" rel="noopener noreferrer">
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<FileText className="h-4 w-4" />}
+              >
+                ไฟล์ POS
+              </Button>
+            </a>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<RefreshCw className="h-4 w-4" />}
+            onClick={fetchComparisons}
+          >
+            รีเฟรช
+          </Button>
+        </div>
       </div>
 
       {/* Date selector */}

@@ -61,38 +61,57 @@ type PageStep = 'upload' | 'preview' | 'result';
 function parseTxtContent(content: string): ParsedItem[] {
   const lines = content.split('\n').filter((line) => line.trim());
   const items: ParsedItem[] = [];
+  let currentCategory = '';
 
   for (const line of lines) {
-    // Tab-separated: code, name, qty, unit, category
-    const parts = line.split('\t');
-    if (parts.length < 3) continue; // skip invalid lines
+    const trimmed = line.trim();
+    if (!trimmed) continue;
 
-    // Skip header rows
-    const firstCol = parts[0].toLowerCase();
+    // MAT-xxx category separator (e.g. MAT-Beer, MAT-Gin)
+    if (trimmed.startsWith('MAT-')) {
+      currentCategory = trimmed.replace('MAT-', '').trim();
+      continue;
+    }
+
+    // Tab-separated columns
+    const parts = line.split('\t');
+    if (parts.length < 3) continue;
+
+    const firstCol = parts[0].trim();
+    if (!firstCol) continue;
+
+    // Skip header / subtotal / total / footer lines
+    const lower = firstCol.toLowerCase();
     if (
-      firstCol.includes('code') ||
-      firstCol.includes('รหัส') ||
-      firstCol.includes('product') ||
-      firstCol.includes('สินค้า')
+      lower.includes('รหัส') ||
+      lower.includes('สินค้า') ||
+      lower.includes('code') ||
+      lower.includes('product') ||
+      lower.includes('ยอดขาย') ||
+      lower.includes('total') ||
+      lower.includes('stock date') ||
+      lower.includes('branch') ||
+      lower.includes('รายงาน') ||
+      /^\d+\s+(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)/.test(trimmed)
     ) {
       continue;
     }
 
-    const code = parts[0]?.trim() || '';
-    const name = parts[1]?.trim() || '';
-    const qty = parseFloat(parts[2]?.trim() || '0') || 0;
-    const unit = parts[3]?.trim() || '';
-    const category = parts[4]?.trim() || '';
+    // Parse quantity — strip commas (thousands separator) before parsing
+    const rawQty = (parts[2] || '').trim().replace(/,/g, '');
+    const qty = parseFloat(rawQty);
+    if (isNaN(qty)) continue; // not a data line
 
-    // Skip rows with empty product code
-    if (!code) continue;
+    const code = firstCol;
+    const name = (parts[1] || '').trim();
+    const unit = (parts[3] || '').trim();
 
     items.push({
       product_code: code,
       product_name: name,
       quantity: qty,
       unit,
-      category,
+      category: currentCategory,
     });
   }
 
@@ -159,6 +178,8 @@ export default function TxtUploadPage() {
   // Result
   const [summary, setSummary] = useState<ProcessSummary | null>(null);
   const [ocrLogId, setOcrLogId] = useState<string | null>(null);
+  const [rawContent, setRawContent] = useState('');
+  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
 
   // Auto-compare result
   const [autoCompareResult, setAutoCompareResult] =
@@ -258,6 +279,7 @@ export default function TxtUploadPage() {
 
       try {
         const content = await readTxtFile(file);
+        setRawContent(content);
         const items = parseTxtContent(content);
 
         if (items.length === 0) {
@@ -398,6 +420,42 @@ export default function TxtUploadPage() {
         message: `นำเข้าข้อมูล ${result.summary.total_items} รายการเรียบร้อย`,
       });
 
+      // Upload original TXT file to Supabase Storage (non-blocking)
+      if (rawContent) {
+        try {
+          const supabase = createClient();
+          const ts = Date.now();
+          const rnd = Math.random().toString(36).substring(2, 8);
+          const filePath = `pos-txt/${currentStoreId}/${ts}-${rnd}.txt`;
+          const fileBlob = new Blob([rawContent], { type: 'text/plain; charset=utf-8' });
+
+          const { data: uploadData } = await supabase.storage
+            .from('deposit-photos')
+            .upload(filePath, fileBlob, {
+              contentType: 'text/plain; charset=utf-8',
+              cacheControl: '31536000',
+              upsert: false,
+            });
+
+          if (uploadData) {
+            const { data: urlData } = supabase.storage
+              .from('deposit-photos')
+              .getPublicUrl(uploadData.path);
+
+            const fileUrl = urlData.publicUrl;
+            setUploadedFileUrl(fileUrl);
+
+            await supabase
+              .from('ocr_logs')
+              .update({ file_urls: [fileUrl] })
+              .eq('id', result.ocr_log_id);
+          }
+        } catch (uploadErr) {
+          console.error('File upload error:', uploadErr);
+          // Non-fatal — data already saved successfully
+        }
+      }
+
       // Auto-compare after save
       if (autoCompareAfterSave) {
         setComparingAuto(true);
@@ -472,6 +530,8 @@ export default function TxtUploadPage() {
     setOcrLogId(null);
     setAutoCompareResult(null);
     setDuplicateWarning(false);
+    setRawContent('');
+    setUploadedFileUrl(null);
   };
 
   // ── Stats for preview ──
@@ -1135,6 +1195,17 @@ export default function TxtUploadPage() {
               <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           </a>
+          {uploadedFileUrl && (
+            <a href={uploadedFileUrl} target="_blank" rel="noopener noreferrer">
+              <Button
+                variant="outline"
+                size="lg"
+                icon={<FileText className="h-5 w-5" />}
+              >
+                ดูไฟล์ต้นฉบับ
+              </Button>
+            </a>
+          )}
           <Button
             variant="outline"
             size="lg"
