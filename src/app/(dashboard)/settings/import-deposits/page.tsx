@@ -38,14 +38,13 @@ interface StoreOption {
   is_central: boolean;
 }
 
-type ImportTable = 'deposits' | 'deposit_history' | 'deposit_requests' | 'withdrawals' | 'transfers';
+type ImportTable = 'deposits' | 'deposit_history' | 'withdrawals' | 'transfers';
 
 const TABLE_OPTIONS: { value: ImportTable; label: string }[] = [
   { value: 'deposits', label: '① Deposits (รายการฝากที่ยังอยู่)' },
   { value: 'deposit_history', label: '② Deposit History (เบิกหมด/หมดอายุ/โอน)' },
   { value: 'withdrawals', label: '③ Withdrawals (ประวัติเบิก)' },
-  { value: 'transfers', label: '④ Transfers (โอนคลังกลาง)' },
-  { value: 'deposit_requests', label: 'Deposit Requests (คำขอฝาก)' },
+  { value: 'transfers', label: '④ Transfer Requests (โอนคลังกลาง)' },
 ];
 
 interface ParsedRow {
@@ -405,11 +404,6 @@ export default function ImportDepositsPage() {
               if (!raw.deposit_ids && !raw.deposit_code) {
                 _valid = false;
                 _issue = 'ไม่มี deposit_ids';
-              }
-            } else if (importTable === 'deposit_requests') {
-              if (!raw.customer_name) {
-                _valid = false;
-                _issue = 'ไม่มีชื่อลูกค้า';
               }
             }
 
@@ -849,39 +843,6 @@ export default function ImportDepositsPage() {
           }
         }
       }
-    } else if (importTable === 'deposit_requests') {
-      const validRows = parsedRows.filter((r) => r._valid);
-
-      for (let i = 0; i < validRows.length; i += BATCH) {
-        const batch = validRows.slice(i, i + BATCH);
-        const records = batch.map((row) => ({
-          store_id: selectedStoreId,
-          line_user_id: row.raw.line_user_id || 'imported',
-          customer_name: row.raw.customer_name || null,
-          customer_phone: row.raw.customer_phone || null,
-          product_name: row.raw.product_name || null,
-          quantity: Number(row.raw.quantity) || null,
-          table_number: row.raw.table_number || null,
-          notes: row.raw.notes || null,
-          status: row.raw.status || 'pending',
-          created_at:
-            formatDateForSupabase(
-              row.raw.request_date || row.raw.created_at
-            ) || new Date().toISOString(),
-        }));
-
-        const { error } = await supabase
-          .from('deposit_requests')
-          .insert(records);
-        if (error) {
-          errorList.push(
-            `แถว ${i + 1}-${i + batch.length}: ${error.message}`
-          );
-          skippedCount += batch.length;
-        } else {
-          successCount += batch.length;
-        }
-      }
     }
 
     const totalSkipped =
@@ -966,10 +927,6 @@ export default function ImportDepositsPage() {
       'original_qty', 'final_status', 'status_date', 'transfer_id',
       'notes', 'archived_at',
     ],
-    deposit_requests: [
-      'customer_name', 'customer_phone', 'product_name', 'quantity',
-      'table_number', 'line_user_id', 'notes', 'status', 'request_date',
-    ],
     withdrawals: [
       'deposit_code', 'customer_name', 'requested_qty', 'actual_qty',
       'table_number', 'line_user_id', 'notes', 'withdrawal_date',
@@ -989,7 +946,6 @@ export default function ImportDepositsPage() {
 * จะถูก import เข้า deposits table เดียวกัน โดย remaining_qty = 0
 * final_status: fully_withdrawn → withdrawn, expired → expired, transferred → transferred_out
 * ต้อง import ก่อน Withdrawals เพื่อให้ deposit_code ครบ`,
-    deposit_requests: '* line_user_id ถ้าไม่มีจะใส่ "imported"',
     withdrawals: `* deposit_code จะถูกใช้ค้นหา UUID ของ deposit ในร้านที่เลือก
 * ต้อง Import Deposits + Deposit History ก่อน ไม่งั้นจะ resolve ไม่ได้
 * status เดิมจะ map เป็น "completed" ถ้าไม่ตรง`,
@@ -2044,126 +2000,6 @@ export default function ImportDepositsPage() {
                     </div>
                   );
                 })}
-              </div>
-            </>
-          )}
-
-          {/* ── Preview Table: Deposit Requests ── */}
-          {importTable === 'deposit_requests' && (
-            <>
-              <div className="hidden overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700 md:block">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/80">
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          #
-                        </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          ลูกค้า
-                        </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          สินค้า
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          จำนวน
-                        </th>
-                        <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
-                          สถานะ
-                        </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          โน้ต
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {parsedRows.map((row, idx) => (
-                        <tr
-                          key={idx}
-                          className={cn(
-                            'transition-colors',
-                            !row._valid &&
-                              'bg-red-50/50 text-red-400 dark:bg-red-900/10 dark:text-red-500',
-                            row._valid &&
-                              'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                          )}
-                        >
-                          <td className="px-3 py-2 text-xs text-gray-400">
-                            {idx + 1}
-                          </td>
-                          <td className="px-3 py-2">
-                            <p className="font-medium">
-                              {row.raw.customer_name || '-'}
-                            </p>
-                            {row.raw.customer_phone && (
-                              <p className="text-[10px] text-gray-400">
-                                {row.raw.customer_phone}
-                              </p>
-                            )}
-                          </td>
-                          <td className="px-3 py-2">
-                            {row.raw.product_name || '-'}
-                          </td>
-                          <td className="px-3 py-2 text-right font-medium">
-                            {row.raw.quantity || '-'}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {row._issue && !row._valid ? (
-                              <Badge variant="danger" size="sm">
-                                {row._issue}
-                              </Badge>
-                            ) : (
-                              statusBadge(
-                                (row.raw.status || '').toLowerCase().trim() ||
-                                  'pending'
-                              )
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-xs text-gray-500">
-                            {row.raw.notes || '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Mobile */}
-              <div className="space-y-2 md:hidden">
-                {parsedRows.map((row, idx) => (
-                  <div
-                    key={idx}
-                    className={cn(
-                      'rounded-xl p-3 shadow-sm ring-1',
-                      !row._valid
-                        ? 'bg-red-50/50 ring-red-200 dark:bg-red-900/10 dark:ring-red-800'
-                        : 'bg-white ring-gray-200 dark:bg-gray-800 dark:ring-gray-700'
-                    )}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {row.raw.customer_name || '-'}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {row.raw.product_name || '-'} • qty:{' '}
-                          {row.raw.quantity || '-'}
-                        </p>
-                      </div>
-                      {row._issue && !row._valid ? (
-                        <Badge variant="danger" size="sm">
-                          {row._issue}
-                        </Badge>
-                      ) : (
-                        statusBadge(
-                          (row.raw.status || '').toLowerCase().trim() ||
-                            'pending'
-                        )
-                      )}
-                    </div>
-                  </div>
-                ))}
               </div>
             </>
           )}
