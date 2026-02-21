@@ -519,7 +519,7 @@ export default function ImportDepositsPage() {
         const lines = text.split(/\r?\n/).filter((l) => l.trim());
         if (lines.length < 2) return;
 
-        const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/^["']|["']$/g, ''));
+        const headers = splitCSVLine(lines[0], ',').map((h) => h.trim().toLowerCase());
         const idIdx = headers.indexOf('deposit_id');
         const codeIdx = headers.indexOf('deposit_code');
 
@@ -530,7 +530,7 @@ export default function ImportDepositsPage() {
 
         const map = new Map<string, string>();
         for (let i = 1; i < lines.length; i++) {
-          const cols = lines[i].split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
+          const cols = splitCSVLine(lines[i], ',');
           const oldId = cols[idIdx];
           const code = cols[codeIdx];
           if (oldId && code) map.set(oldId, code);
