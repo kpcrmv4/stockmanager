@@ -309,6 +309,13 @@ export default function TransferToHqPage() {
 
       if (error) throw error;
 
+      // Update deposit status to transfer_pending
+      const depositIds = selectedDeposits.map((d) => d.id);
+      await supabase
+        .from('deposits')
+        .update({ status: 'transfer_pending' })
+        .in('id', depositIds);
+
       // Log audit
       await logAudit({
         store_id: currentStoreId,
@@ -354,13 +361,13 @@ export default function TransferToHqPage() {
       return;
     }
 
-    // Re-set deposit back to expired if it was transferred
+    // Re-set deposit back to expired if it was transfer_pending
     if (depositId) {
       await supabase
         .from('deposits')
         .update({ status: 'expired' })
         .eq('id', depositId)
-        .eq('status', 'transferred_out');
+        .eq('status', 'transfer_pending');
     }
 
     toast({ type: 'success', title: 'ยกเลิกคำขอโอนแล้ว' });

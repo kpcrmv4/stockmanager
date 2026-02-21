@@ -42,6 +42,7 @@ import {
   Tag,
   Image as ImageIcon,
   Crown,
+  Truck,
 } from 'lucide-react';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { extendExpiryISO } from '@/lib/utils/date';
@@ -97,6 +98,7 @@ const statusVariantMap: Record<string, 'default' | 'success' | 'warning' | 'dang
   pending_withdrawal: 'info',
   withdrawn: 'default',
   expired: 'danger',
+  transfer_pending: 'warning',
   transferred_out: 'info',
 };
 
@@ -198,7 +200,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
 
   // Determine current timeline step
   const currentStatusIndex = statusTimeline.findIndex((s) => s.key === deposit.status);
-  const effectiveIndex = deposit.status === 'expired' ? -1 : deposit.status === 'transferred_out' ? -1 : currentStatusIndex;
+  const effectiveIndex = deposit.status === 'expired' || deposit.status === 'transfer_pending' || deposit.status === 'transferred_out' ? -1 : currentStatusIndex;
 
   const handleWithdrawal = async () => {
     if (!user || !currentStoreId) return;
@@ -818,19 +820,23 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   );
                 })}
 
-                {/* Special status badges for expired/transferred */}
-                {(deposit.status === 'expired' || deposit.status === 'transferred_out') && (
+                {/* Special status badges for expired/transfer_pending/transferred */}
+                {(deposit.status === 'expired' || deposit.status === 'transfer_pending' || deposit.status === 'transferred_out') && (
                   <div className="mt-2 flex items-center gap-3">
                     <div
                       className={cn(
                         'flex h-8 w-8 items-center justify-center rounded-full',
                         deposit.status === 'expired'
                           ? 'bg-red-100 ring-2 ring-red-500 dark:bg-red-900/30'
-                          : 'bg-blue-100 ring-2 ring-blue-500 dark:bg-blue-900/30'
+                          : deposit.status === 'transfer_pending'
+                            ? 'bg-amber-100 ring-2 ring-amber-500 dark:bg-amber-900/30'
+                            : 'bg-blue-100 ring-2 ring-blue-500 dark:bg-blue-900/30'
                       )}
                     >
                       {deposit.status === 'expired' ? (
                         <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                      ) : deposit.status === 'transfer_pending' ? (
+                        <Truck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                       ) : (
                         <ArrowRightLeft className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       )}
@@ -840,7 +846,9 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                         'text-sm font-medium',
                         deposit.status === 'expired'
                           ? 'text-red-600 dark:text-red-400'
-                          : 'text-blue-600 dark:text-blue-400'
+                          : deposit.status === 'transfer_pending'
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-blue-600 dark:text-blue-400'
                       )}
                     >
                       {DEPOSIT_STATUS_LABELS[deposit.status] || deposit.status}

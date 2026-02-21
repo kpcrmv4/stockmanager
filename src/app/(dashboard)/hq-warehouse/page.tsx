@@ -141,6 +141,17 @@ export default function HqWarehousePage() {
   // Photo Modal State
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
 
+  // Branch group expand state
+  const [expandedBranches, setExpandedBranches] = useState<Set<string>>(new Set());
+  const toggleBranch = (storeId: string) => {
+    setExpandedBranches((prev) => {
+      const next = new Set(prev);
+      if (next.has(storeId)) next.delete(storeId);
+      else next.add(storeId);
+      return next;
+    });
+  };
+
   // Get central store(s) for filtering
   const centralStores = useMemo(
     () => stores.filter((s) => s.is_central),
@@ -424,6 +435,23 @@ export default function HqWarehousePage() {
     return result;
   }, [pendingTransfers, filterBranch, searchQuery]);
 
+  // Group pending transfers by branch
+  const pendingByBranch = useMemo(() => {
+    const grouped = new Map<string, { storeName: string; transfers: TransferWithItems[] }>();
+    for (const t of filteredPending) {
+      const existing = grouped.get(t.from_store_id);
+      if (existing) {
+        existing.transfers.push(t);
+      } else {
+        grouped.set(t.from_store_id, { storeName: t.from_store_name, transfers: [t] });
+      }
+    }
+    return Array.from(grouped.entries()).map(([storeId, data]) => ({
+      storeId,
+      ...data,
+    }));
+  }, [filteredPending]);
+
   const filteredReceived = useMemo(() => {
     let result = receivedItems;
     if (filterBranch) result = result.filter((i) => i.from_store_id === filterBranch);
@@ -571,6 +599,15 @@ export default function HqWarehousePage() {
         .eq('id', transfer.id);
 
       if (error) throw error;
+
+      // Revert deposit status back to expired
+      if (transfer.deposit_id) {
+        await supabase
+          .from('deposits')
+          .update({ status: 'expired' })
+          .eq('id', transfer.deposit_id)
+          .eq('status', 'transfer_pending');
+      }
 
       toast({ type: 'success', title: 'ปฏิเสธการโอนเรียบร้อย' });
       await loadAllData();
@@ -860,73 +897,108 @@ export default function HqWarehousePage() {
                 {filteredPending.length === 0 ? (
                   <EmptyState message="ไม่มีรายการรอรับ" />
                 ) : (
-                  filteredPending.map((transfer) => (
-                    <div key={transfer.id} className="overflow-hidden rounded-xl border-l-4 border-yellow-500 bg-white shadow-md dark:bg-gray-900">
-                      <div className="p-4">
-                        <div className="mb-3 flex items-start justify-between">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm font-bold text-orange-600">{transfer.transfer_code}</span>
-                              <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
-                                รอรับ
-                              </span>
-                            </div>
-                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                              <StoreIcon className="mr-1 inline h-3.5 w-3.5" />
-                              {transfer.from_store_name}
-                            </p>
+                  pendingByBranch.map((branch) => {
+                    const isExpanded = expandedBranches.has(branch.storeId) || pendingByBranch.length === 1;
+                    return (
+                      <div key={branch.storeId} className="overflow-hidden rounded-xl bg-white shadow-md dark:bg-gray-900">
+                        {/* Branch Header */}
+                        <button
+                          onClick={() => toggleBranch(branch.storeId)}
+                          className="flex w-full items-center justify-between bg-gradient-to-r from-yellow-50 to-amber-50 px-4 py-3 transition hover:from-yellow-100 hover:to-amber-100 dark:from-yellow-900/20 dark:to-amber-900/20 dark:hover:from-yellow-900/30 dark:hover:to-amber-900/30"
+                        >
+                          <div className="flex items-center gap-2">
+                            <StoreIcon className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                            <span className="font-semibold text-gray-800 dark:text-gray-200">{branch.storeName}</span>
+                            <span className="rounded-full bg-yellow-500 px-2 py-0.5 text-xs font-bold text-white">
+                              {branch.transfers.length}
+                            </span>
                           </div>
-                          <div className="text-right">
-                            <p className="text-xs text-gray-400">{formatThaiDateTime(transfer.created_at)}</p>
-                            <p className="mt-1 text-lg font-bold text-gray-700 dark:text-gray-200">
-                              {transfer.quantity || 1} <span className="text-sm font-normal text-gray-500">ขวด</span>
-                            </p>
-                          </div>
-                        </div>
+                          {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                        </button>
 
-                        {/* Item Info */}
-                        <div className="mb-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
-                          <div className="flex flex-wrap gap-1 text-xs">
-                            {transfer.product_name && (
-                              <span className="rounded border bg-white px-2 py-1 dark:border-gray-700 dark:bg-gray-900">
-                                {transfer.product_name}
-                              </span>
-                            )}
-                            {transfer.customer_name && (
-                              <span className="rounded border bg-white px-2 py-1 dark:border-gray-700 dark:bg-gray-900">
-                                {transfer.customer_name}
-                              </span>
-                            )}
-                            {transfer.requested_by_name && (
-                              <span className="text-gray-400">โดย: {transfer.requested_by_name}</span>
-                            )}
-                          </div>
-                        </div>
+                        {/* Branch Transfer Cards */}
+                        {isExpanded && (
+                          <div className="space-y-3 p-3">
+                            {branch.transfers.map((transfer) => (
+                              <div key={transfer.id} className="rounded-xl border-l-4 border-yellow-500 bg-gray-50 dark:bg-gray-800">
+                                <div className="p-4">
+                                  <div className="mb-3 flex items-start justify-between">
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono text-sm font-bold text-orange-600">{transfer.transfer_code}</span>
+                                        <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                          รอรับ
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-xs text-gray-400">{formatThaiDateTime(transfer.created_at)}</p>
+                                      <p className="mt-1 text-lg font-bold text-gray-700 dark:text-gray-200">
+                                        {transfer.quantity || 1} <span className="text-sm font-normal text-gray-500">ขวด</span>
+                                      </p>
+                                    </div>
+                                  </div>
 
-                        {/* Actions */}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => { setSelectedTransfer(transfer); setShowDetailModal(true); }}
-                            className="flex-1 rounded-lg bg-blue-100 py-2.5 text-sm font-medium text-blue-700 transition hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400"
-                          >
-                            <Eye className="mr-1 inline h-4 w-4" /> ดูรายละเอียด
-                          </button>
-                          <button
-                            onClick={() => openConfirmModal(transfer)}
-                            className="flex-1 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 py-2.5 text-sm font-bold text-white shadow-md transition hover:from-green-600 hover:to-emerald-700"
-                          >
-                            <Check className="mr-1 inline h-4 w-4" /> รับสินค้า
-                          </button>
-                          <button
-                            onClick={() => rejectTransfer(transfer)}
-                            className="rounded-lg bg-red-100 px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
+                                  {/* Item Info */}
+                                  <div className="mb-3 rounded-lg bg-white p-3 dark:bg-gray-900">
+                                    <div className="flex flex-wrap gap-1 text-xs">
+                                      {transfer.product_name && (
+                                        <span className="rounded border bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
+                                          {transfer.product_name}
+                                        </span>
+                                      )}
+                                      {transfer.customer_name && (
+                                        <span className="rounded border bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
+                                          {transfer.customer_name}
+                                        </span>
+                                      )}
+                                      {transfer.requested_by_name && (
+                                        <span className="text-gray-400">โดย: {transfer.requested_by_name}</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Photo indicator */}
+                                  {transfer.photo_url && (
+                                    <div className="mb-3">
+                                      <button
+                                        onClick={() => setViewingPhoto(transfer.photo_url)}
+                                        className="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400"
+                                      >
+                                        <ImageIcon className="h-3.5 w-3.5" /> รูปนำส่งจากสาขา
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {/* Actions */}
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => { setSelectedTransfer(transfer); setShowDetailModal(true); }}
+                                      className="flex-1 rounded-lg bg-blue-100 py-2.5 text-sm font-medium text-blue-700 transition hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400"
+                                    >
+                                      <Eye className="mr-1 inline h-4 w-4" /> ดูรายละเอียด
+                                    </button>
+                                    <button
+                                      onClick={() => openConfirmModal(transfer)}
+                                      className="flex-1 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 py-2.5 text-sm font-bold text-white shadow-md transition hover:from-green-600 hover:to-emerald-700"
+                                    >
+                                      <Check className="mr-1 inline h-4 w-4" /> รับสินค้า
+                                    </button>
+                                    <button
+                                      onClick={() => rejectTransfer(transfer)}
+                                      className="rounded-lg bg-red-100 px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}

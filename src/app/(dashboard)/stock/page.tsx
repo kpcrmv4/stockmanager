@@ -257,43 +257,59 @@ export default function StockOverviewPage() {
     },
   ];
 
-  const quickActions = [
+  const isStaffOrBar = user?.role === 'staff' || user?.role === 'bar';
+
+  const allQuickActions = [
     {
       label: 'นับสต๊อก',
       description: 'นับสต๊อกประจำวัน',
       icon: ScanLine,
       href: '/stock/daily-check',
-      color: 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800',
+      gradient: 'from-blue-500 to-indigo-600',
+      shadow: 'shadow-blue-500/25',
+      staffVisible: true,
     },
     {
       label: 'อัพโหลด POS',
       description: 'นำเข้าข้อมูลจาก .txt',
       icon: Upload,
       href: '/stock/txt-upload',
-      color: 'bg-cyan-600 hover:bg-cyan-700 active:bg-cyan-800',
+      gradient: 'from-cyan-500 to-teal-600',
+      shadow: 'shadow-cyan-500/25',
+      staffVisible: false,
     },
     {
       label: 'ดูผลเปรียบเทียบ',
       description: 'POS vs นับจริง',
       icon: BarChart3,
       href: '/stock/comparison',
-      color: 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800',
+      gradient: 'from-emerald-500 to-green-600',
+      shadow: 'shadow-emerald-500/25',
+      staffVisible: true,
     },
     {
       label: 'ชี้แจงส่วนต่าง',
       description: 'อธิบายสินค้าที่ขาด/เกิน',
       icon: FileText,
       href: '/stock/explanation',
-      color: 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800',
+      gradient: 'from-amber-500 to-orange-600',
+      shadow: 'shadow-amber-500/25',
+      staffVisible: true,
     },
     {
       label: 'อนุมัติ',
       description: 'ตรวจสอบและอนุมัติ',
       icon: ClipboardList,
       href: '/stock/approval',
-      color: 'bg-violet-600 hover:bg-violet-700 active:bg-violet-800',
+      gradient: 'from-violet-500 to-purple-600',
+      shadow: 'shadow-violet-500/25',
+      staffVisible: false,
     },
   ];
+
+  const quickActions = isStaffOrBar
+    ? allQuickActions.filter((a) => a.staffVisible)
+    : allQuickActions;
 
   function getCheckStatusBadge(status: string) {
     switch (status) {
@@ -613,7 +629,12 @@ export default function StockOverviewPage() {
       </Card>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className={cn(
+        'grid gap-3',
+        quickActions.length <= 3
+          ? 'grid-cols-3'
+          : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+      )}>
         {quickActions.map((action) => {
           const ActionIcon = action.icon;
           return (
@@ -621,13 +642,17 @@ export default function StockOverviewPage() {
               key={action.label}
               href={action.href}
               className={cn(
-                'flex flex-col items-center gap-2 rounded-xl px-3 py-5 text-white transition-colors',
-                action.color
+                'group relative flex flex-col items-center gap-2.5 rounded-2xl bg-gradient-to-br px-3 py-6 text-white',
+                'shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 active:shadow-md',
+                action.gradient,
+                action.shadow
               )}
             >
-              <ActionIcon className="h-7 w-7" />
-              <span className="text-sm font-medium">{action.label}</span>
-              <span className="text-center text-[11px] opacity-80">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm transition-transform group-hover:scale-110">
+                <ActionIcon className="h-6 w-6" />
+              </div>
+              <span className="text-sm font-semibold">{action.label}</span>
+              <span className="text-center text-[11px] leading-tight text-white/75">
                 {action.description}
               </span>
             </a>

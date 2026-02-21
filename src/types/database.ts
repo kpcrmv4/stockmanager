@@ -120,6 +120,7 @@ export type DepositStatus =
   | 'pending_withdrawal'
   | 'withdrawn'
   | 'expired'
+  | 'transfer_pending'
   | 'transferred_out';
 
 export interface Deposit {

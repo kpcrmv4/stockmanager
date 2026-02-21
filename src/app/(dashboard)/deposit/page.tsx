@@ -63,6 +63,7 @@ const statusVariantMap: Record<string, 'default' | 'success' | 'warning' | 'dang
   pending_withdrawal: 'info',
   withdrawn: 'default',
   expired: 'danger',
+  transfer_pending: 'warning',
   transferred_out: 'info',
 };
 

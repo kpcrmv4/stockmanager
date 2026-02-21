@@ -7,6 +7,7 @@ export const DEPOSIT_STATUS_LABELS: Record<string, string> = {
   pending_withdrawal: 'รอเบิก',
   withdrawn: 'เบิกแล้ว',
   expired: 'หมดอายุ',
+  transfer_pending: 'รอนำส่ง HQ',
   transferred_out: 'โอนออก',
 };
 

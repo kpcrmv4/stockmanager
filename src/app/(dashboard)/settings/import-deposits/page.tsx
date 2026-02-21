@@ -63,7 +63,7 @@ interface ParsedRow {
 // Valid statuses per table
 const VALID_DEPOSIT_STATUSES = [
   'pending_confirm', 'in_store', 'pending_withdrawal',
-  'withdrawn', 'expired', 'transferred_out',
+  'withdrawn', 'expired', 'transfer_pending', 'transferred_out',
 ];
 const VALID_WITHDRAWAL_STATUSES = ['pending', 'approved', 'completed', 'rejected'];
 const VALID_TRANSFER_STATUSES = ['pending', 'confirmed', 'rejected'];
@@ -154,10 +154,27 @@ function mapHistoryStatus(raw: string): string {
   const s = raw.toLowerCase().trim();
   if (s === 'fully_withdrawn' || s === 'withdrawn') return 'withdrawn';
   if (s === 'expired') return 'expired';
+  if (s === 'transfer_pending') return 'transfer_pending';
   if (s === 'transferred' || s === 'transferred_out') return 'transferred_out';
   if (s === 'disposed') return 'withdrawn';
   if (VALID_DEPOSIT_STATUSES.includes(s)) return s;
   return 'withdrawn';
+}
+
+/** Parse transfer deposit_ids — handles JSON array or comma-separated */
+function parseTransferDepositIds(raw: string): string[] {
+  if (!raw) return [];
+  // Try JSON parse first (for ["uuid1","uuid2",...] format from Google Sheets)
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map((s: string) => String(s).trim()).filter(Boolean);
+    }
+  } catch {
+    // Not JSON
+  }
+  // Fallback: split by comma (for "code1,code2" format)
+  return raw.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------
@@ -193,6 +210,11 @@ export default function ImportDepositsPage() {
     errors: string[];
   } | null>(null);
 
+  // Reference file for transfers (maps old deposit_id → deposit_code)
+  const [referenceMap, setReferenceMap] = useState<Map<string, string>>(new Map());
+  const [referenceFileName, setReferenceFileName] = useState('');
+  const referenceInputRef = useRef<HTMLInputElement>(null);
+
   // Fetch stores
   useEffect(() => {
     const fetchStores = async () => {
@@ -220,10 +242,9 @@ export default function ImportDepositsPage() {
       const codes = new Set<string>();
       rows.forEach((row) => {
         if (importTable === 'transfers') {
-          const ids = (row.raw.deposit_ids || row.raw.deposit_code || '')
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean);
+          let ids = parseTransferDepositIds(row.raw.deposit_ids || row.raw.deposit_code || '');
+          // Map old UUIDs → deposit_codes via reference file
+          ids = ids.map((id) => referenceMap.get(id) || id);
           ids.forEach((c) => codes.add(c));
         } else {
           const code = row.raw.deposit_code;
@@ -265,10 +286,9 @@ export default function ImportDepositsPage() {
 
       return rows.map((row) => {
         if (importTable === 'transfers') {
-          const ids = (row.raw.deposit_ids || row.raw.deposit_code || '')
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean);
+          let ids = parseTransferDepositIds(row.raw.deposit_ids || row.raw.deposit_code || '');
+          // Map old UUIDs → deposit_codes via reference file
+          ids = ids.map((id) => referenceMap.get(id) || id);
           const subRows: ParsedRow[] = ids.map((code) => {
             const dep = depositMap.get(code);
             return {
@@ -311,7 +331,7 @@ export default function ImportDepositsPage() {
         }
       });
     },
-    [importTable, selectedStoreId]
+    [importTable, selectedStoreId, referenceMap]
   );
 
   // ── Parse file ──
@@ -494,6 +514,42 @@ export default function ImportDepositsPage() {
     setFileName('');
     setImportResult(null);
   };
+
+  // ── Reference file for transfers (old deposit_id → deposit_code mapping) ──
+  const handleReferenceFile = useCallback(
+    (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const text = ev.target?.result as string;
+        if (!text) return;
+        const lines = text.split(/\r?\n/).filter((l) => l.trim());
+        if (lines.length < 2) return;
+
+        const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/^["']|["']$/g, ''));
+        const idIdx = headers.indexOf('deposit_id');
+        const codeIdx = headers.indexOf('deposit_code');
+
+        if (idIdx === -1 || codeIdx === -1) {
+          toast({ type: 'error', title: 'ไฟล์อ้างอิงต้องมีคอลัมน์ deposit_id และ deposit_code' });
+          return;
+        }
+
+        const map = new Map<string, string>();
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
+          const oldId = cols[idIdx];
+          const code = cols[codeIdx];
+          if (oldId && code) map.set(oldId, code);
+        }
+
+        setReferenceMap(map);
+        setReferenceFileName(file.name);
+        toast({ type: 'success', title: `โหลดไฟล์อ้างอิงแล้ว (${map.size} รายการ)` });
+      };
+      reader.readAsText(file);
+    },
+    []
+  );
 
   // ── Stats ──
   const stats = useMemo(() => {
@@ -861,6 +917,7 @@ export default function ImportDepositsPage() {
       pending_withdrawal: { variant: 'info', label: 'รอเบิก' },
       withdrawn: { variant: 'default', label: 'เบิกแล้ว' },
       expired: { variant: 'danger', label: 'หมดอายุ' },
+      transfer_pending: { variant: 'warning', label: 'รอนำส่ง HQ' },
       transferred_out: { variant: 'info', label: 'โอนคลัง' },
       cancelled: { variant: 'default', label: 'ยกเลิก' },
       pending: { variant: 'warning', label: 'รอ' },
@@ -936,7 +993,8 @@ export default function ImportDepositsPage() {
     withdrawals: `* deposit_code จะถูกใช้ค้นหา UUID ของ deposit ในร้านที่เลือก
 * ต้อง Import Deposits + Deposit History ก่อน ไม่งั้นจะ resolve ไม่ได้
 * status เดิมจะ map เป็น "completed" ถ้าไม่ตรง`,
-    transfers: `* deposit_ids อาจมีหลายรหัส (คั่นด้วย ,) → จะแยกเป็นหลาย record
+    transfers: `* deposit_ids รองรับ JSON array (["uuid1","uuid2"]) หรือ comma-separated
+* ถ้าเป็น UUID เดิม → ใช้ "ไฟล์ Deposits อ้างอิง" map เป็น deposit_code
 * to_store_id จะใช้ร้านคลังกลาง (is_central) อัตโนมัติ
 * ต้อง Import Deposits + Deposit History ก่อน`,
   };
@@ -1064,6 +1122,43 @@ export default function ImportDepositsPage() {
                       กรุณาสร้างร้านคลังกลางในหน้าตั้งค่าก่อน Import
                       Transfers
                     </p>
+                  </div>
+                )}
+
+                {importTable === 'transfers' && (
+                  <div className="rounded-lg border border-dashed border-indigo-300 bg-indigo-50 p-3 text-sm dark:border-indigo-700 dark:bg-indigo-900/10">
+                    <p className="font-medium text-indigo-700 dark:text-indigo-400">
+                      ไฟล์ Deposits อ้างอิง (ถ้า deposit_ids เป็น UUID เดิม)
+                    </p>
+                    <p className="mt-0.5 text-xs text-indigo-600 dark:text-indigo-500">
+                      ใช้ map old deposit_id → deposit_code ให้ระบบค้นหาได้
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        ref={referenceInputRef}
+                        type="file"
+                        accept=".csv,.tsv"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleReferenceFile(f);
+                          if (e.target) e.target.value = '';
+                        }}
+                      />
+                      <button
+                        onClick={() => referenceInputRef.current?.click()}
+                        className="rounded-lg bg-indigo-100 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400"
+                      >
+                        <Upload className="mr-1 inline h-3.5 w-3.5" />
+                        เลือกไฟล์อ้างอิง
+                      </button>
+                      {referenceFileName && (
+                        <span className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          {referenceFileName} ({referenceMap.size} รายการ)
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
 
