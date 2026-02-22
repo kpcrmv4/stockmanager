@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
@@ -48,6 +48,7 @@ interface Withdrawal {
   table_number: string | null;
   status: string;
   processed_by: string | null;
+  processed_by_name: string | null;
   notes: string | null;
   photo_url: string | null;
   created_at: string;
@@ -70,7 +71,7 @@ export default function WithdrawalsPage() {
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
-  const [activeTab, setActiveTab] = useState('pending');
+  const [activeTab, setActiveTab] = useState('completed');
   const [isLoading, setIsLoading] = useState(true);
 
   // Process withdrawal modal
@@ -87,29 +88,36 @@ export default function WithdrawalsPage() {
     setIsLoading(true);
     const supabase = createClient();
 
-    let query = supabase
+    const { data, error } = await supabase
       .from('withdrawals')
       .select('*')
       .eq('store_id', currentStoreId)
       .order('created_at', { ascending: false });
 
-    if (activeTab === 'pending') {
-      query = query.in('status', ['pending', 'approved']);
-    } else if (activeTab === 'completed') {
-      query = query.eq('status', 'completed');
-    } else if (activeTab === 'rejected') {
-      query = query.eq('status', 'rejected');
-    }
-
-    const { data, error } = await query;
     if (error) {
       toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถโหลดรายการเบิกเหล้าได้' });
     }
     if (data) {
-      setWithdrawals(data as Withdrawal[]);
+      // Resolve processed_by names
+      const userIds = [...new Set(data.map((w) => w.processed_by).filter(Boolean))] as string[];
+      let userMap = new Map<string, string>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, display_name, username')
+          .in('id', userIds);
+        if (profiles) {
+          userMap = new Map(profiles.map((p) => [p.id, p.display_name || p.username]));
+        }
+      }
+
+      setWithdrawals(data.map((w) => ({
+        ...w,
+        processed_by_name: w.processed_by ? (userMap.get(w.processed_by) || null) : null,
+      })) as Withdrawal[]);
     }
     setIsLoading(false);
-  }, [currentStoreId, activeTab]);
+  }, [currentStoreId]);
 
   useEffect(() => {
     loadWithdrawals();
@@ -247,9 +255,20 @@ export default function WithdrawalsPage() {
   };
 
   const pendingCount = withdrawals.filter((w) => w.status === 'pending' || w.status === 'approved').length;
+  const completedCount = withdrawals.filter((w) => w.status === 'completed').length;
+  const rejectedCount = withdrawals.filter((w) => w.status === 'rejected').length;
+
+  const filteredWithdrawals = useMemo(() => {
+    if (activeTab === 'pending') return withdrawals.filter((w) => w.status === 'pending' || w.status === 'approved');
+    if (activeTab === 'completed') return withdrawals.filter((w) => w.status === 'completed');
+    if (activeTab === 'rejected') return withdrawals.filter((w) => w.status === 'rejected');
+    return withdrawals;
+  }, [withdrawals, activeTab]);
 
   const tabsWithCounts = withdrawalTabs.map((t) => {
-    if (t.id === 'pending') return { ...t, count: activeTab !== 'pending' ? pendingCount : undefined };
+    if (t.id === 'pending') return { ...t, count: pendingCount };
+    if (t.id === 'completed') return { ...t, count: completedCount };
+    if (t.id === 'rejected') return { ...t, count: rejectedCount };
     return t;
   });
 
@@ -292,7 +311,7 @@ export default function WithdrawalsPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {withdrawals.filter((w) => w.status === 'completed').length}
+                {completedCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">สำเร็จ</p>
             </div>
@@ -305,7 +324,7 @@ export default function WithdrawalsPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {withdrawals.filter((w) => w.status === 'rejected').length}
+                {rejectedCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">ปฏิเสธ</p>
             </div>
@@ -321,7 +340,7 @@ export default function WithdrawalsPage() {
         <div className="flex items-center justify-center py-12">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600" />
         </div>
-      ) : withdrawals.length === 0 ? (
+      ) : filteredWithdrawals.length === 0 ? (
         <EmptyState
           icon={Package}
           title="ไม่มีรายการเบิกเหล้า"
@@ -335,7 +354,7 @@ export default function WithdrawalsPage() {
         />
       ) : (
         <div className="space-y-3">
-          {withdrawals.map((withdrawal) => {
+          {filteredWithdrawals.map((withdrawal) => {
             const isPending = withdrawal.status === 'pending' || withdrawal.status === 'approved';
 
             return (
@@ -390,6 +409,15 @@ export default function WithdrawalsPage() {
                         {formatThaiDateTime(withdrawal.created_at)}
                       </p>
                     </div>
+                    {withdrawal.processed_by_name && (
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">ดำเนินการโดย</span>
+                        <p className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
+                          <User className="h-3.5 w-3.5 text-gray-400" />
+                          {withdrawal.processed_by_name}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {withdrawal.photo_url && (

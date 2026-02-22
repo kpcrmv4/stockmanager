@@ -27,7 +27,9 @@ import {
   Eye,
   ChevronRight,
   Crown,
+  Minus,
 } from 'lucide-react';
+import Link from 'next/link';
 import { DepositForm } from './_components/deposit-form';
 import { DepositDetail } from './_components/deposit-detail';
 
@@ -101,19 +103,12 @@ export default function DepositPage() {
     setIsLoading(true);
     const supabase = createClient();
 
-    let query = supabase
+    const { data, error } = await supabase
       .from('deposits')
       .select('*')
       .eq('store_id', currentStoreId)
       .order('created_at', { ascending: false });
 
-    if (activeTab === 'vip') {
-      query = query.eq('is_vip', true);
-    } else if (activeTab !== 'all') {
-      query = query.eq('status', activeTab);
-    }
-
-    const { data, error } = await query;
     if (error) {
       toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถโหลดข้อมูลฝากเหล้าได้' });
     }
@@ -121,22 +116,35 @@ export default function DepositPage() {
       setDeposits(data as Deposit[]);
     }
     setIsLoading(false);
-  }, [currentStoreId, activeTab]);
+  }, [currentStoreId]);
 
   useEffect(() => {
     loadDeposits();
   }, [loadDeposits]);
 
   const filteredDeposits = useMemo(() => {
-    if (!searchQuery) return deposits;
-    const q = searchQuery.toLowerCase();
-    return deposits.filter(
-      (d) =>
-        d.deposit_code?.toLowerCase().includes(q) ||
-        d.customer_name?.toLowerCase().includes(q) ||
-        d.product_name?.toLowerCase().includes(q)
-    );
-  }, [deposits, searchQuery]);
+    let result = deposits;
+
+    // Filter by tab
+    if (activeTab === 'vip') {
+      result = result.filter((d) => d.is_vip);
+    } else if (activeTab !== 'all') {
+      result = result.filter((d) => d.status === activeTab);
+    }
+
+    // Filter by search query
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (d) =>
+          d.deposit_code?.toLowerCase().includes(q) ||
+          d.customer_name?.toLowerCase().includes(q) ||
+          d.product_name?.toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [deposits, activeTab, searchQuery]);
 
   const activeCount = deposits.filter((d) => d.status === 'in_store').length;
   const pendingCount = deposits.filter((d) => d.status === 'pending_confirm').length;
@@ -191,9 +199,16 @@ export default function DepositPage() {
             จัดการรายการฝากเหล้าและเบิกเหล้าของลูกค้า
           </p>
         </div>
-        <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowNewForm(true)}>
-          ฝากเหล้าใหม่
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Link href="/deposit/withdrawals">
+            <Button variant="outline" icon={<Minus className="h-4 w-4" />} className="w-full sm:w-auto">
+              เบิกเหล้า
+            </Button>
+          </Link>
+          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowNewForm(true)}>
+            ฝากเหล้าใหม่
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
