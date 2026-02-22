@@ -93,16 +93,6 @@ export const modules: ModuleConfig[] = [
     permission: 'can_manage_users',
   },
   {
-    id: 'settings',
-    name: 'ตั้งค่า',
-    description: 'ตั้งค่าระบบและสาขา',
-    icon: 'settings',
-    color: 'gray',
-    href: '/settings',
-    roles: ['owner'],
-    permission: 'can_manage_settings',
-  },
-  {
     id: 'hq-warehouse',
     name: 'คลังกลาง',
     description: 'รับโอนเหล้าหมดอายุ จำหน่ายออก',
@@ -121,6 +111,16 @@ export const modules: ModuleConfig[] = [
     href: '/borrow',
     roles: ['owner', 'manager', 'staff'],
     permission: 'can_borrow',
+  },
+  {
+    id: 'settings',
+    name: 'ตั้งค่า',
+    description: 'ตั้งค่าระบบและสาขา',
+    icon: 'settings',
+    color: 'gray',
+    href: '/settings',
+    roles: ['owner'],
+    permission: 'can_manage_settings',
   },
   // {
   //   id: 'food-cost',

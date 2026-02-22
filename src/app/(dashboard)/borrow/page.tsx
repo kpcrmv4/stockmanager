@@ -126,23 +126,6 @@ const statusConfig: Record<
   rejected: { label: 'ปฏิเสธ', variant: 'danger', step: -1 },
 };
 
-const categoryOptions = [
-  { value: '', label: 'ไม่ระบุ' },
-  { value: 'whisky', label: 'Whisky' },
-  { value: 'vodka', label: 'Vodka' },
-  { value: 'brandy', label: 'Brandy' },
-  { value: 'beer', label: 'Beer' },
-  { value: 'wine', label: 'Wine' },
-  { value: 'other', label: 'Other' },
-];
-
-const unitOptions = [
-  { value: '', label: 'ไม่ระบุ' },
-  { value: 'ขวด', label: 'ขวด' },
-  { value: 'ลัง', label: 'ลัง' },
-  { value: 'แพ็ค', label: 'แพ็ค' },
-];
-
 const EMPTY_FORM_ITEM: FormItem = { product_name: '', category: '', quantity: '', unit: '' };
 
 // ---------------------------------------------------------------------------
@@ -309,6 +292,13 @@ function BorrowCard({
 // Create Borrow Modal
 // ---------------------------------------------------------------------------
 
+interface BranchProduct {
+  id: string;
+  product_name: string;
+  category: string | null;
+  unit: string | null;
+}
+
 function CreateBorrowModal({
   isOpen,
   onClose,
@@ -328,11 +318,46 @@ function CreateBorrowModal({
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Product autocomplete state
+  const [branchProducts, setBranchProducts] = useState<BranchProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
+
+  // Fetch products when target store changes
+  useEffect(() => {
+    if (!targetStore) {
+      setBranchProducts([]);
+      return;
+    }
+    let cancelled = false;
+    const fetchProducts = async () => {
+      setLoadingProducts(true);
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from('products')
+          .select('id, product_name, category, unit')
+          .eq('store_id', targetStore)
+          .eq('active', true)
+          .order('product_name');
+        if (!cancelled && data) setBranchProducts(data);
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setLoadingProducts(false);
+      }
+    };
+    fetchProducts();
+    return () => { cancelled = true; };
+  }, [targetStore]);
+
   const resetForm = () => {
     setTargetStore('');
     setItems([{ ...EMPTY_FORM_ITEM }]);
     setNotes('');
     setPhotoUrl(null);
+    setBranchProducts([]);
+    setActiveDropdown(null);
   };
 
   const handleClose = () => {
@@ -346,6 +371,20 @@ function CreateBorrowModal({
       next[index] = { ...next[index], [field]: value };
       return next;
     });
+  };
+
+  const selectProduct = (index: number, product: BranchProduct) => {
+    setItems((prev) => {
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        product_name: product.product_name,
+        category: product.category || '',
+        unit: product.unit || '',
+      };
+      return next;
+    });
+    setActiveDropdown(null);
   };
 
   const addItem = () => {
@@ -407,6 +446,13 @@ function CreateBorrowModal({
 
   const availableStores = stores.filter((s) => s.id !== currentStoreId);
 
+  // Filter suggestions per item
+  const getSuggestions = (query: string) => {
+    if (!query.trim()) return branchProducts.slice(0, 20);
+    const q = query.toLowerCase();
+    return branchProducts.filter((p) => p.product_name.toLowerCase().includes(q));
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -424,7 +470,11 @@ function CreateBorrowModal({
             label: `${s.store_name} (${s.store_code})`,
           }))}
           value={targetStore}
-          onChange={(e) => setTargetStore(e.target.value)}
+          onChange={(e) => {
+            setTargetStore(e.target.value);
+            // Reset items when switching branch
+            setItems([{ ...EMPTY_FORM_ITEM }]);
+          }}
           placeholder="เลือกสาขา"
         />
 
@@ -432,55 +482,96 @@ function CreateBorrowModal({
         <div>
           <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
             รายการสินค้า
+            {loadingProducts && (
+              <Loader2 className="ml-2 inline h-3.5 w-3.5 animate-spin text-teal-500" />
+            )}
           </label>
           <div className="space-y-3">
-            {items.map((item, idx) => (
-              <div
-                key={idx}
-                className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="text-xs font-medium text-teal-600 dark:text-teal-400">
-                    รายการที่ {idx + 1}
-                  </span>
-                  {items.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeItem(idx)}
-                      className="rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
+            {items.map((item, idx) => {
+              const suggestions = getSuggestions(item.product_name);
+              const showDropdown = activeDropdown === idx && targetStore && suggestions.length > 0;
+
+              return (
+                <div
+                  key={idx}
+                  className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <span className="text-xs font-medium text-teal-600 dark:text-teal-400">
+                      รายการที่ {idx + 1}
+                    </span>
+                    {items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeItem(idx)}
+                        className="rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {/* Product name with autocomplete */}
+                    <div className="relative sm:col-span-2">
+                      <Input
+                        placeholder={targetStore ? 'พิมพ์ชื่อสินค้า *' : 'เลือกสาขาก่อน *'}
+                        value={item.product_name}
+                        onChange={(e) => {
+                          updateItem(idx, 'product_name', e.target.value);
+                          setActiveDropdown(idx);
+                        }}
+                        onFocus={() => setActiveDropdown(idx)}
+                        onBlur={() => {
+                          // Delay to allow click on suggestion
+                          setTimeout(() => setActiveDropdown(null), 200);
+                        }}
+                        disabled={!targetStore}
+                      />
+                      {showDropdown && (
+                        <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                          {suggestions.map((product) => (
+                            <button
+                              key={product.id}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => selectProduct(idx, product)}
+                              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-teal-50 dark:hover:bg-teal-900/20"
+                            >
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {product.product_name}
+                              </span>
+                              <span className="text-xs text-gray-400 dark:text-gray-500">
+                                {product.category || ''}{product.unit ? ` (${product.unit})` : ''}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <Input
+                      placeholder="หมวดหมู่"
+                      value={item.category}
+                      onChange={(e) => updateItem(idx, 'category', e.target.value)}
+                      disabled={!targetStore}
+                    />
+                    <Input
+                      placeholder="หน่วย"
+                      value={item.unit}
+                      onChange={(e) => updateItem(idx, 'unit', e.target.value)}
+                      disabled={!targetStore}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="จำนวน *"
+                      min="1"
+                      value={item.quantity}
+                      onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
+                      disabled={!targetStore}
+                    />
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Input
-                    placeholder="ชื่อสินค้า *"
-                    value={item.product_name}
-                    onChange={(e) => updateItem(idx, 'product_name', e.target.value)}
-                  />
-                  <Select
-                    options={categoryOptions}
-                    value={item.category}
-                    onChange={(e) => updateItem(idx, 'category', e.target.value)}
-                    placeholder="ประเภท"
-                  />
-                  <Input
-                    type="number"
-                    placeholder="จำนวน *"
-                    min="1"
-                    value={item.quantity}
-                    onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
-                  />
-                  <Select
-                    options={unitOptions}
-                    value={item.unit}
-                    onChange={(e) => updateItem(idx, 'unit', e.target.value)}
-                    placeholder="หน่วย"
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <button
             type="button"

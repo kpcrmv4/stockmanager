@@ -61,6 +61,13 @@ export const AUDIT_ACTIONS = {
   USER_LOGIN: 'USER_LOGIN',
   USER_LOGOUT: 'USER_LOGOUT',
 
+  // === Borrow Module ===
+  BORROW_REQUESTED: 'BORROW_REQUESTED',
+  BORROW_APPROVED: 'BORROW_APPROVED',
+  BORROW_REJECTED: 'BORROW_REJECTED',
+  BORROW_POS_CONFIRMED: 'BORROW_POS_CONFIRMED',
+  BORROW_COMPLETED: 'BORROW_COMPLETED',
+
   // === Settings ===
   SETTINGS_UPDATED: 'SETTINGS_UPDATED',
   STORE_CREATED: 'STORE_CREATED',
@@ -155,6 +162,13 @@ export const AUDIT_ACTION_LABELS: Record<
   CRON_EXPIRY_CHECK: { label: 'ตรวจสอบเหล้าหมดอายุ', color: 'gray', icon: 'clock' },
   CRON_DEPOSIT_EXPIRED: { label: 'เหล้าหมดอายุอัตโนมัติ', color: 'red', icon: 'alert-triangle' },
   CRON_FOLLOW_UP_SENT: { label: 'ส่งติดตามงาน', color: 'gray', icon: 'bell' },
+
+  // Borrow
+  BORROW_REQUESTED: { label: 'สร้างคำขอยืมสินค้า', color: 'teal', icon: 'repeat' },
+  BORROW_APPROVED: { label: 'อนุมัติคำขอยืม', color: 'emerald', icon: 'check-circle' },
+  BORROW_REJECTED: { label: 'ปฏิเสธคำขอยืม', color: 'red', icon: 'x-circle' },
+  BORROW_POS_CONFIRMED: { label: 'ยืนยันตัดสต๊อก POS (ยืม)', color: 'violet', icon: 'check' },
+  BORROW_COMPLETED: { label: 'ยืมสินค้าเสร็จสิ้น', color: 'emerald', icon: 'check-circle' },
 
   // User
   USER_CREATED: { label: 'สร้างผู้ใช้ใหม่', color: 'blue', icon: 'user-plus' },

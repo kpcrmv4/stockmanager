@@ -17,7 +17,6 @@ import {
   Loader2,
   RefreshCw,
   AlertTriangle,
-  Calendar,
   FileText,
   Image as ImageIcon,
 } from 'lucide-react';
@@ -90,22 +89,9 @@ interface BranchSummary {
   storeName: string;
   pending: number;
   received: number;
-  expired: number;
 }
 
-interface ExpiredDeposit {
-  id: string;
-  deposit_code: string;
-  customer_name: string;
-  product_name: string;
-  quantity: number;
-  expiry_date: string;
-  store_id: string;
-  store_name: string;
-  status: string;
-}
-
-type TabId = 'pending' | 'received' | 'withdrawn' | 'expired';
+type TabId = 'pending' | 'received' | 'withdrawn';
 
 // ==========================================
 // Main Component
@@ -120,7 +106,6 @@ export default function HqWarehousePage() {
   const [pendingTransfers, setPendingTransfers] = useState<TransferWithItems[]>([]);
   const [receivedItems, setReceivedItems] = useState<HqDepositItem[]>([]);
   const [withdrawnItems, setWithdrawnItems] = useState<HqDepositItem[]>([]);
-  const [expiredDeposits, setExpiredDeposits] = useState<ExpiredDeposit[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -350,27 +335,6 @@ export default function HqWarehousePage() {
     if (mountedRef.current) setWithdrawnItems(items);
   }, [stores]);
 
-  const loadExpiredDeposits = useCallback(async () => {
-    const supabase = createClient();
-
-    const { data } = await supabase
-      .from('deposits')
-      .select('id, deposit_code, customer_name, product_name, quantity, expiry_date, store_id, status')
-      .eq('status', 'expired')
-      .order('expiry_date', { ascending: false });
-
-    if (!data || !mountedRef.current) return;
-
-    const storeMap = new Map(stores.map((s) => [s.id, s.store_name]));
-
-    const items: ExpiredDeposit[] = data.map((d) => ({
-      ...d,
-      store_name: storeMap.get(d.store_id) || 'ไม่ทราบ',
-    }));
-
-    if (mountedRef.current) setExpiredDeposits(items);
-  }, [stores]);
-
   const loadAllData = useCallback(async () => {
     setLoading(true);
     try {
@@ -378,12 +342,11 @@ export default function HqWarehousePage() {
         loadPendingTransfers(),
         loadReceivedItems(),
         loadWithdrawnItems(),
-        loadExpiredDeposits(),
       ]);
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [loadPendingTransfers, loadReceivedItems, loadWithdrawnItems, loadExpiredDeposits]);
+  }, [loadPendingTransfers, loadReceivedItems, loadWithdrawnItems]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -424,9 +387,8 @@ export default function HqWarehousePage() {
       storeName: store.store_name,
       pending: pendingTransfers.filter((t) => t.from_store_id === store.id).length,
       received: receivedItems.filter((r) => r.from_store_id === store.id).length,
-      expired: expiredDeposits.filter((e) => e.store_id === store.id).length,
-    })).filter((b) => b.pending > 0 || b.received > 0 || b.expired > 0);
-  }, [branchStores, pendingTransfers, receivedItems, expiredDeposits]);
+    })).filter((b) => b.pending > 0 || b.received > 0);
+  }, [branchStores, pendingTransfers, receivedItems]);
 
   // ==========================================
   // Summary Counts
@@ -436,8 +398,7 @@ export default function HqWarehousePage() {
     pending: pendingTransfers.length,
     received: receivedItems.length,
     withdrawn: withdrawnItems.length,
-    expired: expiredDeposits.length,
-  }), [pendingTransfers, receivedItems, withdrawnItems, expiredDeposits]);
+  }), [pendingTransfers, receivedItems, withdrawnItems]);
 
   // ==========================================
   // Filtered Lists
@@ -520,21 +481,6 @@ export default function HqWarehousePage() {
     }
     return result;
   }, [withdrawnItems, filterBranch, withdrawnDateFilter, searchQuery]);
-
-  const filteredExpired = useMemo(() => {
-    let result = expiredDeposits;
-    if (filterBranch) result = result.filter((e) => e.store_id === filterBranch);
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((e) =>
-        e.product_name.toLowerCase().includes(q) ||
-        e.customer_name.toLowerCase().includes(q) ||
-        e.deposit_code.toLowerCase().includes(q) ||
-        e.store_name.toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [expiredDeposits, filterBranch, searchQuery]);
 
   // ==========================================
   // Actions
@@ -766,7 +712,6 @@ export default function HqWarehousePage() {
     { id: 'pending', label: 'รอรับ', icon: Clock, count: summary.pending, color: 'yellow' },
     { id: 'received', label: 'รับแล้ว', icon: Package, count: summary.received, color: 'green' },
     { id: 'withdrawn', label: 'จำหน่ายออก', icon: BoxSelect, count: summary.withdrawn, color: 'gray' },
-    { id: 'expired', label: 'หมดอายุ', icon: AlertTriangle, count: summary.expired, color: 'red' },
   ];
 
   // ==========================================
@@ -830,19 +775,16 @@ export default function HqWarehousePage() {
                 yellow: 'border-yellow-200 dark:border-yellow-800',
                 green: 'border-green-200 dark:border-green-800',
                 gray: 'border-gray-200 dark:border-gray-700',
-                red: 'border-red-200 dark:border-red-800',
               };
               const iconBgMap: Record<string, string> = {
                 yellow: 'bg-yellow-100 dark:bg-yellow-900/30',
                 green: 'bg-green-100 dark:bg-green-900/30',
                 gray: 'bg-gray-100 dark:bg-gray-800',
-                red: 'bg-red-100 dark:bg-red-900/30',
               };
               const textColorMap: Record<string, string> = {
                 yellow: 'text-yellow-600 dark:text-yellow-400',
                 green: 'text-green-600 dark:text-green-400',
                 gray: 'text-gray-600 dark:text-gray-400',
-                red: 'text-red-600 dark:text-red-400',
               };
               const TabIcon = tab.icon;
               return (
@@ -899,11 +841,6 @@ export default function HqWarehousePage() {
                           {branch.received > 0 && (
                             <span className="rounded-full bg-green-100 px-2 py-1 font-bold text-green-700 dark:bg-green-900/30 dark:text-green-400">
                               รับแล้ว: {branch.received}
-                            </span>
-                          )}
-                          {branch.expired > 0 && (
-                            <span className="rounded-full bg-red-100 px-2 py-1 font-bold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                              หมดอายุ: {branch.expired}
                             </span>
                           )}
                         </div>
@@ -1227,51 +1164,6 @@ export default function HqWarehousePage() {
               </div>
             )}
 
-            {/* Tab: Expired Deposits */}
-            {activeTab === 'expired' && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 p-4 text-white">
-                  <div className="rounded-xl bg-white/20 p-3">
-                    <AlertTriangle className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold">เหล้าฝากหมดอายุ</h3>
-                    <p className="text-sm text-red-100">รายการฝากที่เกินกำหนดแล้ว (ทุกสาขา)</p>
-                  </div>
-                </div>
-
-                {filteredExpired.length === 0 ? (
-                  <EmptyState message="ไม่มีรายการหมดอายุ" />
-                ) : (
-                  filteredExpired.map((item) => (
-                    <div key={item.id} className="rounded-xl border-l-4 border-red-400 bg-white p-4 shadow-sm dark:bg-gray-900">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-gray-800 dark:text-gray-100">{item.product_name}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">{item.customer_name}</p>
-                          <p className="mt-1 text-xs text-gray-400">
-                            <StoreIcon className="mr-1 inline h-3 w-3" />
-                            {item.store_name}
-                            <span className="mx-1">&bull;</span>
-                            รหัส: {item.deposit_code}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-lg font-bold text-red-600">{item.quantity}</span>
-                          <span className="ml-1 text-sm text-gray-400">ขวด</span>
-                          {item.expiry_date && (
-                            <p className="mt-1 flex items-center justify-end gap-1 text-xs text-red-500">
-                              <Calendar className="h-3 w-3" />
-                              หมดอายุ: {formatThaiDateTime(item.expiry_date)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
           </>
         )}
       </main>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
@@ -363,13 +364,13 @@ export default function StockOverviewPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <a
+          <Link
             href="/stock/products"
             className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 active:bg-cyan-800"
           >
             <Package className="h-4 w-4" />
             จัดการสินค้า
-          </a>
+          </Link>
           <Button
             variant="outline"
             size="sm"

@@ -14,6 +14,7 @@ import {
   CalendarDays,
   Wine,
   ClipboardCheck,
+  Repeat,
   Inbox,
   Store as StoreIcon,
 } from 'lucide-react';
@@ -44,6 +45,10 @@ interface StoreSummary {
     pendingApproval: number;
     overThreshold: number;
   };
+  borrow: {
+    pendingApproval: number;
+    inProgress: number;
+  };
   todayActivityCount: number;
 }
 
@@ -55,7 +60,7 @@ interface AuditLogEntry extends AuditLog {
   } | null;
 }
 
-type FilterCategory = 'all' | 'stock' | 'deposit' | 'customer' | 'system';
+type FilterCategory = 'all' | 'stock' | 'deposit' | 'borrow' | 'customer' | 'system';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -94,6 +99,13 @@ const FILTER_CATEGORIES: Record<FilterCategory, string[]> = {
     'TRANSFER_CONFIRMED',
     'TRANSFER_REJECTED',
   ],
+  borrow: [
+    'BORROW_REQUESTED',
+    'BORROW_APPROVED',
+    'BORROW_REJECTED',
+    'BORROW_POS_CONFIRMED',
+    'BORROW_COMPLETED',
+  ],
   customer: [
     'CUSTOMER_DEPOSIT_REQUEST',
     'CUSTOMER_WITHDRAWAL_REQUEST',
@@ -111,6 +123,7 @@ const FILTER_LABELS: Record<FilterCategory, string> = {
   all: 'ทั้งหมด',
   stock: 'สต๊อก',
   deposit: 'ฝากเหล้า',
+  borrow: 'ยืมสินค้า',
   customer: 'ลูกค้า',
   system: 'ระบบ',
 };
@@ -169,6 +182,8 @@ function getActionDotColor(action_type: string): string {
       return 'bg-violet-500';
     case 'green':
       return 'bg-green-500';
+    case 'teal':
+      return 'bg-teal-500';
     case 'gray':
       return 'bg-gray-400';
     default:
@@ -291,6 +306,8 @@ export default function ActivityPage() {
               pendingExplanationRes,
               pendingApprovalRes,
               activityCountRes,
+              borrowPendingRes,
+              borrowInProgressRes,
             ] = await Promise.all([
               // Deposit: pending_confirm
               supabase
@@ -350,6 +367,20 @@ export default function ActivityPage() {
                 .eq('store_id', store.id)
                 .gte('created_at', todayStart)
                 .lte('created_at', todayEnd),
+
+              // Borrow: pending approval (from or to this store)
+              supabase
+                .from('borrows')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'pending_approval')
+                .or(`from_store_id.eq.${store.id},to_store_id.eq.${store.id}`),
+
+              // Borrow: in progress (approved or pos_adjusting)
+              supabase
+                .from('borrows')
+                .select('*', { count: 'exact', head: true })
+                .in('status', ['approved', 'pos_adjusting'])
+                .or(`from_store_id.eq.${store.id},to_store_id.eq.${store.id}`),
             ]);
 
             // Count comparisons with diff_percent exceeding threshold (e.g. abs > 10%)
@@ -375,6 +406,10 @@ export default function ActivityPage() {
                 pendingExplanation: pendingExplanationRes.count || 0,
                 pendingApproval: pendingApprovalRes.count || 0,
                 overThreshold: overThreshold || 0,
+              },
+              borrow: {
+                pendingApproval: borrowPendingRes.count || 0,
+                inProgress: borrowInProgressRes.count || 0,
               },
               todayActivityCount: activityCountRes.count || 0,
             };
@@ -633,7 +668,7 @@ export default function ActivityPage() {
                 </div>
 
                 {/* Stock stats */}
-                <div>
+                <div className="mb-3">
                   <div className="mb-2 flex items-center gap-1.5">
                     <ClipboardCheck className="h-3.5 w-3.5 text-indigo-500" />
                     <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -669,6 +704,32 @@ export default function ActivityPage() {
                     />
                   </div>
                 </div>
+
+                {/* Borrow stats */}
+                <div>
+                  <div className="mb-2 flex items-center gap-1.5">
+                    <Repeat className="h-3.5 w-3.5 text-teal-500" />
+                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                      ยืมสินค้า
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <StatBox
+                      label="รออนุมัติ"
+                      value={summary.borrow.pendingApproval}
+                      color={
+                        summary.borrow.pendingApproval > 0 ? 'amber' : 'gray'
+                      }
+                    />
+                    <StatBox
+                      label="กำลังดำเนินการ"
+                      value={summary.borrow.inProgress}
+                      color={
+                        summary.borrow.inProgress > 0 ? 'blue' : 'gray'
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -683,30 +744,36 @@ export default function ActivityPage() {
 
         {/* Category filter chips */}
         <div className="mb-4 flex flex-wrap gap-2">
-          {(Object.keys(FILTER_LABELS) as FilterCategory[]).map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setFilterCategory(cat)}
-              className={cn(
-                'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
-                filterCategory === cat
-                  ? 'bg-indigo-600 text-white shadow-sm dark:bg-indigo-500'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-              )}
-            >
-              {FILTER_LABELS[cat]}
-              {filterCategory === cat && cat !== 'all' && (
-                <span className="ml-1.5 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px]">
-                  {
-                    auditLogs.filter((log) =>
-                      FILTER_CATEGORIES[cat].includes(log.action_type)
-                    ).length
-                  }
-                </span>
-              )}
-            </button>
-          ))}
+          {(Object.keys(FILTER_LABELS) as FilterCategory[]).map((cat) => {
+            const count = cat === 'all'
+              ? auditLogs.length
+              : auditLogs.filter((log) => FILTER_CATEGORIES[cat].includes(log.action_type)).length;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setFilterCategory(cat)}
+                className={cn(
+                  'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                  filterCategory === cat
+                    ? 'bg-indigo-600 text-white shadow-sm dark:bg-indigo-500'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                )}
+              >
+                {FILTER_LABELS[cat]}
+                {count > 0 && (
+                  <span className={cn(
+                    'ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                    filterCategory === cat
+                      ? 'bg-white/20'
+                      : 'bg-gray-200 text-gray-500 dark:bg-gray-600 dark:text-gray-400'
+                  )}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Audit log timeline */}
@@ -801,7 +868,7 @@ export default function ActivityPage() {
 interface StatBoxProps {
   label: string;
   value: number;
-  color: 'emerald' | 'red' | 'amber' | 'blue' | 'indigo' | 'violet' | 'gray';
+  color: 'emerald' | 'red' | 'amber' | 'blue' | 'indigo' | 'violet' | 'teal' | 'gray';
 }
 
 const STAT_COLOR_MAP: Record<
@@ -837,6 +904,11 @@ const STAT_COLOR_MAP: Record<
     bg: 'bg-violet-50 dark:bg-violet-900/20',
     text: 'text-violet-600 dark:text-violet-400',
     valueTxt: 'text-violet-700 dark:text-violet-300',
+  },
+  teal: {
+    bg: 'bg-teal-50 dark:bg-teal-900/20',
+    text: 'text-teal-600 dark:text-teal-400',
+    valueTxt: 'text-teal-700 dark:text-teal-300',
   },
   gray: {
     bg: 'bg-gray-50 dark:bg-gray-700/30',
