@@ -146,6 +146,14 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [isPrintingLabel, setIsPrintingLabel] = useState(false);
 
+  // Print preview modal
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [printPreviewType, setPrintPreviewType] = useState<'receipt' | 'label'>('receipt');
+
+  // Staff/Bar names
+  const [receivedByName, setReceivedByName] = useState<string | null>(null);
+  const [confirmedByName, setConfirmedByName] = useState<string | null>(null);
+
   // Receipt settings (for print payload QR)
   const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings | null>(null);
 
@@ -186,10 +194,44 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     }
   }, [currentStoreId]);
 
+  // Load staff/bar names
+  const loadStaffNames = useCallback(async () => {
+    const supabase = createClient();
+
+    // Staff who received the deposit
+    if (deposit.received_by) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name, username')
+        .eq('id', deposit.received_by)
+        .single();
+      if (profile) setReceivedByName(profile.display_name || profile.username);
+    }
+
+    // Bar who confirmed — check audit_logs
+    const { data: auditLog } = await supabase
+      .from('audit_logs')
+      .select('changed_by')
+      .eq('record_id', deposit.id)
+      .eq('action_type', 'DEPOSIT_BAR_CONFIRMED')
+      .limit(1)
+      .maybeSingle();
+
+    if (auditLog?.changed_by) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name, username')
+        .eq('id', auditLog.changed_by)
+        .single();
+      if (profile) setConfirmedByName(profile.display_name || profile.username);
+    }
+  }, [deposit.id, deposit.received_by]);
+
   useEffect(() => {
     loadWithdrawals();
     loadReceiptSettings();
-  }, [loadWithdrawals, loadReceiptSettings]);
+    loadStaffNames();
+  }, [loadWithdrawals, loadReceiptSettings, loadStaffNames]);
 
   const expiryDays = deposit.expiry_date ? daysUntil(deposit.expiry_date) : null;
   const isExpiringSoon = expiryDays !== null && expiryDays <= 7 && expiryDays > 0 && deposit.status === 'in_store';
@@ -443,17 +485,19 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       expiry_date: deposit.expiry_date,
       created_at: deposit.created_at,
       store_name: storeName,
-      received_by_name: null,
+      received_by_name: receivedByName,
       qr_code_image_url: receiptSettings?.qr_code_image_url ?? null,
       line_oa_id: receiptSettings?.line_oa_id ?? null,
     };
+
+    const copies = jobType === 'label' ? (deposit.remaining_qty || 1) : 1;
 
     const { error } = await supabase.from('print_queue').insert({
       store_id: currentStoreId,
       deposit_id: deposit.id,
       job_type: jobType,
       status: 'pending',
-      copies: 1,
+      copies,
       payload,
       requested_by: user.id,
     });
@@ -741,6 +785,26 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   </div>
                 </div>
               )}
+
+              {/* Staff / Bar names */}
+              {receivedByName && (
+                <div className="flex items-start gap-3">
+                  <User className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">พนักงานรับฝาก (Staff)</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{receivedByName}</p>
+                  </div>
+                </div>
+              )}
+              {confirmedByName && (
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">บาร์ยืนยัน (Bar)</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{confirmedByName}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -867,7 +931,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 <div className="space-y-2">
                   {canWithdraw && (
                     <Button
-                      className="min-h-[44px] w-full justify-start"
+                      className="min-h-[44px] w-full justify-center"
                       variant="outline"
                       icon={<Minus className="h-4 w-4" />}
                       onClick={() => setShowWithdrawModal(true)}
@@ -877,7 +941,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   )}
                   {canToggleVip && (
                     <Button
-                      className="min-h-[44px] w-full justify-start"
+                      className="min-h-[44px] w-full justify-center"
                       variant="outline"
                       icon={<Crown className="h-4 w-4" />}
                       onClick={handleToggleVip}
@@ -888,7 +952,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   )}
                   {canMarkExpired && (
                     <Button
-                      className="min-h-[44px] w-full justify-start"
+                      className="min-h-[44px] w-full justify-center"
                       variant="outline"
                       icon={<AlertTriangle className="h-4 w-4" />}
                       onClick={() => setShowExpiryModal(true)}
@@ -898,7 +962,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   )}
                   {canTransfer && (
                     <Button
-                      className="min-h-[44px] w-full justify-start"
+                      className="min-h-[44px] w-full justify-center"
                       variant="outline"
                       icon={<ArrowRightLeft className="h-4 w-4" />}
                       onClick={() => setShowTransferModal(true)}
@@ -908,7 +972,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   )}
                   {canExtendExpiry && (
                     <Button
-                      className="min-h-[44px] w-full justify-start"
+                      className="min-h-[44px] w-full justify-center"
                       variant="outline"
                       icon={<CalendarPlus className="h-4 w-4" />}
                       onClick={() => setShowExtendExpiryModal(true)}
@@ -927,20 +991,18 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             <CardContent>
               <div className="space-y-2">
                 <Button
-                  className="min-h-[44px] w-full justify-start"
+                  className="min-h-[44px] w-full justify-center"
                   variant="outline"
                   icon={<Printer className="h-4 w-4" />}
-                  onClick={() => handlePrint('receipt')}
-                  isLoading={isPrintingReceipt}
+                  onClick={() => { setPrintPreviewType('receipt'); setShowPrintPreview(true); }}
                 >
                   พิมพ์ใบรับฝาก
                 </Button>
                 <Button
-                  className="min-h-[44px] w-full justify-start"
+                  className="min-h-[44px] w-full justify-center"
                   variant="outline"
                   icon={<Tag className="h-4 w-4" />}
-                  onClick={() => handlePrint('label')}
-                  isLoading={isPrintingLabel}
+                  onClick={() => { setPrintPreviewType('label'); setShowPrintPreview(true); }}
                 >
                   พิมพ์ป้ายขวด
                 </Button>
@@ -1226,6 +1288,88 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             icon={<CalendarPlus className="h-4 w-4" />}
           >
             ยืนยันขยาย
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Print Preview Modal */}
+      <Modal
+        isOpen={showPrintPreview}
+        onClose={() => setShowPrintPreview(false)}
+        title={printPreviewType === 'receipt' ? 'พิมพ์ใบรับฝาก' : 'พิมพ์ป้ายขวด'}
+        description="ตรวจสอบข้อมูลก่อนส่งพิมพ์"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500 dark:text-gray-400">รหัสฝาก</span>
+                <span className="font-mono font-medium text-gray-900 dark:text-white">{deposit.deposit_code}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 dark:text-gray-400">ลูกค้า</span>
+                <span className="font-medium text-gray-900 dark:text-white">{deposit.customer_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 dark:text-gray-400">สินค้า</span>
+                <span className="font-medium text-gray-900 dark:text-white">{deposit.product_name}</span>
+              </div>
+              {deposit.category && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">หมวดหมู่</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{deposit.category}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-gray-500 dark:text-gray-400">จำนวน / คงเหลือ</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {formatNumber(deposit.quantity)} / {formatNumber(deposit.remaining_qty)}
+                </span>
+              </div>
+              {deposit.expiry_date && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">วันหมดอายุ</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{formatThaiDate(deposit.expiry_date)}</span>
+                </div>
+              )}
+              {receivedByName && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">พนักงานรับฝาก</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{receivedByName}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {printPreviewType === 'label' && (
+            <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-center dark:border-indigo-800 dark:bg-indigo-900/20">
+              <Tag className="mx-auto h-8 w-8 text-indigo-500" />
+              <p className="mt-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                จะพิมพ์ป้ายขวด {deposit.remaining_qty || 1} ใบ
+              </p>
+              <p className="text-xs text-indigo-500 dark:text-indigo-400">
+                (1 ใบต่อ 1 ขวด)
+              </p>
+            </div>
+          )}
+        </div>
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => setShowPrintPreview(false)}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            onClick={() => {
+              setShowPrintPreview(false);
+              handlePrint(printPreviewType);
+            }}
+            isLoading={printPreviewType === 'receipt' ? isPrintingReceipt : isPrintingLabel}
+            icon={printPreviewType === 'receipt' ? <Printer className="h-4 w-4" /> : <Tag className="h-4 w-4" />}
+          >
+            ยืนยันพิมพ์
           </Button>
         </ModalFooter>
       </Modal>

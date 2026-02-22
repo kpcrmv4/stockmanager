@@ -203,6 +203,8 @@ export interface Transfer {
   notes: string | null;
   photo_url: string | null;
   confirm_photo_url: string | null;
+  transfer_code: string | null;
+  rejection_reason: string | null;
   created_at: string;
 }
 

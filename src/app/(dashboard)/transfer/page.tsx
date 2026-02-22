@@ -1,447 +1,993 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import {
   Button,
   Badge,
   Card,
-  CardHeader,
-  CardContent,
-  Tabs,
-  EmptyState,
   Modal,
   ModalFooter,
-  Select,
-  Input,
   Textarea,
+  EmptyState,
+  PhotoUpload,
   toast,
 } from '@/components/ui';
-import { formatThaiDate, formatNumber } from '@/lib/utils/format';
+import { formatThaiDate, formatThaiDateTime } from '@/lib/utils/format';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { cn } from '@/lib/utils/cn';
+import { generateTransferCode } from '@/lib/utils/transfer-code';
 import {
   Truck,
-  Plus,
-  ArrowRight,
-  Package,
-  CheckCircle2,
-  XCircle,
+  AlertTriangle,
   Clock,
-  Search,
-  Store,
+  CheckCircle2,
+  Package,
+  Send,
+  User,
+  Wine,
+  Calendar,
+  Loader2,
+  RefreshCw,
+  XCircle,
+  ChevronDown,
+  ChevronRight,
+  Ban,
 } from 'lucide-react';
 
-interface Transfer {
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface ExpiredDeposit {
   id: string;
-  from_store_id: string;
-  to_store_id: string;
-  deposit_id: string | null;
+  deposit_code: string;
+  customer_name: string;
   product_name: string;
+  category: string | null;
   quantity: number;
-  status: 'pending' | 'confirmed' | 'rejected';
-  requested_by: string;
-  confirmed_by: string | null;
-  notes: string | null;
+  remaining_qty: number;
+  expiry_date: string | null;
   created_at: string;
-  from_store?: { store_name: string };
-  to_store?: { store_name: string };
-  requester?: { display_name: string; username: string };
 }
 
-interface StoreOption {
+interface TransferItem {
   id: string;
-  store_name: string;
-  store_code: string;
-  is_central: boolean;
+  transfer_code: string | null;
+  deposit_id: string | null;
+  product_name: string | null;
+  customer_name: string | null;
+  deposit_code: string | null;
+  quantity: number | null;
+  notes: string | null;
+  photo_url: string | null;
+  confirm_photo_url: string | null;
+  rejection_reason: string | null;
+  created_at: string;
 }
 
-const statusConfig: Record<string, { label: string; variant: 'warning' | 'success' | 'danger'; icon: typeof Clock }> = {
-  pending: { label: 'รอยืนยัน', variant: 'warning', icon: Clock },
-  confirmed: { label: 'ยืนยันแล้ว', variant: 'success', icon: CheckCircle2 },
-  rejected: { label: 'ปฏิเสธ', variant: 'danger', icon: XCircle },
-};
+interface TransferBatch {
+  transfer_code: string;
+  items: TransferItem[];
+  created_at: string;
+}
 
-const tabs = [
-  { id: 'all', label: 'ทั้งหมด' },
-  { id: 'pending', label: 'รอยืนยัน' },
-  { id: 'confirmed', label: 'ยืนยันแล้ว' },
-  { id: 'rejected', label: 'ปฏิเสธ' },
-];
+type SubTab = 'expired' | 'pending' | 'confirmed' | 'rejected';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getDaysOverdue(expiryDate: string | null): number {
+  if (!expiryDate) return 0;
+  const now = new Date();
+  const expiry = new Date(expiryDate);
+  const diff = Math.floor((now.getTime() - expiry.getTime()) / (1000 * 60 * 60 * 24));
+  return diff > 0 ? diff : 0;
+}
+
+function groupByTransferCode(transfers: TransferItem[]): TransferBatch[] {
+  const map = new Map<string, TransferItem[]>();
+  for (const t of transfers) {
+    const code = t.transfer_code || t.id.slice(0, 8).toUpperCase();
+    const existing = map.get(code);
+    if (existing) {
+      existing.push(t);
+    } else {
+      map.set(code, [t]);
+    }
+  }
+  const batches: TransferBatch[] = [];
+  for (const [code, items] of map) {
+    batches.push({
+      transfer_code: code,
+      items,
+      created_at: items[0].created_at,
+    });
+  }
+  batches.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  return batches;
+}
+
+// ---------------------------------------------------------------------------
+// Page Component
+// ---------------------------------------------------------------------------
 
 export default function TransferPage() {
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
-  const [transfers, setTransfers] = useState<Transfer[]>([]);
-  const [stores, setStores] = useState<StoreOption[]>([]);
-  const [activeTab, setActiveTab] = useState('all');
-  const [isLoading, setIsLoading] = useState(true);
-  const [showNewModal, setShowNewModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const mountedRef = useRef(true);
 
-  // New transfer form
-  const [formToStore, setFormToStore] = useState('');
-  const [formProduct, setFormProduct] = useState('');
-  const [formQuantity, setFormQuantity] = useState('');
-  const [formNotes, setFormNotes] = useState('');
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // Sub-tab
+  const [activeTab, setActiveTab] = useState<SubTab>('expired');
+
+  // Data
+  const [expiredDeposits, setExpiredDeposits] = useState<ExpiredDeposit[]>([]);
+  const [pendingTransfers, setPendingTransfers] = useState<TransferItem[]>([]);
+  const [confirmedTransfers, setConfirmedTransfers] = useState<TransferItem[]>([]);
+  const [rejectedTransfers, setRejectedTransfers] = useState<TransferItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Transfer modal
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferNote, setTransferNote] = useState('');
+  const [transferPhoto, setTransferPhoto] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadTransfers = useCallback(async () => {
-    if (!currentStoreId) return;
-    setIsLoading(true);
-    const supabase = createClient();
+  // Cancel batch modal
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancellingBatch, setCancellingBatch] = useState<TransferBatch | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
 
-    let query = supabase
-      .from('transfers')
-      .select('*, from_store:stores!transfers_from_store_id_fkey(store_name), to_store:stores!transfers_to_store_id_fkey(store_name)')
-      .or(`from_store_id.eq.${currentStoreId},to_store_id.eq.${currentStoreId}`)
-      .order('created_at', { ascending: false });
+  // Expanded batches
+  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
 
-    if (activeTab !== 'all') {
-      query = query.eq('status', activeTab);
-    }
+  // Central store
+  const [centralStoreId, setCentralStoreId] = useState<string | null>(null);
 
-    const { data, error } = await query;
-    if (!error && data) {
-      setTransfers(data as unknown as Transfer[]);
-    }
-    setIsLoading(false);
-  }, [currentStoreId, activeTab]);
+  // -----------------------------------------------------------------------
+  // Data loading
+  // -----------------------------------------------------------------------
 
-  const loadStores = useCallback(async () => {
+  const loadCentralStore = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
       .from('stores')
-      .select('id, store_name, store_code, is_central')
+      .select('id')
+      .eq('is_central', true)
       .eq('active', true)
-      .order('store_name');
-    if (data) setStores(data);
+      .limit(1)
+      .single();
+    if (data) setCentralStoreId(data.id);
   }, []);
 
-  useEffect(() => {
-    loadTransfers();
-    loadStores();
-  }, [loadTransfers, loadStores]);
+  const loadExpiredDeposits = useCallback(async () => {
+    if (!currentStoreId) return;
+    const supabase = createClient();
 
-  const handleCreateTransfer = async () => {
-    if (!formToStore || !formProduct || !formQuantity || !currentStoreId || !user) return;
+    const { data } = await supabase
+      .from('deposits')
+      .select('id, deposit_code, customer_name, product_name, category, quantity, remaining_qty, expiry_date, created_at')
+      .eq('store_id', currentStoreId)
+      .eq('status', 'expired')
+      .order('expiry_date', { ascending: true });
+
+    if (data && mountedRef.current) {
+      setExpiredDeposits(data);
+    }
+  }, [currentStoreId]);
+
+  const loadTransfersByStatus = useCallback(async (status: 'pending' | 'confirmed' | 'rejected') => {
+    if (!currentStoreId || !centralStoreId) return;
+    const supabase = createClient();
+
+    const { data } = await supabase
+      .from('transfers')
+      .select('id, transfer_code, rejection_reason, deposit_id, product_name, quantity, notes, photo_url, confirm_photo_url, created_at')
+      .eq('from_store_id', currentStoreId)
+      .eq('to_store_id', centralStoreId)
+      .eq('status', status)
+      .order('created_at', { ascending: false })
+      .limit(status === 'confirmed' || status === 'rejected' ? 100 : 500);
+
+    if (!data || !mountedRef.current) return [];
+
+    // Resolve deposit info
+    const depositIds = data.map((t) => t.deposit_id).filter(Boolean) as string[];
+    let depositMap = new Map<string, { customer_name: string; deposit_code: string }>();
+    if (depositIds.length > 0) {
+      const { data: deposits } = await supabase
+        .from('deposits')
+        .select('id, customer_name, deposit_code')
+        .in('id', depositIds);
+      if (deposits) {
+        depositMap = new Map(deposits.map((d) => [d.id, { customer_name: d.customer_name, deposit_code: d.deposit_code }]));
+      }
+    }
+
+    const items: TransferItem[] = data.map((t) => {
+      const info = t.deposit_id ? depositMap.get(t.deposit_id) : null;
+      return {
+        id: t.id,
+        transfer_code: t.transfer_code,
+        deposit_id: t.deposit_id,
+        product_name: t.product_name,
+        customer_name: info?.customer_name || null,
+        deposit_code: info?.deposit_code || null,
+        quantity: t.quantity,
+        notes: t.notes,
+        photo_url: t.photo_url,
+        confirm_photo_url: t.confirm_photo_url,
+        rejection_reason: t.rejection_reason,
+        created_at: t.created_at,
+      };
+    });
+
+    return items;
+  }, [currentStoreId, centralStoreId]);
+
+  const loadAll = useCallback(async () => {
+    setIsLoading(true);
+    const [, pending, confirmed, rejected] = await Promise.all([
+      loadExpiredDeposits(),
+      loadTransfersByStatus('pending'),
+      loadTransfersByStatus('confirmed'),
+      loadTransfersByStatus('rejected'),
+    ]);
+    if (mountedRef.current) {
+      if (pending) setPendingTransfers(pending);
+      if (confirmed) setConfirmedTransfers(confirmed);
+      if (rejected) setRejectedTransfers(rejected);
+      setIsLoading(false);
+    }
+  }, [loadExpiredDeposits, loadTransfersByStatus]);
+
+  useEffect(() => {
+    loadCentralStore();
+  }, [loadCentralStore]);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
+
+  // Grouped batches
+  const pendingBatches = useMemo(() => groupByTransferCode(pendingTransfers), [pendingTransfers]);
+  const confirmedBatches = useMemo(() => groupByTransferCode(confirmedTransfers), [confirmedTransfers]);
+  const rejectedBatches = useMemo(() => groupByTransferCode(rejectedTransfers), [rejectedTransfers]);
+
+  // -----------------------------------------------------------------------
+  // Selection handlers
+  // -----------------------------------------------------------------------
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === expiredDeposits.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(expiredDeposits.map((d) => d.id)));
+    }
+  };
+
+  const toggleBatch = (code: string) => {
+    setExpandedBatches((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  };
+
+  // -----------------------------------------------------------------------
+  // Submit transfer (batch with shared transfer_code)
+  // -----------------------------------------------------------------------
+
+  const handleSubmitTransfer = async () => {
+    if (!currentStoreId || !centralStoreId || !user || selectedIds.size === 0) return;
 
     setIsSubmitting(true);
     const supabase = createClient();
 
-    const { error } = await supabase.from('transfers').insert({
-      from_store_id: currentStoreId,
-      to_store_id: formToStore,
-      product_name: formProduct,
-      quantity: parseFloat(formQuantity),
-      notes: formNotes || null,
-      requested_by: user.id,
-    });
+    try {
+      // Generate shared transfer code for the batch
+      const transferCode = await generateTransferCode(supabase);
 
-    if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถสร้างรายการโอนได้' });
-    } else {
-      toast({ type: 'success', title: 'สร้างรายการโอนสำเร็จ' });
-      setShowNewModal(false);
-      resetForm();
-      loadTransfers();
+      // Create one transfer per deposit, all sharing the same transfer_code
+      const selectedDeposits = expiredDeposits.filter((d) => selectedIds.has(d.id));
+      const transfers = selectedDeposits.map((d) => ({
+        from_store_id: currentStoreId,
+        to_store_id: centralStoreId,
+        deposit_id: d.id,
+        product_name: d.product_name,
+        quantity: d.remaining_qty || d.quantity,
+        notes: transferNote || null,
+        photo_url: transferPhoto,
+        requested_by: user.id,
+        transfer_code: transferCode,
+      }));
+
+      const { error } = await supabase.from('transfers').insert(transfers);
+
+      if (error) throw error;
+
+      // Update deposit status to transfer_pending
+      const depositIds = selectedDeposits.map((d) => d.id);
+      await supabase
+        .from('deposits')
+        .update({ status: 'transfer_pending' })
+        .in('id', depositIds);
+
+      // Log audit
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.TRANSFER_CREATED,
+        table_name: 'transfers',
+        record_id: transferCode,
+        new_value: {
+          transfer_code: transferCode,
+          to: 'central_warehouse',
+          deposit_count: selectedDeposits.length,
+          deposit_codes: selectedDeposits.map((d) => d.deposit_code),
+        },
+        changed_by: user.id,
+      });
+
+      toast({ type: 'success', title: 'ส่งโอนสำเร็จ', message: `ส่งโอน ${selectedDeposits.length} รายการ (${transferCode})` });
+      setShowTransferModal(false);
+      setSelectedIds(new Set());
+      setTransferNote('');
+      setTransferPhoto(null);
+      await loadAll();
+    } catch (err) {
+      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: err instanceof Error ? err.message : 'ไม่สามารถส่งโอนได้' });
+    } finally {
+      if (mountedRef.current) setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
-  const handleConfirm = async (transferId: string) => {
-    if (!user) return;
+  // -----------------------------------------------------------------------
+  // Cancel batch (all transfers in a batch)
+  // -----------------------------------------------------------------------
+
+  const handleCancelBatch = async () => {
+    if (!user || !cancellingBatch) return;
+
+    setIsCancelling(true);
     const supabase = createClient();
-    const { error } = await supabase
-      .from('transfers')
-      .update({ status: 'confirmed', confirmed_by: user.id })
-      .eq('id', transferId);
 
-    if (!error) {
-      toast({ type: 'success', title: 'ยืนยันการโอนสำเร็จ' });
-      loadTransfers();
+    try {
+      const transferIds = cancellingBatch.items.map((t) => t.id);
+      const depositIds = cancellingBatch.items.map((t) => t.deposit_id).filter(Boolean) as string[];
+
+      // Set all transfers in batch to rejected
+      const { error } = await supabase
+        .from('transfers')
+        .update({ status: 'rejected' })
+        .in('id', transferIds);
+
+      if (error) throw error;
+
+      // Revert deposits back to expired
+      if (depositIds.length > 0) {
+        await supabase
+          .from('deposits')
+          .update({ status: 'expired' })
+          .in('id', depositIds);
+      }
+
+      toast({ type: 'success', title: 'ยกเลิกคำขอโอนแล้ว', message: `ยกเลิก ${cancellingBatch.items.length} รายการ` });
+      setShowCancelModal(false);
+      setCancellingBatch(null);
+      await loadAll();
+    } catch (err) {
+      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: err instanceof Error ? err.message : 'ไม่สามารถยกเลิกได้' });
+    } finally {
+      if (mountedRef.current) setIsCancelling(false);
     }
   };
 
-  const handleReject = async (transferId: string) => {
-    if (!user) return;
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('transfers')
-      .update({ status: 'rejected', confirmed_by: user.id })
-      .eq('id', transferId);
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
 
-    if (!error) {
-      toast({ type: 'warning', title: 'ปฏิเสธการโอน' });
-      loadTransfers();
-    }
+  const tabCounts = {
+    expired: expiredDeposits.length,
+    pending: pendingTransfers.length,
+    confirmed: confirmedTransfers.length,
+    rejected: rejectedTransfers.length,
   };
 
-  const resetForm = () => {
-    setFormToStore('');
-    setFormProduct('');
-    setFormQuantity('');
-    setFormNotes('');
-  };
-
-  const filteredTransfers = transfers.filter((t) =>
-    !searchQuery ||
-    t.product_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.from_store?.store_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.to_store?.store_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const pendingCount = transfers.filter((t) => t.status === 'pending').length;
+  const selectedDeposits = expiredDeposits.filter((d) => selectedIds.has(d.id));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-8">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">โอนสต๊อก</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            จัดการการโอนสินค้าระหว่างสาขา
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">โอนคลังกลาง</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            จัดการรายการหมดอายุ — ส่งโอนไปคลังกลาง
           </p>
         </div>
-        <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowNewModal(true)}>
-          สร้างรายการโอน
+        <Button
+          variant="outline"
+          size="sm"
+          icon={<RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />}
+          onClick={loadAll}
+          disabled={isLoading}
+        >
+          รีเฟรช
         </Button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Card padding="md">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/20">
-              <Truck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{transfers.length}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">ทั้งหมด</p>
-            </div>
-          </div>
-        </Card>
-        <Card padding="md">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-900/20">
-              <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{pendingCount}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">รอยืนยัน</p>
-            </div>
-          </div>
-        </Card>
-        <Card padding="md">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-900/20">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {transfers.filter((t) => t.status === 'confirmed').length}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">ยืนยันแล้ว</p>
-            </div>
-          </div>
-        </Card>
-        <Card padding="md">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 dark:bg-red-900/20">
-              <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {transfers.filter((t) => t.status === 'rejected').length}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">ปฏิเสธ</p>
-            </div>
-          </div>
-        </Card>
+      {/* Summary Cards — 4 tabs */}
+      <div className="grid grid-cols-4 gap-2">
+        <button
+          onClick={() => setActiveTab('expired')}
+          className={cn(
+            'rounded-xl p-3 text-center transition-all',
+            activeTab === 'expired'
+              ? 'bg-red-100 ring-2 ring-red-400 dark:bg-red-900/40 dark:ring-red-500'
+              : 'bg-red-50 dark:bg-red-900/20',
+          )}
+        >
+          <AlertTriangle className="mx-auto h-5 w-5 text-red-600 dark:text-red-400" />
+          <p className="mt-1 text-xl font-bold text-red-700 dark:text-red-300">{tabCounts.expired}</p>
+          <p className="text-[10px] text-red-600 dark:text-red-400">หมดอายุ</p>
+        </button>
+        <button
+          onClick={() => setActiveTab('pending')}
+          className={cn(
+            'rounded-xl p-3 text-center transition-all',
+            activeTab === 'pending'
+              ? 'bg-amber-100 ring-2 ring-amber-400 dark:bg-amber-900/40 dark:ring-amber-500'
+              : 'bg-amber-50 dark:bg-amber-900/20',
+          )}
+        >
+          <Clock className="mx-auto h-5 w-5 text-amber-600 dark:text-amber-400" />
+          <p className="mt-1 text-xl font-bold text-amber-700 dark:text-amber-300">{tabCounts.pending}</p>
+          <p className="text-[10px] text-amber-600 dark:text-amber-400">รอรับ</p>
+        </button>
+        <button
+          onClick={() => setActiveTab('confirmed')}
+          className={cn(
+            'rounded-xl p-3 text-center transition-all',
+            activeTab === 'confirmed'
+              ? 'bg-emerald-100 ring-2 ring-emerald-400 dark:bg-emerald-900/40 dark:ring-emerald-500'
+              : 'bg-emerald-50 dark:bg-emerald-900/20',
+          )}
+        >
+          <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          <p className="mt-1 text-xl font-bold text-emerald-700 dark:text-emerald-300">{tabCounts.confirmed}</p>
+          <p className="text-[10px] text-emerald-600 dark:text-emerald-400">รับแล้ว</p>
+        </button>
+        <button
+          onClick={() => setActiveTab('rejected')}
+          className={cn(
+            'rounded-xl p-3 text-center transition-all',
+            activeTab === 'rejected'
+              ? 'bg-gray-200 ring-2 ring-gray-400 dark:bg-gray-700 dark:ring-gray-500'
+              : 'bg-gray-100 dark:bg-gray-800',
+          )}
+        >
+          <Ban className="mx-auto h-5 w-5 text-gray-600 dark:text-gray-400" />
+          <p className="mt-1 text-xl font-bold text-gray-700 dark:text-gray-300">{tabCounts.rejected}</p>
+          <p className="text-[10px] text-gray-600 dark:text-gray-400">ปฏิเสธ</p>
+        </button>
       </div>
 
-      {/* Tabs + Search */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <Tabs
-          tabs={tabs.map((t) => ({
-            ...t,
-            count: t.id === 'pending' ? pendingCount : undefined,
-          }))}
-          activeTab={activeTab}
-          onChange={setActiveTab}
-        />
-        <div className="relative max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ค้นหาสินค้า/สาขา..."
-            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-          />
-        </div>
-      </div>
-
-      {/* Transfer List */}
-      {isLoading ? (
+      {/* Loading */}
+      {isLoading && (
         <div className="flex items-center justify-center py-12">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600" />
-        </div>
-      ) : filteredTransfers.length === 0 ? (
-        <EmptyState
-          icon={Truck}
-          title="ไม่มีรายการโอน"
-          description="ยังไม่มีรายการโอนสต๊อกระหว่างสาขา"
-          action={
-            <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowNewModal(true)}>
-              สร้างรายการโอน
-            </Button>
-          }
-        />
-      ) : (
-        <div className="space-y-3">
-          {filteredTransfers.map((transfer) => {
-            const config = statusConfig[transfer.status];
-            const StatusIcon = config.icon;
-            const isIncoming = transfer.to_store_id === currentStoreId;
-
-            return (
-              <Card key={transfer.id} padding="none">
-                <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-4">
-                    <div
-                      className={cn(
-                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
-                        isIncoming
-                          ? 'bg-emerald-50 dark:bg-emerald-900/20'
-                          : 'bg-blue-50 dark:bg-blue-900/20'
-                      )}
-                    >
-                      {isIncoming ? (
-                        <Package className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                      ) : (
-                        <Truck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {transfer.product_name}
-                        </p>
-                        <Badge variant={config.variant as 'warning' | 'success' | 'danger'}>
-                          <StatusIcon className="mr-1 h-3 w-3" />
-                          {config.label}
-                        </Badge>
-                      </div>
-                      <div className="mt-1 flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
-                        <Store className="h-3.5 w-3.5" />
-                        <span>{transfer.from_store?.store_name || 'ไม่ทราบ'}</span>
-                        <ArrowRight className="h-3.5 w-3.5" />
-                        <span>{transfer.to_store?.store_name || 'ไม่ทราบ'}</span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                        จำนวน: {formatNumber(transfer.quantity)} | {formatThaiDate(transfer.created_at)}
-                      </p>
-                      {transfer.notes && (
-                        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                          หมายเหตุ: {transfer.notes}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Actions - only for incoming pending transfers */}
-                  {isIncoming && transfer.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        icon={<CheckCircle2 className="h-3.5 w-3.5" />}
-                        onClick={() => handleConfirm(transfer.id)}
-                      >
-                        ยืนยัน
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        icon={<XCircle className="h-3.5 w-3.5" />}
-                        onClick={() => handleReject(transfer.id)}
-                      >
-                        ปฏิเสธ
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
         </div>
       )}
 
-      {/* New Transfer Modal */}
+      {/* ── Expired Tab ──────────────────────────────────── */}
+      {!isLoading && activeTab === 'expired' && (
+        <>
+          {expiredDeposits.length === 0 ? (
+            <EmptyState
+              icon={Package}
+              title="ไม่มีรายการหมดอายุ"
+              description="ไม่มีเหล้าฝากที่หมดอายุในขณะนี้"
+            />
+          ) : (
+            <>
+              {/* Select all */}
+              <div className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2 dark:bg-gray-800/50">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size === expiredDeposits.length && expiredDeposits.length > 0}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-gray-700 dark:text-gray-300">
+                    เลือกทั้งหมด
+                  </span>
+                </label>
+                {selectedIds.size > 0 && (
+                  <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                    เลือก {selectedIds.size} รายการ
+                  </span>
+                )}
+              </div>
+
+              {/* List */}
+              <div className="space-y-2">
+                {expiredDeposits.map((deposit) => {
+                  const overdue = getDaysOverdue(deposit.expiry_date);
+                  const isSelected = selectedIds.has(deposit.id);
+                  return (
+                    <button
+                      key={deposit.id}
+                      type="button"
+                      onClick={() => toggleSelect(deposit.id)}
+                      className={cn(
+                        'flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-all',
+                        isSelected
+                          ? 'border-indigo-300 bg-indigo-50 ring-2 ring-indigo-200 dark:border-indigo-600 dark:bg-indigo-900/20 dark:ring-indigo-800'
+                          : 'border-gray-200 bg-white hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800/50 dark:hover:border-gray-600',
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(deposit.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {deposit.product_name}
+                          </p>
+                          <Badge variant="danger" size="sm">หมดอายุ</Badge>
+                        </div>
+                        <div className="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+                          <p className="flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {deposit.customer_name}
+                            <span className="ml-1 font-mono text-gray-400">
+                              {deposit.deposit_code}
+                            </span>
+                          </p>
+                          <p className="flex items-center gap-1">
+                            <Wine className="h-3 w-3" />
+                            จำนวน: {deposit.remaining_qty || deposit.quantity}
+                            {deposit.category && (
+                              <span className="ml-1 text-gray-400">({deposit.category})</span>
+                            )}
+                          </p>
+                          {deposit.expiry_date && (
+                            <p className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              หมดอายุ: {formatThaiDate(deposit.expiry_date)}
+                              {overdue > 0 && (
+                                <span className="ml-1 font-medium text-red-600 dark:text-red-400">
+                                  (เกิน {overdue} วัน)
+                                </span>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Floating action bar */}
+              {selectedIds.size > 0 && (
+                <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                  <Button
+                    className="w-full"
+                    icon={<Send className="h-4 w-4" />}
+                    onClick={() => setShowTransferModal(true)}
+                  >
+                    ส่งโอน {selectedIds.size} รายการไปคลังกลาง
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── Pending Tab (grouped by transfer_code) ────────── */}
+      {!isLoading && activeTab === 'pending' && (
+        <>
+          {pendingBatches.length === 0 ? (
+            <EmptyState
+              icon={Clock}
+              title="ไม่มีรายการรอรับ"
+              description="ไม่มีรายการโอนที่รอคลังกลางรับ"
+            />
+          ) : (
+            <div className="space-y-3">
+              {pendingBatches.map((batch) => {
+                const isExpanded = expandedBatches.has(batch.transfer_code);
+                return (
+                  <Card key={batch.transfer_code} padding="none">
+                    {/* Batch header */}
+                    <button
+                      type="button"
+                      onClick={() => toggleBatch(batch.transfer_code)}
+                      className="flex w-full items-center justify-between p-4 text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4 text-gray-400" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-gray-400" />
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-semibold text-amber-600 dark:text-amber-400">
+                              {batch.transfer_code}
+                            </span>
+                            <Badge variant="warning" size="sm">รอรับ</Badge>
+                            <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
+                          </div>
+                          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                            ส่งเมื่อ: {formatThaiDateTime(batch.created_at)}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        icon={<XCircle className="h-3.5 w-3.5" />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCancellingBatch(batch);
+                          setShowCancelModal(true);
+                        }}
+                      >
+                        ยกเลิก
+                      </Button>
+                    </button>
+
+                    {/* Batch items */}
+                    {isExpanded && (
+                      <div className="border-t border-gray-100 dark:border-gray-700">
+                        {batch.items.map((transfer) => (
+                          <div
+                            key={transfer.id}
+                            className="border-b border-gray-50 px-4 py-3 last:border-b-0 dark:border-gray-800"
+                          >
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {transfer.product_name || 'ไม่ระบุ'}
+                            </p>
+                            <div className="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+                              {transfer.customer_name && (
+                                <p className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {transfer.customer_name}
+                                  {transfer.deposit_code && (
+                                    <span className="ml-1 font-mono text-gray-400">{transfer.deposit_code}</span>
+                                  )}
+                                </p>
+                              )}
+                              {transfer.quantity && (
+                                <p className="flex items-center gap-1">
+                                  <Wine className="h-3 w-3" />
+                                  จำนวน: {transfer.quantity}
+                                </p>
+                              )}
+                              {transfer.notes && <p>หมายเหตุ: {transfer.notes}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Confirmed Tab (grouped by transfer_code) ─────── */}
+      {!isLoading && activeTab === 'confirmed' && (
+        <>
+          {confirmedBatches.length === 0 ? (
+            <EmptyState
+              icon={CheckCircle2}
+              title="ยังไม่มีรายการที่รับแล้ว"
+              description="รายการที่คลังกลางรับแล้วจะแสดงที่นี่"
+            />
+          ) : (
+            <div className="space-y-3">
+              {confirmedBatches.map((batch) => {
+                const isExpanded = expandedBatches.has(batch.transfer_code);
+                return (
+                  <Card key={batch.transfer_code} padding="none">
+                    <button
+                      type="button"
+                      onClick={() => toggleBatch(batch.transfer_code)}
+                      className="flex w-full items-center gap-3 p-4 text-left"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 text-gray-400" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                            {batch.transfer_code}
+                          </span>
+                          <Badge variant="success" size="sm">รับแล้ว</Badge>
+                          <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
+                        </div>
+                        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                          ส่งเมื่อ: {formatThaiDateTime(batch.created_at)}
+                        </p>
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="border-t border-gray-100 dark:border-gray-700">
+                        {batch.items.map((transfer) => (
+                          <div
+                            key={transfer.id}
+                            className="border-b border-gray-50 px-4 py-3 last:border-b-0 dark:border-gray-800"
+                          >
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {transfer.product_name || 'ไม่ระบุ'}
+                            </p>
+                            <div className="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+                              {transfer.customer_name && (
+                                <p className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {transfer.customer_name}
+                                  {transfer.deposit_code && (
+                                    <span className="ml-1 font-mono text-gray-400">{transfer.deposit_code}</span>
+                                  )}
+                                </p>
+                              )}
+                              {transfer.quantity && (
+                                <p className="flex items-center gap-1">
+                                  <Wine className="h-3 w-3" />
+                                  จำนวน: {transfer.quantity}
+                                </p>
+                              )}
+                              {transfer.notes && <p>หมายเหตุ: {transfer.notes}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Rejected Tab (grouped by transfer_code) ──────── */}
+      {!isLoading && activeTab === 'rejected' && (
+        <>
+          {rejectedBatches.length === 0 ? (
+            <EmptyState
+              icon={Ban}
+              title="ไม่มีรายการที่ถูกปฏิเสธ"
+              description="รายการที่คลังกลางปฏิเสธจะแสดงที่นี่"
+            />
+          ) : (
+            <div className="space-y-3">
+              {rejectedBatches.map((batch) => {
+                const isExpanded = expandedBatches.has(batch.transfer_code);
+                const rejectionReason = batch.items.find((t) => t.rejection_reason)?.rejection_reason;
+                return (
+                  <Card key={batch.transfer_code} padding="none">
+                    <button
+                      type="button"
+                      onClick={() => toggleBatch(batch.transfer_code)}
+                      className="flex w-full items-start gap-3 p-4 text-left"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="mt-0.5 h-4 w-4 text-gray-400" />
+                      ) : (
+                        <ChevronRight className="mt-0.5 h-4 w-4 text-gray-400" />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-semibold text-gray-500 dark:text-gray-400">
+                            {batch.transfer_code}
+                          </span>
+                          <Badge variant="danger" size="sm">ปฏิเสธ</Badge>
+                          <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
+                        </div>
+                        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                          ส่งเมื่อ: {formatThaiDateTime(batch.created_at)}
+                        </p>
+                        {rejectionReason && (
+                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                            เหตุผล: {rejectionReason}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="border-t border-gray-100 dark:border-gray-700">
+                        {batch.items.map((transfer) => (
+                          <div
+                            key={transfer.id}
+                            className="border-b border-gray-50 px-4 py-3 last:border-b-0 dark:border-gray-800"
+                          >
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {transfer.product_name || 'ไม่ระบุ'}
+                            </p>
+                            <div className="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+                              {transfer.customer_name && (
+                                <p className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {transfer.customer_name}
+                                  {transfer.deposit_code && (
+                                    <span className="ml-1 font-mono text-gray-400">{transfer.deposit_code}</span>
+                                  )}
+                                </p>
+                              )}
+                              {transfer.quantity && (
+                                <p className="flex items-center gap-1">
+                                  <Wine className="h-3 w-3" />
+                                  จำนวน: {transfer.quantity}
+                                </p>
+                              )}
+                              {transfer.rejection_reason && (
+                                <p className="text-red-500">เหตุผล: {transfer.rejection_reason}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Transfer Modal ───────────────────────────────── */}
       <Modal
-        isOpen={showNewModal}
+        isOpen={showTransferModal}
         onClose={() => {
-          setShowNewModal(false);
-          resetForm();
+          if (!isSubmitting) {
+            setShowTransferModal(false);
+            setTransferNote('');
+            setTransferPhoto(null);
+          }
         }}
-        title="สร้างรายการโอนสต๊อก"
-        description="โอนสินค้าไปยังสาขาอื่นหรือคลังกลาง"
+        title="ส่งโอนไปคลังกลาง"
+        description={`${selectedDeposits.length} รายการที่เลือก`}
         size="lg"
       >
         <div className="space-y-4">
-          <Select
-            label="ปลายทาง"
-            options={stores
-              .filter((s) => s.id !== currentStoreId)
-              .map((s) => ({
-                value: s.id,
-                label: `${s.store_name}${s.is_central ? ' (คลังกลาง)' : ''}`,
-              }))}
-            value={formToStore}
-            onChange={(e) => setFormToStore(e.target.value)}
-            placeholder="เลือกสาขาปลายทาง"
+          {/* Selected items summary */}
+          <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+            {selectedDeposits.map((d) => (
+              <div key={d.id} className="flex items-center justify-between text-sm">
+                <span className="text-gray-700 dark:text-gray-300">
+                  {d.product_name}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {d.customer_name} · {d.deposit_code}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Photo */}
+          <PhotoUpload
+            label="แนบรูปภาพ (ถ้ามี)"
+            value={transferPhoto}
+            onChange={setTransferPhoto}
+            folder="transfers"
+            compact
           />
-          <Input
-            label="ชื่อสินค้า"
-            value={formProduct}
-            onChange={(e) => setFormProduct(e.target.value)}
-            placeholder="เช่น Johnnie Walker Black Label"
-          />
-          <Input
-            label="จำนวน"
-            type="number"
-            value={formQuantity}
-            onChange={(e) => setFormQuantity(e.target.value)}
-            placeholder="0"
-            hint="หน่วยตามสินค้า (ขวด/ลัง)"
-          />
+
+          {/* Notes */}
           <Textarea
             label="หมายเหตุ"
-            value={formNotes}
-            onChange={(e) => setFormNotes(e.target.value)}
-            placeholder="ระบุเหตุผลการโอน (ถ้ามี)"
+            value={transferNote}
+            onChange={(e) => setTransferNote(e.target.value)}
+            placeholder="ระบุหมายเหตุเพิ่มเติม (ถ้ามี)"
             rows={3}
           />
+        </div>
+
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowTransferModal(false);
+              setTransferNote('');
+              setTransferPhoto(null);
+            }}
+            disabled={isSubmitting}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            onClick={handleSubmitTransfer}
+            isLoading={isSubmitting}
+            icon={<Truck className="h-4 w-4" />}
+          >
+            ยืนยันส่งโอน
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* ── Cancel Batch Modal ───────────────────────────── */}
+      <Modal
+        isOpen={showCancelModal}
+        onClose={() => {
+          if (!isCancelling) {
+            setShowCancelModal(false);
+            setCancellingBatch(null);
+          }
+        }}
+        title="ยกเลิกคำขอโอน"
+        description={cancellingBatch ? `ยกเลิกทั้งหมด ${cancellingBatch.items.length} รายการในชุด ${cancellingBatch.transfer_code}` : ''}
+        size="md"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            รายการทั้งหมดในชุดนี้จะถูกยกเลิก และรายการฝากจะกลับไปเป็นสถานะ &quot;หมดอายุ&quot; เพื่อให้สามารถส่งโอนใหม่ได้
+          </p>
+          {cancellingBatch && (
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+              {cancellingBatch.items.map((t) => (
+                <div key={t.id} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-700 dark:text-gray-300">{t.product_name}</span>
+                  <span className="text-xs text-gray-500">{t.customer_name}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <ModalFooter>
           <Button
             variant="outline"
             onClick={() => {
-              setShowNewModal(false);
-              resetForm();
+              setShowCancelModal(false);
+              setCancellingBatch(null);
             }}
+            disabled={isCancelling}
           >
-            ยกเลิก
+            ไม่ยกเลิก
           </Button>
           <Button
-            onClick={handleCreateTransfer}
-            isLoading={isSubmitting}
-            disabled={!formToStore || !formProduct || !formQuantity}
-            icon={<Truck className="h-4 w-4" />}
+            variant="danger"
+            onClick={handleCancelBatch}
+            isLoading={isCancelling}
+            icon={<XCircle className="h-4 w-4" />}
           >
-            สร้างรายการโอน
+            ยืนยันยกเลิก
           </Button>
         </ModalFooter>
       </Modal>

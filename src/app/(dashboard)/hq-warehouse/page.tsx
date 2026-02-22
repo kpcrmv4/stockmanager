@@ -50,6 +50,14 @@ interface TransferWithItems {
   requested_by_name: string | null;
   notes: string | null;
   photo_url: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+}
+
+interface TransferBatchGroup {
+  transfer_code: string;
+  from_store_name: string;
+  items: TransferWithItems[];
   created_at: string;
 }
 
@@ -132,6 +140,12 @@ export default function HqWarehousePage() {
   const [confirmNotes, setConfirmNotes] = useState('');
   const [confirmSubmitting, setConfirmSubmitting] = useState(false);
 
+  // Reject Modal State
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectingTransfer, setRejectingTransfer] = useState<TransferWithItems | null>(null);
+  const [rejectSubmitting, setRejectSubmitting] = useState(false);
+
   // Withdraw Modal State
   const [selectedHqDeposit, setSelectedHqDeposit] = useState<HqDepositItem | null>(null);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -194,7 +208,7 @@ export default function HqWarehousePage() {
     const { data } = await supabase
       .from('transfers')
       .select(`
-        id, from_store_id, deposit_id, product_name, quantity,
+        id, transfer_code, rejection_reason, from_store_id, deposit_id, product_name, quantity,
         status, requested_by, notes, photo_url, created_at
       `)
       .in('to_store_id', centralStoreIds)
@@ -234,7 +248,7 @@ export default function HqWarehousePage() {
       const depositInfo = t.deposit_id ? depositMap.get(t.deposit_id) : null;
       return {
         id: t.id,
-        transfer_code: t.id.slice(0, 8).toUpperCase(),
+        transfer_code: t.transfer_code || t.id.slice(0, 8).toUpperCase(),
         from_store_id: t.from_store_id,
         from_store_name: storeMap.get(t.from_store_id) || 'ไม่ทราบ',
         deposit_id: t.deposit_id,
@@ -247,6 +261,7 @@ export default function HqWarehousePage() {
         requested_by_name: t.requested_by ? (userMap.get(t.requested_by) || null) : null,
         notes: t.notes,
         photo_url: t.photo_url,
+        rejection_reason: t.rejection_reason || null,
         created_at: t.created_at,
       };
     });
@@ -435,21 +450,26 @@ export default function HqWarehousePage() {
     return result;
   }, [pendingTransfers, filterBranch, searchQuery]);
 
-  // Group pending transfers by branch
-  const pendingByBranch = useMemo(() => {
-    const grouped = new Map<string, { storeName: string; transfers: TransferWithItems[] }>();
+  // Group pending transfers by transfer_code (batch)
+  const pendingByBatch = useMemo(() => {
+    const grouped = new Map<string, TransferBatchGroup>();
     for (const t of filteredPending) {
-      const existing = grouped.get(t.from_store_id);
+      const code = t.transfer_code;
+      const existing = grouped.get(code);
       if (existing) {
-        existing.transfers.push(t);
+        existing.items.push(t);
       } else {
-        grouped.set(t.from_store_id, { storeName: t.from_store_name, transfers: [t] });
+        grouped.set(code, {
+          transfer_code: code,
+          from_store_name: t.from_store_name,
+          items: [t],
+          created_at: t.created_at,
+        });
       }
     }
-    return Array.from(grouped.entries()).map(([storeId, data]) => ({
-      storeId,
-      ...data,
-    }));
+    const batches = Array.from(grouped.values());
+    batches.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return batches;
   }, [filteredPending]);
 
   const filteredReceived = useMemo(() => {
@@ -588,31 +608,42 @@ export default function HqWarehousePage() {
     }
   };
 
-  const rejectTransfer = async (transfer: TransferWithItems) => {
-    if (!confirm(`ต้องการปฏิเสธการโอนจาก ${transfer.from_store_name} หรือไม่?`)) return;
+  const openRejectModal = (transfer: TransferWithItems) => {
+    setRejectingTransfer(transfer);
+    setRejectReason('');
+    setShowRejectModal(true);
+  };
 
+  const submitRejectTransfer = async () => {
+    if (!rejectingTransfer || !rejectReason.trim()) return;
+
+    setRejectSubmitting(true);
     try {
       const supabase = createClient();
       const { error } = await supabase
         .from('transfers')
-        .update({ status: 'rejected' })
-        .eq('id', transfer.id);
+        .update({ status: 'rejected', rejection_reason: rejectReason.trim() })
+        .eq('id', rejectingTransfer.id);
 
       if (error) throw error;
 
       // Revert deposit status back to expired
-      if (transfer.deposit_id) {
+      if (rejectingTransfer.deposit_id) {
         await supabase
           .from('deposits')
           .update({ status: 'expired' })
-          .eq('id', transfer.deposit_id)
+          .eq('id', rejectingTransfer.deposit_id)
           .eq('status', 'transfer_pending');
       }
 
       toast({ type: 'success', title: 'ปฏิเสธการโอนเรียบร้อย' });
+      setShowRejectModal(false);
+      setRejectingTransfer(null);
       await loadAllData();
     } catch {
       toast({ type: 'error', title: 'เกิดข้อผิดพลาดในการปฏิเสธ' });
+    } finally {
+      setRejectSubmitting(false);
     }
   };
 
@@ -897,63 +928,50 @@ export default function HqWarehousePage() {
                 {filteredPending.length === 0 ? (
                   <EmptyState message="ไม่มีรายการรอรับ" />
                 ) : (
-                  pendingByBranch.map((branch) => {
-                    const isExpanded = expandedBranches.has(branch.storeId) || pendingByBranch.length === 1;
+                  pendingByBatch.map((batch) => {
+                    const isExpanded = expandedBranches.has(batch.transfer_code) || pendingByBatch.length === 1;
                     return (
-                      <div key={branch.storeId} className="overflow-hidden rounded-xl bg-white shadow-md dark:bg-gray-900">
-                        {/* Branch Header */}
+                      <div key={batch.transfer_code} className="overflow-hidden rounded-xl bg-white shadow-md dark:bg-gray-900">
+                        {/* Batch Header */}
                         <button
-                          onClick={() => toggleBranch(branch.storeId)}
+                          onClick={() => toggleBranch(batch.transfer_code)}
                           className="flex w-full items-center justify-between bg-gradient-to-r from-yellow-50 to-amber-50 px-4 py-3 transition hover:from-yellow-100 hover:to-amber-100 dark:from-yellow-900/20 dark:to-amber-900/20 dark:hover:from-yellow-900/30 dark:hover:to-amber-900/30"
                         >
                           <div className="flex items-center gap-2">
-                            <StoreIcon className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                            <span className="font-semibold text-gray-800 dark:text-gray-200">{branch.storeName}</span>
+                            <span className="font-mono text-sm font-bold text-orange-600 dark:text-orange-400">{batch.transfer_code}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">({batch.from_store_name})</span>
                             <span className="rounded-full bg-yellow-500 px-2 py-0.5 text-xs font-bold text-white">
-                              {branch.transfers.length}
+                              {batch.items.length} รายการ
                             </span>
                           </div>
-                          {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400">{formatThaiDateTime(batch.created_at)}</span>
+                            {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                          </div>
                         </button>
 
-                        {/* Branch Transfer Cards */}
+                        {/* Batch Transfer Cards */}
                         {isExpanded && (
                           <div className="space-y-3 p-3">
-                            {branch.transfers.map((transfer) => (
+                            {batch.items.map((transfer) => (
                               <div key={transfer.id} className="rounded-xl border-l-4 border-yellow-500 bg-gray-50 dark:bg-gray-800">
                                 <div className="p-4">
                                   <div className="mb-3 flex items-start justify-between">
                                     <div>
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-mono text-sm font-bold text-orange-600">{transfer.transfer_code}</span>
-                                        <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
-                                          รอรับ
-                                        </span>
-                                      </div>
+                                      <p className="font-medium text-gray-900 dark:text-white">{transfer.product_name || 'ไม่ระบุ'}</p>
+                                      {transfer.customer_name && (
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">{transfer.customer_name}</p>
+                                      )}
+                                      {transfer.deposit_code && (
+                                        <p className="text-xs font-mono text-gray-400">{transfer.deposit_code}</p>
+                                      )}
                                     </div>
                                     <div className="text-right">
-                                      <p className="text-xs text-gray-400">{formatThaiDateTime(transfer.created_at)}</p>
-                                      <p className="mt-1 text-lg font-bold text-gray-700 dark:text-gray-200">
+                                      <p className="text-lg font-bold text-gray-700 dark:text-gray-200">
                                         {transfer.quantity || 1} <span className="text-sm font-normal text-gray-500">ขวด</span>
                                       </p>
-                                    </div>
-                                  </div>
-
-                                  {/* Item Info */}
-                                  <div className="mb-3 rounded-lg bg-white p-3 dark:bg-gray-900">
-                                    <div className="flex flex-wrap gap-1 text-xs">
-                                      {transfer.product_name && (
-                                        <span className="rounded border bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
-                                          {transfer.product_name}
-                                        </span>
-                                      )}
-                                      {transfer.customer_name && (
-                                        <span className="rounded border bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
-                                          {transfer.customer_name}
-                                        </span>
-                                      )}
                                       {transfer.requested_by_name && (
-                                        <span className="text-gray-400">โดย: {transfer.requested_by_name}</span>
+                                        <p className="text-xs text-gray-400">โดย: {transfer.requested_by_name}</p>
                                       )}
                                     </div>
                                   </div>
@@ -985,7 +1003,7 @@ export default function HqWarehousePage() {
                                       <Check className="mr-1 inline h-4 w-4" /> รับสินค้า
                                     </button>
                                     <button
-                                      onClick={() => rejectTransfer(transfer)}
+                                      onClick={() => openRejectModal(transfer)}
                                       className="rounded-lg bg-red-100 px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
                                     >
                                       <X className="h-4 w-4" />
@@ -1256,7 +1274,7 @@ export default function HqWarehousePage() {
                 ปิด
               </button>
               <button
-                onClick={() => { setShowDetailModal(false); rejectTransfer(selectedTransfer); }}
+                onClick={() => { setShowDetailModal(false); openRejectModal(selectedTransfer); }}
                 className="rounded-xl bg-red-100 px-4 py-3 font-semibold text-red-600 transition hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
               >
                 <X className="mr-1 inline h-4 w-4" /> ปฏิเสธ
@@ -1484,6 +1502,83 @@ export default function HqWarehousePage() {
                 )}
               </button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Reject Modal */}
+      {showRejectModal && rejectingTransfer && (
+        <Modal onClose={() => setShowRejectModal(false)}>
+          <div className="rounded-t-2xl bg-gradient-to-r from-red-500 to-rose-600 p-5 text-white">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-white/20 p-2">
+                <X className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">ปฏิเสธการโอน</h2>
+                <p className="text-sm text-red-100">{rejectingTransfer.product_name || ''}</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-5">
+            <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl bg-gray-50 p-4 text-sm dark:bg-gray-800">
+              <div>
+                <span className="text-gray-500">สาขา:</span>
+                <p className="font-medium dark:text-gray-200">{rejectingTransfer.from_store_name}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">ชื่อเหล้า:</span>
+                <p className="font-medium dark:text-gray-200">{rejectingTransfer.product_name || '-'}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">จำนวน:</span>
+                <p className="font-medium dark:text-gray-200">{rejectingTransfer.quantity || 1} ขวด</p>
+              </div>
+              <div>
+                <span className="text-gray-500">ลูกค้า:</span>
+                <p className="font-medium dark:text-gray-200">{rejectingTransfer.customer_name || '-'}</p>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                เหตุผลที่ปฏิเสธ <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={3}
+                placeholder="กรุณาระบุเหตุผลที่ปฏิเสธ..."
+                className="w-full resize-none rounded-xl border-2 border-gray-200 px-4 py-3 transition focus:border-red-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowRejectModal(false); setRejectingTransfer(null); }}
+                className="flex-1 rounded-xl bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={submitRejectTransfer}
+                disabled={!rejectReason.trim() || rejectSubmitting}
+                className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 py-3 font-semibold text-white shadow-lg transition hover:from-red-600 hover:to-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {rejectSubmitting ? (
+                  <><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> กำลังบันทึก...</>
+                ) : (
+                  <><X className="mr-1 inline h-4 w-4" /> ยืนยันปฏิเสธ</>
+                )}
+              </button>
+            </div>
+            {!rejectReason.trim() && (
+              <p className="mt-2 text-center text-sm text-red-500">
+                <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
+                กรุณาระบุเหตุผลก่อนยืนยัน
+              </p>
+            )}
           </div>
         </Modal>
       )}

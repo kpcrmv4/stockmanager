@@ -31,7 +31,7 @@ export function ExpiredDepositsBanner() {
 
   return (
     <a
-      href="/transfer/to-hq"
+      href="/transfer"
       className={cn(
         'flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
         'border-red-200 bg-red-50 hover:bg-red-100',
