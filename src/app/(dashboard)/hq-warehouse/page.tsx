@@ -152,6 +152,14 @@ export default function HqWarehousePage() {
   const [withdrawNotes, setWithdrawNotes] = useState('');
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
 
+  // Batch Confirm Modal State (receive all items in a batch)
+  const [showBatchConfirmModal, setShowBatchConfirmModal] = useState(false);
+  const [batchConfirmGroup, setBatchConfirmGroup] = useState<TransferBatchGroup | null>(null);
+  const [batchConfirmStep, setBatchConfirmStep] = useState(1);
+  const [batchConfirmPhotoUrl, setBatchConfirmPhotoUrl] = useState<string | null>(null);
+  const [batchConfirmNotes, setBatchConfirmNotes] = useState('');
+  const [batchConfirmSubmitting, setBatchConfirmSubmitting] = useState(false);
+
   // Photo Modal State
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
 
@@ -647,6 +655,74 @@ export default function HqWarehousePage() {
     }
   };
 
+  const openBatchConfirmModal = (batch: TransferBatchGroup) => {
+    setBatchConfirmGroup(batch);
+    setBatchConfirmStep(1);
+    setBatchConfirmPhotoUrl(null);
+    setBatchConfirmNotes('');
+    setShowBatchConfirmModal(true);
+  };
+
+  const submitBatchConfirmTransfer = async () => {
+    if (!batchConfirmGroup || !batchConfirmPhotoUrl || !user) return;
+    setBatchConfirmSubmitting(true);
+
+    try {
+      const supabase = createClient();
+
+      for (const transfer of batchConfirmGroup.items) {
+        // 1. Update transfer status to confirmed
+        const { error: transferError } = await supabase
+          .from('transfers')
+          .update({
+            status: 'confirmed',
+            confirmed_by: user.id,
+            confirm_photo_url: batchConfirmPhotoUrl,
+          })
+          .eq('id', transfer.id);
+
+        if (transferError) throw transferError;
+
+        // 2. Create hq_deposit record
+        const { error: hqError } = await supabase
+          .from('hq_deposits')
+          .insert({
+            transfer_id: transfer.id,
+            deposit_id: transfer.deposit_id,
+            from_store_id: transfer.from_store_id,
+            product_name: transfer.product_name,
+            customer_name: transfer.customer_name,
+            deposit_code: transfer.deposit_code,
+            quantity: transfer.quantity,
+            status: 'awaiting_withdrawal',
+            received_by: user.id,
+            received_photo_url: batchConfirmPhotoUrl,
+            notes: batchConfirmNotes || null,
+          });
+
+        if (hqError) throw hqError;
+
+        // 3. Update original deposit status
+        if (transfer.deposit_id) {
+          await supabase
+            .from('deposits')
+            .update({ status: 'transferred_out' })
+            .eq('id', transfer.deposit_id);
+        }
+      }
+
+      toast({ type: 'success', title: 'รับสินค้าทั้งหมดเรียบร้อย', message: `รับ ${batchConfirmGroup.items.length} รายการ (${batchConfirmGroup.transfer_code})` });
+      setShowBatchConfirmModal(false);
+      setBatchConfirmGroup(null);
+      await loadAllData();
+    } catch (err) {
+      console.error('Batch confirm error:', err);
+      toast({ type: 'error', title: 'เกิดข้อผิดพลาดในการรับสินค้า' });
+    } finally {
+      setBatchConfirmSubmitting(false);
+    }
+  };
+
   const openWithdrawModal = (item: HqDepositItem) => {
     setSelectedHqDeposit(item);
     setWithdrawNotes('');
@@ -929,7 +1005,7 @@ export default function HqWarehousePage() {
                   <EmptyState message="ไม่มีรายการรอรับ" />
                 ) : (
                   pendingByBatch.map((batch) => {
-                    const isExpanded = expandedBranches.has(batch.transfer_code) || pendingByBatch.length === 1;
+                    const isExpanded = expandedBranches.has(batch.transfer_code);
                     return (
                       <div key={batch.transfer_code} className="overflow-hidden rounded-xl bg-white shadow-md dark:bg-gray-900">
                         {/* Batch Header */}
@@ -949,6 +1025,16 @@ export default function HqWarehousePage() {
                             {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
                           </div>
                         </button>
+
+                        {/* Batch-level receive all button */}
+                        <div className="border-t border-yellow-100 bg-yellow-50/50 px-4 py-2 dark:border-yellow-900/30 dark:bg-yellow-900/10">
+                          <button
+                            onClick={() => openBatchConfirmModal(batch)}
+                            className="w-full rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 py-2.5 text-sm font-bold text-white shadow-md transition hover:from-green-600 hover:to-emerald-700"
+                          >
+                            <Check className="mr-1 inline h-4 w-4" /> รับสินค้าทั้งหมด ({batch.items.length} รายการ)
+                          </button>
+                        </div>
 
                         {/* Batch Transfer Cards */}
                         {isExpanded && (
@@ -1580,6 +1666,144 @@ export default function HqWarehousePage() {
               </p>
             )}
           </div>
+        </Modal>
+      )}
+
+      {/* Batch Confirm Modal (Receive All) */}
+      {showBatchConfirmModal && batchConfirmGroup && (
+        <Modal onClose={() => setShowBatchConfirmModal(false)}>
+          {batchConfirmStep === 1 ? (
+            <>
+              <div className="rounded-t-2xl bg-gradient-to-r from-green-500 to-emerald-600 p-5 text-white">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-white/20 p-2">
+                    <Check className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">รับสินค้าทั้งหมด</h2>
+                    <p className="text-sm text-green-100">{batchConfirmGroup.transfer_code} &bull; {batchConfirmGroup.items.length} รายการ</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-5">
+                <div className="mb-3 rounded-xl bg-gray-50 p-3 text-sm dark:bg-gray-800">
+                  <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">จากสาขา: {batchConfirmGroup.from_store_name}</p>
+                  <p className="text-xs text-gray-400">ส่งเมื่อ: {formatThaiDateTime(batchConfirmGroup.created_at)}</p>
+                </div>
+
+                <div className="mb-4 max-h-60 space-y-2 overflow-y-auto">
+                  {batchConfirmGroup.items.map((transfer, idx) => (
+                    <div key={transfer.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{idx + 1}. {transfer.product_name || 'ไม่ระบุ'}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {transfer.customer_name || '-'}
+                          {transfer.deposit_code && <span className="ml-1 font-mono text-gray-400">{transfer.deposit_code}</span>}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-700 dark:text-gray-200">{transfer.quantity || 1} ขวด</span>
+                        {transfer.photo_url && (
+                          <button
+                            onClick={() => setViewingPhoto(transfer.photo_url)}
+                            className="rounded-md bg-blue-50 p-1 text-blue-600 transition hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400"
+                          >
+                            <ImageIcon className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowBatchConfirmModal(false)}
+                    className="flex-1 rounded-xl bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    onClick={() => setBatchConfirmStep(2)}
+                    className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 font-semibold text-white shadow-lg transition hover:from-green-600 hover:to-emerald-700"
+                  >
+                    ถัดไป &rarr;
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="rounded-t-2xl bg-gradient-to-r from-blue-500 to-indigo-600 p-5 text-white">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-white/20 p-2">
+                    <Camera className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">ถ่ายรูปยืนยัน</h2>
+                    <p className="text-sm text-blue-100">รูปเดียวใช้กับทุกรายการใน {batchConfirmGroup.transfer_code}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-5">
+                <PhotoUpload
+                  value={batchConfirmPhotoUrl}
+                  onChange={setBatchConfirmPhotoUrl}
+                  folder="hq-received"
+                  label="แนบรูปยืนยันการรับ"
+                  required
+                  placeholder="ถ่ายรูปสินค้าที่ได้รับ"
+                />
+
+                <div className="mt-4">
+                  <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">ผู้รับ</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={user?.displayName || user?.username || ''}
+                    className="w-full rounded-xl border-2 border-gray-200 bg-gray-100 px-4 py-3 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">หมายเหตุ (ถ้ามี)</label>
+                  <textarea
+                    value={batchConfirmNotes}
+                    onChange={(e) => setBatchConfirmNotes(e.target.value)}
+                    rows={2}
+                    placeholder="ระบุหมายเหตุ..."
+                    className="w-full resize-none rounded-xl border-2 border-gray-200 px-4 py-3 transition focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                  />
+                </div>
+
+                <div className="mt-4 flex gap-3">
+                  <button
+                    onClick={() => setBatchConfirmStep(1)}
+                    className="flex-1 rounded-xl bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
+                  >
+                    &larr; ย้อนกลับ
+                  </button>
+                  <button
+                    onClick={submitBatchConfirmTransfer}
+                    disabled={!batchConfirmPhotoUrl || batchConfirmSubmitting}
+                    className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 font-semibold text-white shadow-lg transition hover:from-green-600 hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {batchConfirmSubmitting ? (
+                      <><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> กำลังบันทึก...</>
+                    ) : (
+                      <><Check className="mr-1 inline h-4 w-4" /> ยืนยันรับทั้งหมด ({batchConfirmGroup.items.length} รายการ)</>
+                    )}
+                  </button>
+                </div>
+                {!batchConfirmPhotoUrl && (
+                  <p className="mt-2 text-center text-sm text-red-500">
+                    <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
+                    กรุณาแนบรูปก่อนยืนยัน
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </Modal>
       )}
 

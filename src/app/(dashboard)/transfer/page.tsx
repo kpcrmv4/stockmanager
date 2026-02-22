@@ -35,6 +35,8 @@ import {
   ChevronDown,
   ChevronRight,
   Ban,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -150,6 +152,9 @@ export default function TransferPage() {
 
   // Expanded batches
   const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
+
+  // Photo viewer
+  const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
 
   // Central store
   const [centralStoreId, setCentralStoreId] = useState<string | null>(null);
@@ -694,6 +699,14 @@ export default function TransferPage() {
                               )}
                               {transfer.notes && <p>หมายเหตุ: {transfer.notes}</p>}
                             </div>
+                            {transfer.photo_url && (
+                              <button
+                                onClick={() => setViewingPhoto(transfer.photo_url)}
+                                className="mt-2 flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400"
+                              >
+                                <ImageIcon className="h-3.5 w-3.5" /> ดูรูปนำส่ง
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -773,6 +786,26 @@ export default function TransferPage() {
                               )}
                               {transfer.notes && <p>หมายเหตุ: {transfer.notes}</p>}
                             </div>
+                            {(transfer.photo_url || transfer.confirm_photo_url) && (
+                              <div className="mt-2 flex gap-2">
+                                {transfer.photo_url && (
+                                  <button
+                                    onClick={() => setViewingPhoto(transfer.photo_url)}
+                                    className="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400"
+                                  >
+                                    <ImageIcon className="h-3.5 w-3.5" /> รูปนำส่ง
+                                  </button>
+                                )}
+                                {transfer.confirm_photo_url && (
+                                  <button
+                                    onClick={() => setViewingPhoto(transfer.confirm_photo_url)}
+                                    className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-600 transition hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400"
+                                  >
+                                    <ImageIcon className="h-3.5 w-3.5" /> รูปยืนยันรับ
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -860,6 +893,14 @@ export default function TransferPage() {
                                 <p className="text-red-500">เหตุผล: {transfer.rejection_reason}</p>
                               )}
                             </div>
+                            {transfer.photo_url && (
+                              <button
+                                onClick={() => setViewingPhoto(transfer.photo_url)}
+                                className="mt-2 flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400"
+                              >
+                                <ImageIcon className="h-3.5 w-3.5" /> ดูรูปนำส่ง
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -991,6 +1032,30 @@ export default function TransferPage() {
           </Button>
         </ModalFooter>
       </Modal>
+
+      {/* ── Photo Viewer Modal ─────────────────────────── */}
+      {viewingPhoto && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setViewingPhoto(null)}
+        >
+          <div className="relative max-h-full max-w-full">
+            <button
+              onClick={() => setViewingPhoto(null)}
+              className="absolute -top-10 right-0 text-white/80 transition hover:text-white"
+            >
+              <X className="h-6 w-6" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={viewingPhoto}
+              alt="Photo"
+              className="max-h-[80vh] max-w-full rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
