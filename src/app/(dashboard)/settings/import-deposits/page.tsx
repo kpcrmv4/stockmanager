@@ -817,6 +817,7 @@ export default function ImportDepositsPage() {
             deposit_id: row._depositUUID!,
             product_name: row._depositProductName || null,
             quantity: row._depositQuantity || null,
+            transfer_code: row.raw.transfer_code || null,
             status: VALID_TRANSFER_STATUSES.includes(
               (row.raw.status || '').toLowerCase().trim()
             )
@@ -932,7 +933,7 @@ export default function ImportDepositsPage() {
       'table_number', 'line_user_id', 'notes', 'withdrawal_date',
     ],
     transfers: [
-      'deposit_ids', 'status', 'notes', 'photo_url',
+      'transfer_code', 'deposit_ids', 'status', 'notes', 'photo_url',
       'confirm_photo_url', 'transfer_date', 'confirm_date',
     ],
   };
@@ -949,7 +950,8 @@ export default function ImportDepositsPage() {
     withdrawals: `* deposit_code จะถูกใช้ค้นหา UUID ของ deposit ในร้านที่เลือก
 * ต้อง Import Deposits + Deposit History ก่อน ไม่งั้นจะ resolve ไม่ได้
 * status เดิมจะ map เป็น "completed" ถ้าไม่ตรง`,
-    transfers: `* deposit_ids รองรับ JSON array (["uuid1","uuid2"]) หรือ comma-separated
+    transfers: `* transfer_code จะถูกบันทึกตามไฟล์ (เช่น TRF-2026-0001) — ใช้ group batch
+* deposit_ids รองรับ JSON array (["uuid1","uuid2"]) หรือ comma-separated
 * ถ้าเป็น UUID เดิม → ใช้ "ไฟล์ Deposits อ้างอิง" map เป็น deposit_code
 * to_store_id จะใช้ร้านคลังกลาง (is_central) อัตโนมัติ
 * ต้อง Import Deposits + Deposit History ก่อน`,
