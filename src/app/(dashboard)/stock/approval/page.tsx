@@ -136,13 +136,21 @@ export default function ApprovalPage() {
 
       if (error) throw error;
 
+      const compItem = comparisons.find((c) => c.id === comparisonId);
       await logAudit({
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.STOCK_APPROVED,
         table_name: 'comparisons',
         record_id: comparisonId,
         old_value: { status: 'explained' },
-        new_value: { status: 'approved', owner_notes: ownerNotes[comparisonId]?.trim() || null },
+        new_value: {
+          status: 'approved',
+          owner_notes: ownerNotes[comparisonId]?.trim() || null,
+          product_name: compItem?.product_name,
+          product_code: compItem?.product_code,
+          difference: compItem?.difference,
+          diff_percent: compItem?.diff_percent,
+        },
         changed_by: user?.id || null,
       });
 
@@ -221,13 +229,21 @@ export default function ApprovalPage() {
 
       if (error) throw error;
 
+      const rejItem = comparisons.find((c) => c.id === comparisonId);
       await logAudit({
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.STOCK_REJECTED,
         table_name: 'comparisons',
         record_id: comparisonId,
         old_value: { status: 'explained' },
-        new_value: { status: 'rejected', owner_notes: ownerNotes[comparisonId]?.trim() || null },
+        new_value: {
+          status: 'rejected',
+          owner_notes: ownerNotes[comparisonId]?.trim() || null,
+          product_name: rejItem?.product_name,
+          product_code: rejItem?.product_code,
+          difference: rejItem?.difference,
+          diff_percent: rejItem?.diff_percent,
+        },
         changed_by: user?.id || null,
       });
 
@@ -328,11 +344,16 @@ export default function ApprovalPage() {
 
       await Promise.all(updates);
 
+      const batchApprovedItems = comparisons.filter((c) => selectedIds.has(c.id));
       await logAudit({
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.STOCK_BATCH_APPROVED,
         table_name: 'comparisons',
-        new_value: { count: selectedIds.size, status: 'approved' },
+        new_value: {
+          count: selectedIds.size,
+          status: 'approved',
+          products: batchApprovedItems.map((c) => c.product_name).filter(Boolean).slice(0, 10),
+        },
         changed_by: user?.id || null,
       });
 
@@ -420,11 +441,16 @@ export default function ApprovalPage() {
 
       await Promise.all(updates);
 
+      const batchRejectedItems = comparisons.filter((c) => selectedIds.has(c.id));
       await logAudit({
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.STOCK_BATCH_REJECTED,
         table_name: 'comparisons',
-        new_value: { count: selectedIds.size, status: 'rejected' },
+        new_value: {
+          count: selectedIds.size,
+          status: 'rejected',
+          products: batchRejectedItems.map((c) => c.product_name).filter(Boolean).slice(0, 10),
+        },
         changed_by: user?.id || null,
       });
 

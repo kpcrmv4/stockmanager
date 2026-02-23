@@ -132,12 +132,19 @@ export default function ExplanationPage() {
 
       if (error) throw error;
 
+      const expItem = comparisons.find((c) => c.id === comparisonId);
       await logAudit({
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.STOCK_EXPLANATION_SUBMITTED,
         table_name: 'comparisons',
         record_id: comparisonId,
-        new_value: { explanation, status: 'explained' },
+        new_value: {
+          explanation,
+          status: 'explained',
+          product_name: expItem?.product_name,
+          product_code: expItem?.product_code,
+          difference: expItem?.difference,
+        },
         changed_by: user?.id || null,
       });
 
@@ -219,7 +226,11 @@ export default function ExplanationPage() {
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.STOCK_EXPLANATION_BATCH,
         table_name: 'comparisons',
-        new_value: { submitted_count: itemsToSubmit.length, status: 'explained' },
+        new_value: {
+          submitted_count: itemsToSubmit.length,
+          status: 'explained',
+          products: itemsToSubmit.map((c) => c.product_name).filter(Boolean).slice(0, 10),
+        },
         changed_by: user?.id || null,
       });
 

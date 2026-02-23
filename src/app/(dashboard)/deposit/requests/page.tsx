@@ -192,7 +192,7 @@ export default function DepositRequestsPage() {
           action_type: AUDIT_ACTIONS.DEPOSIT_REQUEST_REJECTED,
           table_name: 'deposit_requests',
           record_id: selectedRequest.id,
-          new_value: { customer_name: selectedRequest.customer_name, reason: approvalNotes || null },
+          new_value: { customer_name: selectedRequest.customer_name, product_name: selectedRequest.product_name, reason: approvalNotes || null },
           changed_by: user?.id || null,
         });
       }

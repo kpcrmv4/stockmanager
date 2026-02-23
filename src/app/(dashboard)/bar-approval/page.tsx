@@ -311,7 +311,14 @@ export default function BarApprovalPage() {
         table_name: 'deposits',
         record_id: deposit.id,
         old_value: { status: 'pending_confirm' },
-        new_value: { status: 'in_store', confirm_photo_url: photoUrl },
+        new_value: {
+          status: 'in_store',
+          confirm_photo_url: photoUrl,
+          deposit_code: deposit.deposit_code,
+          customer_name: deposit.customer_name,
+          product_name: deposit.product_name,
+          quantity: deposit.quantity,
+        },
         changed_by: user.id,
       });
 
@@ -376,7 +383,13 @@ export default function BarApprovalPage() {
         table_name: 'deposits',
         record_id: deposit.id,
         old_value: { status: 'pending_confirm' },
-        new_value: { status: 'expired', reason: reason.trim() },
+        new_value: {
+          status: 'expired',
+          reason: reason.trim(),
+          deposit_code: deposit.deposit_code,
+          customer_name: deposit.customer_name,
+          product_name: deposit.product_name,
+        },
         changed_by: user.id,
       });
 
@@ -475,7 +488,14 @@ export default function BarApprovalPage() {
         table_name: 'withdrawals',
         record_id: withdrawal.id,
         old_value: { status: withdrawal.status, requested_qty: withdrawal.requested_qty },
-        new_value: { status: 'completed', actual_qty: actualQty, photo_url: photoUrl },
+        new_value: {
+          status: 'completed',
+          actual_qty: actualQty,
+          photo_url: photoUrl,
+          customer_name: withdrawal.customer_name,
+          product_name: withdrawal.product_name,
+          deposit_code: withdrawal.deposits?.deposit_code,
+        },
         changed_by: user.id,
       });
 
@@ -554,7 +574,13 @@ export default function BarApprovalPage() {
         table_name: 'withdrawals',
         record_id: withdrawal.id,
         old_value: { status: withdrawal.status },
-        new_value: { status: 'rejected', reason: reason.trim() },
+        new_value: {
+          status: 'rejected',
+          reason: reason.trim(),
+          customer_name: withdrawal.customer_name,
+          product_name: withdrawal.product_name,
+          deposit_code: withdrawal.deposits?.deposit_code,
+        },
         changed_by: user.id,
       });
 

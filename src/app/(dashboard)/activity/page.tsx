@@ -259,7 +259,9 @@ function getEntryDetails(entry: AuditLogEntry): string {
     if (val?.deposit_code) parts.push(String(val.deposit_code));
     if (val?.customer_name) parts.push(String(val.customer_name));
     if (val?.product_name) parts.push(String(val.product_name));
-    if (val?.status) parts.push(`สถานะ: ${String(val.status)}`);
+    if (val?.actual_qty != null) parts.push(`จำนวน ${val.actual_qty}`);
+    if (val?.quantity != null && !val?.actual_qty) parts.push(`จำนวน ${val.quantity}`);
+    if (val?.reason) parts.push(`เหตุผล: ${String(val.reason)}`);
     return parts.join(' — ');
   }
 
@@ -298,12 +300,44 @@ function getEntryDetails(entry: AuditLogEntry): string {
     return parts.join(' — ');
   }
 
-  // --- Stock actions: show count/batch info ---
+  // --- Stock explanation/approval: show product + difference ---
+  if (action === 'STOCK_EXPLANATION_SUBMITTED' || action === 'STOCK_APPROVED' || action === 'STOCK_REJECTED') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.product_name) parts.push(String(val.product_name));
+    if (val?.product_code) parts.push(`(${String(val.product_code)})`);
+    if (val?.difference != null) {
+      const diff = Number(val.difference);
+      parts.push(`ส่วนต่าง ${diff > 0 ? '+' : ''}${diff}`);
+    }
+    return parts.join(' ');
+  }
+
+  // --- Stock batch actions: show count + product list ---
+  if (action === 'STOCK_BATCH_APPROVED' || action === 'STOCK_BATCH_REJECTED' || action === 'STOCK_EXPLANATION_BATCH') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.count && typeof val.count === 'number')
+      parts.push(`${val.count} รายการ`);
+    if (val?.submitted_count && typeof val.submitted_count === 'number')
+      parts.push(`${val.submitted_count} รายการ`);
+    if (val?.products && Array.isArray(val.products)) {
+      const names = (val.products as string[]).slice(0, 3);
+      if (names.length > 0) parts.push(names.join(', '));
+      if ((val.products as string[]).length > 3)
+        parts.push(`+${(val.products as string[]).length - 3}`);
+    }
+    return parts.join(' — ');
+  }
+
+  // --- Other stock actions: show count/batch info ---
   if (action.startsWith('STOCK_')) {
     const val = newVal || oldVal;
     const parts: string[] = [];
     if (val?.product_name) parts.push(String(val.product_name));
     if (val?.product_code) parts.push(`(${String(val.product_code)})`);
+    if (val?.items_count && typeof val.items_count === 'number')
+      parts.push(`${val.items_count} รายการ`);
     if (val?.count && typeof val.count === 'number')
       parts.push(`${val.count} รายการ`);
     if (val?.total_items && typeof val.total_items === 'number')

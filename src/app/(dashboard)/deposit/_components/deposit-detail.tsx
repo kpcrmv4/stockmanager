@@ -327,7 +327,13 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         table_name: 'deposits',
         record_id: deposit.id,
         old_value: { status: deposit.status },
-        new_value: { status: 'expired', notify_customer: expiryNotifyCustomer },
+        new_value: {
+          status: 'expired',
+          notify_customer: expiryNotifyCustomer,
+          deposit_code: deposit.deposit_code,
+          customer_name: deposit.customer_name,
+          product_name: deposit.product_name,
+        },
         changed_by: user.id,
       });
 
@@ -381,7 +387,14 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         table_name: 'deposits',
         record_id: deposit.id,
         old_value: { is_vip: deposit.is_vip, expiry_date: deposit.expiry_date, status: deposit.status },
-        new_value: { is_vip: newIsVip, expiry_date: newIsVip ? null : deposit.expiry_date, status: newIsVip && deposit.status === 'expired' ? 'in_store' : deposit.status },
+        new_value: {
+          is_vip: newIsVip,
+          expiry_date: newIsVip ? null : deposit.expiry_date,
+          status: newIsVip && deposit.status === 'expired' ? 'in_store' : deposit.status,
+          deposit_code: deposit.deposit_code,
+          customer_name: deposit.customer_name,
+          product_name: deposit.product_name,
+        },
         changed_by: user.id,
       });
       toast({
@@ -450,7 +463,13 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         table_name: 'deposits',
         record_id: deposit.id,
         old_value: { expiry_date: oldExpiryDate },
-        new_value: { expiry_date: newExpiryISO, extended_days: days },
+        new_value: {
+          expiry_date: newExpiryISO,
+          extended_days: days,
+          deposit_code: deposit.deposit_code,
+          customer_name: deposit.customer_name,
+          product_name: deposit.product_name,
+        },
         changed_by: user?.id || null,
       });
       toast({
