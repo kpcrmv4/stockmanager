@@ -330,6 +330,30 @@ function getEntryDetails(entry: AuditLogEntry): string {
     return parts.join(' — ');
   }
 
+  // --- Stock count saved: per-item vs batch ---
+  if (action === 'STOCK_COUNT_SAVED') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.type === 'per_item') {
+      // Per-item: show product name + count value
+      if (val?.product_name) parts.push(String(val.product_name));
+      if (val?.product_code) parts.push(`(${String(val.product_code)})`);
+      if (val?.count_quantity != null) parts.push(`= ${val.count_quantity}`);
+    } else {
+      // Batch: show items count + product list
+      if (val?.items_count && typeof val.items_count === 'number')
+        parts.push(`${val.items_count} รายการ`);
+      if (val?.type === 'supplementary') parts.push('(เพิ่มเติม)');
+      if (val?.products && Array.isArray(val.products)) {
+        const names = (val.products as string[]).slice(0, 3);
+        if (names.length > 0) parts.push(names.join(', '));
+        if ((val.products as string[]).length > 3)
+          parts.push(`+${(val.products as string[]).length - 3}`);
+      }
+    }
+    return parts.join(' ');
+  }
+
   // --- Other stock actions: show count/batch info ---
   if (action.startsWith('STOCK_')) {
     const val = newVal || oldVal;
