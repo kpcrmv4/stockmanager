@@ -58,6 +58,10 @@ interface AuditLogEntry extends AuditLog {
     username: string;
     role: string;
   } | null;
+  store?: {
+    store_name: string;
+    store_code: string;
+  } | null;
 }
 
 type FilterCategory = 'all' | 'stock' | 'deposit' | 'borrow' | 'customer' | 'system';
@@ -214,14 +218,106 @@ function getActorLabel(entry: AuditLogEntry): string {
 function getEntryDetails(entry: AuditLogEntry): string {
   const newVal = entry.new_value as Record<string, unknown> | null;
   const oldVal = entry.old_value as Record<string, unknown> | null;
+  const action = entry.action_type;
 
-  // Try to extract meaningful details
+  // --- Product toggle: show product name + on/off status ---
+  if (action === 'PRODUCT_TOGGLED') {
+    const val = newVal || oldVal;
+    const productName = val?.product_name ? String(val.product_name) : '';
+    const productCode = val?.product_code ? String(val.product_code) : '';
+    const newActive = newVal?.active;
+    const statusText = newActive === true ? 'เปิดใช้งาน' : newActive === false ? 'ปิดใช้งาน' : '';
+    const parts: string[] = [];
+    if (productName) parts.push(productName);
+    if (productCode) parts.push(`(${productCode})`);
+    if (statusText) parts.push(`→ ${statusText}`);
+    return parts.join(' ');
+  }
+
+  // --- Product created/updated/deleted: show product name + code ---
+  if (action === 'PRODUCT_CREATED' || action === 'PRODUCT_UPDATED' || action === 'PRODUCT_DELETED') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.product_name) parts.push(String(val.product_name));
+    if (val?.product_code) parts.push(`(${String(val.product_code)})`);
+    return parts.join(' ');
+  }
+
+  // --- Auto product actions: show product info ---
+  if (action === 'AUTO_ADD_PRODUCT' || action === 'AUTO_DEACTIVATE' || action === 'AUTO_REACTIVATE') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.product_name) parts.push(String(val.product_name));
+    if (val?.product_code) parts.push(`(${String(val.product_code)})`);
+    return parts.join(' ');
+  }
+
+  // --- Deposit actions: show deposit code + customer + product ---
+  if (action.startsWith('DEPOSIT_') || action === 'WITHDRAWAL_COMPLETED' || action === 'WITHDRAWAL_REJECTED' || action === 'WITHDRAWAL_REQUESTED') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.deposit_code) parts.push(String(val.deposit_code));
+    if (val?.customer_name) parts.push(String(val.customer_name));
+    if (val?.product_name) parts.push(String(val.product_name));
+    if (val?.status) parts.push(`สถานะ: ${String(val.status)}`);
+    return parts.join(' — ');
+  }
+
+  // --- Customer actions: show customer + product ---
+  if (action.startsWith('CUSTOMER_')) {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.customer_name) parts.push(String(val.customer_name));
+    if (val?.product_name) parts.push(String(val.product_name));
+    return parts.join(' — ');
+  }
+
+  // --- Transfer actions: show transfer info ---
+  if (action.startsWith('TRANSFER_')) {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.transfer_code) parts.push(String(val.transfer_code));
+    if (val?.product_name) parts.push(String(val.product_name));
+    return parts.join(' — ');
+  }
+
+  // --- Borrow actions: show items ---
+  if (action.startsWith('BORROW_')) {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.items && Array.isArray(val.items)) {
+      const names = (val.items as Array<Record<string, unknown>>)
+        .map((item) => item.product_name)
+        .filter(Boolean)
+        .slice(0, 3);
+      if (names.length > 0) parts.push(names.join(', '));
+    }
+    if (val?.product_name) parts.push(String(val.product_name));
+    if (val?.total_items && typeof val.total_items === 'number')
+      parts.push(`${val.total_items} รายการ`);
+    return parts.join(' — ');
+  }
+
+  // --- Stock actions: show count/batch info ---
+  if (action.startsWith('STOCK_')) {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.product_name) parts.push(String(val.product_name));
+    if (val?.product_code) parts.push(`(${String(val.product_code)})`);
+    if (val?.count && typeof val.count === 'number')
+      parts.push(`${val.count} รายการ`);
+    if (val?.total_items && typeof val.total_items === 'number')
+      parts.push(`${val.total_items} รายการ`);
+    return parts.join(' ');
+  }
+
+  // --- Generic fallback: try common fields ---
   if (newVal) {
     const parts: string[] = [];
     if (newVal.deposit_code) parts.push(String(newVal.deposit_code));
     if (newVal.customer_name) parts.push(String(newVal.customer_name));
     if (newVal.product_name) parts.push(String(newVal.product_name));
-    if (newVal.product_code) parts.push(String(newVal.product_code));
+    if (newVal.product_code) parts.push(`(${String(newVal.product_code)})`);
     if (newVal.count && typeof newVal.count === 'number')
       parts.push(`${newVal.count} รายการ`);
     if (newVal.total_items && typeof newVal.total_items === 'number')
@@ -232,10 +328,10 @@ function getEntryDetails(entry: AuditLogEntry): string {
     const parts: string[] = [];
     if (oldVal.deposit_code) parts.push(String(oldVal.deposit_code));
     if (oldVal.product_name) parts.push(String(oldVal.product_name));
+    if (oldVal.product_code) parts.push(`(${String(oldVal.product_code)})`);
     if (parts.length > 0) return parts.join(' — ');
   }
 
-  if (entry.record_id) return entry.record_id;
   return '';
 }
 
@@ -446,7 +542,7 @@ export default function ActivityPage() {
         let query = supabase
           .from('audit_logs')
           .select(
-            '*, profile:profiles!changed_by(display_name, username, role)'
+            '*, profile:profiles!changed_by(display_name, username, role), store:stores!store_id(store_name, store_code)'
           )
           .gte('created_at', todayStart)
           .lte('created_at', todayEnd)
@@ -842,6 +938,12 @@ export default function ActivityPage() {
                         )}
                       </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                        {selectedStore === 'all' && entry.store && (
+                          <span className="inline-flex items-center rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                            <StoreIcon className="mr-0.5 h-2.5 w-2.5" />
+                            {entry.store.store_name}
+                          </span>
+                        )}
                         <span className="text-xs text-gray-400 dark:text-gray-500">
                           โดย: {actorLabel}
                         </span>
