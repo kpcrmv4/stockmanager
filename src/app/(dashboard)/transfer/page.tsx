@@ -52,6 +52,7 @@ interface ExpiredDeposit {
   quantity: number;
   remaining_qty: number;
   expiry_date: string | null;
+  is_no_deposit: boolean;
   created_at: string;
 }
 
@@ -77,6 +78,7 @@ interface TransferBatch {
 }
 
 type SubTab = 'expired' | 'pending' | 'confirmed' | 'rejected';
+type ExpiredFilter = 'all' | 'no_deposit' | 'natural';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -128,6 +130,7 @@ export default function TransferPage() {
 
   // Sub-tab
   const [activeTab, setActiveTab] = useState<SubTab>('expired');
+  const [expiredFilter, setExpiredFilter] = useState<ExpiredFilter>('all');
 
   // Data
   const [expiredDeposits, setExpiredDeposits] = useState<ExpiredDeposit[]>([]);
@@ -181,7 +184,7 @@ export default function TransferPage() {
 
     const { data } = await supabase
       .from('deposits')
-      .select('id, deposit_code, customer_name, product_name, category, quantity, remaining_qty, expiry_date, created_at')
+      .select('id, deposit_code, customer_name, product_name, category, quantity, remaining_qty, expiry_date, is_no_deposit, created_at')
       .eq('store_id', currentStoreId)
       .eq('status', 'expired')
       .order('expiry_date', { ascending: true });
@@ -264,6 +267,16 @@ export default function TransferPage() {
     loadAll();
   }, [loadAll]);
 
+  // Filtered expired deposits
+  const filteredExpiredDeposits = useMemo(() => {
+    if (expiredFilter === 'no_deposit') return expiredDeposits.filter((d) => d.is_no_deposit);
+    if (expiredFilter === 'natural') return expiredDeposits.filter((d) => !d.is_no_deposit);
+    return expiredDeposits;
+  }, [expiredDeposits, expiredFilter]);
+
+  const noDepositCount = useMemo(() => expiredDeposits.filter((d) => d.is_no_deposit).length, [expiredDeposits]);
+  const naturalExpiredCount = useMemo(() => expiredDeposits.filter((d) => !d.is_no_deposit).length, [expiredDeposits]);
+
   // Grouped batches
   const pendingBatches = useMemo(() => groupByTransferCode(pendingTransfers), [pendingTransfers]);
   const confirmedBatches = useMemo(() => groupByTransferCode(confirmedTransfers), [confirmedTransfers]);
@@ -283,10 +296,10 @@ export default function TransferPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === expiredDeposits.length) {
+    if (selectedIds.size === filteredExpiredDeposits.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(expiredDeposits.map((d) => d.id)));
+      setSelectedIds(new Set(filteredExpiredDeposits.map((d) => d.id)));
     }
   };
 
@@ -515,12 +528,47 @@ export default function TransferPage() {
             />
           ) : (
             <>
+              {/* Sub-filter pills */}
+              <div className="flex gap-2 overflow-x-auto">
+                {([
+                  { key: 'all' as ExpiredFilter, label: 'ทั้งหมด', count: expiredDeposits.length },
+                  { key: 'no_deposit' as ExpiredFilter, label: 'ไม่ฝาก (รอโอน)', count: noDepositCount },
+                  { key: 'natural' as ExpiredFilter, label: 'หมดอายุจริง', count: naturalExpiredCount },
+                ]).map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => {
+                      setExpiredFilter(f.key);
+                      setSelectedIds(new Set());
+                    }}
+                    className={cn(
+                      'flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                      expiredFilter === f.key
+                        ? f.key === 'no_deposit'
+                          ? 'bg-orange-100 text-orange-700 ring-1 ring-orange-300 dark:bg-orange-900/30 dark:text-orange-400 dark:ring-orange-700'
+                          : 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-400 dark:ring-indigo-700'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+                    )}
+                  >
+                    {f.label}
+                    <span className={cn(
+                      'rounded-full px-1.5 py-0.5 text-[10px]',
+                      expiredFilter === f.key
+                        ? 'bg-white/60 dark:bg-black/20'
+                        : 'bg-gray-200 dark:bg-gray-700'
+                    )}>
+                      {f.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
               {/* Select all */}
               <div className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2 dark:bg-gray-800/50">
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
-                    checked={selectedIds.size === expiredDeposits.length && expiredDeposits.length > 0}
+                    checked={selectedIds.size === filteredExpiredDeposits.length && filteredExpiredDeposits.length > 0}
                     onChange={toggleSelectAll}
                     className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                   />
@@ -535,9 +583,15 @@ export default function TransferPage() {
                 )}
               </div>
 
+              {filteredExpiredDeposits.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                  ไม่มีรายการในหมวดนี้
+                </div>
+              ) : (
+              <>
               {/* List */}
               <div className="space-y-2">
-                {expiredDeposits.map((deposit) => {
+                {filteredExpiredDeposits.map((deposit) => {
                   const overdue = getDaysOverdue(deposit.expiry_date);
                   const isSelected = selectedIds.has(deposit.id);
                   return (
@@ -564,7 +618,11 @@ export default function TransferPage() {
                           <p className="font-medium text-gray-900 dark:text-white">
                             {deposit.product_name}
                           </p>
-                          <Badge variant="danger" size="sm">หมดอายุ</Badge>
+                          {deposit.is_no_deposit ? (
+                            <Badge variant="warning" size="sm">ไม่ฝาก</Badge>
+                          ) : (
+                            <Badge variant="danger" size="sm">หมดอายุ</Badge>
+                          )}
                         </div>
                         <div className="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
                           <p className="flex items-center gap-1">
@@ -598,6 +656,8 @@ export default function TransferPage() {
                   );
                 })}
               </div>
+              </>
+              )}
 
               {/* Floating action bar */}
               {selectedIds.size > 0 && (

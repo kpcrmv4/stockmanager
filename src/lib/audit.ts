@@ -38,6 +38,9 @@ export const AUDIT_ACTIONS = {
   WITHDRAWAL_REJECTED: 'WITHDRAWAL_REJECTED',
   WITHDRAWAL_REQUESTED: 'WITHDRAWAL_REQUESTED',
 
+  // === No-Deposit (ไม่ฝาก) ===
+  DEPOSIT_NO_DEPOSIT_CREATED: 'DEPOSIT_NO_DEPOSIT_CREATED',
+
   // === Transfer Module ===
   TRANSFER_CREATED: 'TRANSFER_CREATED',
   TRANSFER_CONFIRMED: 'TRANSFER_CONFIRMED',
@@ -149,6 +152,9 @@ export const AUDIT_ACTION_LABELS: Record<
   WITHDRAWAL_COMPLETED: { label: 'เบิกเหล้าสำเร็จ', color: 'emerald', icon: 'package' },
   WITHDRAWAL_REJECTED: { label: 'ปฏิเสธการเบิกเหล้า', color: 'red', icon: 'x-circle' },
   WITHDRAWAL_REQUESTED: { label: 'ขอเบิกเหล้า', color: 'blue', icon: 'package' },
+
+  // No-Deposit
+  DEPOSIT_NO_DEPOSIT_CREATED: { label: 'สร้างรายการไม่ฝาก (รอโอน)', color: 'orange', icon: 'truck' },
 
   // Transfer
   TRANSFER_CREATED: { label: 'สร้างรายการโอน', color: 'blue', icon: 'truck' },

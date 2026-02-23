@@ -25,6 +25,7 @@ import {
   Loader2,
   Package,
   Crown,
+  Truck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
@@ -215,6 +216,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [tableNumber, setTableNumber] = useState('');
+  const [isNoDeposit, setIsNoDeposit] = useState(false);
   const [isVip, setIsVip] = useState(false);
   const [expiryDays, setExpiryDays] = useState('30');
   const [notes, setNotes] = useState('');
@@ -298,7 +300,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
     if (!customerName.trim()) {
       newErrors.customerName = 'กรุณาระบุชื่อลูกค้า';
     }
-    if (!isVip && (!expiryDays || parseInt(expiryDays) <= 0)) {
+    if (!isNoDeposit && !isVip && (!expiryDays || parseInt(expiryDays) <= 0)) {
       newErrors.expiryDays = 'กรุณาระบุจำนวนวันที่ถูกต้อง';
     }
 
@@ -341,11 +343,18 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
           remaining_qty: qty,
           remaining_percent: 100,
           table_number: tableNumber.trim() || null,
-          status: 'pending_confirm',
-          is_vip: isVip,
-          expiry_date: isVip ? null : expiryDateISO(parseInt(expiryDays)),
+          status: isNoDeposit ? 'expired' : 'pending_confirm',
+          is_vip: isNoDeposit ? false : isVip,
+          is_no_deposit: isNoDeposit,
+          expiry_date: isNoDeposit
+            ? new Date().toISOString()
+            : isVip
+              ? null
+              : expiryDateISO(parseInt(expiryDays)),
           received_by: user.id,
-          notes: notes.trim() || null,
+          notes: isNoDeposit
+            ? (notes.trim() ? `[ไม่ฝาก] ${notes.trim()}` : '[ไม่ฝาก] ลูกค้ากินไม่หมด ไม่ต้องการฝาก')
+            : (notes.trim() || null),
           received_photo_url: receivedPhotoUrl || null,
         });
 
@@ -361,7 +370,9 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
 
         await logAudit({
           store_id: currentStoreId,
-          action_type: AUDIT_ACTIONS.DEPOSIT_CREATED,
+          action_type: isNoDeposit
+            ? AUDIT_ACTIONS.DEPOSIT_NO_DEPOSIT_CREATED
+            : AUDIT_ACTIONS.DEPOSIT_CREATED,
           table_name: 'deposits',
           record_id: depositCode,
           new_value: {
@@ -370,6 +381,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
             product_name: item.productName.trim(),
             quantity: qty,
             category: item.category || null,
+            ...(isNoDeposit && { is_no_deposit: true }),
           },
           changed_by: user?.id || null,
         });
@@ -381,18 +393,23 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
 
       toast({
         type: 'success',
-        title: 'บันทึกสำเร็จ',
-        message:
-          items.length === 1
-            ? `สร้างรายการฝากเหล้า ${depositCodes[0]}`
-            : `สร้าง ${items.length} รายการฝากเหล้า`,
+        title: isNoDeposit ? 'สร้างรายการรอโอนสำเร็จ' : 'บันทึกสำเร็จ',
+        message: isNoDeposit
+          ? (items.length === 1
+              ? `สร้างรายการรอโอน ${depositCodes[0]}`
+              : `สร้าง ${items.length} รายการรอโอน`)
+          : (items.length === 1
+              ? `สร้างรายการฝากเหล้า ${depositCodes[0]}`
+              : `สร้าง ${items.length} รายการฝากเหล้า`),
       });
 
       notifyStaff({
         storeId: currentStoreId,
         type: 'new_deposit',
-        title: 'มีรายการฝากเหล้าใหม่',
-        body: `${customerName.trim()} ฝาก ${itemsSummary}`,
+        title: isNoDeposit ? 'มีรายการไม่ฝาก (รอโอน)' : 'มีรายการฝากเหล้าใหม่',
+        body: isNoDeposit
+          ? `${customerName.trim()} ไม่ฝาก ${itemsSummary} — รอโอนคลังกลาง`
+          : `${customerName.trim()} ฝาก ${itemsSummary}`,
         data: { deposit_code: depositCodes[0] },
         excludeUserId: user?.id,
       });
@@ -569,60 +586,104 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
         <CardHeader title="การจัดเก็บ" description="ระยะเวลาเก็บรักษาและหมายเหตุ" />
         <CardContent>
           <div className="space-y-4">
-            {/* VIP Toggle */}
+            {/* No-Deposit Toggle */}
             <div
               className={cn(
                 'flex items-center justify-between rounded-lg border p-4 transition-colors',
-                isVip
-                  ? 'border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-900/20'
+                isNoDeposit
+                  ? 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-900/20'
                   : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50'
               )}
             >
               <div className="flex items-center gap-3">
-                <Crown className={cn('h-5 w-5', isVip ? 'text-yellow-500' : 'text-gray-400')} />
+                <Truck className={cn('h-5 w-5', isNoDeposit ? 'text-orange-500' : 'text-gray-400')} />
                 <div>
-                  <p className={cn('text-sm font-medium', isVip ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-700 dark:text-gray-300')}>
-                    สถานะ VIP
+                  <p className={cn('text-sm font-medium', isNoDeposit ? 'text-orange-700 dark:text-orange-400' : 'text-gray-700 dark:text-gray-300')}>
+                    ไม่ฝาก (เก็บรอโอน)
                   </p>
-                  <p className={cn('text-xs', isVip ? 'text-yellow-600 dark:text-yellow-500' : 'text-gray-500 dark:text-gray-400')}>
-                    {isVip ? 'ฝากได้ไม่มีหมดอายุ' : 'มีกำหนดวันหมดอายุปกติ'}
+                  <p className={cn('text-xs', isNoDeposit ? 'text-orange-600 dark:text-orange-500' : 'text-gray-500 dark:text-gray-400')}>
+                    {isNoDeposit ? 'สร้างรายการรอโอนคลังกลางทันที' : 'ลูกค้ากินไม่หมด ไม่ต้องการฝาก'}
                   </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setIsVip(!isVip)}
+                onClick={() => {
+                  setIsNoDeposit(!isNoDeposit);
+                  if (!isNoDeposit) setIsVip(false);
+                }}
                 className={cn(
                   'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
-                  isVip ? 'bg-yellow-500' : 'bg-gray-200 dark:bg-gray-600'
+                  isNoDeposit ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-600'
                 )}
               >
                 <span
                   className={cn(
                     'inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
-                    isVip ? 'translate-x-6' : 'translate-x-1'
+                    isNoDeposit ? 'translate-x-6' : 'translate-x-1'
                   )}
                 />
               </button>
             </div>
 
-            {!isVip && (
-              <Input
-                label="ระยะเวลาเก็บรักษา (วัน) *"
-                type="number"
-                value={expiryDays}
-                onChange={(e) => {
-                  setExpiryDays(e.target.value);
-                  if (errors.expiryDays) setErrors((prev) => ({ ...prev, expiryDays: '' }));
-                }}
-                placeholder="30"
-                hint={
-                  expiryDays && parseInt(expiryDays) > 0
-                    ? `หมดอายุประมาณ ${formatThaiDate(new Date(Date.now() + parseInt(expiryDays) * 86400000))}`
-                    : 'ระบุจำนวนวันที่เก็บรักษา'
-                }
-                error={errors.expiryDays}
-              />
+            {/* VIP Toggle + Expiry — hidden when isNoDeposit */}
+            {!isNoDeposit && (
+              <>
+                <div
+                  className={cn(
+                    'flex items-center justify-between rounded-lg border p-4 transition-colors',
+                    isVip
+                      ? 'border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-900/20'
+                      : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50'
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Crown className={cn('h-5 w-5', isVip ? 'text-yellow-500' : 'text-gray-400')} />
+                    <div>
+                      <p className={cn('text-sm font-medium', isVip ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-700 dark:text-gray-300')}>
+                        สถานะ VIP
+                      </p>
+                      <p className={cn('text-xs', isVip ? 'text-yellow-600 dark:text-yellow-500' : 'text-gray-500 dark:text-gray-400')}>
+                        {isVip ? 'ฝากได้ไม่มีหมดอายุ' : 'มีกำหนดวันหมดอายุปกติ'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsVip(!isVip)}
+                    className={cn(
+                      'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+                      isVip ? 'bg-yellow-500' : 'bg-gray-200 dark:bg-gray-600'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
+                        isVip ? 'translate-x-6' : 'translate-x-1'
+                      )}
+                    />
+                  </button>
+                </div>
+
+                {!isVip && (
+                  <Input
+                    label="ระยะเวลาเก็บรักษา (วัน) *"
+                    type="number"
+                    value={expiryDays}
+                    onChange={(e) => {
+                      setExpiryDays(e.target.value);
+                      if (errors.expiryDays) setErrors((prev) => ({ ...prev, expiryDays: '' }));
+                    }}
+                    placeholder="30"
+                    hint={
+                      expiryDays && parseInt(expiryDays) > 0
+                        ? `หมดอายุประมาณ ${formatThaiDate(new Date(Date.now() + parseInt(expiryDays) * 86400000))}`
+                        : 'ระบุจำนวนวันที่เก็บรักษา'
+                    }
+                    error={errors.expiryDays}
+                  />
+                )}
+              </>
             )}
             <Textarea
               label="หมายเหตุ"
@@ -657,9 +718,13 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
           icon={<Save className="h-4 w-4" />}
           className="min-h-[44px] sm:min-h-0"
         >
-          {items.length > 1
-            ? `บันทึก ${items.length} รายการฝากเหล้า`
-            : 'บันทึกรายการฝากเหล้า'}
+          {isNoDeposit
+            ? (items.length > 1
+                ? `บันทึก ${items.length} รายการรอโอน`
+                : 'บันทึกรายการรอโอน')
+            : (items.length > 1
+                ? `บันทึก ${items.length} รายการฝากเหล้า`
+                : 'บันทึกรายการฝากเหล้า')}
         </Button>
       </div>
     </div>

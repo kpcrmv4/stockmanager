@@ -28,6 +28,7 @@ import {
   ChevronRight,
   Crown,
   Minus,
+  Truck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { DepositForm } from './_components/deposit-form';
@@ -56,6 +57,7 @@ interface Deposit {
   received_photo_url: string | null;
   confirm_photo_url: string | null;
   is_vip: boolean;
+  is_no_deposit: boolean;
   created_at: string;
 }
 
@@ -379,6 +381,12 @@ export default function DepositPage() {
                                   VIP
                                 </Badge>
                               )}
+                              {deposit.is_no_deposit && (
+                                <Badge variant="warning" size="sm">
+                                  <Truck className="mr-0.5 h-3 w-3" />
+                                  ไม่ฝาก
+                                </Badge>
+                              )}
                             </div>
                           </td>
                           <td className="whitespace-nowrap px-5 py-4">
@@ -453,6 +461,12 @@ export default function DepositPage() {
                             <Badge variant="warning" size="sm">
                               <Crown className="mr-0.5 h-3 w-3" />
                               VIP
+                            </Badge>
+                          )}
+                          {deposit.is_no_deposit && (
+                            <Badge variant="warning" size="sm">
+                              <Truck className="mr-0.5 h-3 w-3" />
+                              ไม่ฝาก
                             </Badge>
                           )}
                         </div>
