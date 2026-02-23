@@ -833,7 +833,10 @@ export default function ImportDepositsPage() {
               ) || new Date().toISOString(),
           }));
 
-          const { error } = await supabase.from('transfers').insert(records);
+          const { data: insertedData, error } = await supabase
+            .from('transfers')
+            .insert(records)
+            .select('id, deposit_id, from_store_id, product_name, quantity, requested_by, confirm_photo_url, notes, status');
           if (error) {
             errorList.push(
               `แถว ${i + 1}-${i + batch.length}: ${error.message}`
@@ -841,6 +844,56 @@ export default function ImportDepositsPage() {
             skippedCount += batch.length;
           } else {
             successCount += batch.length;
+
+            // Also create hq_deposits for confirmed transfers
+            const confirmed = (insertedData || []).filter(
+              (r) => r.status === 'confirmed'
+            );
+            if (confirmed.length > 0) {
+              const depIds = confirmed
+                .map((r) => r.deposit_id)
+                .filter(Boolean) as string[];
+              let depMap = new Map<
+                string,
+                { customer_name: string; deposit_code: string }
+              >();
+              if (depIds.length > 0) {
+                const { data: deps } = await supabase
+                  .from('deposits')
+                  .select('id, customer_name, deposit_code')
+                  .in('id', depIds);
+                if (deps) {
+                  depMap = new Map(
+                    deps.map((d) => [
+                      d.id,
+                      {
+                        customer_name: d.customer_name,
+                        deposit_code: d.deposit_code,
+                      },
+                    ])
+                  );
+                }
+              }
+              const hqRecords = confirmed.map((r) => {
+                const dep = r.deposit_id
+                  ? depMap.get(r.deposit_id)
+                  : null;
+                return {
+                  transfer_id: r.id,
+                  deposit_id: r.deposit_id,
+                  from_store_id: r.from_store_id,
+                  product_name: r.product_name,
+                  customer_name: dep?.customer_name || null,
+                  deposit_code: dep?.deposit_code || null,
+                  quantity: r.quantity,
+                  status: 'awaiting_withdrawal' as const,
+                  received_by: r.requested_by,
+                  received_photo_url: r.confirm_photo_url || null,
+                  notes: r.notes,
+                };
+              });
+              await supabase.from('hq_deposits').insert(hqRecords);
+            }
           }
         }
       }

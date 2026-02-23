@@ -263,14 +263,72 @@ export default function HqWarehousePage() {
   }, [centralStoreIds, stores]);
 
   const loadReceivedItems = useCallback(async () => {
+    if (centralStoreIds.length === 0) return;
     const supabase = createClient();
 
-    const { data } = await supabase
+    // --- Auto-repair: find confirmed transfers without matching hq_deposits ---
+    const { data: confirmedTransfers } = await supabase
+      .from('transfers')
+      .select('id, from_store_id, deposit_id, product_name, quantity, requested_by, confirmed_by, confirm_photo_url, notes, created_at')
+      .in('to_store_id', centralStoreIds)
+      .eq('status', 'confirmed');
+
+    if (confirmedTransfers && confirmedTransfers.length > 0) {
+      const tIds = confirmedTransfers.map((t) => t.id);
+      const { data: existingHq } = await supabase
+        .from('hq_deposits')
+        .select('transfer_id')
+        .in('transfer_id', tIds);
+
+      const existingSet = new Set((existingHq || []).map((d) => d.transfer_id));
+      const orphaned = confirmedTransfers.filter((t) => !existingSet.has(t.id));
+
+      if (orphaned.length > 0) {
+        // Resolve deposit info (customer_name, deposit_code)
+        const depIds = orphaned.map((t) => t.deposit_id).filter(Boolean) as string[];
+        let depMap = new Map<string, { customer_name: string; deposit_code: string }>();
+        if (depIds.length > 0) {
+          const { data: deps } = await supabase
+            .from('deposits')
+            .select('id, customer_name, deposit_code')
+            .in('id', depIds);
+          if (deps) {
+            depMap = new Map(deps.map((d) => [d.id, { customer_name: d.customer_name, deposit_code: d.deposit_code }]));
+          }
+        }
+
+        const newRecords = orphaned.map((t) => {
+          const dep = t.deposit_id ? depMap.get(t.deposit_id) : null;
+          return {
+            transfer_id: t.id,
+            deposit_id: t.deposit_id,
+            from_store_id: t.from_store_id,
+            product_name: t.product_name,
+            customer_name: dep?.customer_name || null,
+            deposit_code: dep?.deposit_code || null,
+            quantity: t.quantity,
+            status: 'awaiting_withdrawal' as const,
+            received_by: t.confirmed_by || t.requested_by,
+            received_photo_url: t.confirm_photo_url || null,
+            notes: t.notes,
+          };
+        });
+
+        await supabase.from('hq_deposits').insert(newRecords);
+      }
+    }
+
+    // --- Now load hq_deposits normally ---
+    const { data, error } = await supabase
       .from('hq_deposits')
       .select('*')
       .eq('status', 'awaiting_withdrawal')
       .order('received_at', { ascending: false });
 
+    if (error) {
+      console.error('[HQ] loadReceivedItems error:', error);
+      return;
+    }
     if (!data || !mountedRef.current) return;
 
     const storeMap = new Map(stores.map((s) => [s.id, s.store_name]));
@@ -296,7 +354,7 @@ export default function HqWarehousePage() {
     }));
 
     if (mountedRef.current) setReceivedItems(items);
-  }, [stores]);
+  }, [centralStoreIds, stores]);
 
   const loadWithdrawnItems = useCallback(async () => {
     const supabase = createClient();
@@ -769,7 +827,7 @@ export default function HqWarehousePage() {
       {/* Summary Cards */}
       <div className="border-b bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-900">
         <div className="mx-auto max-w-7xl px-4 py-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {tabs.map((tab) => {
               const colorMap: Record<string, string> = {
                 yellow: 'border-yellow-200 dark:border-yellow-800',
