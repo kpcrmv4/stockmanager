@@ -456,9 +456,12 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
 
       {/* Customer info */}
       <Card padding="none">
-        <CardHeader title="ข้อมูลลูกค้า" description="ระบุข้อมูลลูกค้าที่ต้องการฝากเหล้า" />
+        <CardHeader
+          title="ข้อมูลลูกค้า"
+          description={isNoDeposit ? 'กรอกอัตโนมัติ — ไม่จำเป็นต้องระบุข้อมูลลูกค้า' : 'ระบุข้อมูลลูกค้าที่ต้องการฝากเหล้า'}
+        />
         <CardContent>
-          <div className="space-y-4">
+          <div className={cn('space-y-4', isNoDeposit && 'opacity-60')}>
             <div className="grid gap-4 sm:grid-cols-2">
               <Input
                 label="ชื่อลูกค้า *"
@@ -469,6 +472,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
                 }}
                 placeholder="เช่น คุณสมชาย"
                 error={errors.customerName}
+                disabled={isNoDeposit}
               />
               <Input
                 label="เบอร์โทรศัพท์"
@@ -476,6 +480,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 placeholder="เช่น 0812345678"
                 type="tel"
+                disabled={isNoDeposit}
               />
             </div>
             <Input
@@ -483,6 +488,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
               value={tableNumber}
               onChange={(e) => setTableNumber(e.target.value)}
               placeholder="เช่น โต๊ะ 12, VIP 3"
+              disabled={isNoDeposit}
             />
           </div>
         </CardContent>
@@ -609,8 +615,18 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
               <button
                 type="button"
                 onClick={() => {
-                  setIsNoDeposit(!isNoDeposit);
-                  if (!isNoDeposit) setIsVip(false);
+                  const next = !isNoDeposit;
+                  setIsNoDeposit(next);
+                  if (next) {
+                    setIsVip(false);
+                    setCustomerName('ลูกค้าทั่วไป');
+                    setCustomerPhone('');
+                    setTableNumber('');
+                  } else {
+                    setCustomerName('');
+                    setCustomerPhone('');
+                    setTableNumber('');
+                  }
                 }}
                 className={cn(
                   'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
