@@ -84,8 +84,10 @@ CREATE TABLE products (
   unit TEXT,
   price NUMERIC(10,2),
   active BOOLEAN DEFAULT true,
+  count_status TEXT NOT NULL DEFAULT 'active',
   created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(store_id, product_code)
+  UNIQUE(store_id, product_code),
+  CONSTRAINT products_count_status_check CHECK (count_status IN ('active', 'excluded'))
 );
 
 CREATE TABLE manual_counts (
@@ -97,7 +99,8 @@ CREATE TABLE manual_counts (
   user_id UUID REFERENCES profiles(id),
   notes TEXT,
   verified BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT manual_counts_store_date_product_unique UNIQUE (store_id, count_date, product_code)
 );
 
 CREATE TABLE ocr_logs (
@@ -172,6 +175,10 @@ CREATE TABLE deposits (
   received_photo_url TEXT,
   /** รูปที่ Bar ถ่ายตอนยืนยัน */
   confirm_photo_url TEXT,
+  /** VIP deposits have no expiry date (ฝากได้ไม่มีหมดอายุ) */
+  is_vip BOOLEAN DEFAULT false,
+  /** ไม่ฝาก — สร้างเป็นรายการ expired ทันที รอโอนคลังกลาง */
+  is_no_deposit BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -427,6 +434,8 @@ CREATE INDEX idx_deposits_customer_id ON deposits(customer_id);
 CREATE INDEX idx_deposits_line_user_id ON deposits(line_user_id);
 CREATE INDEX idx_deposits_status ON deposits(status);
 CREATE INDEX idx_deposits_expiry_date ON deposits(expiry_date);
+CREATE INDEX idx_deposits_is_vip ON deposits(is_vip) WHERE is_vip = true;
+CREATE INDEX idx_deposits_is_no_deposit ON deposits(is_no_deposit) WHERE is_no_deposit = true;
 CREATE INDEX idx_withdrawals_deposit_id ON withdrawals(deposit_id);
 CREATE INDEX idx_withdrawals_store_id ON withdrawals(store_id);
 CREATE INDEX idx_comparisons_store_id ON comparisons(store_id);
@@ -697,13 +706,39 @@ CREATE POLICY "HQ and admin manage hq_deposits" ON hq_deposits
 
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  _username TEXT;
+  _role user_role;
 BEGIN
-  INSERT INTO profiles (id, username, role)
-  VALUES (
-    NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'username', NEW.email),
-    COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'staff')
+  -- ดึง username จาก metadata หรือ email หรือสร้างจาก UUID
+  _username := COALESCE(
+    NULLIF(TRIM(NEW.raw_user_meta_data->>'username'), ''),
+    NULLIF(TRIM(NEW.email), ''),
+    'user_' || REPLACE(NEW.id::TEXT, '-', '')
   );
+
+  -- ถ้า username ซ้ำ ให้ต่อท้ายด้วย 6 ตัวแรกของ UUID
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE username = _username) THEN
+    _username := _username || '_' || SUBSTR(REPLACE(NEW.id::TEXT, '-', ''), 1, 6);
+  END IF;
+
+  -- แปลง role จาก metadata (ถ้า invalid ให้ใช้ 'staff')
+  BEGIN
+    _role := COALESCE(
+      NULLIF(TRIM(NEW.raw_user_meta_data->>'role'), '')::user_role,
+      'staff'
+    );
+  EXCEPTION WHEN invalid_text_representation OR others THEN
+    _role := 'staff';
+  END;
+
+  INSERT INTO public.profiles (id, username, role)
+  VALUES (NEW.id, _username, _role);
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Log error แต่ไม่ block การสร้าง auth user
+  RAISE WARNING 'handle_new_user: failed to create profile for user % — %', NEW.id, SQLERRM;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -724,6 +759,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE deposit_requests;
 ALTER PUBLICATION supabase_realtime ADD TABLE announcements;
 ALTER PUBLICATION supabase_realtime ADD TABLE print_queue;
 ALTER PUBLICATION supabase_realtime ADD TABLE borrows;
+ALTER PUBLICATION supabase_realtime ADD TABLE manual_counts;
 
 -- ==========================================
 -- APP SETTINGS: Central bot config
