@@ -65,8 +65,14 @@ export function usePushSubscription(): UsePushSubscriptionReturn {
 
     setPermission(Notification.permission);
 
-    async function checkExistingSubscription() {
+    async function ensureServiceWorkerAndCheck() {
       try {
+        // Register service worker if not already registered
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        if (registrations.length === 0) {
+          await navigator.serviceWorker.register('/sw.js');
+        }
+
         const registration = await navigator.serviceWorker.ready;
         registrationRef.current = registration;
         const subscription = await registration.pushManager.getSubscription();
@@ -77,13 +83,13 @@ export function usePushSubscription(): UsePushSubscriptionReturn {
       }
     }
 
-    checkExistingSubscription();
+    ensureServiceWorkerAndCheck();
 
     // Re-check permission when the page regains focus (user may have changed it in browser settings)
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
         setPermission(Notification.permission);
-        checkExistingSubscription();
+        ensureServiceWorkerAndCheck();
       }
     }
 
@@ -109,7 +115,13 @@ export function usePushSubscription(): UsePushSubscriptionReturn {
         );
       }
 
-      // 2. Get the service worker registration
+      // 2. Get the service worker registration (register if needed)
+      if (!registrationRef.current) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        if (registrations.length === 0) {
+          await navigator.serviceWorker.register('/sw.js');
+        }
+      }
       const registration = registrationRef.current ?? (await navigator.serviceWorker.ready);
       registrationRef.current = registration;
 
