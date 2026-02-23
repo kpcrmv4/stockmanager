@@ -146,10 +146,18 @@ export default function ProfilePage() {
         setPrefs((prev) => ({ ...prev, pwa_enabled: false }));
       } else {
         await pushSub.subscribe();
+        // If subscribe() didn't throw, it succeeded
         setPrefs((prev) => ({ ...prev, pwa_enabled: true }));
       }
-    } catch {
-      toast({ type: 'error', title: 'ไม่สามารถเปลี่ยนสถานะ Push Notification ได้' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'NOTIFICATION_DENIED') {
+        toast({ type: 'error', title: 'การแจ้งเตือนถูกบล็อก', message: 'กรุณาเปิดสิทธิ์ Notification ในการตั้งค่าเบราว์เซอร์' });
+      } else if (msg === 'NOTIFICATION_DISMISSED') {
+        toast({ type: 'error', title: 'กรุณาอนุญาตการแจ้งเตือนเพื่อเปิดใช้งาน' });
+      } else {
+        toast({ type: 'error', title: 'ลงทะเบียนอุปกรณ์ไม่สำเร็จ', message: 'กรุณาลองอีกครั้ง' });
+      }
     }
   };
 
@@ -223,13 +231,15 @@ export default function ProfilePage() {
                   Push Notification
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {pushSub.isSupported
-                    ? pushSub.isSubscribed
-                      ? 'เปิดใช้งานแล้ว — รับแจ้งเตือนแม้ปิดแอป'
+                  {!pushSub.isSupported
+                    ? 'เบราว์เซอร์นี้ไม่รองรับ Push Notification'
+                    : pushSub.isSubscribed
+                      ? 'เปิดใช้งานบนอุปกรณ์นี้แล้ว — รับแจ้งเตือนแม้ปิดแอป'
                       : pushSub.permission === 'denied'
-                        ? 'ถูกบล็อก — กรุณาเปิดสิทธิ์ Notification ในเบราว์เซอร์'
-                        : 'ปิดอยู่ — กดเพื่อเปิดรับ Push Notification'
-                    : 'เบราว์เซอร์นี้ไม่รองรับ Push Notification'}
+                        ? 'ถูกบล็อกบนอุปกรณ์นี้ — กรุณาเปิดสิทธิ์ Notification ในการตั้งค่าเบราว์เซอร์'
+                        : pushSub.permission === 'granted'
+                          ? 'ได้รับสิทธิ์แล้ว แต่ยังไม่ได้ลงทะเบียนอุปกรณ์นี้ — กดเพื่อเปิด'
+                          : 'ปิดอยู่บนอุปกรณ์นี้ — กดเพื่อเปิดรับการแจ้งเตือน'}
                 </p>
               </div>
             </div>
