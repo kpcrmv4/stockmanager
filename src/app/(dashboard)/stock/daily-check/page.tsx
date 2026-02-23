@@ -137,6 +137,26 @@ export default function DailyCheckPage() {
       );
 
       if (ok) {
+        // Fire-and-forget per-item audit log
+        const product = products.find((p) => p.product_code === productCode);
+        logAudit({
+          store_id: currentStoreId,
+          action_type: AUDIT_ACTIONS.STOCK_COUNT_SAVED,
+          table_name: 'manual_counts',
+          record_id: productCode,
+          old_value: existingCounts[productCode] != null
+            ? { count_quantity: existingCounts[productCode] }
+            : null,
+          new_value: {
+            count_quantity: Number(entry.count_quantity),
+            product_code: productCode,
+            product_name: product?.product_name || productCode,
+            count_date: businessDate,
+            type: 'per_item',
+          },
+          changed_by: user.id,
+        });
+
         setExistingCounts((prev) => ({
           ...prev,
           [productCode]: Number(entry.count_quantity),
@@ -155,7 +175,7 @@ export default function DailyCheckPage() {
 
       setSavingItem(null);
     },
-    [counts, currentStoreId, user, existingCounts, upsertSingleCount],
+    [counts, currentStoreId, user, existingCounts, upsertSingleCount, products, businessDate],
   );
 
   // ── On blur: auto-save notes ──
@@ -490,7 +510,15 @@ export default function DailyCheckPage() {
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.STOCK_COUNT_SAVED,
         table_name: 'manual_counts',
-        new_value: { count_date: businessDate, items_count: entries.length },
+        new_value: {
+          count_date: businessDate,
+          items_count: entries.length,
+          type: 'batch_finalize',
+          products: entries.slice(0, 10).map((e) => {
+            const p = products.find((pr) => pr.product_code === e.product_code);
+            return p?.product_name || e.product_code;
+          }),
+        },
         changed_by: user.id,
       });
 
@@ -648,6 +676,7 @@ export default function DailyCheckPage() {
           count_date: businessDate,
           items_count: entries.length,
           type: 'supplementary',
+          products: supplementaryItems.slice(0, 10).map((s) => s.product_name || s.product_code),
         },
         changed_by: user.id,
       });

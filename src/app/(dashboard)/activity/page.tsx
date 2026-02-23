@@ -58,6 +58,10 @@ interface AuditLogEntry extends AuditLog {
     username: string;
     role: string;
   } | null;
+  store?: {
+    store_name: string;
+    store_code: string;
+  } | null;
 }
 
 type FilterCategory = 'all' | 'stock' | 'deposit' | 'borrow' | 'customer' | 'system';
@@ -116,6 +120,7 @@ const FILTER_CATEGORIES: Record<FilterCategory, string[]> = {
     'CRON_EXPIRY_CHECK',
     'CRON_DEPOSIT_EXPIRED',
     'CRON_FOLLOW_UP_SENT',
+    'AUDIT_LOG_CLEANUP',
   ],
 };
 
@@ -214,14 +219,173 @@ function getActorLabel(entry: AuditLogEntry): string {
 function getEntryDetails(entry: AuditLogEntry): string {
   const newVal = entry.new_value as Record<string, unknown> | null;
   const oldVal = entry.old_value as Record<string, unknown> | null;
+  const action = entry.action_type;
 
-  // Try to extract meaningful details
+  // --- Product toggle: show product name + on/off status ---
+  if (action === 'PRODUCT_TOGGLED') {
+    const val = newVal || oldVal;
+    const productName = val?.product_name ? String(val.product_name) : '';
+    const productCode = val?.product_code ? String(val.product_code) : '';
+    const newActive = newVal?.active;
+    const statusText = newActive === true ? 'เปิดใช้งาน' : newActive === false ? 'ปิดใช้งาน' : '';
+    const parts: string[] = [];
+    if (productName) parts.push(productName);
+    if (productCode) parts.push(`(${productCode})`);
+    if (statusText) parts.push(`→ ${statusText}`);
+    return parts.join(' ');
+  }
+
+  // --- Product created/updated/deleted: show product name + code ---
+  if (action === 'PRODUCT_CREATED' || action === 'PRODUCT_UPDATED' || action === 'PRODUCT_DELETED') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.product_name) parts.push(String(val.product_name));
+    if (val?.product_code) parts.push(`(${String(val.product_code)})`);
+    return parts.join(' ');
+  }
+
+  // --- Auto product actions: show product info ---
+  if (action === 'AUTO_ADD_PRODUCT' || action === 'AUTO_DEACTIVATE' || action === 'AUTO_REACTIVATE') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.product_name) parts.push(String(val.product_name));
+    if (val?.product_code) parts.push(`(${String(val.product_code)})`);
+    return parts.join(' ');
+  }
+
+  // --- Deposit actions: show deposit code + customer + product ---
+  if (action.startsWith('DEPOSIT_') || action === 'WITHDRAWAL_COMPLETED' || action === 'WITHDRAWAL_REJECTED' || action === 'WITHDRAWAL_REQUESTED') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.deposit_code) parts.push(String(val.deposit_code));
+    if (val?.customer_name) parts.push(String(val.customer_name));
+    if (val?.product_name) parts.push(String(val.product_name));
+    if (val?.actual_qty != null) parts.push(`จำนวน ${val.actual_qty}`);
+    if (val?.quantity != null && !val?.actual_qty) parts.push(`จำนวน ${val.quantity}`);
+    if (val?.reason) parts.push(`เหตุผล: ${String(val.reason)}`);
+    return parts.join(' — ');
+  }
+
+  // --- Customer actions: show customer + product ---
+  if (action.startsWith('CUSTOMER_')) {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.customer_name) parts.push(String(val.customer_name));
+    if (val?.product_name) parts.push(String(val.product_name));
+    return parts.join(' — ');
+  }
+
+  // --- Transfer actions: show transfer info ---
+  if (action.startsWith('TRANSFER_')) {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.transfer_code) parts.push(String(val.transfer_code));
+    if (val?.product_name) parts.push(String(val.product_name));
+    return parts.join(' — ');
+  }
+
+  // --- Borrow actions: show items ---
+  if (action.startsWith('BORROW_')) {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.items && Array.isArray(val.items)) {
+      const names = (val.items as Array<Record<string, unknown>>)
+        .map((item) => item.product_name)
+        .filter(Boolean)
+        .slice(0, 3);
+      if (names.length > 0) parts.push(names.join(', '));
+    }
+    if (val?.product_name) parts.push(String(val.product_name));
+    if (val?.total_items && typeof val.total_items === 'number')
+      parts.push(`${val.total_items} รายการ`);
+    return parts.join(' — ');
+  }
+
+  // --- Stock explanation/approval: show product + difference ---
+  if (action === 'STOCK_EXPLANATION_SUBMITTED' || action === 'STOCK_APPROVED' || action === 'STOCK_REJECTED') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.product_name) parts.push(String(val.product_name));
+    if (val?.product_code) parts.push(`(${String(val.product_code)})`);
+    if (val?.difference != null) {
+      const diff = Number(val.difference);
+      parts.push(`ส่วนต่าง ${diff > 0 ? '+' : ''}${diff}`);
+    }
+    return parts.join(' ');
+  }
+
+  // --- Stock batch actions: show count + product list ---
+  if (action === 'STOCK_BATCH_APPROVED' || action === 'STOCK_BATCH_REJECTED' || action === 'STOCK_EXPLANATION_BATCH') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.count && typeof val.count === 'number')
+      parts.push(`${val.count} รายการ`);
+    if (val?.submitted_count && typeof val.submitted_count === 'number')
+      parts.push(`${val.submitted_count} รายการ`);
+    if (val?.products && Array.isArray(val.products)) {
+      const names = (val.products as string[]).slice(0, 3);
+      if (names.length > 0) parts.push(names.join(', '));
+      if ((val.products as string[]).length > 3)
+        parts.push(`+${(val.products as string[]).length - 3}`);
+    }
+    return parts.join(' — ');
+  }
+
+  // --- Stock count saved: per-item vs batch ---
+  if (action === 'STOCK_COUNT_SAVED') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.type === 'per_item') {
+      // Per-item: show product name + count value
+      if (val?.product_name) parts.push(String(val.product_name));
+      if (val?.product_code) parts.push(`(${String(val.product_code)})`);
+      if (val?.count_quantity != null) parts.push(`= ${val.count_quantity}`);
+    } else {
+      // Batch: show items count + product list
+      if (val?.items_count && typeof val.items_count === 'number')
+        parts.push(`${val.items_count} รายการ`);
+      if (val?.type === 'supplementary') parts.push('(เพิ่มเติม)');
+      if (val?.products && Array.isArray(val.products)) {
+        const names = (val.products as string[]).slice(0, 3);
+        if (names.length > 0) parts.push(names.join(', '));
+        if ((val.products as string[]).length > 3)
+          parts.push(`+${(val.products as string[]).length - 3}`);
+      }
+    }
+    return parts.join(' ');
+  }
+
+  // --- Other stock actions: show count/batch info ---
+  if (action.startsWith('STOCK_')) {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.product_name) parts.push(String(val.product_name));
+    if (val?.product_code) parts.push(`(${String(val.product_code)})`);
+    if (val?.items_count && typeof val.items_count === 'number')
+      parts.push(`${val.items_count} รายการ`);
+    if (val?.count && typeof val.count === 'number')
+      parts.push(`${val.count} รายการ`);
+    if (val?.total_items && typeof val.total_items === 'number')
+      parts.push(`${val.total_items} รายการ`);
+    return parts.join(' ');
+  }
+
+  // --- Audit log cleanup: show deleted count + retention ---
+  if (action === 'AUDIT_LOG_CLEANUP') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.deleted_count != null) parts.push(`ลบ ${val.deleted_count} รายการ`);
+    if (val?.retention_days != null) parts.push(`(เก็บ ${val.retention_days} วัน)`);
+    return parts.join(' ');
+  }
+
+  // --- Generic fallback: try common fields ---
   if (newVal) {
     const parts: string[] = [];
     if (newVal.deposit_code) parts.push(String(newVal.deposit_code));
     if (newVal.customer_name) parts.push(String(newVal.customer_name));
     if (newVal.product_name) parts.push(String(newVal.product_name));
-    if (newVal.product_code) parts.push(String(newVal.product_code));
+    if (newVal.product_code) parts.push(`(${String(newVal.product_code)})`);
     if (newVal.count && typeof newVal.count === 'number')
       parts.push(`${newVal.count} รายการ`);
     if (newVal.total_items && typeof newVal.total_items === 'number')
@@ -232,10 +396,10 @@ function getEntryDetails(entry: AuditLogEntry): string {
     const parts: string[] = [];
     if (oldVal.deposit_code) parts.push(String(oldVal.deposit_code));
     if (oldVal.product_name) parts.push(String(oldVal.product_name));
+    if (oldVal.product_code) parts.push(`(${String(oldVal.product_code)})`);
     if (parts.length > 0) return parts.join(' — ');
   }
 
-  if (entry.record_id) return entry.record_id;
   return '';
 }
 
@@ -446,7 +610,7 @@ export default function ActivityPage() {
         let query = supabase
           .from('audit_logs')
           .select(
-            '*, profile:profiles!changed_by(display_name, username, role)'
+            '*, profile:profiles!changed_by(display_name, username, role), store:stores!store_id(store_name, store_code)'
           )
           .gte('created_at', todayStart)
           .lte('created_at', todayEnd)
@@ -842,6 +1006,12 @@ export default function ActivityPage() {
                         )}
                       </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                        {selectedStore === 'all' && entry.store && (
+                          <span className="inline-flex items-center rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                            <StoreIcon className="mr-0.5 h-2.5 w-2.5" />
+                            {entry.store.store_name}
+                          </span>
+                        )}
                         <span className="text-xs text-gray-400 dark:text-gray-500">
                           โดย: {actorLabel}
                         </span>

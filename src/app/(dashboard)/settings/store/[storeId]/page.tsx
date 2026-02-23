@@ -25,6 +25,7 @@ import {
   Trash2,
   Loader2,
   Printer,
+  ScrollText,
 } from 'lucide-react';
 import type { ReceiptSettings } from '@/types/database';
 
@@ -59,6 +60,7 @@ interface StoreSettingsData {
   line_notify_enabled: boolean;
   daily_reminder_enabled: boolean;
   follow_up_enabled: boolean;
+  audit_log_retention_days: number | null;
 }
 
 const settingsDefaults: StoreSettingsData = {
@@ -75,6 +77,7 @@ const settingsDefaults: StoreSettingsData = {
   line_notify_enabled: true,
   daily_reminder_enabled: true,
   follow_up_enabled: true,
+  audit_log_retention_days: null,
 };
 
 const dayLabels: Record<string, string> = {
@@ -130,6 +133,9 @@ export default function StoreDetailSettingsPage() {
   const [registrationCode, setRegistrationCode] = useState('');
   const [dailyReminderEnabled, setDailyReminderEnabled] = useState(true);
   const [followUpEnabled, setFollowUpEnabled] = useState(true);
+
+  // Audit log retention
+  const [auditLogRetentionDays, setAuditLogRetentionDays] = useState<number | null>(null);
 
   // Customer notification settings
   const [customerExpiryEnabled, setCustomerExpiryEnabled] = useState(true);
@@ -196,6 +202,7 @@ export default function StoreDetailSettingsPage() {
       setLineNotifyEnabled(settings.line_notify_enabled ?? true);
       setDailyReminderEnabled(settings.daily_reminder_enabled ?? true);
       setFollowUpEnabled(settings.follow_up_enabled ?? true);
+      setAuditLogRetentionDays(settings.audit_log_retention_days ?? null);
 
       // Load receipt settings from JSONB
       const rs = settings.receipt_settings as ReceiptSettings | null;
@@ -265,6 +272,7 @@ export default function StoreDetailSettingsPage() {
           line_notify_enabled: lineNotifyEnabled,
           daily_reminder_enabled: dailyReminderEnabled,
           follow_up_enabled: followUpEnabled,
+          audit_log_retention_days: auditLogRetentionDays,
           receipt_settings: {
             logo_url: null,
             header_text: receiptHeaderText,
@@ -856,6 +864,71 @@ export default function StoreDetailSettingsPage() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Section 6: ตั้งค่า Audit Log (Audit Log Retention)                  */}
+      {/* ------------------------------------------------------------------ */}
+      <Card padding="none">
+        <CardHeader
+          title="ตั้งค่า Audit Log"
+          description="กำหนดระยะเวลาเก็บ log กิจกรรม ระบบจะลบ log เก่าอัตโนมัติ"
+          action={
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 dark:bg-rose-900/20">
+              <ScrollText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+            </div>
+          }
+        />
+        <CardContent className="space-y-4">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              เก็บ Log กิจกรรมย้อนหลัง
+            </label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setAuditLogRetentionDays(7)}
+                className={`flex flex-1 items-center justify-center rounded-lg border-2 p-3 text-sm font-medium transition-colors ${
+                  auditLogRetentionDays === 7
+                    ? 'border-rose-500 bg-rose-50 text-rose-700 dark:border-rose-400 dark:bg-rose-900/20 dark:text-rose-300'
+                    : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400'
+                }`}
+              >
+                7 วัน
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuditLogRetentionDays(30)}
+                className={`flex flex-1 items-center justify-center rounded-lg border-2 p-3 text-sm font-medium transition-colors ${
+                  auditLogRetentionDays === 30
+                    ? 'border-rose-500 bg-rose-50 text-rose-700 dark:border-rose-400 dark:bg-rose-900/20 dark:text-rose-300'
+                    : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400'
+                }`}
+              >
+                30 วัน
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuditLogRetentionDays(null)}
+                className={`flex flex-1 items-center justify-center rounded-lg border-2 p-3 text-sm font-medium transition-colors ${
+                  auditLogRetentionDays === null
+                    ? 'border-rose-500 bg-rose-50 text-rose-700 dark:border-rose-400 dark:bg-rose-900/20 dark:text-rose-300'
+                    : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400'
+                }`}
+              >
+                ไม่ลบ
+              </button>
+            </div>
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              {auditLogRetentionDays
+                ? <>ระบบจะลบ log กิจกรรมที่เก่ากว่า <strong>{auditLogRetentionDays} วัน</strong> อัตโนมัติทุกวัน</>
+                : <><strong>ไม่ลบอัตโนมัติ:</strong> log กิจกรรมจะถูกเก็บไว้ตลอด</>
+              }
+            </p>
+          </div>
         </CardContent>
       </Card>
 

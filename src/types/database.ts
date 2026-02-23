@@ -288,6 +288,8 @@ export interface StoreSettings {
   daily_reminder_enabled: boolean;
   /** เปิด/ปิดติดตามรายการค้าง (Cron Job 3) */
   follow_up_enabled: boolean;
+  /** จำนวนวันเก็บ audit log (null = เก็บตลอด) */
+  audit_log_retention_days: number | null;
 }
 
 export interface Notification {

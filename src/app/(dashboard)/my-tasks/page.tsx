@@ -412,7 +412,12 @@ export default function MyTasksPage() {
         table_name: 'deposit_requests',
         record_id: rejectState.item.id,
         old_value: { status: 'pending' },
-        new_value: { status: 'rejected', notes: rejectState.reason.trim() },
+        new_value: {
+          status: 'rejected',
+          notes: rejectState.reason.trim(),
+          customer_name: rejectState.item.customerName,
+          product_name: rejectState.item.productName,
+        },
         changed_by: user.id,
       });
 
@@ -460,7 +465,11 @@ export default function MyTasksPage() {
         table_name: 'withdrawals',
         record_id: selectedItem.id,
         old_value: { status: 'pending' },
-        new_value: { status: 'approved' },
+        new_value: {
+          status: 'approved',
+          customer_name: selectedItem.customerName,
+          product_name: selectedItem.productName,
+        },
         changed_by: user.id,
       });
 
@@ -544,7 +553,12 @@ export default function MyTasksPage() {
         table_name: 'withdrawals',
         record_id: rejectState.item.id,
         old_value: { status: 'pending' },
-        new_value: { status: 'rejected', notes: rejectState.reason.trim() },
+        new_value: {
+          status: 'rejected',
+          notes: rejectState.reason.trim(),
+          customer_name: rejectState.item.customerName,
+          product_name: rejectState.item.productName,
+        },
         changed_by: user.id,
       });
 

@@ -366,8 +366,16 @@ export default function ProductsPage() {
         action_type: 'product_toggled',
         table_name: 'products',
         record_id: product.id,
-        old_value: { active: product.active },
-        new_value: { active: newActive },
+        old_value: {
+          active: product.active,
+          product_code: product.product_code,
+          product_name: product.product_name,
+        },
+        new_value: {
+          active: newActive,
+          product_code: product.product_code,
+          product_name: product.product_name,
+        },
         changed_by: user?.id || null,
       });
 

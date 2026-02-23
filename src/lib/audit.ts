@@ -72,6 +72,9 @@ export const AUDIT_ACTIONS = {
   SETTINGS_UPDATED: 'SETTINGS_UPDATED',
   STORE_CREATED: 'STORE_CREATED',
   STORE_UPDATED: 'STORE_UPDATED',
+
+  // === Audit Log Cleanup ===
+  AUDIT_LOG_CLEANUP: 'AUDIT_LOG_CLEANUP',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -180,4 +183,7 @@ export const AUDIT_ACTION_LABELS: Record<
   SETTINGS_UPDATED: { label: 'อัพเดตการตั้งค่า', color: 'gray', icon: 'settings' },
   STORE_CREATED: { label: 'สร้างสาขาใหม่', color: 'blue', icon: 'store' },
   STORE_UPDATED: { label: 'แก้ไขข้อมูลสาขา', color: 'amber', icon: 'store' },
+
+  // Audit Log Cleanup
+  AUDIT_LOG_CLEANUP: { label: 'เคลียร์ Audit Log', color: 'red', icon: 'trash' },
 };

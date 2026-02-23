@@ -78,6 +78,17 @@ export function usePushSubscription(): UsePushSubscriptionReturn {
     }
 
     checkExistingSubscription();
+
+    // Re-check permission when the page regains focus (user may have changed it in browser settings)
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        setPermission(Notification.permission);
+        checkExistingSubscription();
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   const subscribe = useCallback(async () => {
@@ -91,7 +102,11 @@ export function usePushSubscription(): UsePushSubscriptionReturn {
       setPermission(result);
 
       if (result !== 'granted') {
-        return;
+        throw new Error(
+          result === 'denied'
+            ? 'NOTIFICATION_DENIED'
+            : 'NOTIFICATION_DISMISSED',
+        );
       }
 
       // 2. Get the service worker registration
