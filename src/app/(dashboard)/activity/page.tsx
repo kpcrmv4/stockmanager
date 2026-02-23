@@ -120,6 +120,7 @@ const FILTER_CATEGORIES: Record<FilterCategory, string[]> = {
     'CRON_EXPIRY_CHECK',
     'CRON_DEPOSIT_EXPIRED',
     'CRON_FOLLOW_UP_SENT',
+    'AUDIT_LOG_CLEANUP',
   ],
 };
 
@@ -366,6 +367,15 @@ function getEntryDetails(entry: AuditLogEntry): string {
       parts.push(`${val.count} รายการ`);
     if (val?.total_items && typeof val.total_items === 'number')
       parts.push(`${val.total_items} รายการ`);
+    return parts.join(' ');
+  }
+
+  // --- Audit log cleanup: show deleted count + retention ---
+  if (action === 'AUDIT_LOG_CLEANUP') {
+    const val = newVal || oldVal;
+    const parts: string[] = [];
+    if (val?.deleted_count != null) parts.push(`ลบ ${val.deleted_count} รายการ`);
+    if (val?.retention_days != null) parts.push(`(เก็บ ${val.retention_days} วัน)`);
     return parts.join(' ');
   }
 
