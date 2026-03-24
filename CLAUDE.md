@@ -62,13 +62,13 @@
 - [x] 3.5 — Live summary (pinned message): `updatePinnedSummary()` ใน bot-message API
 - [x] 3.6 — "ถ่ายรูปยืนยัน" flow จากแชท (`action-card-message.tsx`, `api/chat/sync-photo/route.ts`)
 
-### Phase 4: Bot Integration — Stock & Transfers
+### Phase 4: Bot Integration — Stock & Transfers ✅ COMPLETED
 > Bot ผนวกสต๊อก/ยืมสินค้า
 
-- [ ] 4.1 — Trigger: ผลเปรียบเทียบสต๊อก → Action Card + ปุ่มชี้แจง
-- [ ] 4.2 — Trigger: Transfer/Borrow request → Action Card ข้ามสาขา
-- [ ] 4.3 — Trigger: Approval request → แจ้ง owner/manager
-- [ ] 4.4 — Daily summary bot message (สรุปประจำวัน)
+- [x] 4.1 — Trigger: ผลเปรียบเทียบสต๊อก → Action Card (`api/stock/compare/route.ts`)
+- [x] 4.2 — Trigger: Borrow request → Action Card ข้ามสาขา (`api/borrows/route.ts`)
+- [x] 4.3 — Trigger: Approval/Transfer → system messages (`stock/approval`, `stock/explanation`, `transfer`)
+- [x] 4.4 — Daily summary bot message (`api/cron/chat-daily-summary/route.ts`, `vercel.json`)
 
 ### Phase 5: Advanced Features
 > ฟีเจอร์เสริม

@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { pushToStaffGroup, type LineMessage } from '@/lib/line/messaging';
 import { borrowRequestFlex } from '@/lib/line/flex-templates';
 import { notifyStoreStaff } from '@/lib/notifications/service';
+import { sendBotMessage, buildBorrowActionCard } from '@/lib/chat/bot';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -197,6 +198,26 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.error('[Borrows] Failed to send LINE notification to lender:', err);
       }
+    }
+
+    // ----- Send Action Card to lender store chat -----
+    try {
+      const itemsPreview = items
+        .slice(0, 3)
+        .map((i) => `${i.productName} x${i.quantity}`)
+        .join(', ');
+      const preview = itemsPreview + (items.length > 3 ? ` +${items.length - 3} อื่นๆ` : '');
+
+      const actionCard = buildBorrowActionCard({
+        id: borrow.id,
+        from_store_name: fromStoreName,
+        items_preview: preview,
+        notes: notes || null,
+      });
+
+      await sendBotMessage({ storeId: toStoreId, ...actionCard });
+    } catch (chatErr) {
+      console.error('[Borrows] Failed to send chat action card:', chatErr);
     }
 
     // ----- Audit log -----

@@ -159,3 +159,60 @@ export function notifyChatWithdrawalCompleted(
     content: `✓ ${withdrawal.processed_by_name} เบิก ${withdrawal.product_name} x${withdrawal.actual_qty} ให้ ${withdrawal.customer_name} เรียบร้อย`,
   });
 }
+
+/**
+ * ส่ง system message ว่าสร้างรายการโอนสินค้าแล้ว
+ */
+export function notifyChatTransferCreated(
+  storeId: string,
+  transfer: {
+    transfer_code: string;
+    deposit_count: number;
+    submitted_by_name: string;
+  }
+): void {
+  sendChatBotMessage({
+    storeId,
+    type: 'system',
+    content: `📦 ${transfer.submitted_by_name} ส่งโอน ${transfer.deposit_count} รายการ ไปคลังกลาง (${transfer.transfer_code})`,
+  });
+}
+
+/**
+ * ส่ง system message ว่ามีคำชี้แจงสต๊อกใหม่
+ */
+export function notifyChatExplanationSubmitted(
+  storeId: string,
+  data: {
+    product_name: string;
+    difference: number;
+    submitted_by_name: string;
+  }
+): void {
+  sendChatBotMessage({
+    storeId,
+    type: 'system',
+    content: `📝 ${data.submitted_by_name} ส่งคำชี้แจง "${data.product_name}" (ส่วนต่าง ${data.difference > 0 ? '+' : ''}${data.difference})`,
+  });
+}
+
+/**
+ * ส่ง system message ว่า owner อนุมัติ/ปฏิเสธคำชี้แจง
+ */
+export function notifyChatApprovalResult(
+  storeId: string,
+  data: {
+    product_name: string;
+    result: 'approved' | 'rejected';
+    approved_by_name: string;
+    reason?: string | null;
+  }
+): void {
+  const status = data.result === 'approved' ? '✅ อนุมัติ' : '❌ ปฏิเสธ';
+  const reason = data.result === 'rejected' && data.reason ? ` — ${data.reason}` : '';
+  sendChatBotMessage({
+    storeId,
+    type: 'system',
+    content: `${status} คำชี้แจง "${data.product_name}" โดย ${data.approved_by_name}${reason}`,
+  });
+}

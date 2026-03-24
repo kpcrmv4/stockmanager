@@ -9,6 +9,7 @@ import { Button, Input, Badge, Card, CardHeader, Tabs, EmptyState, toast } from 
 import { formatThaiDate, formatNumber, formatPercent } from '@/lib/utils/format';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { sendNotification } from '@/lib/notifications/client';
+import { notifyChatApprovalResult } from '@/lib/chat/bot-client';
 import type { Comparison } from '@/types/database';
 import {
   ArrowLeft,
@@ -190,6 +191,15 @@ export default function ApprovalPage() {
           },
         });
       }
+
+      // ส่ง system message เข้าห้องแชทสาขา
+      if (compItem) {
+        notifyChatApprovalResult(currentStoreId!, {
+          product_name: compItem.product_name || 'ไม่ระบุ',
+          result: 'approved',
+          approved_by_name: user?.displayName || user?.username || 'เจ้าของ',
+        });
+      }
     } catch (error) {
       console.error('Error approving:', error);
       toast({
@@ -282,6 +292,16 @@ export default function ApprovalPage() {
             owner_notes: notes,
             url: '/stock/explanation',
           },
+        });
+      }
+
+      // ส่ง system message เข้าห้องแชทสาขา
+      if (rejItem) {
+        notifyChatApprovalResult(currentStoreId!, {
+          product_name: rejItem.product_name || 'ไม่ระบุ',
+          result: 'rejected',
+          approved_by_name: user?.displayName || user?.username || 'เจ้าของ',
+          reason: notes,
         });
       }
     } catch (error) {
