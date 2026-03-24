@@ -12,6 +12,7 @@ import { BotSettingsDialog } from '@/components/chat/bot-settings-dialog';
 import { MessageSquare, Users, ChevronRight, Plus, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { formatThaiDate } from '@/lib/utils/format';
+import { PushPrompt } from '@/components/notification/push-prompt';
 
 export default function ChatPage() {
   const router = useRouter();
@@ -51,6 +52,9 @@ export default function ChatPage() {
           </button>
         </div>
       </div>
+
+      {/* Push notification prompt */}
+      <PushPrompt className="mb-3" />
 
       {rooms.length === 0 ? (
         <EmptyState

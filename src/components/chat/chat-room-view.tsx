@@ -14,6 +14,7 @@ import { PinnedMessagesBanner } from './pinned-messages-banner';
 import { ChatRoomSettings } from './chat-room-settings';
 import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { ChatNotificationToggle } from './chat-notification-toggle';
 import type { ChatPinnedMessage, ChatMessage } from '@/types/chat';
 
 interface ChatRoomViewProps {
@@ -270,6 +271,9 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
             </p>
           )}
         </div>
+
+        {/* Push notification toggle */}
+        <ChatNotificationToggle />
 
         {/* Mute toggle */}
         <button

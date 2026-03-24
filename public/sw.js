@@ -56,12 +56,22 @@ self.addEventListener('push', (event) => {
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-72.png',
     data: data.data || {},
-    tag: data.tag || 'default',
+    tag: data.tag || (data.data?.room_id ? `chat:${data.data.room_id}` : 'default'),
     renotify: true,
     vibrate: [200, 100, 200],
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  // Skip notification if user has the chat room open already
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const targetUrl = data.data?.url || '';
+      const isVisible = clients.some(
+        (client) => client.visibilityState === 'visible' && targetUrl && client.url.includes(targetUrl)
+      );
+      if (isVisible) return; // User is already looking at this chat
+      return self.registration.showNotification(title, options);
+    })
+  );
 });
 
 // Notification click handler
