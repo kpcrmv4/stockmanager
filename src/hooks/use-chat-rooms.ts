@@ -28,7 +28,7 @@ export function useChatRooms() {
         room_id,
         last_read_at,
         chat_rooms!inner (
-          id, store_id, name, type, is_active, pinned_summary, created_at, updated_at
+          id, store_id, name, type, is_active, pinned_summary, avatar_url, created_by, created_at, updated_at
         )
       `)
       .eq('user_id', user.id)

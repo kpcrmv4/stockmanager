@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils/cn';
 import { useAppStore } from '@/stores/app-store';
 import { Sidebar } from './sidebar';
@@ -14,6 +15,8 @@ interface DesktopLayoutProps {
 
 export function DesktopLayout({ children, stores, pageTitle }: DesktopLayoutProps) {
   const { sidebarOpen } = useAppStore();
+  const pathname = usePathname();
+  const isChatRoom = /^\/chat\/[^/]+/.test(pathname);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
@@ -25,8 +28,8 @@ export function DesktopLayout({ children, stores, pageTitle }: DesktopLayoutProp
         <TopBar pageTitle={pageTitle} stores={stores} />
         <main
           className={cn(
-            'flex-1 overflow-y-auto p-6',
-            'transition-all duration-300'
+            'flex-1 transition-all duration-300',
+            isChatRoom ? 'overflow-hidden' : 'overflow-y-auto p-6'
           )}
         >
           {children}

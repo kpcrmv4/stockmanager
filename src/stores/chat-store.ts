@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChatRoom, ChatMessage } from '@/types/chat';
+import type { ChatRoom, ChatMessage, ChatPinnedMessage } from '@/types/chat';
 
 interface ChatState {
   // ห้องแชท
@@ -15,6 +15,12 @@ interface ChatState {
   unreadCounts: Record<string, number>;
   totalUnread: number;
 
+  // pinned messages (ห้องที่เปิดดู)
+  pinnedMessages: ChatPinnedMessage[];
+
+  // mute state (ห้องที่เปิดดู)
+  isMuted: boolean;
+
   // actions
   setRooms: (rooms: ChatRoom[]) => void;
   setActiveRoomId: (roomId: string | null) => void;
@@ -27,6 +33,10 @@ interface ChatState {
   setUnreadCounts: (counts: Record<string, number>) => void;
   incrementUnread: (roomId: string) => void;
   clearUnread: (roomId: string) => void;
+  setPinnedMessages: (msgs: ChatPinnedMessage[]) => void;
+  addPinnedMessage: (msg: ChatPinnedMessage) => void;
+  removePinnedMessage: (messageId: string) => void;
+  setIsMuted: (muted: boolean) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -37,11 +47,13 @@ export const useChatStore = create<ChatState>((set) => ({
   isLoadingMessages: false,
   unreadCounts: {},
   totalUnread: 0,
+  pinnedMessages: [],
+  isMuted: false,
 
   setRooms: (rooms) => set({ rooms }),
 
   setActiveRoomId: (activeRoomId) =>
-    set({ activeRoomId, messages: [], hasMore: true }),
+    set({ activeRoomId, messages: [], hasMore: true, pinnedMessages: [] }),
 
   setMessages: (messages) => set({ messages }),
 
@@ -82,4 +94,20 @@ export const useChatStore = create<ChatState>((set) => ({
       const counts = { ...s.unreadCounts, [roomId]: 0 };
       return { unreadCounts: counts, totalUnread: Object.values(counts).reduce((a, b) => a + b, 0) };
     }),
+
+  setPinnedMessages: (pinnedMessages) => set({ pinnedMessages }),
+
+  addPinnedMessage: (msg) =>
+    set((s) => ({
+      pinnedMessages: [...s.pinnedMessages, msg].sort(
+        (a, b) => new Date(b.pinned_at).getTime() - new Date(a.pinned_at).getTime()
+      ),
+    })),
+
+  removePinnedMessage: (messageId) =>
+    set((s) => ({
+      pinnedMessages: s.pinnedMessages.filter((p) => p.message_id !== messageId),
+    })),
+
+  setIsMuted: (isMuted) => set({ isMuted }),
 }));
