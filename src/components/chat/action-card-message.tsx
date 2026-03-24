@@ -48,10 +48,13 @@ export function ActionCardMessage({ message, currentUserId, roomId }: ActionCard
 
   const config = ACTION_TYPE_CONFIG[meta.action_type] || ACTION_TYPE_CONFIG.generic;
   const Icon = config.icon;
-  const isClaimed = meta.status === 'claimed';
+  const isTimedOut = meta.status === 'claimed' && meta.claimed_at && meta.timeout_minutes
+    ? new Date(meta.claimed_at).getTime() + meta.timeout_minutes * 60 * 1000 < Date.now()
+    : false;
+  const isClaimed = meta.status === 'claimed' && !isTimedOut;
   const isCompleted = meta.status === 'completed';
-  const isPending = meta.status === 'pending';
-  const isClaimedByMe = meta.claimed_by === currentUserId;
+  const isPending = meta.status === 'pending' || isTimedOut;
+  const isClaimedByMe = meta.claimed_by === currentUserId && !isTimedOut;
 
   const handleAction = async (action: 'claim' | 'release' | 'complete') => {
     setLoading(true);
@@ -71,10 +74,11 @@ export function ActionCardMessage({ message, currentUserId, roomId }: ActionCard
 
       const { data: result } = await supabase.rpc(fnName, params);
 
-      if (result?.success) {
+      if (result?.success || result?.timed_out) {
+        const updatedMeta = result.metadata || result?.metadata;
         const updated: ChatMessage = {
           ...message,
-          metadata: result.metadata,
+          metadata: updatedMeta,
         };
         updateMessage(updated);
 
@@ -128,16 +132,26 @@ export function ActionCardMessage({ message, currentUserId, roomId }: ActionCard
 
         {/* Status + Actions */}
         {isPending && (
-          <Button
-            size="sm"
-            variant="primary"
-            className="w-full"
-            icon={<Hand className="h-4 w-4" />}
-            isLoading={loading}
-            onClick={() => handleAction('claim')}
-          >
-            รับรายการนี้
-          </Button>
+          <div className="space-y-2">
+            {isTimedOut && (
+              <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-900/20">
+                <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                  หมดเวลา — {meta.claimed_by_name} ไม่ได้ทำ
+                </span>
+              </div>
+            )}
+            <Button
+              size="sm"
+              variant="primary"
+              className="w-full"
+              icon={<Hand className="h-4 w-4" />}
+              isLoading={loading}
+              onClick={() => handleAction('claim')}
+            >
+              {isTimedOut ? 'รับงานต่อ' : 'รับรายการนี้'}
+            </Button>
+          </div>
         )}
 
         {isClaimed && (

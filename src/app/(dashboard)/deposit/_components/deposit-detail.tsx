@@ -45,6 +45,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { notifyChatWithdrawalCompleted } from '@/lib/chat/bot-client';
 import { extendExpiryISO } from '@/lib/utils/date';
 import type { ReceiptSettings } from '@/types/database';
 
@@ -297,6 +298,17 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       toast({ type: 'warning', title: 'บันทึกรายการเบิกแล้ว', message: 'แต่อัปเดตยอดคงเหลือไม่สำเร็จ' });
     } else {
       toast({ type: 'success', title: 'เบิกเหล้าสำเร็จ', message: `เบิก ${formatNumber(qty)} หน่วย` });
+
+      // ส่ง system message เข้าห้องแชทสาขา
+      if (currentStoreId) {
+        notifyChatWithdrawalCompleted(currentStoreId, {
+          deposit_code: deposit.deposit_code,
+          customer_name: deposit.customer_name,
+          product_name: deposit.product_name,
+          actual_qty: qty,
+          processed_by_name: user.displayName || user.username || 'พนักงาน',
+        });
+      }
     }
 
     setShowWithdrawModal(false);

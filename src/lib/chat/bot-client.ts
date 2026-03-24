@@ -1,0 +1,161 @@
+/**
+ * Client-side Chat Bot Helper
+ *
+ * Fire-and-forget — ส่ง bot message / action card เข้าห้องแชทสาขา
+ * เรียกใช้จาก client components (deposit-form, bar-approval, etc.)
+ * ใช้ session auth แทน CRON_SECRET
+ */
+
+import type { ActionCardMetadata } from '@/types/chat';
+
+interface SendBotMessageParams {
+  storeId: string;
+  type: 'text' | 'action_card' | 'system';
+  content: string;
+  metadata?: ActionCardMetadata | null;
+}
+
+/**
+ * Fire-and-forget: ส่ง bot message ไปห้องแชทของสาขา
+ * ใช้ session cookie สำหรับ auth (ไม่ต้องใช้ CRON_SECRET)
+ */
+export function sendChatBotMessage(params: SendBotMessageParams): void {
+  fetch('/api/chat/bot-message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      store_id: params.storeId,
+      type: params.type,
+      content: params.content,
+      metadata: params.metadata || null,
+    }),
+  }).catch((err) => console.error('[Chat Bot Client] sendChatBotMessage failed:', err));
+}
+
+// ==========================================
+// Pre-built Action Card builders (client-side)
+// ==========================================
+
+/**
+ * ส่ง Action Card ฝากเหล้าใหม่เข้าห้องแชทสาขา
+ */
+export function notifyChatNewDeposit(
+  storeId: string,
+  deposit: {
+    deposit_code: string;
+    customer_name: string;
+    product_name: string;
+    quantity: number;
+    table_number?: string | null;
+    notes?: string | null;
+  }
+): void {
+  const meta: ActionCardMetadata = {
+    action_type: 'deposit_claim',
+    reference_id: deposit.deposit_code,
+    reference_table: 'deposits',
+    status: 'pending',
+    claimed_by: null,
+    claimed_by_name: null,
+    claimed_at: null,
+    completed_at: null,
+    timeout_minutes: 15,
+    priority: 'normal',
+    summary: {
+      customer: deposit.customer_name,
+      items: `${deposit.product_name} x${deposit.quantity}`,
+      note: deposit.table_number
+        ? `โต๊ะ ${deposit.table_number}`
+        : deposit.notes || undefined,
+    },
+  };
+
+  sendChatBotMessage({
+    storeId,
+    type: 'action_card',
+    content: `รายการฝากใหม่ ${deposit.deposit_code} — ${deposit.customer_name}`,
+    metadata: meta,
+  });
+}
+
+/**
+ * ส่ง Action Card คำขอเบิกเหล้าเข้าห้องแชทสาขา
+ */
+export function notifyChatWithdrawalRequest(
+  storeId: string,
+  withdrawal: {
+    deposit_code: string;
+    customer_name: string;
+    product_name: string;
+    requested_qty: number;
+    table_number?: string | null;
+    notes?: string | null;
+  }
+): void {
+  const meta: ActionCardMetadata = {
+    action_type: 'withdrawal_claim',
+    reference_id: withdrawal.deposit_code,
+    reference_table: 'withdrawals',
+    status: 'pending',
+    claimed_by: null,
+    claimed_by_name: null,
+    claimed_at: null,
+    completed_at: null,
+    timeout_minutes: 15,
+    priority: 'normal',
+    summary: {
+      customer: withdrawal.customer_name,
+      items: `${withdrawal.product_name} x${withdrawal.requested_qty}`,
+      note: withdrawal.table_number
+        ? `โต๊ะ ${withdrawal.table_number}`
+        : withdrawal.notes || undefined,
+    },
+  };
+
+  sendChatBotMessage({
+    storeId,
+    type: 'action_card',
+    content: `คำขอเบิกเหล้า ${withdrawal.deposit_code} — ${withdrawal.customer_name}`,
+    metadata: meta,
+  });
+}
+
+/**
+ * ส่ง system message ว่าฝากเหล้ายืนยันแล้ว
+ */
+export function notifyChatDepositConfirmed(
+  storeId: string,
+  deposit: {
+    deposit_code: string;
+    customer_name: string;
+    product_name: string;
+    quantity: number;
+    confirmed_by_name: string;
+  }
+): void {
+  sendChatBotMessage({
+    storeId,
+    type: 'system',
+    content: `✓ ${deposit.confirmed_by_name} ยืนยันรับฝาก ${deposit.product_name} x${deposit.quantity} (${deposit.deposit_code}) — ${deposit.customer_name}`,
+  });
+}
+
+/**
+ * ส่ง system message ว่าเบิกเหล้าเสร็จแล้ว
+ */
+export function notifyChatWithdrawalCompleted(
+  storeId: string,
+  withdrawal: {
+    deposit_code?: string;
+    customer_name: string;
+    product_name: string;
+    actual_qty: number;
+    processed_by_name: string;
+  }
+): void {
+  sendChatBotMessage({
+    storeId,
+    type: 'system',
+    content: `✓ ${withdrawal.processed_by_name} เบิก ${withdrawal.product_name} x${withdrawal.actual_qty} ให้ ${withdrawal.customer_name} เรียบร้อย`,
+  });
+}

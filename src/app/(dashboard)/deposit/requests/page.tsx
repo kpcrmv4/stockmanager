@@ -32,6 +32,7 @@ import {
 import Link from 'next/link';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
+import { notifyChatNewDeposit } from '@/lib/chat/bot-client';
 import { expiryDateISO } from '@/lib/utils/date';
 
 interface DepositRequest {
@@ -161,6 +162,14 @@ export default function DepositRequestsPage() {
           body: `${selectedRequest.customer_name} ฝาก ${selectedRequest.product_name} x${selectedRequest.quantity}`,
           data: { deposit_code: depositCode },
           excludeUserId: user?.id,
+        });
+
+        // ส่ง Action Card เข้าห้องแชทสาขา
+        notifyChatNewDeposit(currentStoreId, {
+          deposit_code: depositCode,
+          customer_name: selectedRequest.customer_name,
+          product_name: selectedRequest.product_name,
+          quantity: selectedRequest.quantity,
         });
 
         await logAudit({

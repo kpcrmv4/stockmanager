@@ -14,17 +14,24 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createServiceClient, createClient as createServerClient } from '@/lib/supabase/server';
 import type { ChatMessage, ChatBroadcastPayload, UnreadBadgePayload } from '@/types/chat';
 import { createClient as createRealtimeClient } from '@supabase/supabase-js';
 
 export async function POST(request: Request) {
-  // Auth check
+  // Auth check: CRON_SECRET (server-to-server) OR user session (client components)
   const authHeader = request.headers.get('Authorization');
   const token = authHeader?.replace('Bearer ', '');
 
-  if (token !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const isCronAuth = token === process.env.CRON_SECRET;
+
+  if (!isCronAuth) {
+    // Fallback: check user session
+    const userClient = await createServerClient();
+    const { data: { user } } = await userClient.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   try {

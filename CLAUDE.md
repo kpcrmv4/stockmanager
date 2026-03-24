@@ -42,24 +42,24 @@
 - [x] 1.9 — Bot message API: `src/app/api/chat/bot-message/route.ts`
 - [x] 1.10 — Bot helpers: `src/lib/chat/bot.ts` (deposit, withdrawal, stock, borrow builders)
 
-### Phase 2: Action Cards + Claim System
+### Phase 2: Action Cards + Claim System ✅ COMPLETED
 > ระบบรับงานแบบ Delivery App
 
-- [ ] 2.1 — Action Card message type (JSONB schema)
-- [ ] 2.2 — Claim/Release/Complete flow
-- [ ] 2.3 — Timeout อัตโนมัติ (configurable per store)
-- [ ] 2.4 — API route: bot sends action cards
-- [ ] 2.5 — Action Card UI components (buttons, status, timer)
-- [ ] 2.6 — Priority system (urgent/normal/low)
+- [x] 2.1 — Action Card message type (JSONB schema): `types/chat.ts`
+- [x] 2.2 — Claim/Release/Complete flow: DB functions + `action-card-message.tsx`
+- [x] 2.3 — Timeout อัตโนมัติ (lazy evaluation): `supabase/migrations/00003_chat_lazy_timeout.sql`
+- [x] 2.4 — API route: bot sends action cards: `api/chat/bot-message/route.ts`
+- [x] 2.5 — Action Card UI components (buttons, status, timer): `action-card-message.tsx`
+- [x] 2.6 — Priority system (urgent/normal/low): metadata + UI styles
 
-### Phase 3: Bot Integration — Deposits & Withdrawals
+### Phase 3: Bot Integration — Deposits & Withdrawals ✅ COMPLETED
 > Bot แจ้งเตือนอัตโนมัติในแชท
 
-- [ ] 3.1 — Trigger: ฝากเหล้าใหม่ → Action Card ในแชทสาขา
-- [ ] 3.2 — Trigger: คำขอเบิก → Action Card ในแชทสาขา
-- [ ] 3.3 — Trigger: ฝากยืนยันแล้ว → status update ในแชท
-- [ ] 3.4 — Trigger: เบิกเสร็จ → status update ในแชท
-- [ ] 3.5 — Live summary (pinned message): งานรอ/กำลังทำ/เสร็จ
+- [x] 3.1 — Trigger: ฝากเหล้าใหม่ → Action Card ในแชทสาขา (`deposit-form.tsx`, `requests/page.tsx`)
+- [x] 3.2 — Trigger: คำขอเบิก → Action Card ในแชทสาขา (`customer/withdrawal/route.ts`, `deposit-detail.tsx`)
+- [x] 3.3 — Trigger: ฝากยืนยันแล้ว → status update ในแชท (`bar-approval/page.tsx`)
+- [x] 3.4 — Trigger: เบิกเสร็จ → status update ในแชท (`withdrawals/page.tsx`, `deposit-detail.tsx`)
+- [x] 3.5 — Live summary (pinned message): `updatePinnedSummary()` ใน bot-message API
 - [ ] 3.6 — "ถ่ายรูปยืนยัน" flow จากแชท
 
 ### Phase 4: Bot Integration — Stock & Transfers

@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { pushToStaffGroup, createFlexMessage } from '@/lib/line/messaging';
 import { approvalRequestTemplate } from '@/lib/line/flex-templates';
 import { notifyStoreStaff } from '@/lib/notifications/service';
+import { sendBotMessage, buildWithdrawalActionCard } from '@/lib/chat/bot';
 
 /**
  * POST /api/customer/withdrawal
@@ -153,6 +154,26 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error('[Withdrawal] Failed to send push notification:', err);
+  }
+
+  // -----------------------------------------------------------------------
+  // Send Action Card to store chat
+  // -----------------------------------------------------------------------
+  try {
+    const actionCard = buildWithdrawalActionCard({
+      id: depositId,
+      deposit_code: deposit.deposit_code,
+      customer_name: customerName || deposit.customer_name || 'ลูกค้า',
+      product_name: deposit.product_name,
+      requested_qty: deposit.remaining_qty,
+    });
+
+    await sendBotMessage({
+      storeId: deposit.store_id,
+      ...actionCard,
+    });
+  } catch (err) {
+    console.error('[Withdrawal] Failed to send chat action card:', err);
   }
 
   return NextResponse.json({ success: true });

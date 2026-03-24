@@ -20,6 +20,7 @@ import { formatThaiDateTime, formatNumber } from '@/lib/utils/format';
 import { DEPOSIT_STATUS_LABELS, WITHDRAWAL_STATUS_LABELS } from '@/lib/utils/constants';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { sendNotification } from '@/lib/notifications/client';
+import { notifyChatDepositConfirmed } from '@/lib/chat/bot-client';
 import { TableCardGrid, type TableCardItem } from '@/components/deposit/table-card-grid';
 import { useRealtime } from '@/hooks/use-realtime';
 import { cn } from '@/lib/utils/cn';
@@ -323,6 +324,15 @@ export default function BarApprovalPage() {
       });
 
       toast({ type: 'success', title: 'ยืนยันสำเร็จ', message: `ฝากเหล้า ${deposit.product_name} ยืนยันเรียบร้อย` });
+
+      // ส่ง system message เข้าห้องแชทสาขา
+      notifyChatDepositConfirmed(deposit.store_id, {
+        deposit_code: deposit.deposit_code,
+        customer_name: deposit.customer_name,
+        product_name: deposit.product_name,
+        quantity: deposit.quantity,
+        confirmed_by_name: user.displayName || user.username || 'พนักงาน',
+      });
 
       // Notify the customer that their deposit has been confirmed
       if (deposit.customer_id) {
