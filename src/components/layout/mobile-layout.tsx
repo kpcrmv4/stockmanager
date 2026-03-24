@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { X, LogOut, Sun, Moon } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
@@ -22,8 +22,12 @@ interface MobileLayoutProps {
 export function MobileLayout({ children, stores }: MobileLayoutProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useAppStore();
+
+  // Chat room view ต้องการ full-height ไม่มี padding/bottom nav
+  const isChatRoom = /^\/chat\/[^/]+/.test(pathname);
 
   function handleLogout() {
     logout();
@@ -39,13 +43,20 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
         onMenuClick={() => setDrawerOpen(true)}
       />
 
-      {/* เนื้อหาหลัก — เว้นพื้นที่ให้ bottom nav */}
-      <main className="flex-1 overflow-y-auto px-4 pb-20 pt-4">
+      {/* เนื้อหาหลัก */}
+      <main
+        className={cn(
+          'flex-1',
+          isChatRoom
+            ? 'overflow-hidden'
+            : 'overflow-y-auto px-4 pb-20 pt-4'
+        )}
+      >
         {children}
       </main>
 
-      {/* Bottom Navigation */}
-      <BottomNav />
+      {/* Bottom Navigation — ซ่อนในหน้าแชทห้อง */}
+      {!isChatRoom && <BottomNav />}
 
       {/* Drawer Overlay */}
       {drawerOpen && (

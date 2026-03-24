@@ -69,7 +69,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const roomName = room?.name || 'แชท';
 
   return (
-    <div className="safe-area-inset-bottom flex h-[calc(100dvh-4rem)] flex-col">
+    <div className="safe-area-inset-bottom flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800">
         <button
