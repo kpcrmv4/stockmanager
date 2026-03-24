@@ -128,13 +128,19 @@ export function BotSettingsDialog({ isOpen, onClose }: BotSettingsDialogProps) {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="ตั้งค่าบอทแชท" size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title="ตั้งค่าบอทแชท" description="กำหนดการแจ้งเตือนอัตโนมัติของแต่ละประเภทงาน" size="md">
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
         </div>
       ) : (
         <div className="space-y-4">
+          {/* Hint */}
+          <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs leading-relaxed text-gray-500 dark:bg-gray-700/50 dark:text-gray-400">
+            <p><strong>Timeout</strong> — เวลาที่ให้พนักงานทำงานให้เสร็จหลังกดรับ ถ้าเกินเวลาจะปล่อยงานให้คนอื่นรับต่อได้</p>
+            <p className="mt-1"><strong>ความสำคัญ</strong> — กำหนดลำดับความสำคัญของการ์ด: <span className="text-red-500">เร่งด่วน</span> จะแสดงขอบแดงเด่นชัด, <span>ปกติ</span> แสดงตามปกติ, <span className="text-gray-400">ต่ำ</span> แสดงจางลง</p>
+          </div>
+
           {/* Deposit */}
           <BotTypeSection
             icon={<Wine className="h-4 w-4 text-purple-500" />}
