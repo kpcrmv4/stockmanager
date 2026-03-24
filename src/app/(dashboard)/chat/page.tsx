@@ -81,7 +81,7 @@ export default function ChatPage() {
                     {room.name}
                   </span>
                   {lastMsg && (
-                    <span className="ml-2 shrink-0 text-[10px] text-gray-400 dark:text-gray-500">
+                    <span className="ml-2 shrink-0 text-xs text-gray-400 dark:text-gray-500">
                       {formatMessageTime(lastMsg.created_at)}
                     </span>
                   )}
@@ -99,7 +99,7 @@ export default function ChatPage() {
                   </p>
                   <div className="ml-2 flex shrink-0 items-center gap-1">
                     {unread > 0 && (
-                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[10px] font-bold text-white">
+                      <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-xs font-bold text-white">
                         {unread > 99 ? '99+' : unread}
                       </span>
                     )}

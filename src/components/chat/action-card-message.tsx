@@ -131,7 +131,7 @@ export function ActionCardMessage({ message, currentUserId, roomId }: ActionCard
           <span className="text-xs font-bold text-gray-900 dark:text-white">
             {config.label}
           </span>
-          <span className="text-[10px] text-gray-400">
+          <span className="text-xs text-gray-400">
             #{meta.reference_id}
           </span>
         </div>
@@ -182,8 +182,8 @@ export function ActionCardMessage({ message, currentUserId, roomId }: ActionCard
                 </span>
               </div>
               {timeRemaining && (
-                <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                  <Clock className="h-3 w-3" />
+                <div className="flex items-center gap-1 text-xs text-gray-400">
+                  <Clock className="h-3.5 w-3.5" />
                   {timeRemaining}
                 </div>
               )}
@@ -233,7 +233,7 @@ export function ActionCardMessage({ message, currentUserId, roomId }: ActionCard
                 เสร็จสิ้น
               </span>
               {meta.completed_at && (
-                <span className="text-[10px] text-emerald-500/70">
+                <span className="text-xs text-emerald-500/70">
                   {new Date(meta.completed_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               )}
@@ -246,7 +246,7 @@ export function ActionCardMessage({ message, currentUserId, roomId }: ActionCard
                 <img
                   src={meta.confirmation_photo_url}
                   alt="รูปยืนยัน"
-                  className="w-full max-h-48 object-cover"
+                  className="w-full max-h-36 object-cover sm:max-h-48"
                   loading="lazy"
                 />
               </div>

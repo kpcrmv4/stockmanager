@@ -114,9 +114,9 @@ export default function NotificationSettingsPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <button
         onClick={() => router.back()}
-        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
+        className="flex h-10 items-center gap-1.5 rounded-lg px-2 text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 active:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700"
       >
-        <ArrowLeft className="h-4 w-4" />
+        <ArrowLeft className="h-5 w-5" />
         กลับ
       </button>
 
@@ -131,7 +131,7 @@ export default function NotificationSettingsPage() {
       <Card padding="none">
         <CardHeader title="ช่องทางการส่งแจ้งเตือน" />
         <CardContent>
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <button
               onClick={() => toggleChannel('pwa')}
               className={`flex flex-1 items-center gap-2 rounded-lg border-2 p-3 text-sm font-medium transition-colors ${

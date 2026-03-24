@@ -22,7 +22,7 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
       <div className={cn('max-w-[80%]', isOwn ? 'items-end' : 'items-start')}>
         {/* Sender name */}
         {showSender && !isOwn && (
-          <p className="mb-0.5 ml-1 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+          <p className="mb-0.5 ml-1 text-xs font-medium text-gray-500 dark:text-gray-400">
             {isBot ? 'Bot' : senderName}
           </p>
         )}
@@ -42,7 +42,7 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
             <img
               src={message.content || ''}
               alt="ส่งรูปภาพ"
-              className="max-h-60 rounded-lg object-cover"
+              className="max-h-48 max-w-full rounded-lg object-cover sm:max-h-60"
               loading="lazy"
             />
           ) : (
@@ -52,7 +52,7 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
           {/* Time */}
           <p
             className={cn(
-              'mt-1 text-right text-[9px]',
+              'mt-1 text-right text-[11px]',
               isOwn
                 ? 'text-indigo-200'
                 : 'text-gray-400 dark:text-gray-500'

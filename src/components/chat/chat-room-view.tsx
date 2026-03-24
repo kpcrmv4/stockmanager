@@ -69,12 +69,12 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const roomName = room?.name || 'แชท';
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col">
+    <div className="safe-area-inset-bottom flex h-[calc(100dvh-4rem)] flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800">
         <button
           onClick={() => router.push('/chat')}
-          className="rounded-lg p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-gray-100 active:bg-gray-200 dark:hover:bg-gray-700"
         >
           <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
         </button>
@@ -83,7 +83,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
             {roomName}
           </h2>
           {room?.pinned_summary && (
-            <p className="text-[10px] text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               รอรับ {room.pinned_summary.pending_count} | กำลังทำ{' '}
               {room.pinned_summary.in_progress_count} | เสร็จวันนี้{' '}
               {room.pinned_summary.completed_today}
@@ -120,7 +120,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
                 {/* Date separator */}
                 {showDate && (
                   <div className="my-3 flex justify-center">
-                    <span className="rounded-full bg-gray-200 px-3 py-1 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                    <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">
                       {formatDateSeparator(msg.created_at)}
                     </span>
                   </div>

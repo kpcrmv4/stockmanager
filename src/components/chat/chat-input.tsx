@@ -218,13 +218,13 @@ export function ChatInput({ roomId }: ChatInputProps) {
     <div className="relative border-t border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
       {/* @Mention dropdown */}
       {mentionQuery !== null && filteredMembers.length > 0 && (
-        <div className="absolute bottom-full left-3 right-3 z-10 mb-1 max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+        <div className="absolute bottom-full left-2 right-2 z-20 mb-1 max-h-44 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
           {filteredMembers.map((m, i) => (
             <button
               key={m.user_id}
               onClick={() => insertMention(m)}
               className={cn(
-                'flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
+                'flex w-full items-center gap-2 px-4 py-3 text-left text-sm',
                 i === mentionIndex
                   ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
                   : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
@@ -249,9 +249,9 @@ export function ChatInput({ roomId }: ChatInputProps) {
           />
           <button
             onClick={clearImage}
-            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gray-800 text-white shadow-sm hover:bg-gray-700"
+            className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-gray-800 text-white shadow-sm hover:bg-gray-700 active:bg-gray-600"
           >
-            <X className="h-3 w-3" />
+            <X className="h-4 w-4" />
           </button>
         </div>
       )}
