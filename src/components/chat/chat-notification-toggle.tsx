@@ -7,9 +7,7 @@ import { usePushSubscription } from '@/hooks/use-push-subscription';
 
 /**
  * แสดงสถานะ push notification ใน header ของห้องแชท
- * - ถ้ายังไม่ได้ subscribe → ปุ่มกดเปิด
- * - ถ้า subscribe แล้ว → แสดงไอคอนเขียว
- * - ถ้า permission denied → แสดงข้อความแนะนำ
+ * ออกแบบให้ใช้กับ header สีเข้ม (text-white)
  */
 export function ChatNotificationToggle() {
   const { isSupported, isSubscribed, isLoading, permission, subscribe } =
@@ -18,19 +16,19 @@ export function ChatNotificationToggle() {
 
   if (!isSupported) return null;
 
-  // Already subscribed — green bell icon
+  // Already subscribed
   if (isSubscribed) {
     return (
       <div className="relative">
         <button
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-emerald-500 dark:text-emerald-400"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-emerald-300 hover:bg-white/10"
           title="เปิดแจ้งเตือนแล้ว"
           onClick={() => setShowTooltip((v) => !v)}
         >
-          <BellRing className="h-5 w-5" />
+          <BellRing className="h-4.5 w-4.5" />
         </button>
         {showTooltip && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-gray-200 bg-white p-2 text-xs text-gray-600 shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+          <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-gray-200 bg-white p-2.5 text-xs text-gray-600 shadow-xl dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
             การแจ้งเตือนเปิดอยู่ — จะได้รับแจ้งเตือนแม้ปิดหน้าจอ
           </div>
         )}
@@ -38,19 +36,19 @@ export function ChatNotificationToggle() {
     );
   }
 
-  // Permission denied — show warning icon
+  // Permission denied
   if (permission === 'denied') {
     return (
       <div className="relative">
         <button
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-red-400 dark:text-red-500"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-red-300 hover:bg-white/10"
           title="แจ้งเตือนถูกบล็อก"
           onClick={() => setShowTooltip((v) => !v)}
         >
-          <BellOff className="h-5 w-5" />
+          <BellOff className="h-4.5 w-4.5" />
         </button>
         {showTooltip && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-gray-200 bg-white p-3 text-xs shadow-lg dark:border-gray-700 dark:bg-gray-800">
+          <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-gray-200 bg-white p-3 text-xs shadow-xl dark:border-gray-700 dark:bg-gray-800">
             <p className="font-semibold text-red-600 dark:text-red-400">
               แจ้งเตือนถูกบล็อก
             </p>
@@ -63,7 +61,7 @@ export function ChatNotificationToggle() {
     );
   }
 
-  // Not yet subscribed — prompt to enable
+  // Not yet subscribed
   const handleSubscribe = async () => {
     try {
       await subscribe();
@@ -77,13 +75,12 @@ export function ChatNotificationToggle() {
       onClick={handleSubscribe}
       disabled={isLoading}
       className={cn(
-        'flex h-9 items-center gap-1 rounded-lg px-2 text-amber-600 transition-colors hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20',
+        'flex h-9 items-center gap-1 rounded-full px-2 text-amber-300 transition-colors hover:bg-white/10',
         isLoading && 'animate-pulse opacity-60',
       )}
       title="เปิดการแจ้งเตือน"
     >
       <Bell className="h-4.5 w-4.5" />
-      <span className="text-xs font-medium">เปิดแจ้งเตือน</span>
     </button>
   );
 }

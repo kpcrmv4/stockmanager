@@ -9,7 +9,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { EmptyState } from '@/components/ui';
 import { CreateRoomDialog } from '@/components/chat/create-room-dialog';
 import { BotSettingsDialog } from '@/components/chat/bot-settings-dialog';
-import { MessageSquare, Users, ChevronRight, Plus, Bot } from 'lucide-react';
+import { MessageSquare, Users, Plus, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { formatThaiDate } from '@/lib/utils/format';
 import { PushPrompt } from '@/components/notification/push-prompt';
@@ -63,7 +63,7 @@ export default function ChatPage() {
           description="ห้องแชทจะถูกสร้างอัตโนมัติเมื่อมีสาขาในระบบ หรือกดสร้างห้องใหม่"
         />
       ) : (
-        <div className="divide-y divide-gray-100 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:divide-gray-700 dark:bg-gray-800 dark:ring-gray-700">
+        <div className="divide-y divide-gray-100 overflow-hidden rounded-2xl bg-white shadow-sm dark:divide-gray-700 dark:bg-gray-800">
           {rooms.map((room) => {
             const unread = unreadCounts[room.id] || 0;
             const lastMsg = room.last_message;
@@ -74,28 +74,29 @@ export default function ChatPage() {
                 key={room.id}
                 onClick={() => router.push(`/chat/${room.id}`)}
                 className={cn(
-                  'flex w-full items-center gap-3 px-4 py-3 text-left transition-colors',
+                  'flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors',
                   'hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700/50 dark:active:bg-gray-700',
-                  unread > 0 && 'bg-indigo-50/50 dark:bg-indigo-900/10'
                 )}
               >
-                {/* Room icon */}
+                {/* Room avatar — larger, LINE-like */}
                 <div
                   className={cn(
-                    'flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full',
+                    'relative flex h-13 w-13 shrink-0 items-center justify-center overflow-hidden rounded-full',
                     room.type === 'store'
-                      ? 'bg-indigo-100 dark:bg-indigo-900/30'
+                      ? 'bg-gradient-to-br from-[#5B5FC7] to-[#7C6FD4]'
                       : room.type === 'direct'
-                        ? 'bg-emerald-100 dark:bg-emerald-900/30'
-                        : 'bg-violet-100 dark:bg-violet-900/30'
+                        ? 'bg-gradient-to-br from-emerald-400 to-teal-500'
+                        : 'bg-gradient-to-br from-violet-400 to-purple-500'
                   )}
                 >
                   {room.avatar_url ? (
                     <img src={room.avatar_url} alt="" className="h-full w-full object-cover" />
                   ) : room.type === 'direct' ? (
-                    <Users className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    <Users className="h-6 w-6 text-white" />
                   ) : (
-                    <MessageSquare className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    <span className="text-lg font-bold text-white">
+                      {room.name.charAt(0)}
+                    </span>
                   )}
                 </div>
 
@@ -104,7 +105,7 @@ export default function ChatPage() {
                   <div className="flex items-center justify-between">
                     <span
                       className={cn(
-                        'truncate text-sm',
+                        'truncate text-[15px]',
                         unread > 0
                           ? 'font-bold text-gray-900 dark:text-white'
                           : 'font-medium text-gray-700 dark:text-gray-200'
@@ -113,7 +114,10 @@ export default function ChatPage() {
                       {room.name}
                     </span>
                     {lastMsg && (
-                      <span className="ml-2 shrink-0 text-xs text-gray-400 dark:text-gray-500">
+                      <span className={cn(
+                        'ml-2 shrink-0 text-xs',
+                        unread > 0 ? 'text-[#5B5FC7] font-medium dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500'
+                      )}>
                         {formatMessageTime(lastMsg.created_at)}
                       </span>
                     )}
@@ -121,22 +125,19 @@ export default function ChatPage() {
                   <div className="flex items-center justify-between">
                     <p
                       className={cn(
-                        'mt-0.5 truncate text-xs',
+                        'mt-0.5 truncate text-[13px]',
                         unread > 0
-                          ? 'font-medium text-gray-700 dark:text-gray-300'
-                          : 'text-gray-500 dark:text-gray-400'
+                          ? 'text-gray-600 dark:text-gray-300'
+                          : 'text-gray-400 dark:text-gray-500'
                       )}
                     >
                       {preview}
                     </p>
-                    <div className="ml-2 flex shrink-0 items-center gap-1">
-                      {unread > 0 && (
-                        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-xs font-bold text-white">
-                          {unread > 99 ? '99+' : unread}
-                        </span>
-                      )}
-                      <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600" />
-                    </div>
+                    {unread > 0 && (
+                      <span className="ml-2 flex h-5.5 min-w-5.5 shrink-0 items-center justify-center rounded-full bg-[#5B5FC7] px-1.5 text-[11px] font-bold text-white">
+                        {unread > 99 ? '99+' : unread}
+                      </span>
+                    )}
                   </div>
                 </div>
               </button>
