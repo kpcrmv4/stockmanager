@@ -464,25 +464,42 @@ export default function PrintStationPage() {
             position: absolute;
             top: 0;
             left: 0;
-            width: 302px;
-            max-width: 302px;
+            width: ${receiptSettings?.paper_width === 58 ? '219px' : '302px'};
+            max-width: ${receiptSettings?.paper_width === 58 ? '219px' : '302px'};
             padding: 8px 4px;
             margin: 0;
             font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
+            font-size: ${receiptSettings?.paper_width === 58 ? '10px' : '12px'};
             line-height: 1.4;
             color: #000;
             background: #fff;
           }
+          #print-area .print-copy-separator {
+            page-break-after: always;
+            border-bottom: 1px dashed #999;
+            margin: 8px 0;
+            padding-bottom: 8px;
+          }
+          #print-area .print-copy-separator:last-child {
+            page-break-after: avoid;
+            border-bottom: none;
+          }
           #print-area.print-label {
             width: 70mm;
             max-width: 70mm;
+          }
+          #print-area.print-label .print-label-copy {
+            width: 70mm;
             height: 40mm;
             padding: 2mm 3mm;
             border: 1px dashed #000;
             box-sizing: border-box;
             font-family: 'Sarabun', sans-serif;
             font-size: 9pt;
+            page-break-after: always;
+          }
+          #print-area.print-label .print-label-copy:last-child {
+            page-break-after: avoid;
           }
           @page { margin: 0; }
         }
@@ -494,12 +511,21 @@ export default function PrintStationPage() {
         id="print-area"
         className={activePrintJob?.job_type === 'label' ? 'print-label' : undefined}
       >
-        {activePrintJob && (
-          activePrintJob.job_type === 'receipt' ? (
-            <ReceiptContent payload={activePrintJob.payload} settings={receiptSettings} storeName={storeName} />
-          ) : (
-            <LabelContent payload={activePrintJob.payload} storeName={storeName} />
-          )
+        {activePrintJob && activePrintJob.job_type === 'receipt' && (
+          // Receipt: print copies = number of bottles (quantity)
+          Array.from({ length: activePrintJob.payload.quantity || 1 }).map((_, i) => (
+            <div key={i} className="print-copy-separator">
+              <ReceiptContent payload={activePrintJob.payload} settings={receiptSettings} storeName={storeName} copyNumber={i + 1} totalCopies={activePrintJob.payload.quantity || 1} />
+            </div>
+          ))
+        )}
+        {activePrintJob && activePrintJob.job_type === 'label' && (
+          // Label: print copies from settings
+          Array.from({ length: receiptSettings?.label_copies || 1 }).map((_, i) => (
+            <div key={i} className="print-label-copy">
+              <LabelContent payload={activePrintJob.payload} storeName={storeName} />
+            </div>
+          ))
         )}
       </div>
 
@@ -820,13 +846,24 @@ function ReceiptContent({
   payload,
   settings,
   storeName,
+  copyNumber,
+  totalCopies,
 }: {
   payload: PrintPayload;
   settings: ReceiptSettings | null;
   storeName: string;
+  copyNumber?: number;
+  totalCopies?: number;
 }) {
   return (
     <div>
+      {/* Logo */}
+      {settings?.show_logo && settings?.logo_url && (
+        <div style={{ textAlign: 'center', margin: '4px 0 6px' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={settings.logo_url} alt="Logo" style={{ maxWidth: '120px', maxHeight: '60px', margin: '0 auto' }} />
+        </div>
+      )}
       <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>
         {storeName}
       </div>
@@ -876,19 +913,20 @@ function ReceiptContent({
           )}
           <div style={{ textAlign: 'center', letterSpacing: '-1px', margin: '4px 0' }}>{DASHED_LINE}</div>
           <div style={{ fontSize: '11px', margin: '4px 0', lineHeight: 1.5 }}>
-            <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '2px' }}>ตรวจสอบข้อมูลเหล้าฝาก:</div>
-            <div>1. สแกน QR Code เพิ่มเพื่อน</div>
-            <div>2. พิมพ์รหัสฝากในแชท</div>
+            <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '2px' }}>Check your bottle information</div>
+            <div>1. Scan QR code</div>
+            <div>2. Type your reference in our chat</div>
             <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px', margin: '2px 0' }}>
-              &quot;{payload.deposit_code}&quot;
+              {payload.deposit_code}
             </div>
           </div>
         </>
       )}
-      {settings?.footer_text && (
-        <div style={{ textAlign: 'center', fontSize: '11px', margin: '4px 0' }}>{settings.footer_text}</div>
+      {totalCopies && totalCopies > 1 && copyNumber && (
+        <div style={{ textAlign: 'center', fontSize: '10px', color: '#888', margin: '2px 0' }}>
+          ใบที่ {copyNumber}/{totalCopies}
+        </div>
       )}
-      <div style={{ textAlign: 'center', margin: '6px 0 4px' }}>ขอบคุณที่ใช้บริการ</div>
     </div>
   );
 }

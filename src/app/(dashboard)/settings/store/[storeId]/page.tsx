@@ -792,25 +792,12 @@ export default function StoreDetailSettingsPage() {
             hint="แสดงใต้ชื่อร้านด้านบนสุดของใบเสร็จ"
           />
 
-          {/* Footer text */}
-          <Input
-            label="ข้อความท้ายใบเสร็จ"
-            value={receiptFooterText}
-            onChange={(e) => setReceiptFooterText(e.target.value)}
-            placeholder="เช่น กรุณาเก็บใบนี้ไว้เป็นหลักฐาน"
-            hint="แสดงด้านล่างสุดของใบเสร็จ"
-          />
-
           {/* Copies */}
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="จำนวนใบรับฝาก (ชุด)"
-              type="number"
-              value={receiptCopies}
-              onChange={(e) => setReceiptCopies(e.target.value)}
-              min={1}
-              max={5}
-            />
+            <div>
+              <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">จำนวนใบรับฝาก</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">พิมพ์ตามจำนวนขวดที่รับฝากอัตโนมัติ</p>
+            </div>
             <Input
               label="จำนวนป้ายขวด (ชุด)"
               type="number"
