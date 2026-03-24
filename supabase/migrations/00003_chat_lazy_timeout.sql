@@ -115,7 +115,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION complete_action_card(
   p_message_id UUID,
   p_user_id UUID,
-  p_notes TEXT DEFAULT NULL
+  p_notes TEXT DEFAULT NULL,
+  p_photo_url TEXT DEFAULT NULL
 )
 RETURNS JSONB AS $$
 DECLARE
@@ -151,7 +152,8 @@ BEGIN
     || jsonb_build_object(
       'status', 'completed',
       'completed_at', now(),
-      'completion_notes', p_notes
+      'completion_notes', p_notes,
+      'confirmation_photo_url', p_photo_url
     );
 
   UPDATE chat_messages SET metadata = v_meta WHERE id = p_message_id;

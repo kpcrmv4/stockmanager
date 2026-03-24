@@ -71,6 +71,7 @@ export interface ActionCardMetadata {
   released_by?: string | null;
   released_at?: string | null;
   completion_notes?: string | null;
+  confirmation_photo_url?: string | null;
   timeout_minutes: number;
   priority: ActionCardPriority;
   summary: {

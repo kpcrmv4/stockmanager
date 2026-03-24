@@ -60,7 +60,7 @@
 - [x] 3.3 — Trigger: ฝากยืนยันแล้ว → status update ในแชท (`bar-approval/page.tsx`)
 - [x] 3.4 — Trigger: เบิกเสร็จ → status update ในแชท (`withdrawals/page.tsx`, `deposit-detail.tsx`)
 - [x] 3.5 — Live summary (pinned message): `updatePinnedSummary()` ใน bot-message API
-- [ ] 3.6 — "ถ่ายรูปยืนยัน" flow จากแชท
+- [x] 3.6 — "ถ่ายรูปยืนยัน" flow จากแชท (`action-card-message.tsx`, `api/chat/sync-photo/route.ts`)
 
 ### Phase 4: Bot Integration — Stock & Transfers
 > Bot ผนวกสต๊อก/ยืมสินค้า

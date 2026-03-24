@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useChatStore } from '@/stores/chat-store';
-import { Button } from '@/components/ui';
+import { Button, PhotoUpload } from '@/components/ui';
 import {
   Hand,
   CheckCircle,
@@ -15,6 +15,7 @@ import {
   Repeat,
   AlertTriangle,
   Loader2,
+  Camera,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import type { ChatMessage, ActionCardMetadata, ChatBroadcastPayload } from '@/types/chat';
@@ -41,6 +42,7 @@ const PRIORITY_STYLES: Record<string, string> = {
 
 export function ActionCardMessage({ message, currentUserId, roomId }: ActionCardMessageProps) {
   const [loading, setLoading] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const { updateMessage } = useChatStore();
   const meta = message.metadata as ActionCardMetadata | null;
 
@@ -69,7 +71,7 @@ export function ActionCardMessage({ message, currentUserId, roomId }: ActionCard
 
       const params =
         action === 'complete'
-          ? { p_message_id: message.id, p_user_id: currentUserId, p_notes: null }
+          ? { p_message_id: message.id, p_user_id: currentUserId, p_notes: null, p_photo_url: photoUrl }
           : { p_message_id: message.id, p_user_id: currentUserId };
 
       const { data: result } = await supabase.rpc(fnName, params);
@@ -88,6 +90,19 @@ export function ActionCardMessage({ message, currentUserId, roomId }: ActionCard
           event: 'message_updated',
           payload: { type: 'message_updated', message: updated } as ChatBroadcastPayload,
         });
+
+        // Sync photo กลับไปที่ deposit/withdrawal record (fire-and-forget)
+        if (action === 'complete' && photoUrl && meta) {
+          fetch('/api/chat/sync-photo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reference_table: meta.reference_table,
+              reference_id: meta.reference_id,
+              photo_url: photoUrl,
+            }),
+          }).catch(() => {});
+        }
       }
     } finally {
       setLoading(false);
@@ -175,41 +190,66 @@ export function ActionCardMessage({ message, currentUserId, roomId }: ActionCard
             </div>
 
             {isClaimedByMe && (
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="primary"
-                  className="flex-1"
-                  icon={<CheckCircle className="h-3.5 w-3.5" />}
-                  isLoading={loading}
-                  onClick={() => handleAction('complete')}
-                >
-                  เสร็จแล้ว
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  icon={<XCircle className="h-3.5 w-3.5" />}
-                  isLoading={loading}
-                  onClick={() => handleAction('release')}
-                >
-                  ยกเลิก
-                </Button>
+              <div className="space-y-2">
+                {/* ถ่ายรูปยืนยัน */}
+                <PhotoUpload
+                  value={photoUrl}
+                  onChange={setPhotoUrl}
+                  folder="confirmations"
+                  placeholder="ถ่ายรูปยืนยัน (ไม่บังคับ)"
+                  compact
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="flex-1"
+                    icon={<CheckCircle className="h-3.5 w-3.5" />}
+                    isLoading={loading}
+                    onClick={() => handleAction('complete')}
+                  >
+                    {photoUrl ? 'เสร็จ + ส่งรูป' : 'เสร็จแล้ว'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    icon={<XCircle className="h-3.5 w-3.5" />}
+                    isLoading={loading}
+                    onClick={() => handleAction('release')}
+                  >
+                    ยกเลิก
+                  </Button>
+                </div>
               </div>
             )}
           </div>
         )}
 
         {isCompleted && (
-          <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
-            <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
-              เสร็จสิ้น
-            </span>
-            {meta.completed_at && (
-              <span className="text-[10px] text-emerald-500/70">
-                {new Date(meta.completed_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
+              <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                เสร็จสิ้น
               </span>
+              {meta.completed_at && (
+                <span className="text-[10px] text-emerald-500/70">
+                  {new Date(meta.completed_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+              {meta.confirmation_photo_url && (
+                <Camera className="ml-auto h-3.5 w-3.5 text-emerald-500" />
+              )}
+            </div>
+            {meta.confirmation_photo_url && (
+              <div className="overflow-hidden rounded-lg">
+                <img
+                  src={meta.confirmation_photo_url}
+                  alt="รูปยืนยัน"
+                  className="w-full max-h-48 object-cover"
+                  loading="lazy"
+                />
+              </div>
             )}
           </div>
         )}
