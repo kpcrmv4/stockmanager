@@ -18,12 +18,16 @@ import {
   Camera,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { notifyStaff } from '@/lib/notifications/client';
+import { sendChatBotMessage } from '@/lib/chat/bot-client';
 import type { ChatMessage, ActionCardMetadata, ChatBroadcastPayload } from '@/types/chat';
 
 interface ActionCardMessageProps {
   message: ChatMessage;
   currentUserId: string;
+  currentUserName: string;
   roomId: string;
+  storeId: string | null;
 }
 
 const ACTION_TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; label: string }> = {
@@ -40,7 +44,7 @@ const PRIORITY_STYLES: Record<string, string> = {
   low: 'border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50',
 };
 
-export function ActionCardMessage({ message, currentUserId, roomId }: ActionCardMessageProps) {
+export function ActionCardMessage({ message, currentUserId, currentUserName, roomId, storeId }: ActionCardMessageProps) {
   const [loading, setLoading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const { updateMessage } = useChatStore();
@@ -102,6 +106,27 @@ export function ActionCardMessage({ message, currentUserId, roomId }: ActionCard
               photo_url: photoUrl,
             }),
           }).catch(() => {});
+        }
+
+        // แจ้งเตือน bar เมื่อ staff รับของ (complete deposit_claim)
+        if (action === 'complete' && meta.action_type === 'deposit_claim' && storeId) {
+          const summary = meta.summary;
+          // In-app notification → bar เท่านั้น
+          notifyStaff({
+            storeId,
+            type: 'deposit_received',
+            title: 'รอรับเข้าระบบ',
+            body: `${currentUserName} รับของแล้ว — ${summary.customer || ''} ${summary.items || ''} (${meta.reference_id})`,
+            data: { deposit_code: meta.reference_id },
+            excludeUserId: currentUserId,
+            roles: ['bar', 'manager'],
+          });
+          // System message ในแชท
+          sendChatBotMessage({
+            storeId,
+            type: 'system',
+            content: `📦 ${currentUserName} รับของแล้ว — ${summary.customer || ''} ${summary.items || ''} (${meta.reference_id}) — รอ Bar ยืนยันเข้าระบบ`,
+          });
         }
       }
     } finally {

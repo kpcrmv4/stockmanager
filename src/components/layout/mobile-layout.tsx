@@ -35,7 +35,10 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50 dark:bg-gray-950">
+    <div className={cn(
+      'flex flex-col bg-gray-50 dark:bg-gray-950',
+      isChatRoom ? 'h-dvh' : 'min-h-screen'
+    )}>
       {/* Top Bar */}
       <TopBar
         stores={stores}

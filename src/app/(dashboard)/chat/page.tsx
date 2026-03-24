@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useChatRooms } from '@/hooks/use-chat-rooms';
 import { useChatBadge } from '@/hooks/use-chat-realtime';
 import { useChatStore } from '@/stores/chat-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { EmptyState } from '@/components/ui';
 import { CreateRoomDialog } from '@/components/chat/create-room-dialog';
-import { MessageSquare, Users, ChevronRight, Plus } from 'lucide-react';
+import { BotSettingsDialog } from '@/components/chat/bot-settings-dialog';
+import { MessageSquare, Users, ChevronRight, Plus, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { formatThaiDate } from '@/lib/utils/format';
 
@@ -15,7 +17,11 @@ export default function ChatPage() {
   const router = useRouter();
   const { rooms } = useChatRooms();
   const { unreadCounts } = useChatStore();
+  const { user } = useAuthStore();
   const [showCreate, setShowCreate] = useState(false);
+  const [showBotSettings, setShowBotSettings] = useState(false);
+
+  const isManagerOrOwner = user?.role === 'owner' || user?.role === 'manager';
 
   // Subscribe to badge channel
   useChatBadge();
@@ -26,13 +32,24 @@ export default function ChatPage() {
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">
           แชท
         </h1>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 active:scale-95"
-        >
-          <Plus className="h-4 w-4" />
-          สร้างห้อง
-        </button>
+        <div className="flex items-center gap-2">
+          {isManagerOrOwner && (
+            <button
+              onClick={() => setShowBotSettings(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 active:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700"
+              title="ตั้งค่าบอท"
+            >
+              <Bot className="h-5 w-5" />
+            </button>
+          )}
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 active:scale-95"
+          >
+            <Plus className="h-4 w-4" />
+            สร้างห้อง
+          </button>
+        </div>
       </div>
 
       {rooms.length === 0 ? (
@@ -126,6 +143,11 @@ export default function ChatPage() {
 
       {/* Create room dialog */}
       <CreateRoomDialog isOpen={showCreate} onClose={() => setShowCreate(false)} />
+
+      {/* Bot settings dialog */}
+      {isManagerOrOwner && (
+        <BotSettingsDialog isOpen={showBotSettings} onClose={() => setShowBotSettings(false)} />
+      )}
     </div>
   );
 }

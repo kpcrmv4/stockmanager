@@ -27,6 +27,8 @@ interface NotifyGroupClientParams {
   body: string;
   data?: Record<string, unknown>;
   excludeUserId?: string;
+  /** จำกัด roles ที่จะได้รับแจ้งเตือน (default: staff, bar, manager) */
+  roles?: string[];
 }
 
 /**
