@@ -31,14 +31,18 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Parse body
-    const { room_id, sender_id, sender_name, preview, message_type } =
+    const { room_id, sender_id, sender_name, preview, message_type, mention_user_ids } =
       (await request.json()) as {
         room_id: string;
         sender_id: string;
         sender_name: string;
         preview: string;
         message_type: string;
+        mention_user_ids?: string[];
       };
+
+    const mentionIds = new Set(mention_user_ids || []);
+    const hasAtAll = (preview || '').includes('@all') || (preview || '').includes('@ทุกคน');
 
     if (!room_id || !sender_id) {
       return NextResponse.json(
@@ -69,8 +73,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'ok', sent: 0 });
     }
 
-    // Filter out muted members — ปิดเสียง = ไม่ส่ง push ด้วย
-    const activeMembers = members.filter((m) => !m.muted);
+    // Filter out muted members — ยกเว้น @mention/@all จะส่งทุกคน
+    const activeMembers = members.filter(
+      (m) => !m.muted || hasAtAll || mentionIds.has(m.user_id),
+    );
 
     // 5. Build push payload
     const body =
