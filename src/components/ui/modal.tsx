@@ -65,7 +65,7 @@ export function Modal({
     >
       <div
         className={cn(
-          'w-full animate-in fade-in zoom-in-95 rounded-2xl bg-white shadow-xl dark:bg-gray-800',
+          'flex w-full max-h-[90dvh] flex-col animate-in fade-in zoom-in-95 rounded-2xl bg-white shadow-xl dark:bg-gray-800',
           sizeStyles[size],
           className
         )}
@@ -75,7 +75,7 @@ export function Modal({
       >
         {/* Header */}
         {(title || showClose) && (
-          <div className="flex items-start justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
+          <div className="flex shrink-0 items-start justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-700">
             <div>
               {title && (
                 <h2
@@ -102,8 +102,8 @@ export function Modal({
           </div>
         )}
 
-        {/* Body */}
-        <div className="px-6 py-4">{children}</div>
+        {/* Body — scrollable */}
+        <div className="overflow-y-auto px-6 py-4">{children}</div>
       </div>
     </div>
   );
@@ -118,7 +118,7 @@ export function ModalFooter({ children, className }: ModalFooterProps) {
   return (
     <div
       className={cn(
-        'flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700',
+        'flex shrink-0 items-center justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-700',
         className
       )}
     >
