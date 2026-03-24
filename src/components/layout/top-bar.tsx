@@ -111,8 +111,8 @@ export function TopBar({
                 className="h-8 w-8 rounded-full object-cover"
               />
             ) : (
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                {user.displayName?.[0] ?? user.username[0]?.toUpperCase()}
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
+                <User className="h-4.5 w-4.5 text-blue-500 dark:text-blue-400" />
               </div>
             )}
 

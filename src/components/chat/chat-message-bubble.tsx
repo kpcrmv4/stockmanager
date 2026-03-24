@@ -1,8 +1,8 @@
 'use client';
 
 import { cn } from '@/lib/utils/cn';
-import { Bot as BotIcon } from 'lucide-react';
-import type { ChatMessage } from '@/types/chat';
+import { Bot as BotIcon, User as UserIcon } from 'lucide-react';
+import type { ChatMessage, ReplyMetadata } from '@/types/chat';
 
 interface ChatMessageBubbleProps {
   message: ChatMessage;
@@ -19,12 +19,15 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
     minute: '2-digit',
   });
 
-  // Generate consistent color from sender name (for avatar fallback)
-  const avatarColor = getAvatarColor(senderName);
-
   const isImage = message.type === 'image';
 
-  // --- Own message (right side, LINE green style) ---
+  // Check for reply metadata
+  const meta = message.metadata as unknown as Record<string, unknown> | null;
+  const replyMeta = meta && 'reply_to' in meta
+    ? (meta as unknown as ReplyMetadata)
+    : null;
+
+  // --- Own message (right side) ---
   if (isOwn) {
     return (
       <div className="flex justify-end gap-1.5">
@@ -36,20 +39,30 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
         </div>
 
         {/* Bubble */}
-        {isImage ? (
-          <div className="overflow-hidden rounded-2xl rounded-br-sm">
-            <img
-              src={message.content || ''}
-              alt="ส่งรูปภาพ"
-              className="max-h-52 max-w-[240px] object-cover sm:max-h-64"
-              loading="lazy"
-            />
-          </div>
-        ) : (
-          <div className="max-w-[75%] rounded-2xl rounded-br-sm bg-[#5B5FC7] px-3.5 py-2.5 text-sm leading-relaxed text-white shadow-sm">
-            <p className="whitespace-pre-wrap break-words">{message.content}</p>
-          </div>
-        )}
+        <div className="max-w-[75%]">
+          {/* Reply preview */}
+          {replyMeta && (
+            <div className="mb-1 flex justify-end">
+              <div className="rounded-lg border-l-2 border-indigo-300 bg-indigo-50/80 px-2.5 py-1.5 text-xs text-gray-500 dark:border-indigo-600 dark:bg-indigo-900/20 dark:text-gray-400">
+                <p className="truncate">{replyMeta.reply_preview}</p>
+              </div>
+            </div>
+          )}
+          {isImage ? (
+            <div className="overflow-hidden rounded-2xl rounded-br-sm">
+              <img
+                src={message.content || ''}
+                alt="ส่งรูปภาพ"
+                className="max-h-52 max-w-[240px] object-cover sm:max-h-64"
+                loading="lazy"
+              />
+            </div>
+          ) : (
+            <div className="rounded-2xl rounded-br-sm bg-[#5B5FC7] px-3.5 py-2.5 text-sm leading-relaxed text-white shadow-sm">
+              <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -68,11 +81,8 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
             ) : avatarUrl ? (
               <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
             ) : (
-              <div
-                className="flex h-full w-full items-center justify-center text-sm font-bold text-white"
-                style={{ backgroundColor: avatarColor }}
-              >
-                {getInitial(senderName)}
+              <div className="flex h-full w-full items-center justify-center bg-gray-200 dark:bg-gray-700">
+                <UserIcon className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </div>
             )}
           </div>
@@ -89,6 +99,13 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
           <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
             {isBot ? 'Bot' : senderName}
           </p>
+        )}
+
+        {/* Reply preview */}
+        {replyMeta && (
+          <div className="mb-1 rounded-lg border-l-2 border-gray-300 bg-gray-100/80 px-2.5 py-1.5 text-xs text-gray-500 dark:border-gray-600 dark:bg-gray-800/50 dark:text-gray-400">
+            <p className="truncate">{replyMeta.reply_preview}</p>
+          </div>
         )}
 
         <div className="flex items-end gap-1.5">
@@ -127,32 +144,3 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
   );
 }
 
-// ==========================================
-// Helpers
-// ==========================================
-
-const AVATAR_COLORS = [
-  '#6366f1', // indigo
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#f43f5e', // rose
-  '#ef4444', // red
-  '#f97316', // orange
-  '#eab308', // yellow
-  '#22c55e', // green
-  '#14b8a6', // teal
-  '#06b6d4', // cyan
-  '#3b82f6', // blue
-];
-
-function getAvatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function getInitial(name: string): string {
-  return name.charAt(0).toUpperCase();
-}

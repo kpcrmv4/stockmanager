@@ -6,12 +6,14 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useChatStore } from '@/stores/chat-store';
 import { sendChatMessage, sendChatImageMessage } from '@/hooks/use-chat-realtime';
 import { notifyStaff } from '@/lib/notifications/client';
-import { Send, Image as ImageIcon, X, Loader2 } from 'lucide-react';
+import { Send, Image as ImageIcon, X, Loader2, Reply } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
-import type { MentionMetadata } from '@/types/chat';
+import type { ChatMessage, MentionMetadata, ReplyMetadata } from '@/types/chat';
 
 interface ChatInputProps {
   roomId: string;
+  replyTo?: ChatMessage | null;
+  onClearReply?: () => void;
 }
 
 interface MemberOption {
@@ -20,7 +22,7 @@ interface MemberOption {
   display_name: string | null;
 }
 
-export function ChatInput({ roomId }: ChatInputProps) {
+export function ChatInput({ roomId, replyTo, onClearReply }: ChatInputProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -32,6 +34,11 @@ export function ChatInput({ roomId }: ChatInputProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const { user } = useAuthStore();
   const { addMessage } = useChatStore();
+
+  // Focus input when reply is set
+  useEffect(() => {
+    if (replyTo) inputRef.current?.focus();
+  }, [replyTo]);
 
   // Load room members for @mention
   useEffect(() => {
@@ -139,23 +146,44 @@ export function ChatInput({ roomId }: ChatInputProps) {
       return content.includes(`@${name}`) && m.user_id !== user.id;
     });
 
-    const metadata: MentionMetadata | null =
-      mentionedMembers.length > 0
-        ? {
-            mentions: mentionedMembers.map((m) => ({
-              user_id: m.user_id,
-              username: m.username,
-              display_name: m.display_name,
-            })),
-          }
-        : null;
+    // Build metadata: mentions + reply
+    let metadata: Record<string, unknown> | null = null;
 
-    const msg = await sendChatMessage(roomId, user.id, content, senderInfo, metadata as Record<string, unknown> | null);
+    if (mentionedMembers.length > 0) {
+      metadata = {
+        mentions: mentionedMembers.map((m) => ({
+          user_id: m.user_id,
+          username: m.username,
+          display_name: m.display_name,
+        })),
+      };
+    }
+
+    if (replyTo) {
+      const replyData: ReplyMetadata = {
+        reply_to: replyTo.id,
+        reply_preview: replyTo.type === 'image'
+          ? 'รูปภาพ'
+          : (replyTo.content || '').slice(0, 100),
+      };
+      metadata = { ...(metadata || {}), ...replyData };
+    }
+
+    const msg = await sendChatMessage(roomId, user.id, content, senderInfo, metadata);
     if (msg) {
       addMessage(msg);
 
-      // Send notification to mentioned users
+      // Collect user IDs to notify (mentions + reply)
+      const notifyUserIds = new Set<string>();
       for (const m of mentionedMembers) {
+        notifyUserIds.add(m.user_id);
+      }
+      if (replyTo?.sender_id && replyTo.sender_id !== user.id) {
+        notifyUserIds.add(replyTo.sender_id);
+      }
+
+      // Send notification
+      if (notifyUserIds.size > 0) {
         const supabase = createClient();
         const { data: room } = await supabase
           .from('chat_rooms')
@@ -164,16 +192,21 @@ export function ChatInput({ roomId }: ChatInputProps) {
           .single();
 
         if (room?.store_id) {
+          const title = replyTo && !mentionedMembers.length
+            ? `${user.displayName || user.username} อ้างถึงข้อความของคุณ`
+            : `${user.displayName || user.username} กล่าวถึงคุณ`;
           notifyStaff({
             storeId: room.store_id,
             type: 'new_deposit',
-            title: `${user.displayName || user.username} กล่าวถึงคุณ`,
+            title,
             body: content.slice(0, 100),
             data: { room_id: roomId },
           });
-          break; // Only send one group notification for mentions
         }
       }
+
+      // Clear reply
+      onClearReply?.();
     }
 
     setSending(false);
@@ -230,6 +263,27 @@ export function ChatInput({ roomId }: ChatInputProps) {
 
   return (
     <div className="relative border-t border-gray-200/50 bg-white dark:border-gray-700 dark:bg-gray-800">
+      {/* Reply preview */}
+      {replyTo && (
+        <div className="flex items-center gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
+          <Reply className="h-4 w-4 shrink-0 text-indigo-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
+              {replyTo.sender?.display_name || replyTo.sender?.username || 'Bot'}
+            </p>
+            <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+              {replyTo.type === 'image' ? 'รูปภาพ' : (replyTo.content || '').slice(0, 80)}
+            </p>
+          </div>
+          <button
+            onClick={onClearReply}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* @Mention dropdown */}
       {mentionQuery !== null && filteredMembers.length > 0 && (
         <div className="absolute bottom-full left-2 right-2 z-20 mb-1 max-h-44 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
