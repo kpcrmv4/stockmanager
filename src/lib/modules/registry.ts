@@ -103,6 +103,15 @@ export const modules: ModuleConfig[] = [
     permission: 'can_transfer',
   },
   {
+    id: 'chat',
+    name: 'แชท',
+    description: 'แชทภายในสาขาและระบบ Claim งาน',
+    icon: 'message-square',
+    color: 'blue',
+    href: '/chat',
+    roles: ['owner', 'accountant', 'manager', 'bar', 'staff', 'hq'],
+  },
+  {
     id: 'borrow',
     name: 'ยืมสินค้า',
     description: 'ยืมสินค้าระหว่างสาขา',

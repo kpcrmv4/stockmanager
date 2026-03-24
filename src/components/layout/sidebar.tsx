@@ -20,6 +20,7 @@ import {
   Warehouse,
   Repeat,
   LayoutDashboard,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { getModuleColors } from '@/lib/utils/module-colors';
@@ -45,6 +46,7 @@ const iconMap: Record<string, LucideIcon> = {
   package: Package,
   warehouse: Warehouse,
   repeat: Repeat,
+  'message-square': MessageSquare,
 };
 
 interface SidebarProps {
