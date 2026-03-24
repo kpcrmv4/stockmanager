@@ -76,13 +76,27 @@ export function ChatInput({ roomId }: ChatInputProps) {
     }
   }, []);
 
+  // Special "@ทุกคน" option
+  const EVERYONE_OPTION: MemberOption = {
+    user_id: '__everyone__',
+    username: 'ทุกคน',
+    display_name: 'ทุกคน',
+  };
+
   const filteredMembers = mentionQuery !== null
-    ? members.filter(
-        (m) =>
-          m.user_id !== user?.id &&
-          ((m.display_name?.toLowerCase().includes(mentionQuery)) ||
-            m.username.toLowerCase().includes(mentionQuery))
-      )
+    ? [
+        // Show @ทุกคน if query matches
+        ...('ทุกคน'.includes(mentionQuery) || 'all'.includes(mentionQuery) || mentionQuery === ''
+          ? [EVERYONE_OPTION]
+          : []),
+        // Then show matching members
+        ...members.filter(
+          (m) =>
+            m.user_id !== user?.id &&
+            ((m.display_name?.toLowerCase().includes(mentionQuery)) ||
+              m.username.toLowerCase().includes(mentionQuery))
+        ),
+      ]
     : [];
 
   const insertMention = (member: MemberOption) => {
@@ -219,23 +233,36 @@ export function ChatInput({ roomId }: ChatInputProps) {
       {/* @Mention dropdown */}
       {mentionQuery !== null && filteredMembers.length > 0 && (
         <div className="absolute bottom-full left-2 right-2 z-20 mb-1 max-h-44 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
-          {filteredMembers.map((m, i) => (
-            <button
-              key={m.user_id}
-              onClick={() => insertMention(m)}
-              className={cn(
-                'flex w-full items-center gap-2 px-4 py-3 text-left text-sm',
-                i === mentionIndex
-                  ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                  : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
-              )}
-            >
-              <span className="font-medium">{m.display_name || m.username}</span>
-              {m.display_name && (
-                <span className="text-xs text-gray-400">@{m.username}</span>
-              )}
-            </button>
-          ))}
+          {filteredMembers.map((m, i) => {
+            const isEveryone = m.user_id === '__everyone__';
+            return (
+              <button
+                key={m.user_id}
+                onClick={() => insertMention(m)}
+                className={cn(
+                  'flex w-full items-center gap-2 px-4 py-3 text-left text-sm',
+                  i === mentionIndex
+                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700',
+                  isEveryone && 'border-b border-gray-100 dark:border-gray-700'
+                )}
+              >
+                {isEveryone ? (
+                  <>
+                    <span className="font-bold text-amber-600 dark:text-amber-400">@ทุกคน</span>
+                    <span className="text-xs text-gray-400">แจ้งเตือนทุกคนในห้อง</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium">{m.display_name || m.username}</span>
+                    {m.display_name && (
+                      <span className="text-xs text-gray-400">@{m.username}</span>
+                    )}
+                  </>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 
