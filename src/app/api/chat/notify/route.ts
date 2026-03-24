@@ -58,16 +58,19 @@ export async function POST(request: NextRequest) {
 
     const roomName = room?.name || 'แชท';
 
-    // 4. Get all members except sender
+    // 4. Get all members except sender (+ check muted status)
     const { data: members } = await serviceClient
       .from('chat_members')
-      .select('user_id')
+      .select('user_id, muted')
       .eq('room_id', room_id)
       .neq('user_id', sender_id);
 
     if (!members || members.length === 0) {
       return NextResponse.json({ status: 'ok', sent: 0 });
     }
+
+    // Filter out muted members — ปิดเสียง = ไม่ส่ง push ด้วย
+    const activeMembers = members.filter((m) => !m.muted);
 
     // 5. Build push payload
     const body =
@@ -87,10 +90,10 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // 6. Send push to each member (parallel, non-blocking)
+    // 6. Send push to each active (non-muted) member
     let sent = 0;
     const results = await Promise.allSettled(
-      members.map(async (m) => {
+      activeMembers.map(async (m) => {
         const count = await sendPushToUser(m.user_id, payload);
         if (count > 0) sent += count;
       }),
