@@ -15,6 +15,7 @@
 
 import { NextResponse } from 'next/server';
 import { createServiceClient, createClient as createServerClient } from '@/lib/supabase/server';
+import { getChatBotSettings, isBotTypeEnabled, getTimeoutForType, getPriorityForType } from '@/lib/chat/bot-settings';
 import type { ChatMessage, ChatBroadcastPayload, UnreadBadgePayload } from '@/types/chat';
 import { createClient as createRealtimeClient } from '@supabase/supabase-js';
 
@@ -55,6 +56,20 @@ export async function POST(request: Request) {
 
     if (!room) {
       return NextResponse.json({ error: 'Chat room not found for this store' }, { status: 404 });
+    }
+
+    // 1.5 Check bot settings — skip if this action type is disabled
+    if (type === 'action_card' && metadata?.action_type) {
+      const botSettings = await getChatBotSettings(store_id);
+      const actionType = metadata.action_type as string;
+
+      if (!isBotTypeEnabled(botSettings, actionType)) {
+        return NextResponse.json({ success: true, skipped: true, reason: 'bot_type_disabled' });
+      }
+
+      // Override timeout & priority from settings
+      metadata.timeout_minutes = getTimeoutForType(botSettings, actionType);
+      metadata.priority = getPriorityForType(botSettings, actionType);
     }
 
     // 2. Insert bot message (via SECURITY DEFINER function)

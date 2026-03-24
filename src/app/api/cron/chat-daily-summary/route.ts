@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { sendBotMessage } from '@/lib/chat/bot';
+import { getChatBotSettings } from '@/lib/chat/bot-settings';
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -31,21 +32,27 @@ export async function GET(request: NextRequest) {
 
   const results: Array<{ store: string; sent: boolean }> = [];
 
-  // Yesterday's date range (Bangkok timezone = UTC+7)
+  // "Bar day" window: 11:00 yesterday → 05:59 today (Bangkok time)
+  // ร้านเหล้าเปิดข้ามวัน จึงนับวันทำงานตั้งแต่ 11:00 - 05:59
   const now = new Date();
   const bangkokOffset = 7 * 60 * 60 * 1000;
   const bangkokNow = new Date(now.getTime() + bangkokOffset);
+
+  // Bar day start: yesterday 11:00 Bangkok
+  const barStart = new Date(bangkokNow);
+  barStart.setDate(barStart.getDate() - 1);
+  barStart.setHours(11, 0, 0, 0);
+
+  // Bar day end: today 05:59:59 Bangkok
+  const barEnd = new Date(bangkokNow);
+  barEnd.setHours(5, 59, 59, 999);
+
+  // Convert to UTC for DB queries
+  const startUTC = new Date(barStart.getTime() - bangkokOffset).toISOString();
+  const endUTC = new Date(barEnd.getTime() - bangkokOffset).toISOString();
+
   const yesterday = new Date(bangkokNow);
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStart = new Date(yesterday);
-  yesterdayStart.setHours(0, 0, 0, 0);
-  const yesterdayEnd = new Date(yesterday);
-  yesterdayEnd.setHours(23, 59, 59, 999);
-
-  // Convert back to UTC for DB queries
-  const startUTC = new Date(yesterdayStart.getTime() - bangkokOffset).toISOString();
-  const endUTC = new Date(yesterdayEnd.getTime() - bangkokOffset).toISOString();
-
   const dateLabel = yesterday.toLocaleDateString('th-TH', {
     day: 'numeric',
     month: 'short',
@@ -54,6 +61,13 @@ export async function GET(request: NextRequest) {
 
   for (const store of stores) {
     try {
+      // Check if daily summary is enabled for this store
+      const botSettings = await getChatBotSettings(store.id);
+      if (!botSettings.chat_bot_daily_summary_enabled) {
+        results.push({ store: store.store_name, sent: false });
+        continue;
+      }
+
       // Fetch all stats in parallel
       const [depositsResult, withdrawalsResult, comparisonsResult, borrowsResult] =
         await Promise.all([
@@ -140,7 +154,7 @@ export async function GET(request: NextRequest) {
       // Deposits section
       lines.push(`🍷 ฝากเหล้า`);
       lines.push(`  ในร้าน: ${activeDeposits} รายการ`);
-      if (newDeposits > 0) lines.push(`  ใหม่เมื่อวาน: +${newDeposits}`);
+      if (newDeposits > 0) lines.push(`  ใหม่ (11:00-06:00): +${newDeposits}`);
       if (expiringSoon > 0) lines.push(`  ⚠️ ใกล้หมดอายุ (7 วัน): ${expiringSoon}`);
 
       // Withdrawals
