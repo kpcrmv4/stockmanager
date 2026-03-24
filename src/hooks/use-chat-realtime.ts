@@ -190,6 +190,10 @@ export async function sendChatMessage(
     }
   }
 
+  // 4. Fire-and-forget: push notification สำหรับคนที่ปิดหน้าจอ
+  const mentionIds = extractMentionIds(metadata);
+  notifyChatPush(roomId, senderId, senderInfo.display_name || senderInfo.username, content.slice(0, 100), 'text', mentionIds);
+
   return message;
 }
 
@@ -270,6 +274,9 @@ export async function sendChatImageMessage(
     }
   }
 
+  // 5. Fire-and-forget: push notification สำหรับคนที่ปิดหน้าจอ
+  notifyChatPush(roomId, senderId, senderInfo.display_name || senderInfo.username, 'ส่งรูปภาพ', 'image');
+
   return message;
 }
 
@@ -291,6 +298,49 @@ function checkMention(message: ChatMessage, userId: string): boolean {
   if (content.includes('@all') || content.includes('@ทุกคน')) return true;
 
   return false;
+}
+
+/**
+ * Fire-and-forget: ส่ง push notification ไป API สำหรับคนที่ไม่ได้เปิดแอป
+ */
+function notifyChatPush(
+  roomId: string,
+  senderId: string,
+  senderName: string,
+  preview: string,
+  messageType: string,
+  mentionUserIds?: string[],
+) {
+  fetch('/api/chat/notify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      room_id: roomId,
+      sender_id: senderId,
+      sender_name: senderName,
+      preview,
+      message_type: messageType,
+      mention_user_ids: mentionUserIds || [],
+    }),
+  }).catch((err) => console.error('[ChatPush] notify failed:', err));
+}
+
+/** ดึง user_id จาก mentions metadata + detect @all */
+function extractMentionIds(metadata?: Record<string, unknown> | null): string[] {
+  if (!metadata) return [];
+
+  const ids: string[] = [];
+
+  // Explicit @mentions
+  if (Array.isArray(metadata.mentions)) {
+    for (const m of metadata.mentions) {
+      if (m && typeof m === 'object' && 'user_id' in m) {
+        ids.push((m as { user_id: string }).user_id);
+      }
+    }
+  }
+
+  return ids;
 }
 
 // Quiet mark as read (ไม่ throw error)

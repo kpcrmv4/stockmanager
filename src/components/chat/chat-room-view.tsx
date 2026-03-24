@@ -14,6 +14,7 @@ import { PinnedMessagesBanner } from './pinned-messages-banner';
 import { ChatRoomSettings } from './chat-room-settings';
 import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { ChatNotificationToggle } from './chat-notification-toggle';
 import type { ChatPinnedMessage, ChatMessage } from '@/types/chat';
 
 interface ChatRoomViewProps {
@@ -241,71 +242,79 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
 
   return (
     <div className="safe-area-inset-bottom flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800">
+      {/* Header — LINE-like gradient */}
+      <div className="flex items-center gap-2 bg-gradient-to-r from-[#5B5FC7] to-[#7C6FD4] px-2 py-2 shadow-md dark:from-[#3B3F8C] dark:to-[#5B4FA6]">
         <button
           onClick={() => router.push('/chat')}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-gray-100 active:bg-gray-200 dark:hover:bg-gray-700"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/10 active:bg-white/20"
         >
-          <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+          <ArrowLeft className="h-5 w-5 text-white" />
         </button>
+
+        {/* Room avatar */}
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/20">
+          {room?.avatar_url ? (
+            <img src={room.avatar_url} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-sm font-bold text-white">
+              {roomName.charAt(0)}
+            </span>
+          )}
+        </div>
+
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            {room?.avatar_url && (
-              <img
-                src={room.avatar_url}
-                alt=""
-                className="h-7 w-7 rounded-full object-cover"
-              />
-            )}
-            <h2 className="truncate text-sm font-bold text-gray-900 dark:text-white">
-              {roomName}
-            </h2>
-          </div>
-          {room?.pinned_summary && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+          <h2 className="truncate text-sm font-bold text-white">
+            {roomName}
+          </h2>
+          {room?.pinned_summary ? (
+            <p className="text-[11px] text-white/70">
               รอรับ {room.pinned_summary.pending_count} | กำลังทำ{' '}
               {room.pinned_summary.in_progress_count} | เสร็จวันนี้{' '}
               {room.pinned_summary.completed_today}
             </p>
+          ) : (
+            <p className="text-[11px] text-white/60">แชทห้องนี้</p>
           )}
         </div>
+
+        {/* Push notification toggle */}
+        <ChatNotificationToggle />
 
         {/* Mute toggle */}
         <button
           onClick={handleToggleMute}
           className={cn(
-            'flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
+            'flex h-9 w-9 items-center justify-center rounded-full transition-colors',
             isMuted
-              ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
-              : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+              ? 'bg-white/10 text-white/50'
+              : 'text-white/80 hover:bg-white/10'
           )}
           title={isMuted ? 'เปิดเสียง' : 'ปิดเสียง'}
         >
           {isMuted ? (
-            <VolumeX className="h-5 w-5" />
+            <VolumeX className="h-4.5 w-4.5" />
           ) : (
-            <Volume2 className="h-5 w-5" />
+            <Volume2 className="h-4.5 w-4.5" />
           )}
         </button>
 
         {/* Settings */}
         <button
           onClick={() => setShowSettings(true)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10"
         >
-          <Settings className="h-5 w-5" />
+          <Settings className="h-4.5 w-4.5" />
         </button>
       </div>
 
       {/* Pinned messages banner */}
       <PinnedMessagesBanner />
 
-      {/* Messages */}
+      {/* Messages — LINE-like soft blue-gray background */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto bg-gray-50 px-3 py-4 dark:bg-gray-900"
+        className="flex-1 overflow-y-auto bg-[#F0EFF5] px-3 py-3 dark:bg-gray-900"
       >
         {/* Loading indicator */}
         {isLoadingMessages && (
@@ -315,7 +324,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
         )}
 
         {/* Messages list */}
-        <div className="space-y-1">
+        <div className="space-y-2">
           {messages.map((msg, i) => {
             const prevMsg = i > 0 ? messages[i - 1] : null;
             const showDate = !prevMsg || !isSameDay(prevMsg.created_at, msg.created_at);
@@ -338,10 +347,10 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
                   setContextMenu({ messageId: msg.id, x: e.clientX, y: e.clientY });
                 }}
               >
-                {/* Date separator */}
+                {/* Date separator — LINE-like pill */}
                 {showDate && (
-                  <div className="my-3 flex justify-center">
-                    <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                  <div className="my-4 flex justify-center">
+                    <span className="rounded-full bg-black/10 px-4 py-1 text-[11px] font-medium text-gray-600 backdrop-blur-sm dark:bg-white/10 dark:text-gray-400">
                       {formatDateSeparator(msg.created_at)}
                     </span>
                   </div>
@@ -368,8 +377,8 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
                       storeId={room?.store_id || null}
                     />
                   ) : msg.type === 'system' ? (
-                    <div className="my-2 flex justify-center">
-                      <span className="max-w-[80%] rounded-lg bg-gray-100 px-3 py-1.5 text-center text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                    <div className="my-3 flex justify-center">
+                      <span className="max-w-[80%] rounded-full bg-black/8 px-4 py-1.5 text-center text-[11px] text-gray-500 dark:bg-white/10 dark:text-gray-400">
                         {msg.content}
                       </span>
                     </div>

@@ -76,13 +76,27 @@ export function ChatInput({ roomId }: ChatInputProps) {
     }
   }, []);
 
+  // Special "@ทุกคน" option
+  const EVERYONE_OPTION: MemberOption = {
+    user_id: '__everyone__',
+    username: 'ทุกคน',
+    display_name: 'ทุกคน',
+  };
+
   const filteredMembers = mentionQuery !== null
-    ? members.filter(
-        (m) =>
-          m.user_id !== user?.id &&
-          ((m.display_name?.toLowerCase().includes(mentionQuery)) ||
-            m.username.toLowerCase().includes(mentionQuery))
-      )
+    ? [
+        // Show @ทุกคน if query matches
+        ...('ทุกคน'.includes(mentionQuery) || 'all'.includes(mentionQuery) || mentionQuery === ''
+          ? [EVERYONE_OPTION]
+          : []),
+        // Then show matching members
+        ...members.filter(
+          (m) =>
+            m.user_id !== user?.id &&
+            ((m.display_name?.toLowerCase().includes(mentionQuery)) ||
+              m.username.toLowerCase().includes(mentionQuery))
+        ),
+      ]
     : [];
 
   const insertMention = (member: MemberOption) => {
@@ -215,27 +229,40 @@ export function ChatInput({ roomId }: ChatInputProps) {
   const hasContent = text.trim() || selectedFile;
 
   return (
-    <div className="relative border-t border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+    <div className="relative border-t border-gray-200/50 bg-white dark:border-gray-700 dark:bg-gray-800">
       {/* @Mention dropdown */}
       {mentionQuery !== null && filteredMembers.length > 0 && (
         <div className="absolute bottom-full left-2 right-2 z-20 mb-1 max-h-44 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
-          {filteredMembers.map((m, i) => (
-            <button
-              key={m.user_id}
-              onClick={() => insertMention(m)}
-              className={cn(
-                'flex w-full items-center gap-2 px-4 py-3 text-left text-sm',
-                i === mentionIndex
-                  ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                  : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
-              )}
-            >
-              <span className="font-medium">{m.display_name || m.username}</span>
-              {m.display_name && (
-                <span className="text-xs text-gray-400">@{m.username}</span>
-              )}
-            </button>
-          ))}
+          {filteredMembers.map((m, i) => {
+            const isEveryone = m.user_id === '__everyone__';
+            return (
+              <button
+                key={m.user_id}
+                onClick={() => insertMention(m)}
+                className={cn(
+                  'flex w-full items-center gap-2 px-4 py-3 text-left text-sm',
+                  i === mentionIndex
+                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700',
+                  isEveryone && 'border-b border-gray-100 dark:border-gray-700'
+                )}
+              >
+                {isEveryone ? (
+                  <>
+                    <span className="font-bold text-amber-600 dark:text-amber-400">@ทุกคน</span>
+                    <span className="text-xs text-gray-400">แจ้งเตือนทุกคนในห้อง</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium">{m.display_name || m.username}</span>
+                    {m.display_name && (
+                      <span className="text-xs text-gray-400">@{m.username}</span>
+                    )}
+                  </>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -284,14 +311,14 @@ export function ChatInput({ roomId }: ChatInputProps) {
             updateMentionQuery(e.target.value);
           }}
           onKeyDown={handleKeyDown}
-          placeholder={selectedFile ? 'เพิ่มข้อความ...' : 'พิมพ์ข้อความ... (@ชื่อ เพื่อ mention)'}
+          placeholder={selectedFile ? 'เพิ่มข้อความ...' : 'พิมพ์ข้อความ...'}
           rows={1}
           disabled={sending}
           className={cn(
-            'max-h-24 min-h-[40px] flex-1 resize-none rounded-xl border-0 bg-gray-100 px-4 py-2.5 text-sm',
+            'max-h-24 min-h-[40px] flex-1 resize-none rounded-full border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm',
             'placeholder:text-gray-400',
-            'focus:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500',
-            'dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500 dark:focus:bg-gray-600'
+            'focus:border-[#5B5FC7]/40 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#5B5FC7]/30',
+            'dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500 dark:focus:bg-gray-600'
           )}
           style={{ height: 'auto', minHeight: '40px' }}
           onInput={(e) => {
@@ -306,10 +333,10 @@ export function ChatInput({ roomId }: ChatInputProps) {
           onClick={handleSend}
           disabled={!hasContent || sending}
           className={cn(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all',
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all',
             hasContent
-              ? 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 active:scale-95'
-              : 'bg-gray-100 text-gray-300 dark:bg-gray-700 dark:text-gray-600'
+              ? 'bg-[#5B5FC7] text-white shadow-sm hover:bg-[#4A4EB5] active:scale-95'
+              : 'text-gray-300 dark:text-gray-600'
           )}
         >
           {sending ? (
