@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/chat-daily-summary",
       "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/chat-archive",
+      "schedule": "0 4 * * 0"
     }
   ]
 }

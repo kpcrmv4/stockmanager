@@ -70,15 +70,15 @@
 - [x] 4.3 — Trigger: Approval/Transfer → system messages (`stock/approval`, `stock/explanation`, `transfer`)
 - [x] 4.4 — Daily summary bot message (`api/cron/chat-daily-summary/route.ts`, `vercel.json`)
 
-### Phase 5: Advanced Features
+### Phase 5: Advanced Features ✅ COMPLETED
 > ฟีเจอร์เสริม
 
-- [ ] 5.1 — @mention + assign งานตรง
-- [ ] 5.2 — Leaderboard / สถิติพนักงานรายวัน
-- [ ] 5.3 — ส่งรูป/ไฟล์ในแชท (Supabase Storage)
-- [ ] 5.4 — Message archiving cron (ข้อความเก่า > 3 เดือน)
-- [ ] 5.5 — Quick action จาก notification popup
-- [ ] 5.6 — LINE group notification toggle (ปิด default)
+- [x] 5.1 — @mention + assign: `chat-input.tsx` (dropdown, mention metadata, notification)
+- [x] 5.2 — Leaderboard: staff stats in daily summary (`chat-daily-summary/route.ts`)
+- [x] 5.3 — ส่งรูป/ไฟล์ในแชท: `chat-input.tsx` + `sendChatImageMessage()` (Supabase Storage)
+- [x] 5.4 — Message archiving cron: `api/cron/chat-archive/route.ts` (> 3 เดือน, ทุกอาทิตย์)
+- [x] 5.5 — Quick action จาก notification popup: NotificationCenter handles routing + data.url
+- [x] 5.6 — LINE group notification toggle: `settings/notifications/page.tsx` (ปิด default)
 
 ---
 

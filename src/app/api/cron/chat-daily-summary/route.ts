@@ -162,6 +162,44 @@ export async function GET(request: NextRequest) {
         lines.push(`  รายการที่ยังดำเนินการ: ${activeBorrows}`);
       }
 
+      // Staff leaderboard (action cards completed yesterday)
+      const { data: staffStats } = await supabase
+        .from('chat_messages')
+        .select('metadata')
+        .eq('type', 'action_card')
+        .gte('created_at', startUTC)
+        .lte('created_at', endUTC)
+        .not('metadata->completed_at', 'is', null);
+
+      if (staffStats && staffStats.length > 0) {
+        // Count completions per staff
+        const staffCounts: Record<string, { name: string; count: number }> = {};
+        for (const row of staffStats) {
+          const meta = row.metadata as Record<string, unknown> | null;
+          const claimedBy = meta?.claimed_by_name as string | null;
+          if (claimedBy) {
+            if (!staffCounts[claimedBy]) {
+              staffCounts[claimedBy] = { name: claimedBy, count: 0 };
+            }
+            staffCounts[claimedBy].count++;
+          }
+        }
+
+        const ranked = Object.values(staffCounts)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
+
+        if (ranked.length > 0) {
+          lines.push('');
+          lines.push('🏆 พนักงานดีเด่นเมื่อวาน');
+          const medals = ['🥇', '🥈', '🥉'];
+          ranked.forEach((s, i) => {
+            const medal = medals[i] || '  ';
+            lines.push(`${medal} ${s.name}: ${s.count} งาน`);
+          });
+        }
+      }
+
       await sendBotMessage({
         storeId: store.id,
         type: 'system',

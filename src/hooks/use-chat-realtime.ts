@@ -93,7 +93,8 @@ export async function sendChatMessage(
   roomId: string,
   senderId: string,
   content: string,
-  senderInfo: { username: string; display_name: string | null; avatar_url: string | null; role: string }
+  senderInfo: { username: string; display_name: string | null; avatar_url: string | null; role: string },
+  metadata?: Record<string, unknown> | null
 ): Promise<ChatMessage | null> {
   const supabase = createClient();
 
@@ -105,6 +106,7 @@ export async function sendChatMessage(
       sender_id: senderId,
       type: 'text',
       content,
+      metadata: metadata || null,
     })
     .select('id, room_id, sender_id, type, content, metadata, created_at, archived_at')
     .single();
@@ -145,6 +147,86 @@ export async function sendChatMessage(
 
     for (const member of members) {
       // ส่ง badge ไปแต่ละ user channel
+      supabase.channel(`chat:badge:${member.user_id}`).send({
+        type: 'broadcast',
+        event: 'new_message_badge',
+        payload: badgePayload,
+      });
+    }
+  }
+
+  return message;
+}
+
+/**
+ * ส่งรูปภาพในแชท — upload แล้วส่ง image message
+ */
+export async function sendChatImageMessage(
+  roomId: string,
+  senderId: string,
+  file: File,
+  senderInfo: { username: string; display_name: string | null; avatar_url: string | null; role: string }
+): Promise<ChatMessage | null> {
+  const supabase = createClient();
+
+  // 1. Upload image via API
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('folder', 'chat');
+
+  const uploadRes = await fetch('/api/upload/photo', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!uploadRes.ok) return null;
+
+  const { url: imageUrl } = await uploadRes.json();
+  if (!imageUrl) return null;
+
+  // 2. INSERT image message
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .insert({
+      room_id: roomId,
+      sender_id: senderId,
+      type: 'image',
+      content: imageUrl,
+    })
+    .select('id, room_id, sender_id, type, content, metadata, created_at, archived_at')
+    .single();
+
+  if (error || !data) return null;
+
+  const message: ChatMessage = {
+    ...data,
+    sender: { id: senderId, ...senderInfo },
+  };
+
+  // 3. Broadcast to room
+  await supabase.channel(`chat:room:${roomId}`).send({
+    type: 'broadcast',
+    event: 'new_message',
+    payload: { type: 'new_message', message } as ChatBroadcastPayload,
+  });
+
+  // 4. Broadcast badge
+  const { data: members } = await supabase
+    .from('chat_members')
+    .select('user_id')
+    .eq('room_id', roomId)
+    .neq('user_id', senderId);
+
+  if (members) {
+    const badgePayload: UnreadBadgePayload = {
+      room_id: roomId,
+      sender_id: senderId,
+      sender_name: senderInfo.display_name || senderInfo.username,
+      preview: 'ส่งรูปภาพ',
+      type: 'image',
+    };
+
+    for (const member of members) {
       supabase.channel(`chat:badge:${member.user_id}`).send({
         type: 'broadcast',
         event: 'new_message_badge',

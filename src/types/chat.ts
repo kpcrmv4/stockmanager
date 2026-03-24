@@ -29,7 +29,7 @@ export interface ChatMessage {
   sender_id: string | null;
   type: ChatMessageType;
   content: string | null;
-  metadata: ActionCardMetadata | ReplyMetadata | null;
+  metadata: ActionCardMetadata | ReplyMetadata | MentionMetadata | null;
   created_at: string;
   archived_at: string | null;
   // joined
@@ -85,6 +85,14 @@ export interface ActionCardMetadata {
 export interface ReplyMetadata {
   reply_to: string;
   reply_preview: string;
+}
+
+export interface MentionMetadata {
+  mentions: Array<{
+    user_id: string;
+    username: string;
+    display_name: string | null;
+  }>;
 }
 
 export interface PinnedSummary {
