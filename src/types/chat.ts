@@ -15,6 +15,8 @@ export interface ChatRoom {
   type: ChatRoomType;
   is_active: boolean;
   pinned_summary: PinnedSummary | null;
+  avatar_url: string | null;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
   // joined fields
@@ -47,6 +49,7 @@ export interface ChatMember {
   room_id: string;
   user_id: string;
   role: ChatMemberRole;
+  muted: boolean;
   last_read_at: string;
   joined_at: string;
   // joined
@@ -57,6 +60,16 @@ export interface ChatMember {
     avatar_url: string | null;
     role: string;
   };
+}
+
+export interface ChatPinnedMessage {
+  id: string;
+  room_id: string;
+  message_id: string;
+  pinned_by: string;
+  pinned_at: string;
+  // joined
+  message?: ChatMessage;
 }
 
 export interface ActionCardMetadata {
@@ -104,11 +117,13 @@ export interface PinnedSummary {
 
 // Broadcast event payloads
 export interface ChatBroadcastPayload {
-  type: 'new_message' | 'message_updated' | 'typing' | 'read';
+  type: 'new_message' | 'message_updated' | 'typing' | 'read' | 'message_pinned' | 'message_unpinned';
   message?: ChatMessage;
   user_id?: string;
   user_name?: string;
   room_id?: string;
+  pinned_message?: ChatPinnedMessage;
+  message_id?: string;
 }
 
 export interface UnreadBadgePayload {

@@ -4,7 +4,8 @@ import { useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useChatStore } from '@/stores/chat-store';
 import { useAuthStore } from '@/stores/auth-store';
-import type { ChatMessage, ChatBroadcastPayload, UnreadBadgePayload } from '@/types/chat';
+import { useChatSound } from './use-chat-sound';
+import type { ChatMessage, ChatBroadcastPayload, UnreadBadgePayload, ChatPinnedMessage } from '@/types/chat';
 
 /**
  * Realtime สำหรับห้องที่กำลังดู — ใช้ Broadcast (ไม่ใช่ postgres_changes)
@@ -12,7 +13,8 @@ import type { ChatMessage, ChatBroadcastPayload, UnreadBadgePayload } from '@/ty
  */
 export function useChatRealtime(roomId: string | null) {
   const { user } = useAuthStore();
-  const { addMessage, updateMessage, clearUnread } = useChatStore();
+  const { addMessage, updateMessage, clearUnread, isMuted, addPinnedMessage, removePinnedMessage } = useChatStore();
+  const { playMessageSound, playMentionSound } = useChatSound();
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null);
 
   useEffect(() => {
@@ -30,6 +32,14 @@ export function useChatRealtime(roomId: string | null) {
           // Mark as read ทันทีเพราะกำลังดูอยู่
           markAsReadQuiet(roomId, user.id);
           clearUnread(roomId);
+
+          // Play sound (respect mute, but always play for @mention)
+          const isMentioned = checkMention(data.message, user.id);
+          if (isMentioned) {
+            playMentionSound();
+          } else if (!isMuted) {
+            playMessageSound();
+          }
         }
       })
       .on('broadcast', { event: 'message_updated' }, (payload) => {
@@ -38,9 +48,20 @@ export function useChatRealtime(roomId: string | null) {
           updateMessage(data.message);
         }
       })
+      .on('broadcast', { event: 'message_pinned' }, (payload) => {
+        const data = payload.payload as ChatBroadcastPayload;
+        if (data.pinned_message) {
+          addPinnedMessage(data.pinned_message);
+        }
+      })
+      .on('broadcast', { event: 'message_unpinned' }, (payload) => {
+        const data = payload.payload as ChatBroadcastPayload;
+        if (data.message_id) {
+          removePinnedMessage(data.message_id);
+        }
+      })
       .on('presence', { event: 'sync' }, () => {
         // Presence sync — สามารถใช้สำหรับ typing indicator
-        // const state = channel.presenceState();
       })
       .subscribe();
 
@@ -50,7 +71,7 @@ export function useChatRealtime(roomId: string | null) {
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [roomId, user, addMessage, updateMessage, clearUnread]);
+  }, [roomId, user, addMessage, updateMessage, clearUnread, isMuted, playMessageSound, playMentionSound, addPinnedMessage, removePinnedMessage]);
 
   return channelRef;
 }
@@ -58,10 +79,12 @@ export function useChatRealtime(roomId: string | null) {
 /**
  * Global badge channel — subscribe ทุกห้องที่เป็นสมาชิก
  * ใช้ single channel เพื่อรับ unread badge จากทุกห้อง
+ * + เล่นเสียงแจ้งเตือน (ถ้าไม่ได้ mute)
  */
 export function useChatBadge() {
   const { user } = useAuthStore();
   const { activeRoomId, incrementUnread } = useChatStore();
+  const { playMessageSound, playMentionSound } = useChatSound();
 
   useEffect(() => {
     if (!user) return;
@@ -75,6 +98,19 @@ export function useChatBadge() {
         // ไม่ increment ถ้ากำลังดูห้องนั้นอยู่
         if (data.room_id !== activeRoomId && data.sender_id !== user.id) {
           incrementUnread(data.room_id);
+
+          // Check if @mention or @all in preview
+          const preview = data.preview || '';
+          const isMentioned =
+            preview.includes(`@${user.displayName}`) ||
+            preview.includes(`@${user.username}`) ||
+            preview.includes('@all') ||
+            preview.includes('@ทุกคน');
+
+          if (isMentioned) {
+            playMentionSound();
+          }
+          // Note: normal badge sound not played for non-active rooms to avoid spam
         }
       })
       .subscribe();
@@ -82,7 +118,7 @@ export function useChatBadge() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, activeRoomId, incrementUnread]);
+  }, [user, activeRoomId, incrementUnread, playMessageSound, playMentionSound]);
 }
 
 // ==========================================
@@ -129,7 +165,6 @@ export async function sendChatMessage(
   });
 
   // 3. Broadcast badge ไปทุกคนในห้อง
-  //    (ใช้ server-side API route จะดีกว่า แต่ client-side ก็ใช้ได้)
   const { data: members } = await supabase
     .from('chat_members')
     .select('user_id')
@@ -236,6 +271,26 @@ export async function sendChatImageMessage(
   }
 
   return message;
+}
+
+// ==========================================
+// Helpers
+// ==========================================
+
+/** ตรวจสอบว่า message มี @mention ถึง user หรือ @all */
+function checkMention(message: ChatMessage, userId: string): boolean {
+  // Check metadata mentions
+  const meta = message.metadata as Record<string, unknown> | null;
+  if (meta?.mentions) {
+    const mentions = meta.mentions as Array<{ user_id: string }>;
+    if (mentions.some((m) => m.user_id === userId)) return true;
+  }
+
+  // Check content for @all
+  const content = message.content || '';
+  if (content.includes('@all') || content.includes('@ทุกคน')) return true;
+
+  return false;
 }
 
 // Quiet mark as read (ไม่ throw error)
