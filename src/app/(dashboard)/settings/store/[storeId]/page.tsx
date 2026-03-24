@@ -26,7 +26,9 @@ import {
   Loader2,
   Printer,
   ScrollText,
+  ExternalLink,
 } from 'lucide-react';
+import Link from 'next/link';
 import type { ReceiptSettings } from '@/types/database';
 
 // ---------------------------------------------------------------------------
@@ -725,6 +727,31 @@ export default function StoreDetailSettingsPage() {
           }
         />
         <CardContent className="space-y-4">
+          {/* Links to print station & printer setup */}
+          <div className="flex gap-2">
+            <Link
+              href="/print-station"
+              target="_blank"
+              className="flex flex-1 items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-3 transition-colors hover:bg-blue-100 dark:border-blue-800/50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20"
+            >
+              <div className="flex items-center gap-2">
+                <Printer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-400">เปิด Print Station</span>
+              </div>
+              <ExternalLink className="h-4 w-4 text-blue-500" />
+            </Link>
+            <Link
+              href="/print-listener/setup"
+              className="flex flex-1 items-center justify-between rounded-lg border border-cyan-200 bg-cyan-50 p-3 transition-colors hover:bg-cyan-100 dark:border-cyan-800/50 dark:bg-cyan-900/10 dark:hover:bg-cyan-900/20"
+            >
+              <div className="flex items-center gap-2">
+                <Settings className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                <span className="text-sm font-medium text-cyan-700 dark:text-cyan-400">ตั้งค่าเครื่องปริ้น</span>
+              </div>
+              <ExternalLink className="h-4 w-4 text-cyan-500" />
+            </Link>
+          </div>
+
           {/* Paper width */}
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">

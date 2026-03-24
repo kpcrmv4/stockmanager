@@ -15,11 +15,11 @@ import {
   Wifi,
   Settings,
   ArrowLeft,
-  Smartphone,
   ClipboardCopy,
   Check,
   AlertCircle,
   ExternalLink,
+  Play,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -33,13 +33,12 @@ interface StoreOption {
   store_code: string;
 }
 
-type SetupStep = 'store' | 'pwa' | 'printer' | 'autostart' | 'test' | 'done';
+type SetupStep = 'store' | 'install' | 'printer' | 'test' | 'done';
 
 const STEPS: { key: SetupStep; label: string }[] = [
   { key: 'store', label: 'เลือกสาขา' },
-  { key: 'pwa', label: 'ติดตั้งแอป' },
+  { key: 'install', label: 'ติดตั้งแอป' },
   { key: 'printer', label: 'ต่อเครื่องปริ้น' },
-  { key: 'autostart', label: 'เปิดอัตโนมัติ' },
   { key: 'test', label: 'ทดสอบ' },
   { key: 'done', label: 'เสร็จสิ้น' },
 ];
@@ -143,7 +142,7 @@ export default function PrinterSetupPage() {
   };
 
   const handleCopyUrl = async () => {
-    const url = `${window.location.origin}/print-listener`;
+    const url = `${window.location.origin}/print-station`;
     await navigator.clipboard.writeText(url);
     setCopiedUrl(true);
     setTimeout(() => setCopiedUrl(false), 2000);
@@ -170,11 +169,11 @@ export default function PrinterSetupPage() {
       {/* Header */}
       <div>
         <Link
-          href="/print-listener"
+          href="/print-station"
           className="mb-3 inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
         >
           <ArrowLeft className="h-4 w-4" />
-          กลับไป Print Listener
+          กลับไป Print Station
         </Link>
         <h1 className="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-white">
           <Settings className="h-5 w-5" />
@@ -283,91 +282,167 @@ export default function PrinterSetupPage() {
           </div>
         )}
 
-        {/* ============ STEP 2: ติดตั้ง PWA ============ */}
-        {currentStep === 'pwa' && (
+        {/* ============ STEP 2: ติดตั้งแอปและตั้งค่าเปิดอัตโนมัติ ============ */}
+        {currentStep === 'install' && (
           <div className="p-6">
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
                 <Download className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900 dark:text-white">ติดตั้งเป็นแอปบนคอมพิวเตอร์</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-white">ติดตั้งแอปและตั้งค่าเปิดอัตโนมัติ</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  ติดตั้ง StockManager เป็นแอปเพื่อให้ใช้งานได้สะดวกขึ้น
+                  ติดตั้งเป็นแอปบนคอม แล้วตั้งให้เปิดอัตโนมัติเมื่อเปิดเครื่อง
                 </p>
               </div>
             </div>
 
-            {isInstalled ? (
-              <div className="rounded-lg bg-emerald-50 p-4 dark:bg-emerald-900/20">
-                <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <span className="font-medium">ติดตั้งแล้ว!</span>
-                </div>
-                <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-500">
-                  StockManager ถูกติดตั้งเป็นแอปบนเครื่องนี้แล้ว
-                </p>
-              </div>
-            ) : canInstall ? (
-              <div className="space-y-4">
-                <button
-                  onClick={handleInstallPWA}
-                  disabled={isInstalling}
-                  className={cn(
-                    'flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium text-white transition-colors',
-                    'bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60',
-                  )}
-                >
-                  <Download className="h-5 w-5" />
-                  {isInstalling ? 'กำลังติดตั้ง...' : 'ติดตั้ง StockManager'}
-                </button>
-                <p className="text-center text-xs text-gray-400 dark:text-gray-500">
-                  คลิกปุ่มด้านบน แล้วกด &quot;ติดตั้ง&quot; ในป๊อปอัพที่ขึ้นมา
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="rounded-lg bg-amber-50 p-4 dark:bg-amber-900/20">
-                  <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium">ไม่สามารถติดตั้งอัตโนมัติได้</p>
-                      <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">
-                        กรุณาติดตั้งด้วยตนเองตามขั้นตอนด้านล่าง
-                      </p>
+            <div className="space-y-4">
+              {/* --- ส่วนที่ 1: ติดตั้ง PWA --- */}
+              <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900/50">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">1</span>
+                  ติดตั้งเป็นแอปบนคอมพิวเตอร์
+                </h3>
+
+                {isInstalled ? (
+                  <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
+                    <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                      <CheckCircle2 className="h-5 w-5" />
+                      <span className="font-medium">ติดตั้งแล้ว!</span>
+                    </div>
+                    <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-500">
+                      StockManager ถูกติดตั้งเป็นแอปบนเครื่องนี้แล้ว
+                    </p>
+                  </div>
+                ) : canInstall ? (
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleInstallPWA}
+                      disabled={isInstalling}
+                      className={cn(
+                        'flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium text-white transition-colors',
+                        'bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60',
+                      )}
+                    >
+                      <Download className="h-5 w-5" />
+                      {isInstalling ? 'กำลังติดตั้ง...' : 'ติดตั้ง StockManager'}
+                    </button>
+                    <p className="text-center text-xs text-gray-400 dark:text-gray-500">
+                      คลิกปุ่มด้านบน แล้วกด &quot;ติดตั้ง&quot; ในป๊อปอัพที่ขึ้นมา
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
+                      <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium">ไม่สามารถติดตั้งอัตโนมัติได้</p>
+                          <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">
+                            กรุณาติดตั้งด้วยตนเอง: คลิก <strong>เมนู ⋮</strong> ที่มุมขวาบนของ Chrome → <strong>&quot;ติดตั้ง StockManager...&quot;</strong>
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-
-                <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900/50">
-                  <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    วิธีติดตั้งด้วยตนเอง (Chrome):
-                  </h3>
-                  <ol className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                    <li className="flex items-start gap-2">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                        1
-                      </span>
-                      <span>
-                        คลิกไอคอน <strong>ติดตั้ง</strong> (รูปจอ + ลูกศร) ที่ address bar ด้านขวา
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                        2
-                      </span>
-                      <span>หรือคลิก <strong>เมนู ⋮</strong> → <strong>&quot;ติดตั้ง StockManager...&quot;</strong></span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                        3
-                      </span>
-                      <span>กดปุ่ม <strong>&quot;ติดตั้ง&quot;</strong> ในป๊อปอัพที่ขึ้นมา</span>
-                    </li>
-                  </ol>
-                </div>
+                )}
               </div>
-            )}
+
+              {/* --- ส่วนที่ 2: ตั้งค่าเปิดอัตโนมัติ --- */}
+              <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900/50">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">2</span>
+                  ตั้งค่าเปิดอัตโนมัติเมื่อเปิดคอม
+                </h3>
+
+                {isInstalled ? (
+                  <>
+                    {/* วิธีสำหรับ PWA ที่ติดตั้งแล้ว */}
+                    <ol className="space-y-2.5 text-sm text-gray-600 dark:text-gray-400">
+                      <li className="flex items-start gap-2">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">1</span>
+                        <span>
+                          กดปุ่ม <strong>Win + R</strong> → พิมพ์ <code className="rounded bg-gray-200 px-1.5 py-0.5 text-xs dark:bg-gray-700">shell:startup</code> → กด Enter
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">2</span>
+                        <span>
+                          หา shortcut ของแอป <strong>StockManager</strong> ที่ Desktop → <strong>คลิกขวา → Copy</strong>
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">3</span>
+                        <span>
+                          กลับไปที่ folder Startup → <strong>คลิกขวา → Paste shortcut</strong>
+                        </span>
+                      </li>
+                    </ol>
+                    <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-900/20">
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                        <strong>เสร็จแล้ว!</strong> ทดสอบ: รีสตาร์ทคอม → แอป StockManager ควรเปิดขึ้นมาเองพร้อมหน้า Print Station
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* วิธีสำหรับ Chrome (ยังไม่ได้ติดตั้ง PWA) */}
+                    <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                      ยังไม่ได้ติดตั้งแอป? ใช้วิธีให้ Chrome เปิดหน้า Print Station อัตโนมัติแทน:
+                    </p>
+                    <ol className="space-y-2.5 text-sm text-gray-600 dark:text-gray-400">
+                      <li className="flex items-start gap-2">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">1</span>
+                        <span>
+                          เปิด Chrome → Settings → <strong>On startup</strong>
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">2</span>
+                        <span>
+                          เลือก <strong>&quot;Open a specific page or set of pages&quot;</strong>
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">3</span>
+                        <span>
+                          กด <strong>&quot;Add a new page&quot;</strong> → วาง URL ด้านล่าง
+                        </span>
+                      </li>
+                    </ol>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">URL:</p>
+                      <button
+                        onClick={handleCopyUrl}
+                        className="flex items-center gap-1.5 rounded-md bg-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                      >
+                        {copiedUrl ? (
+                          <>
+                            <Check className="h-3 w-3 text-emerald-600" />
+                            คัดลอกแล้ว
+                          </>
+                        ) : (
+                          <>
+                            <ClipboardCopy className="h-3 w-3" />
+                            คัดลอก URL Print Station
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Important note */}
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  <strong>สำคัญ:</strong> เมื่อแอปเปิดขึ้นมาอัตโนมัติ ต้องแน่ใจว่า session ยังไม่หมดอายุ
+                  (login ค้างไว้) ถ้า session หมดอายุ ระบบจะพาไปหน้า login ให้เข้าระบบใหม่
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -448,104 +523,7 @@ export default function PrinterSetupPage() {
           </div>
         )}
 
-        {/* ============ STEP 4: เปิดอัตโนมัติ ============ */}
-        {currentStep === 'autostart' && (
-          <div className="p-6">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
-                <Smartphone className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="font-semibold text-gray-900 dark:text-white">ตั้งค่าเปิดอัตโนมัติ</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  เมื่อเปิดคอม Print Listener จะเปิดขึ้นมาเอง
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {/* Method: PWA Shortcut in Startup */}
-              <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900/50">
-                <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  วิธีที่ 1: ใส่ shortcut ใน Startup (แนะนำ)
-                </h3>
-                <ol className="space-y-2.5 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-start gap-2">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">1</span>
-                    <span>
-                      กดปุ่ม <strong>Win + R</strong> → พิมพ์ <code className="rounded bg-gray-200 px-1.5 py-0.5 text-xs dark:bg-gray-700">shell:startup</code> → กด Enter
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">2</span>
-                    <span>
-                      หา shortcut ของแอป <strong>StockManager</strong> ที่ Desktop → ลากไปวางใน folder Startup
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">3</span>
-                    <span>ทดสอบ: รีสตาร์ทคอม → แอปควรเปิดขึ้นมาเอง</span>
-                  </li>
-                </ol>
-              </div>
-
-              {/* Method: Chrome Restore Tabs */}
-              <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900/50">
-                <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  วิธีที่ 2: ให้ Chrome เปิดหน้าเดิม
-                </h3>
-                <ol className="space-y-2.5 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-start gap-2">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">1</span>
-                    <span>
-                      เปิด Chrome → Settings → <strong>On startup</strong>
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">2</span>
-                    <span>
-                      เลือก <strong>&quot;Continue where you left off&quot;</strong>
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">3</span>
-                    <span>เปิดหน้า Print Listener ไว้ → เวลาเปิดคอมใหม่ Chrome จะกลับมาหน้าเดิม</span>
-                  </li>
-                </ol>
-
-                <div className="mt-3 flex items-center gap-2">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">URL หน้า Print Listener:</p>
-                  <button
-                    onClick={handleCopyUrl}
-                    className="flex items-center gap-1.5 rounded-md bg-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                  >
-                    {copiedUrl ? (
-                      <>
-                        <Check className="h-3 w-3 text-emerald-600" />
-                        คัดลอกแล้ว
-                      </>
-                    ) : (
-                      <>
-                        <ClipboardCopy className="h-3 w-3" />
-                        คัดลอก URL
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Important note */}
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  <strong>สำคัญ:</strong> เมื่อแอปเปิดขึ้นมาอัตโนมัติ ต้องแน่ใจว่า session ยังไม่หมดอายุ
-                  (login ค้างไว้) ถ้า session หมดอายุ ระบบจะพาไปหน้า login ให้เข้าระบบใหม่
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ============ STEP 5: ทดสอบ ============ */}
+        {/* ============ STEP 4: ทดสอบ ============ */}
         {currentStep === 'test' && (
           <div className="p-6">
             <div className="mb-4 flex items-center gap-3">
@@ -569,7 +547,7 @@ export default function PrinterSetupPage() {
                   <li className="flex items-start gap-2">
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-300">1</span>
                     <span>
-                      เปิดหน้า <strong>Print Listener</strong> บนคอมเครื่องนี้ (หรือเปิด tab ใหม่)
+                      เปิดหน้า <strong>Print Station</strong> บนคอมเครื่องนี้ (หรือเปิด tab ใหม่)
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
@@ -603,7 +581,7 @@ export default function PrinterSetupPage() {
                 {testResult === 'success' && (
                   <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
                     <CheckCircle2 className="h-4 w-4" />
-                    ส่งงานพิมพ์ทดสอบแล้ว! ตรวจสอบที่หน้า Print Listener
+                    ส่งงานพิมพ์ทดสอบแล้ว! ตรวจสอบที่หน้า Print Station
                   </div>
                 )}
 
@@ -616,18 +594,18 @@ export default function PrinterSetupPage() {
               </div>
 
               <Link
-                href="/print-listener"
+                href="/print-station"
                 target="_blank"
                 className="flex items-center justify-center gap-2 text-sm text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
               >
                 <ExternalLink className="h-4 w-4" />
-                เปิดหน้า Print Listener ใน tab ใหม่
+                เปิดหน้า Print Station ใน tab ใหม่
               </Link>
             </div>
           </div>
         )}
 
-        {/* ============ STEP 6: เสร็จสิ้น ============ */}
+        {/* ============ STEP 5: เสร็จสิ้น ============ */}
         {currentStep === 'done' && (
           <div className="p-6">
             <div className="flex flex-col items-center py-6 text-center">
@@ -641,11 +619,11 @@ export default function PrinterSetupPage() {
 
               <div className="mt-6 space-y-3">
                 <Link
-                  href="/print-listener"
+                  href="/print-station"
                   className="flex w-64 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 font-medium text-white transition-colors hover:bg-blue-700"
                 >
                   <Printer className="h-5 w-5" />
-                  เปิด Print Listener
+                  เปิด Print Station
                 </Link>
               </div>
 
@@ -664,7 +642,7 @@ export default function PrinterSetupPage() {
                     ) : (
                       <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
                     )}
-                    PWA: {isInstalled ? 'ติดตั้งแล้ว' : 'ยังไม่ได้ติดตั้ง'}
+                    แอป: {isInstalled ? 'ติดตั้งแล้ว' : 'ใช้ผ่าน Chrome'}
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
