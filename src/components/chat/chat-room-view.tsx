@@ -360,7 +360,13 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
                     </div>
                   )}
                   {msg.type === 'action_card' ? (
-                    <ActionCardMessage message={msg} currentUserId={user?.id || ''} roomId={roomId} />
+                    <ActionCardMessage
+                      message={msg}
+                      currentUserId={user?.id || ''}
+                      currentUserName={user?.displayName || user?.username || 'พนักงาน'}
+                      roomId={roomId}
+                      storeId={room?.store_id || null}
+                    />
                   ) : msg.type === 'system' ? (
                     <div className="my-2 flex justify-center">
                       <span className="max-w-[80%] rounded-lg bg-gray-100 px-3 py-1.5 text-center text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">

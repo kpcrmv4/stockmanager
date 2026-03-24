@@ -12,6 +12,7 @@ import {
   MessageSquare,
   ArrowUpFromLine,
   Megaphone,
+  Wine,
   BellOff,
   type LucideIcon,
 } from 'lucide-react';
@@ -51,6 +52,8 @@ function getNotificationIcon(
   switch (type) {
     case 'deposit_confirmed':
       return { icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30' };
+    case 'deposit_received':
+      return { icon: Wine, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30' };
     case 'withdrawal_completed':
       return { icon: Package, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30' };
     case 'deposit_expiry':
@@ -75,6 +78,41 @@ function getNotificationIcon(
       return { icon: Megaphone, color: 'text-pink-600 dark:text-pink-400', bg: 'bg-pink-100 dark:bg-pink-900/30' };
     default:
       return { icon: Bell, color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-800' };
+  }
+}
+
+/**
+ * สีพื้นหลังของแถว notification ตามกลุ่มข้อความ
+ */
+function getNotificationRowBg(type: string | null): string {
+  switch (type) {
+    // กลุ่มฝากเหล้า (สีม่วง)
+    case 'new_deposit':
+    case 'deposit_confirmed':
+      return 'bg-purple-50/60 dark:bg-purple-900/10';
+    // กลุ่มรอรับเข้าระบบ (สีส้ม)
+    case 'deposit_received':
+      return 'bg-amber-50/60 dark:bg-amber-900/10';
+    // กลุ่มเบิกเหล้า (สีฟ้า)
+    case 'withdrawal_request':
+    case 'withdrawal_completed':
+      return 'bg-blue-50/60 dark:bg-blue-900/10';
+    // กลุ่มสต๊อก (สีม่วงเข้ม)
+    case 'stock_alert':
+    case 'explanation_submitted':
+      return 'bg-indigo-50/60 dark:bg-indigo-900/10';
+    // กลุ่มอนุมัติ (สีเขียว/แดง)
+    case 'approval_request':
+    case 'approval_result':
+      return 'bg-emerald-50/60 dark:bg-emerald-900/10';
+    // กลุ่มหมดอายุ (สีส้ม)
+    case 'deposit_expiry':
+      return 'bg-orange-50/60 dark:bg-orange-900/10';
+    // กลุ่มโปรโมชั่น (สีชมพู)
+    case 'promotion':
+      return 'bg-pink-50/60 dark:bg-pink-900/10';
+    default:
+      return '';
   }
 }
 
@@ -127,6 +165,10 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
         } else {
           router.push('/deposits');
         }
+        break;
+      case 'deposit_received':
+        // รอ bar ยืนยัน → ไปหน้า bar-approval
+        router.push('/bar-approval');
         break;
       case 'withdrawal_completed':
       case 'withdrawal_request':
@@ -237,7 +279,9 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
                     className={cn(
                       'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
                       'hover:bg-gray-50 dark:hover:bg-gray-800',
-                      !notification.read && 'bg-blue-50/50 dark:bg-blue-900/10'
+                      !notification.read
+                        ? getNotificationRowBg(notification.type) || 'bg-blue-50/50 dark:bg-blue-900/10'
+                        : ''
                     )}
                     role="menuitem"
                   >

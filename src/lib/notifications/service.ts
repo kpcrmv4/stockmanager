@@ -20,6 +20,7 @@ import { sendLinePush, pushMessage, type LineMessage } from '@/lib/line/messagin
 
 export type NotificationType =
   | 'deposit_confirmed'       // ฝากเหล้าสำเร็จ (bar ยืนยัน)
+  | 'deposit_received'        // staff รับของแล้ว — รอ bar ยืนยันเข้าระบบ
   | 'withdrawal_completed'    // เบิกเหล้าสำเร็จ
   | 'deposit_expiry'          // เหล้าใกล้หมดอายุ
   | 'promotion'               // โปรโมชั่น
@@ -52,6 +53,8 @@ interface NotifyGroupParams {
   body: string;
   data?: Record<string, unknown>;
   excludeUserId?: string;
+  /** จำกัด roles ที่จะได้รับแจ้งเตือน (default: staff, bar, manager) */
+  roles?: string[];
 }
 
 interface NotificationPreferences {
@@ -99,6 +102,7 @@ const TYPE_TO_PREF: Record<NotificationType, keyof NotificationPreferences> = {
   explanation_submitted: 'notify_approval_request',   // same pref for owner
   approval_result: 'notify_stock_alert',              // staff sees this under stock alerts
   new_deposit: 'notify_approval_request',             // bar approving
+  deposit_received: 'notify_approval_request',        // bar confirming
   withdrawal_request: 'notify_approval_request',      // bar approving
 };
 
@@ -229,17 +233,18 @@ export async function notifyUser(params: NotifyUserParams): Promise<void> {
  * @param params.excludeUserId - Skip this user (e.g. the person who triggered the action)
  */
 export async function notifyStoreStaff(params: NotifyGroupParams): Promise<void> {
-  const { storeId, type, title, body, data, excludeUserId } = params;
+  const { storeId, type, title, body, data, excludeUserId, roles } = params;
+  const targetRoles = roles || ['staff', 'bar', 'manager'];
 
   try {
     const supabase = createServiceClient();
 
-    // Find all users in this store with staff or bar roles
+    // Find all users in this store with target roles
     const { data: userStores, error } = await supabase
       .from('user_stores')
       .select('user_id, profiles!inner(id, role, line_user_id)')
       .eq('store_id', storeId)
-      .in('profiles.role', ['staff', 'bar']);
+      .in('profiles.role', targetRoles);
 
     if (error) {
       console.error('[Notify] Failed to fetch store staff:', error.message);
