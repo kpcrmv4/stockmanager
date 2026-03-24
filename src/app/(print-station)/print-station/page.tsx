@@ -17,9 +17,11 @@ import {
   Clock,
   Loader2,
   RotateCcw,
-  ChevronDown,
   Package,
   Download,
+  LogOut,
+  User,
+  MonitorUp,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -73,9 +75,11 @@ export default function PrintStationPage() {
   const { canInstall, isInstalled, isInstalling, install: installPWA } = useInstallPWA();
 
   // State
-  const [userId, setUserId] = useState<string | null>(null);
+  const [userName, setUserName] = useState('');
+  const [userRole, setUserRole] = useState('');
   const [stores, setStores] = useState<StoreOption[]>([]);
   const [storeName, setStoreName] = useState('');
+  const [storeCode, setStoreCode] = useState('');
   const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings | null>(null);
   const [connected, setConnected] = useState(false);
   const [recentJobs, setRecentJobs] = useState<PrintJob[]>([]);
@@ -83,62 +87,169 @@ export default function PrintStationPage() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [reprintingId, setReprintingId] = useState<string | null>(null);
   const [jobCounts, setJobCounts] = useState({ completed: 0, failed: 0, pending: 0 });
-  const [showStoreSelector, setShowStoreSelector] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Whether user has multiple stores (admin or multi-store staff)
+  const hasMultipleStores = stores.length > 1;
 
   const printAreaRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // -----------------------------------------------------------------------
-  // Init: fetch user + stores
+  // Logout
+  // -----------------------------------------------------------------------
+
+  const handleLogout = useCallback(async () => {
+    setIsLoggingOut(true);
+    // Clear persisted store
+    setCurrentStoreId('');
+    await supabase.auth.signOut();
+    window.location.href = '/login?redirect=/print-station';
+  }, [supabase, setCurrentStoreId]);
+
+  // -----------------------------------------------------------------------
+  // Download startup .bat file
+  // -----------------------------------------------------------------------
+
+  const downloadStartupBat = useCallback(() => {
+    const url = `${window.location.origin}/print-station`;
+    // PowerShell command to create a shortcut in Windows Startup folder
+    // Uses Chrome --app mode for PWA-like experience
+    const bat = [
+      '@echo off',
+      'chcp 65001 >nul',
+      'echo ============================================',
+      'echo   Print Station - ตั้งค่า Startup อัตโนมัติ',
+      'echo ============================================',
+      'echo.',
+      '',
+      'set "STARTUP=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"',
+      'set "SHORTCUT=%STARTUP%\\PrintStation.lnk"',
+      `set "URL=${url}"`,
+      '',
+      ':: Try to find Chrome',
+      'set "CHROME="',
+      'if exist "%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe" set "CHROME=%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe"',
+      'if exist "%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe" set "CHROME=%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe"',
+      'if exist "%LocalAppData%\\Google\\Chrome\\Application\\chrome.exe" set "CHROME=%LocalAppData%\\Google\\Chrome\\Application\\chrome.exe"',
+      '',
+      ':: Try Edge if Chrome not found',
+      'if "%CHROME%"=="" (',
+      '  if exist "%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe" set "CHROME=%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe"',
+      '  if exist "%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe" set "CHROME=%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe"',
+      ')',
+      '',
+      'if "%CHROME%"=="" (',
+      '  echo [ERROR] ไม่พบ Chrome หรือ Edge กรุณาติดตั้ง Google Chrome ก่อน',
+      '  pause',
+      '  exit /b 1',
+      ')',
+      '',
+      'echo พบเบราว์เซอร์: %CHROME%',
+      'echo สร้าง Shortcut ที่: %SHORTCUT%',
+      'echo URL: %URL%',
+      'echo.',
+      '',
+      ':: Create shortcut via PowerShell',
+      'powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut(\'%SHORTCUT%\'); $s.TargetPath = \'%CHROME%\'; $s.Arguments = \'--app=%URL%\'; $s.WindowStyle = 1; $s.Description = \'Print Station - StockManager\'; $s.Save()"',
+      '',
+      'if exist "%SHORTCUT%" (',
+      '  echo.',
+      '  echo [OK] ตั้งค่า Startup สำเร็จ!',
+      '  echo     Print Station จะเปิดอัตโนมัติเมื่อเปิดเครื่อง',
+      '  echo.',
+      '  echo หากต้องการยกเลิก ให้ลบไฟล์:',
+      '  echo     %SHORTCUT%',
+      ') else (',
+      '  echo [ERROR] สร้าง Shortcut ไม่สำเร็จ',
+      ')',
+      '',
+      'echo.',
+      'pause',
+    ].join('\r\n');
+
+    const blob = new Blob([bat], { type: 'application/bat' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'PrintStation-Startup.bat';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // Init: fetch user + stores, auto-select store
   // -----------------------------------------------------------------------
 
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      setUserId(user.id);
 
-      // Fetch user's stores
+      // Fetch profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, display_name, username')
+        .eq('id', user.id)
+        .single();
+
+      if (profile) {
+        setUserName(profile.display_name || profile.username || user.email || '');
+        setUserRole(profile.role);
+      }
+
+      // Fetch user's assigned stores
       const { data } = await supabase
         .from('user_stores')
         .select('store_id, stores(id, store_name, store_code)')
         .eq('user_id', user.id);
 
+      let storeList: StoreOption[] = [];
+
       if (data) {
-        const list: StoreOption[] = data
+        storeList = data
           .map((row: Record<string, unknown>) => {
             const store = row.stores as unknown as StoreOption | null;
             return store ? { id: store.id, store_name: store.store_name, store_code: store.store_code } : null;
           })
           .filter(Boolean) as StoreOption[];
-
-        // If owner/accountant/hq, fetch all stores
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single();
-
-        if (profile && ['owner', 'accountant', 'hq'].includes(profile.role)) {
-          const { data: allStores } = await supabase
-            .from('stores')
-            .select('id, store_name, store_code')
-            .eq('active', true)
-            .order('store_name');
-          if (allStores) {
-            setStores(allStores);
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        setStores(list);
       }
+
+      // Admin roles: show all stores
+      if (profile && ['owner', 'accountant', 'hq'].includes(profile.role)) {
+        const { data: allStores } = await supabase
+          .from('stores')
+          .select('id, store_name, store_code')
+          .eq('active', true)
+          .order('store_name');
+        if (allStores) {
+          storeList = allStores;
+        }
+      }
+
+      setStores(storeList);
+
+      // Auto-select: if user has exactly 1 store, select it automatically
+      if (storeList.length === 1) {
+        setCurrentStoreId(storeList[0].id);
+        setStoreName(storeList[0].store_name);
+        setStoreCode(storeList[0].store_code);
+      } else if (currentStoreId) {
+        // If there's a previously saved store, verify it's still valid
+        const existing = storeList.find((s) => s.id === currentStoreId);
+        if (existing) {
+          setStoreName(existing.store_name);
+          setStoreCode(existing.store_code);
+        } else {
+          // Previously saved store no longer valid, clear it
+          setCurrentStoreId('');
+        }
+      }
+
       setIsLoading(false);
     }
     init();
-  }, [supabase]);
+  }, [supabase, currentStoreId, setCurrentStoreId]);
 
   // -----------------------------------------------------------------------
   // Fetch store info + receipt settings when store changes
@@ -148,11 +259,14 @@ export default function PrintStationPage() {
     if (!currentStoreId) return;
 
     const [storeRes, settingsRes] = await Promise.all([
-      supabase.from('stores').select('store_name').eq('id', currentStoreId).single(),
+      supabase.from('stores').select('store_name, store_code').eq('id', currentStoreId).single(),
       supabase.from('store_settings').select('receipt_settings').eq('store_id', currentStoreId).single(),
     ]);
 
-    if (storeRes.data) setStoreName(storeRes.data.store_name);
+    if (storeRes.data) {
+      setStoreName(storeRes.data.store_name);
+      setStoreCode(storeRes.data.store_code);
+    }
     if (settingsRes.data?.receipt_settings) {
       setReceiptSettings(settingsRes.data.receipt_settings as unknown as ReceiptSettings);
     }
@@ -308,13 +422,13 @@ export default function PrintStationPage() {
   );
 
   // -----------------------------------------------------------------------
-  // Select store
+  // Select store (for multi-store users only)
   // -----------------------------------------------------------------------
 
   const handleSelectStore = (store: StoreOption) => {
     setCurrentStoreId(store.id);
     setStoreName(store.store_name);
-    setShowStoreSelector(false);
+    setStoreCode(store.store_code);
     setRecentJobs([]);
     setJobCounts({ completed: 0, failed: 0, pending: 0 });
   };
@@ -422,6 +536,16 @@ export default function PrintStationPage() {
               </span>
             )}
 
+            {/* Startup .bat download */}
+            <button
+              onClick={downloadStartupBat}
+              title="ดาวน์โหลดไฟล์ตั้งค่า Startup อัตโนมัติ"
+              className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-purple-50 hover:text-purple-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-purple-900/20 dark:hover:text-purple-400"
+            >
+              <MonitorUp className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Startup</span>
+            </button>
+
             {/* Connection status */}
             <div
               className={cn(
@@ -446,72 +570,92 @@ export default function PrintStationPage() {
               ) : (
                 <>
                   <Clock className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">เลือกสาขา</span>
+                  <span className="hidden sm:inline">รอเลือกสาขา</span>
                 </>
               )}
             </div>
           </div>
         </div>
 
-        {/* ---- Store Selector ---- */}
-        <div className="relative mb-4">
-          <button
-            onClick={() => setShowStoreSelector(!showStoreSelector)}
-            className="flex w-full items-center justify-between rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 transition-colors hover:bg-gray-50 dark:bg-gray-800 dark:ring-gray-700 dark:hover:bg-gray-750"
-          >
+        {/* ---- User Info + Store (read-only) + Logout ---- */}
+        <div className="mb-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={cn(
-                'flex h-8 w-8 items-center justify-center rounded-lg',
-                currentStoreId
-                  ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                  : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500',
-              )}>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
                 <Printer className="h-4 w-4" />
               </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {storeName || 'เลือกสาขา'}
-                </p>
-                {currentStoreId && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {stores.find((s) => s.id === currentStoreId)?.store_code || ''}
-                  </p>
+              <div>
+                {currentStoreId ? (
+                  <>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{storeName}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{storeCode}</p>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">ไม่มีสาขาที่ผูกไว้</p>
                 )}
               </div>
             </div>
-            <ChevronDown className={cn('h-4 w-4 text-gray-400 transition-transform', showStoreSelector && 'rotate-180')} />
-          </button>
 
-          {showStoreSelector && (
-            <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-64 overflow-y-auto rounded-xl bg-white shadow-lg ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
-              {stores.map((store) => (
-                <button
-                  key={store.id}
-                  onClick={() => handleSelectStore(store)}
-                  className={cn(
-                    'flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50',
-                    currentStoreId === store.id && 'bg-blue-50 dark:bg-blue-900/20',
-                  )}
-                >
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{store.store_name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">รหัส: {store.store_code}</p>
-                  </div>
-                  {currentStoreId === store.id && (
-                    <CheckCircle2 className="h-4 w-4 text-blue-500" />
-                  )}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              {/* User info */}
+              <div className="mr-2 text-right">
+                <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  <User className="mr-1 inline-block h-3 w-3" />
+                  {userName}
+                </p>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500">{userRole}</p>
+              </div>
+
+              {/* Logout button */}
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+              >
+                {isLoggingOut ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <LogOut className="h-3.5 w-3.5" />
+                )}
+                ออกจากระบบ
+              </button>
+            </div>
+          </div>
+
+          {/* Multi-store selector (only for admin/multi-store users) */}
+          {hasMultipleStores && (
+            <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-700">
+              <label className="mb-1.5 block text-xs text-gray-500 dark:text-gray-400">
+                เปลี่ยนสาขา (คุณมีสิทธิ์เข้าถึง {stores.length} สาขา)
+              </label>
+              <select
+                value={currentStoreId || ''}
+                onChange={(e) => {
+                  const store = stores.find((s) => s.id === e.target.value);
+                  if (store) handleSelectStore(store);
+                }}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">-- เลือกสาขา --</option>
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id}>
+                    {store.store_name} ({store.store_code})
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>
 
-        {/* ---- No store selected ---- */}
-        {!currentStoreId && (
+        {/* ---- No store assigned ---- */}
+        {!currentStoreId && stores.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-xl bg-white py-20 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
             <Printer className="mb-3 h-12 w-12 text-gray-300 dark:text-gray-600" />
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              เลือกสาขาด้านบนเพื่อเริ่มรับงานพิมพ์
+              บัญชีนี้ไม่ได้ผูกกับสาขาใด กรุณาติดต่อผู้ดูแลระบบ
+            </p>
+            <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+              หรือออกจากระบบแล้วเข้าสู่ระบบด้วยบัญชีอื่น
             </p>
           </div>
         )}
