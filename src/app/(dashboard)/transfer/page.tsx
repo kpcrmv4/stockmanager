@@ -17,6 +17,7 @@ import {
 } from '@/components/ui';
 import { formatThaiDate, formatThaiDateTime } from '@/lib/utils/format';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { notifyChatTransferCreated } from '@/lib/chat/bot-client';
 import { cn } from '@/lib/utils/cn';
 import { generateTransferCode } from '@/lib/utils/transfer-code';
 import {
@@ -367,6 +368,13 @@ export default function TransferPage() {
       });
 
       toast({ type: 'success', title: 'ส่งโอนสำเร็จ', message: `ส่งโอน ${selectedDeposits.length} รายการ (${transferCode})` });
+
+      // ส่ง system message เข้าห้องแชทสาขา
+      notifyChatTransferCreated(currentStoreId, {
+        transfer_code: transferCode,
+        deposit_count: selectedDeposits.length,
+        submitted_by_name: user.displayName || user.username || 'พนักงาน',
+      });
       setShowTransferModal(false);
       setSelectedIds(new Set());
       setTransferNote('');

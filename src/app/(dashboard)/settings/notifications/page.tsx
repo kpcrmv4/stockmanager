@@ -21,6 +21,7 @@ interface CustomerNotifSettings {
   customer_notify_deposit_enabled: boolean;
   customer_notify_promotion_enabled: boolean;
   customer_notify_channels: string[];
+  line_notify_enabled: boolean;
 }
 
 const defaults: CustomerNotifSettings = {
@@ -30,6 +31,7 @@ const defaults: CustomerNotifSettings = {
   customer_notify_deposit_enabled: true,
   customer_notify_promotion_enabled: true,
   customer_notify_channels: ['pwa', 'line'],
+  line_notify_enabled: false,
 };
 
 export default function NotificationSettingsPage() {
@@ -45,7 +47,7 @@ export default function NotificationSettingsPage() {
     const supabase = createClient();
     const { data } = await supabase
       .from('store_settings')
-      .select('customer_notify_expiry_enabled, customer_notify_expiry_days, customer_notify_withdrawal_enabled, customer_notify_deposit_enabled, customer_notify_promotion_enabled, customer_notify_channels')
+      .select('customer_notify_expiry_enabled, customer_notify_expiry_days, customer_notify_withdrawal_enabled, customer_notify_deposit_enabled, customer_notify_promotion_enabled, customer_notify_channels, line_notify_enabled')
       .eq('store_id', currentStoreId)
       .single();
 
@@ -57,6 +59,7 @@ export default function NotificationSettingsPage() {
         customer_notify_deposit_enabled: data.customer_notify_deposit_enabled ?? true,
         customer_notify_promotion_enabled: data.customer_notify_promotion_enabled ?? true,
         customer_notify_channels: data.customer_notify_channels ?? ['pwa', 'line'],
+        line_notify_enabled: data.line_notify_enabled ?? false,
       });
     }
     setIsLoading(false);
@@ -111,9 +114,9 @@ export default function NotificationSettingsPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <button
         onClick={() => router.back()}
-        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
+        className="flex h-10 items-center gap-1.5 rounded-lg px-2 text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 active:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700"
       >
-        <ArrowLeft className="h-4 w-4" />
+        <ArrowLeft className="h-5 w-5" />
         กลับ
       </button>
 
@@ -128,7 +131,7 @@ export default function NotificationSettingsPage() {
       <Card padding="none">
         <CardHeader title="ช่องทางการส่งแจ้งเตือน" />
         <CardContent>
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <button
               onClick={() => toggleChannel('pwa')}
               className={`flex flex-1 items-center gap-2 rounded-lg border-2 p-3 text-sm font-medium transition-colors ${
@@ -198,6 +201,19 @@ export default function NotificationSettingsPage() {
             description="อนุญาตให้ส่งโปรโมชั่นและประกาศไปยังลูกค้า"
             checked={settings.customer_notify_promotion_enabled}
             onChange={() => toggle('customer_notify_promotion_enabled')}
+          />
+        </div>
+      </Card>
+
+      {/* LINE Staff Group Notification */}
+      <Card padding="none">
+        <CardHeader title="แจ้งเตือน LINE กลุ่มพนักงาน" />
+        <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
+          <ToggleRow
+            label="ส่งแจ้งเตือนเข้า LINE กลุ่มพนักงาน"
+            description="ส่ง LINE เมื่อมีฝากเหล้า/เบิก/สต๊อก/ยืมสินค้า (ปิดเป็นค่าเริ่มต้น เพราะใช้แชทในแอปแทน)"
+            checked={settings.line_notify_enabled}
+            onChange={() => toggle('line_notify_enabled')}
           />
         </div>
       </Card>

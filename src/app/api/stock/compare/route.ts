@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { notifyStoreOwners } from '@/lib/notifications/service';
+import { sendBotMessage, buildStockExplainActionCard } from '@/lib/chat/bot';
 
 export async function POST(request: NextRequest) {
   const supabase = createServiceClient();
@@ -261,6 +262,27 @@ export async function POST(request: NextRequest) {
         });
       } catch (notifyErr) {
         console.error('[Compare] Failed to notify owners:', notifyErr);
+      }
+
+      // ส่ง Action Card เข้าแชทสาขา
+      try {
+        const overItems = comparisonRows
+          .filter((r) => r.status === 'pending')
+          .slice(0, 3)
+          .map((r) => r.product_name)
+          .join(', ');
+        const preview = overItems + (overToleranceCount > 3 ? ` +${overToleranceCount - 3} อื่นๆ` : '');
+
+        const actionCard = buildStockExplainActionCard({
+          comp_date,
+          store_id,
+          discrepancy_count: overToleranceCount,
+          items_preview: preview,
+        });
+
+        await sendBotMessage({ storeId: store_id, ...actionCard });
+      } catch (chatErr) {
+        console.error('[Compare] Failed to send chat action card:', chatErr);
       }
     }
 

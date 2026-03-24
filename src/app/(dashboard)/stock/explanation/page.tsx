@@ -9,6 +9,7 @@ import { Button, Input, Badge, Card, CardHeader, Tabs, EmptyState, Textarea, toa
 import { formatThaiDate, formatNumber, formatPercent } from '@/lib/utils/format';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyOwners } from '@/lib/notifications/client';
+import { notifyChatExplanationSubmitted } from '@/lib/chat/bot-client';
 import type { Comparison } from '@/types/database';
 import {
   ArrowLeft,
@@ -176,6 +177,13 @@ export default function ExplanationPage() {
             product_name: comparison.product_name,
             url: '/stock/approval',
           },
+        });
+
+        // ส่ง system message เข้าห้องแชทสาขา
+        notifyChatExplanationSubmitted(currentStoreId!, {
+          product_name: comparison.product_name || 'ไม่ระบุ',
+          difference: comparison.difference ?? 0,
+          submitted_by_name: user?.displayName || user?.username || 'พนักงาน',
         });
       }
     } catch (error) {

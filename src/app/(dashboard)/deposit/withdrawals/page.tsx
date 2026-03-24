@@ -35,6 +35,7 @@ import {
 import Link from 'next/link';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
+import { notifyChatWithdrawalCompleted } from '@/lib/chat/bot-client';
 
 interface Withdrawal {
   id: string;
@@ -186,6 +187,14 @@ export default function WithdrawalsPage() {
       }
 
       toast({ type: 'success', title: 'เบิกเหล้าสำเร็จ', message: `เบิก ${qty} หน่วย` });
+
+      // ส่ง system message เข้าห้องแชทสาขา
+      notifyChatWithdrawalCompleted(currentStoreId!, {
+        customer_name: selectedWithdrawal.customer_name,
+        product_name: selectedWithdrawal.product_name,
+        actual_qty: qty,
+        processed_by_name: user.displayName || user.username || 'พนักงาน',
+      });
 
       // Notify bar staff about the completed withdrawal
       notifyStaff({

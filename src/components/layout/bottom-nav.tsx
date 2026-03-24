@@ -11,10 +11,12 @@ import {
   Repeat,
   LayoutDashboard,
   BarChart3,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
+import { useChatStore } from '@/stores/chat-store';
 import { getModuleColors } from '@/lib/utils/module-colors';
 import type { LucideIcon } from 'lucide-react';
 
@@ -30,7 +32,7 @@ const desktopRoleNavItems: NavItem[] = [
   { label: 'สต๊อก', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
   { label: 'ฝาก/เบิก', href: '/deposit', icon: Wine, color: 'emerald' },
   { label: 'ภาพรวม', href: '/overview', icon: LayoutDashboard, color: 'violet' },
-  { label: 'รายงาน', href: '/reports', icon: BarChart3, color: 'amber' },
+  { label: 'แชท', href: '/chat', icon: MessageSquare, color: 'blue' },
   { label: 'แจ้งเตือน', href: '/notifications', icon: Bell, color: 'rose' },
 ];
 
@@ -38,7 +40,7 @@ const desktopRoleNavItems: NavItem[] = [
 const staffNavItems: NavItem[] = [
   { label: 'ฝาก/เบิก', href: '/deposit', icon: Wine, color: 'emerald' },
   { label: 'นับสต๊อก', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
-  { label: 'งานของฉัน', href: '/my-tasks', icon: ClipboardList, color: 'blue' },
+  { label: 'แชท', href: '/chat', icon: MessageSquare, color: 'blue' },
   { label: 'ยืมสินค้า', href: '/borrow', icon: Repeat, color: 'rose' },
   { label: 'แจ้งเตือน', href: '/notifications', icon: Bell, color: 'pink' },
 ];
@@ -47,6 +49,7 @@ const staffNavItems: NavItem[] = [
 const barNavItems: NavItem[] = [
   { label: 'อนุมัติ', href: '/bar-approval', icon: CheckCircle, color: 'teal' },
   { label: 'ฝาก/เบิก', href: '/deposit', icon: Wine, color: 'emerald' },
+  { label: 'แชท', href: '/chat', icon: MessageSquare, color: 'blue' },
   { label: 'นับสต๊อก', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
   { label: 'แจ้งเตือน', href: '/notifications', icon: Bell, color: 'rose' },
 ];
@@ -55,6 +58,7 @@ export function BottomNav() {
   const pathname = usePathname();
   const { user } = useAuthStore();
   const { unreadCount } = useNotificationStore();
+  const { totalUnread: chatUnread } = useChatStore();
 
   if (!user) return null;
 
@@ -82,6 +86,7 @@ export function BottomNav() {
             pathname === item.href || pathname.startsWith(item.href + '/');
           const Icon = item.icon;
           const isNotification = item.href === '/notifications';
+          const isChat = item.href === '/chat';
           const colors = getModuleColors(item.color);
 
           // ปุ่มตรงกลาง — นูนขึ้นเป็นวงกลม gradient
@@ -142,6 +147,17 @@ export function BottomNav() {
                       )}
                     >
                       {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                  {/* Badge แชท */}
+                  {isChat && chatUnread > 0 && (
+                    <span
+                      className={cn(
+                        'absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1',
+                        'bg-indigo-600 text-[10px] font-bold text-white'
+                      )}
+                    >
+                      {chatUnread > 99 ? '99+' : chatUnread}
                     </span>
                   )}
                 </span>
