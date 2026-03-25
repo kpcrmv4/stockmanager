@@ -157,7 +157,7 @@ export function BottomNav() {
                         'bg-indigo-600 text-[10px] font-bold text-white'
                       )}
                     >
-                      {chatUnread > 99 ? '99+' : chatUnread}
+                      {chatUnread > 10 ? '10+' : chatUnread}
                     </span>
                   )}
                 </span>
