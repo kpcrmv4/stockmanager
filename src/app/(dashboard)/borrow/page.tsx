@@ -48,6 +48,7 @@ interface BorrowItem {
   product_name: string;
   category: string | null;
   quantity: number;
+  approved_quantity: number | null;
   unit: string | null;
   notes: string | null;
 }
@@ -126,6 +127,30 @@ const statusConfig: Record<
   rejected: { label: 'ปฏิเสธ', variant: 'danger', step: -1 },
   cancelled: { label: 'ยกเลิก', variant: 'danger', step: -1 },
 };
+
+/**
+ * สถานะจากมุมมองของฝั่งที่กำลังดู:
+ * ถ้าฝั่งเราตัด POS แล้ว → แสดงเป็น "เสร็จสิ้น" แม้อีกฝั่งยังไม่ได้ทำ
+ */
+function getVisualStatus(
+  borrow: BorrowWithDetails,
+  currentStoreId: string,
+): { label: string; variant: 'warning' | 'info' | 'default' | 'success' | 'danger'; step: number } {
+  const isBorrowerSide = borrow.from_store_id === currentStoreId;
+  const isLenderSide = borrow.to_store_id === currentStoreId;
+
+  // ถ้าสถานะเป็น pos_adjusting แต่ฝั่งเราตัดแล้ว → แสดงเป็นเสร็จสิ้น
+  if (borrow.status === 'pos_adjusting' || borrow.status === 'approved') {
+    if (isBorrowerSide && borrow.borrower_pos_confirmed) {
+      return { label: 'เสร็จสิ้น (ฝั่งเรา)', variant: 'success', step: 3 };
+    }
+    if (isLenderSide && borrow.lender_pos_confirmed) {
+      return { label: 'เสร็จสิ้น (ฝั่งเรา)', variant: 'success', step: 3 };
+    }
+  }
+
+  return statusConfig[borrow.status];
+}
 
 const EMPTY_FORM_ITEM: FormItem = { product_name: '', category: '', quantity: '', unit: '' };
 
@@ -229,7 +254,7 @@ function BorrowCard({
   currentStoreId: string;
   onClick: () => void;
 }) {
-  const config = statusConfig[borrow.status];
+  const config = getVisualStatus(borrow, currentStoreId);
   const otherStore =
     tab === 'outgoing' ? borrow.to_store_name : borrow.from_store_name;
   const itemsSummary = borrow.items
@@ -639,17 +664,20 @@ function BorrowDetailSheet({
   onAction: () => void;
 }) {
   const { user } = useAuthStore();
-  const config = statusConfig[borrow.status];
+  const config = getVisualStatus(borrow, currentStoreId);
 
   const [isActing, setIsActing] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [borrowerPhoto, setBorrowerPhoto] = useState<string | null>(borrow.borrower_photo_url);
   const [lenderPhoto, setLenderPhoto] = useState<string | null>(borrow.lender_photo_url);
+  const [posBillUrl, setPosBillUrl] = useState<string | null>(null);
+  const [approvedQtys, setApprovedQtys] = useState<Record<string, number>>(
+    () => Object.fromEntries(borrow.items.map((i) => [i.id, i.approved_quantity ?? i.quantity]))
+  );
 
-  const isOwnerOrAdmin = user?.role === 'owner' || user?.role === 'manager';
-  const isBorrowerSide = borrow.from_store_id === currentStoreId || isOwnerOrAdmin;
-  const isLenderSide = borrow.to_store_id === currentStoreId || isOwnerOrAdmin;
+  const isBorrowerSide = borrow.from_store_id === currentStoreId;
+  const isLenderSide = borrow.to_store_id === currentStoreId;
 
   const patchBorrow = async (payload: Record<string, unknown>) => {
     setIsActing(true);
@@ -676,8 +704,16 @@ function BorrowDetailSheet({
   };
 
   const handleApprove = () => {
+    if (!lenderPhoto) {
+      toast({ type: 'warning', title: 'กรุณาแนบรูปถ่ายก่อนอนุมัติ' });
+      return;
+    }
+    const approvedItems = borrow.items.map((i) => ({
+      itemId: i.id,
+      approvedQuantity: approvedQtys[i.id] ?? i.quantity,
+    }));
     toast({ type: 'success', title: 'อนุมัติคำขอยืมแล้ว' });
-    patchBorrow({ action: 'approve', lenderPhotoUrl: lenderPhoto });
+    patchBorrow({ action: 'approve', lenderPhotoUrl: lenderPhoto, approvedItems });
   };
 
   const handleReject = () => {
@@ -690,8 +726,12 @@ function BorrowDetailSheet({
   };
 
   const handleConfirmPos = (side: 'borrower' | 'lender') => {
+    if (!posBillUrl) {
+      toast({ type: 'warning', title: 'กรุณาแนบรูป POS bill ก่อนยืนยัน' });
+      return;
+    }
     toast({ type: 'success', title: 'ยืนยันตัดสต๊อก POS แล้ว' });
-    patchBorrow({ action: 'confirm_pos', side });
+    patchBorrow({ action: 'confirm_pos', side, posBillUrl });
   };
 
   const handleCancel = () => {
@@ -805,11 +845,27 @@ function BorrowDetailSheet({
                     )}
                   </div>
                   <div className="text-right">
-                    <span className="text-sm font-semibold text-teal-600 dark:text-teal-400">
-                      {item.quantity}
-                    </span>
-                    {item.unit && (
-                      <span className="ml-1 text-xs text-gray-400">{item.unit}</span>
+                    {item.approved_quantity != null && item.approved_quantity !== item.quantity ? (
+                      <div>
+                        <span className="text-xs text-gray-400 line-through">ขอ {item.quantity}</span>
+                        <div>
+                          <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                            ได้ {item.approved_quantity}
+                          </span>
+                          {item.unit && (
+                            <span className="ml-1 text-xs text-gray-400">{item.unit}</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-sm font-semibold text-teal-600 dark:text-teal-400">
+                          {item.approved_quantity ?? item.quantity}
+                        </span>
+                        {item.unit && (
+                          <span className="ml-1 text-xs text-gray-400">{item.unit}</span>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -958,6 +1014,31 @@ function BorrowDetailSheet({
           {/* INCOMING: lender actions */}
           {isLenderSide && borrow.status === 'pending_approval' && (
             <div className="space-y-3">
+              {/* Approved qty per item */}
+              <div>
+                <h3 className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  ระบุจำนวนที่อนุมัติ
+                </h3>
+                <div className="space-y-2">
+                  {borrow.items.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{item.product_name}</p>
+                        <p className="text-xs text-gray-400">ขอ {item.quantity} {item.unit || ''}</p>
+                      </div>
+                      <input
+                        type="number"
+                        min={0}
+                        max={item.quantity}
+                        value={approvedQtys[item.id] ?? item.quantity}
+                        onChange={(e) => setApprovedQtys((prev) => ({ ...prev, [item.id]: Number(e.target.value) || 0 }))}
+                        className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm font-medium dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {!showRejectInput ? (
                 <div className="flex gap-3">
                   <Button
@@ -1035,46 +1116,65 @@ function BorrowDetailSheet({
             </div>
           )}
 
-          {/* POS confirm — show both sides with clear labels */}
+          {/* POS confirm — each side uploads POS bill + confirms */}
           {(borrow.status === 'approved' || borrow.status === 'pos_adjusting') && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {/* ฝั่งผู้ให้ยืม (lender) */}
               {isLenderSide && (
-                <div>
+                <div className="space-y-3">
                   {borrow.lender_pos_confirmed ? (
                     <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
                       <CheckCircle2 className="h-4 w-4" />
                       ฝั่งผู้ให้ยืม ({borrow.to_store_name}) ตัดสต๊อกแล้ว
                     </div>
                   ) : (
-                    <Button
-                      className="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 dark:bg-purple-500 dark:hover:bg-purple-600"
-                      icon={<Check className="h-4 w-4" />}
-                      onClick={() => handleConfirmPos('lender')}
-                      isLoading={isActing}
-                    >
-                      ยืนยันตัดสต๊อก POS (ฝั่งผู้ให้ยืม)
-                    </Button>
+                    <>
+                      <PhotoUpload
+                        value={posBillUrl}
+                        onChange={setPosBillUrl}
+                        folder="borrows/pos-bills"
+                        label="รูป POS bill (ฝั่งผู้ให้ยืม)"
+                        compact
+                      />
+                      <Button
+                        className="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 dark:bg-purple-500 dark:hover:bg-purple-600"
+                        icon={<Check className="h-4 w-4" />}
+                        onClick={() => handleConfirmPos('lender')}
+                        isLoading={isActing}
+                        disabled={!posBillUrl}
+                      >
+                        ยืนยันตัดสต๊อก POS (ฝั่งผู้ให้ยืม)
+                      </Button>
+                    </>
                   )}
                 </div>
               )}
 
               {/* ฝั่งผู้ยืม (borrower) */}
               {isBorrowerSide && (
-                <div>
+                <div className="space-y-3">
                   {borrow.borrower_pos_confirmed ? (
                     <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
                       <CheckCircle2 className="h-4 w-4" />
                       ฝั่งผู้ยืม ({borrow.from_store_name}) ตัดสต๊อกแล้ว
                     </div>
                   ) : (
-                    <Button
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 dark:bg-indigo-500 dark:hover:bg-indigo-600"
-                      icon={<Check className="h-4 w-4" />}
-                      onClick={() => handleConfirmPos('borrower')}
-                      isLoading={isActing}
-                    >
-                      ยืนยันตัดสต๊อก POS (ฝั่งผู้ยืม)
+                    <>
+                      <PhotoUpload
+                        value={posBillUrl}
+                        onChange={setPosBillUrl}
+                        folder="borrows/pos-bills"
+                        label="รูป POS bill (ฝั่งผู้ยืม)"
+                        compact
+                      />
+                      <Button
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+                        icon={<Check className="h-4 w-4" />}
+                        onClick={() => handleConfirmPos('borrower')}
+                        isLoading={isActing}
+                        disabled={!posBillUrl}
+                      >
+                        ยืนยันตัดสต๊อก POS (ฝั่งผู้ยืม)
                     </Button>
                   )}
                 </div>
@@ -1222,7 +1322,13 @@ export default function BorrowPage() {
   // -----------------------------------------------------------------------
 
   const pendingCount = borrows.filter((b) => b.status === 'pending_approval').length;
-  const posWaitingCount = borrows.filter((b) => b.status === 'approved' || b.status === 'pos_adjusting').length;
+  const isOurSidePending = (b: BorrowWithDetails) => {
+    if (activeTab === 'outgoing') return !b.borrower_pos_confirmed;
+    return !b.lender_pos_confirmed;
+  };
+  const posWaitingCount = borrows.filter((b) =>
+    (b.status === 'approved' || b.status === 'pos_adjusting') && isOurSidePending(b)
+  ).length;
 
   const currentStoreName =
     stores.find((s) => s.id === currentStoreId)?.store_name || '';
@@ -1244,10 +1350,21 @@ export default function BorrowPage() {
   ];
   const subTabs = activeTab === 'outgoing' ? outgoingSubTabs : incomingSubTabs;
 
+  // Helper: check if our side has completed POS
+  const isOurSideDone = (b: BorrowWithDetails) => {
+    if (activeTab === 'outgoing') return b.borrower_pos_confirmed;
+    return b.lender_pos_confirmed;
+  };
+
   const filteredBorrows = borrows.filter((b) => {
     if (statusFilter === 'all') return true;
     if (statusFilter === 'cancelled_rejected') return b.status === 'cancelled' || b.status === 'rejected';
-    if (statusFilter === 'pos_waiting') return b.status === 'approved' || b.status === 'pos_adjusting';
+    if (statusFilter === 'pos_waiting') {
+      return (b.status === 'approved' || b.status === 'pos_adjusting') && !isOurSideDone(b);
+    }
+    if (statusFilter === 'completed') {
+      return b.status === 'completed' || ((b.status === 'approved' || b.status === 'pos_adjusting') && isOurSideDone(b));
+    }
     return b.status === statusFilter;
   });
 
@@ -1346,13 +1463,16 @@ export default function BorrowPage() {
       {/* ----------------------------------------------------------------- */}
       <div className="flex gap-2 overflow-x-auto">
         {subTabs.map((st) => {
+          const ourDone = (b: BorrowWithDetails) => activeTab === 'outgoing' ? b.borrower_pos_confirmed : b.lender_pos_confirmed;
           const count = st.key === 'all'
             ? borrows.length
             : st.key === 'cancelled_rejected'
               ? borrows.filter((b) => b.status === 'cancelled' || b.status === 'rejected').length
               : st.key === 'pos_waiting'
-                ? borrows.filter((b) => b.status === 'approved' || b.status === 'pos_adjusting').length
-                : borrows.filter((b) => b.status === st.key).length;
+                ? borrows.filter((b) => (b.status === 'approved' || b.status === 'pos_adjusting') && !ourDone(b)).length
+                : st.key === 'completed'
+                  ? borrows.filter((b) => b.status === 'completed' || ((b.status === 'approved' || b.status === 'pos_adjusting') && ourDone(b))).length
+                  : borrows.filter((b) => b.status === st.key).length;
           return (
             <button
               key={st.key}
