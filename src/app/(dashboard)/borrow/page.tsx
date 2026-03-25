@@ -1012,62 +1012,72 @@ function BorrowDetailSheet({
             </div>
           )}
 
-          {/* INCOMING: lender POS confirm */}
-          {isLenderSide && (borrow.status === 'approved' || borrow.status === 'pos_adjusting') && (
-            <div>
-              {borrow.lender_pos_confirmed ? (
-                <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4" />
-                  ฝั่งเราตัดสต๊อกแล้ว
-                </div>
-              ) : (
-                <Button
-                  className="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 dark:bg-purple-500 dark:hover:bg-purple-600"
-                  icon={<Check className="h-4 w-4" />}
-                  onClick={() => handleConfirmPos('lender')}
-                  isLoading={isActing}
-                >
-                  ยืนยันตัดสต๊อก POS (ฝั่งเรา)
-                </Button>
+          {/* Pending: cancel (borrower) or waiting message */}
+          {borrow.status === 'pending_approval' && (
+            <div className="space-y-3">
+              {isBorrowerSide && (
+                <>
+                  <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
+                    <Clock className="h-4 w-4" />
+                    รออนุมัติจากสาขา {borrow.to_store_name || ''}
+                  </div>
+                  <Button
+                    className="w-full"
+                    variant="danger"
+                    icon={<XCircle className="h-4 w-4" />}
+                    onClick={handleCancel}
+                    isLoading={isActing}
+                  >
+                    ยกเลิกคำขอยืม
+                  </Button>
+                </>
               )}
             </div>
           )}
 
-          {/* OUTGOING: borrower status messages & POS confirm */}
-          {isBorrowerSide && borrow.status === 'pending_approval' && (
+          {/* POS confirm — show both sides with clear labels */}
+          {(borrow.status === 'approved' || borrow.status === 'pos_adjusting') && (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
-                <Clock className="h-4 w-4" />
-                รออนุมัติจากสาขา {borrow.to_store_name || ''}
-              </div>
-              <Button
-                className="w-full"
-                variant="danger"
-                icon={<XCircle className="h-4 w-4" />}
-                onClick={handleCancel}
-                isLoading={isActing}
-              >
-                ยกเลิกคำขอยืม
-              </Button>
-            </div>
-          )}
-
-          {isBorrowerSide && (borrow.status === 'approved' || borrow.status === 'pos_adjusting') && (
-            <div>
-              {borrow.borrower_pos_confirmed ? (
-                <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4" />
-                  ฝั่งเราตัดสต๊อกแล้ว
+              {/* ฝั่งผู้ให้ยืม (lender) */}
+              {isLenderSide && (
+                <div>
+                  {borrow.lender_pos_confirmed ? (
+                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
+                      <CheckCircle2 className="h-4 w-4" />
+                      ฝั่งผู้ให้ยืม ({borrow.to_store_name}) ตัดสต๊อกแล้ว
+                    </div>
+                  ) : (
+                    <Button
+                      className="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 dark:bg-purple-500 dark:hover:bg-purple-600"
+                      icon={<Check className="h-4 w-4" />}
+                      onClick={() => handleConfirmPos('lender')}
+                      isLoading={isActing}
+                    >
+                      ยืนยันตัดสต๊อก POS (ฝั่งผู้ให้ยืม)
+                    </Button>
+                  )}
                 </div>
-              ) : (
-                <Button
-                  className="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 dark:bg-purple-500 dark:hover:bg-purple-600"
-                  icon={<Check className="h-4 w-4" />}
-                  onClick={() => handleConfirmPos('borrower')}
-                  isLoading={isActing}
-                >
-                  ยืนยันตัดสต๊อก POS (ฝั่งเรา)
-                </Button>
+              )}
+
+              {/* ฝั่งผู้ยืม (borrower) */}
+              {isBorrowerSide && (
+                <div>
+                  {borrow.borrower_pos_confirmed ? (
+                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
+                      <CheckCircle2 className="h-4 w-4" />
+                      ฝั่งผู้ยืม ({borrow.from_store_name}) ตัดสต๊อกแล้ว
+                    </div>
+                  ) : (
+                    <Button
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+                      icon={<Check className="h-4 w-4" />}
+                      onClick={() => handleConfirmPos('borrower')}
+                      isLoading={isActing}
+                    >
+                      ยืนยันตัดสต๊อก POS (ฝั่งผู้ยืม)
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           )}
