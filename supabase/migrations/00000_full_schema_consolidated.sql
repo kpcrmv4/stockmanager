@@ -24,7 +24,7 @@ CREATE TYPE transfer_status AS ENUM ('pending', 'confirmed', 'rejected');
 CREATE TYPE print_job_status AS ENUM ('pending', 'printing', 'completed', 'failed');
 CREATE TYPE print_job_type AS ENUM ('receipt', 'label');
 CREATE TYPE hq_deposit_status AS ENUM ('awaiting_withdrawal', 'withdrawn');
-CREATE TYPE borrow_status AS ENUM ('pending_approval', 'approved', 'pos_adjusting', 'completed', 'rejected');
+CREATE TYPE borrow_status AS ENUM ('pending_approval', 'approved', 'pos_adjusting', 'completed', 'rejected', 'cancelled');
 CREATE TYPE chat_room_type AS ENUM ('store', 'direct', 'cross_store');
 CREATE TYPE chat_message_type AS ENUM ('text', 'image', 'action_card', 'system');
 CREATE TYPE chat_member_role AS ENUM ('member', 'admin');
@@ -287,6 +287,8 @@ CREATE TABLE borrows (
   rejected_by UUID REFERENCES profiles(id),
   rejected_at TIMESTAMPTZ,
   rejection_reason TEXT,
+  cancelled_by UUID REFERENCES profiles(id),
+  cancelled_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -561,6 +563,7 @@ CREATE INDEX idx_manual_counts_user ON manual_counts(user_id);
 CREATE INDEX idx_borrows_approved_by ON borrows(approved_by);
 CREATE INDEX idx_borrows_requested_by ON borrows(requested_by);
 CREATE INDEX idx_borrows_rejected_by ON borrows(rejected_by);
+CREATE INDEX idx_borrows_cancelled_by ON borrows(cancelled_by);
 CREATE INDEX idx_borrows_borrower_pos ON borrows(borrower_pos_confirmed_by);
 CREATE INDEX idx_borrows_lender_pos ON borrows(lender_pos_confirmed_by);
 CREATE INDEX idx_print_queue_deposit ON print_queue(deposit_id);
