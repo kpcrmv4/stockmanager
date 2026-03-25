@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePushSubscription } from '@/hooks/use-push-subscription';
@@ -20,6 +20,10 @@ import {
   Loader2,
   Shield,
   Smartphone,
+  Camera,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react';
 import { ROLE_LABELS } from '@/types/roles';
 
@@ -54,12 +58,98 @@ const defaultPrefs: NotifPrefs = {
 // ---------------------------------------------------------------------------
 
 export default function ProfilePage() {
-  const { user } = useAuthStore();
+  const { user, updateUser } = useAuthStore();
   const pushSub = usePushSubscription();
 
   const [prefs, setPrefs] = useState<NotifPrefs>(defaultPrefs);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Profile editing state
+  const [isEditingNickname, setIsEditingNickname] = useState(false);
+  const [nickname, setNickname] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (user) {
+      setNickname(user.displayName || '');
+    }
+  }, [user]);
+
+  // ---------------------------------------------------------------------------
+  // Avatar upload
+  // ---------------------------------------------------------------------------
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({ type: 'error', title: 'รองรับเฉพาะไฟล์ JPEG, PNG, WebP' });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ type: 'error', title: 'ไฟล์ใหญ่เกินไป (สูงสุด 10MB)' });
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'avatars');
+
+      const res = await fetch('/api/upload/photo', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('อัพโหลดไม่สำเร็จ');
+
+      const { url } = await res.json();
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: url })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      updateUser({ avatarUrl: url });
+      toast({ type: 'success', title: 'อัพเดทรูปโปรไฟล์สำเร็จ' });
+    } catch {
+      toast({ type: 'error', title: 'อัพโหลดรูปไม่สำเร็จ' });
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Save nickname
+  // ---------------------------------------------------------------------------
+
+  const handleSaveNickname = async () => {
+    if (!user) return;
+    setIsSavingProfile(true);
+    try {
+      const supabase = createClient();
+      const newName = nickname.trim() || null;
+      const { error } = await supabase
+        .from('profiles')
+        .update({ display_name: newName })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      updateUser({ displayName: newName });
+      setIsEditingNickname(false);
+      toast({ type: 'success', title: 'บันทึกชื่อเล่นสำเร็จ' });
+    } catch {
+      toast({ type: 'error', title: 'บันทึกไม่สำเร็จ' });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   // ---------------------------------------------------------------------------
   // Load preferences
@@ -180,23 +270,101 @@ export default function ProfilePage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 pb-12">
       {/* Profile Header */}
-      <div className="flex items-center gap-4">
-        {user.avatarUrl ? (
-          <img
-            src={user.avatarUrl}
-            alt={user.displayName ?? user.username}
-            className="h-16 w-16 rounded-full object-cover ring-2 ring-indigo-100 dark:ring-indigo-900"
-          />
-        ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100 text-2xl font-bold text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
-            {user.displayName?.[0] ?? user.username[0]?.toUpperCase()}
+      <Card padding="none">
+        <CardContent className="flex flex-col items-center gap-4 py-6">
+          {/* Avatar with upload */}
+          <div className="relative">
+            {user.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt={user.displayName ?? user.username}
+                className="h-24 w-24 rounded-full object-cover ring-2 ring-indigo-100 dark:ring-indigo-900"
+              />
+            ) : (
+              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900">
+                <User className="h-12 w-12 text-indigo-400 dark:text-indigo-500" />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+              className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg transition-colors hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {isUploadingAvatar ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Camera className="h-4 w-4" />
+              )}
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/heic"
+              onChange={handleAvatarUpload}
+              className="hidden"
+            />
           </div>
-        )}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {user.displayName ?? user.username}
-          </h1>
-          <div className="mt-1 flex items-center gap-2">
+
+          {/* Nickname editing */}
+          <div className="flex flex-col items-center gap-1">
+            {isEditingNickname ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="ตั้งชื่อเล่น..."
+                  className="w-40 rounded-lg border border-gray-300 px-3 py-1.5 text-center text-lg font-bold text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveNickname();
+                    if (e.key === 'Escape') {
+                      setNickname(user.displayName || '');
+                      setIsEditingNickname(false);
+                    }
+                  }}
+                />
+                <button
+                  onClick={handleSaveNickname}
+                  disabled={isSavingProfile}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"
+                >
+                  {isSavingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                </button>
+                <button
+                  onClick={() => {
+                    setNickname(user.displayName || '');
+                    setIsEditingNickname(false);
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsEditingNickname(true)}
+                className="group flex items-center gap-2"
+              >
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {user.displayName || user.username}
+                </h1>
+                <Pencil className="h-4 w-4 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100" />
+              </button>
+            )}
+            {!user.displayName && !isEditingNickname && (
+              <button
+                onClick={() => setIsEditingNickname(true)}
+                className="text-xs text-indigo-500 hover:text-indigo-600"
+              >
+                ตั้งชื่อเล่น
+              </button>
+            )}
+          </div>
+
+          {/* Role badge + username */}
+          <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
               <Shield className="h-3 w-3" />
               {ROLE_LABELS[user.role]}
@@ -205,8 +373,8 @@ export default function ProfilePage() {
               @{user.username}
             </span>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* ------------------------------------------------------------------ */}
       {/* Section 1: ช่องทางการแจ้งเตือน (Notification Channels)              */}

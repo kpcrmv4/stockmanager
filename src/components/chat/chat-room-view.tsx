@@ -12,7 +12,7 @@ import { ChatInput } from './chat-input';
 import { ActionCardMessage } from './action-card-message';
 import { PinnedMessagesBanner } from './pinned-messages-banner';
 import { ChatRoomSettings } from './chat-room-settings';
-import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin } from 'lucide-react';
+import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin, Reply } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { ChatNotificationToggle } from './chat-notification-toggle';
 import type { ChatPinnedMessage, ChatMessage } from '@/types/chat';
@@ -31,7 +31,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const isInitialRef = useRef(true);
   const [showSettings, setShowSettings] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
 
   // Set active room for badge
   useEffect(() => {
@@ -200,26 +200,27 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
     setContextMenu(null);
   };
 
-  // Long press handlers
-  const handleLongPressStart = useCallback(
-    (messageId: string, e: React.TouchEvent | React.MouseEvent) => {
-      if (!isAdmin) return;
-
-      longPressTimerRef.current = setTimeout(() => {
-        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-        setContextMenu({ messageId, x: clientX, y: clientY });
-      }, 500);
-    },
-    [isAdmin]
-  );
-
-  const handleLongPressEnd = useCallback(() => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
+  // Handle reply to message
+  const handleReplyTo = useCallback((message: ChatMessage) => {
+    setReplyTo(message);
+    setContextMenu(null);
   }, []);
+
+  // Tap handler for messages — show context menu with quote/pin options
+  const handleMessageTap = useCallback(
+    (msg: ChatMessage, e: React.MouseEvent | React.TouchEvent) => {
+      // Only show for other people's messages (non-own), or admin for any message
+      const isOwnMessage = msg.sender_id === user?.id;
+      if (isOwnMessage && !isAdmin) return;
+      // Don't show for system/action_card messages
+      if (msg.type === 'system' || msg.type === 'action_card') return;
+
+      const clientX = 'clientX' in e ? e.clientX : e.changedTouches?.[0]?.clientX ?? 0;
+      const clientY = 'clientY' in e ? e.clientY : e.changedTouches?.[0]?.clientY ?? 0;
+      setContextMenu({ messageId: msg.id, x: clientX, y: clientY });
+    },
+    [user?.id, isAdmin]
+  );
 
   // Close context menu on click outside
   useEffect(() => {
@@ -338,14 +339,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
             return (
               <div
                 key={msg.id}
-                onTouchStart={(e) => handleLongPressStart(msg.id, e)}
-                onTouchEnd={handleLongPressEnd}
-                onTouchCancel={handleLongPressEnd}
-                onContextMenu={(e) => {
-                  if (!isAdmin) return;
-                  e.preventDefault();
-                  setContextMenu({ messageId: msg.id, x: e.clientX, y: e.clientY });
-                }}
+                onClick={(e) => handleMessageTap(msg, e)}
               >
                 {/* Date separator — LINE-like pill */}
                 {showDate && (
@@ -399,29 +393,46 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
       </div>
 
       {/* Input */}
-      <ChatInput roomId={roomId} />
+      <ChatInput roomId={roomId} replyTo={replyTo} onClearReply={() => setReplyTo(null)} />
 
-      {/* Context menu for pin/unpin */}
+      {/* Context menu for quote/pin */}
       {contextMenu && (
         <div
           className="fixed z-50 animate-in fade-in zoom-in-95 rounded-xl border border-gray-200 bg-white py-1 shadow-xl dark:border-gray-700 dark:bg-gray-800"
           style={{
             left: Math.min(contextMenu.x, window.innerWidth - 180),
-            top: Math.min(contextMenu.y, window.innerHeight - 60),
+            top: Math.min(contextMenu.y, window.innerHeight - 100),
           }}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Quote/Reply — for everyone */}
           <button
-            onClick={() => handlePinMessage(contextMenu.messageId)}
+            onClick={() => {
+              const msg = messages.find((m) => m.id === contextMenu.messageId);
+              if (msg) handleReplyTo(msg);
+            }}
             className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
           >
-            <Pin className="h-4 w-4 text-amber-500" />
+            <Reply className="h-4 w-4 text-indigo-500" />
             <span className="text-gray-700 dark:text-gray-300">
-              {isPinnedMessage(contextMenu.messageId)
-                ? 'ยกเลิกปักหมุด'
-                : 'ปักหมุดข้อความ'}
+              อ้างถึงข้อความ
             </span>
           </button>
+
+          {/* Pin — for admin only */}
+          {isAdmin && (
+            <button
+              onClick={() => handlePinMessage(contextMenu.messageId)}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              <Pin className="h-4 w-4 text-amber-500" />
+              <span className="text-gray-700 dark:text-gray-300">
+                {isPinnedMessage(contextMenu.messageId)
+                  ? 'ยกเลิกปักหมุด'
+                  : 'ปักหมุดข้อความ'}
+              </span>
+            </button>
+          )}
         </div>
       )}
 
