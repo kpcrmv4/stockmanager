@@ -72,7 +72,7 @@ import {
 
 interface StoreOption {
   id: string;
-  name: string;
+  store_name: string;
 }
 
 interface OverviewData {
@@ -342,8 +342,8 @@ export default function ReportsPage() {
         const supabase = createClient();
         const { data } = await supabase
           .from('stores')
-          .select('id, name')
-          .order('name');
+          .select('id, store_name')
+          .order('store_name');
         if (data && data.length > 0) {
           setStores(data as StoreOption[]);
           if (!selectedStoreId) {
@@ -1567,7 +1567,7 @@ export default function ReportsPage() {
           <div className="w-full sm:w-56">
             <Select
               label="สาขา"
-              options={stores.map((s) => ({ value: s.id, label: s.name }))}
+              options={stores.map((s) => ({ value: s.id, label: s.store_name }))}
               value={selectedStoreId}
               onChange={(e) => {
                 setSelectedStoreId(e.target.value);
