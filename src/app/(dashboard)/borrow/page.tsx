@@ -617,15 +617,6 @@ function CreateBorrowModal({
           placeholder="ระบุเหตุผลการยืม (ถ้ามี)"
           rows={2}
         />
-
-        {/* Photo */}
-        <PhotoUpload
-          value={photoUrl}
-          onChange={setPhotoUrl}
-          folder="borrows"
-          label="รูปถ่ายสินค้า"
-          compact
-        />
       </div>
 
       <ModalFooter>
