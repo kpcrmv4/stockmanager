@@ -232,8 +232,8 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
       // Only show for other people's messages (non-own), or admin for any message
       const isOwnMessage = msg.sender_id === user?.id;
       if (isOwnMessage && !isAdmin) return;
-      // Don't show for system/action_card messages
-      if (msg.type === 'system' || msg.type === 'action_card') return;
+      // Don't show for action_card messages
+      if (msg.type === 'action_card') return;
 
       const clientX = 'clientX' in e ? e.clientX : e.changedTouches?.[0]?.clientX ?? 0;
       const clientY = 'clientY' in e ? e.clientY : e.changedTouches?.[0]?.clientY ?? 0;
@@ -422,12 +422,6 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
                       roomId={roomId}
                       storeId={room?.store_id || null}
                     />
-                  ) : msg.type === 'system' ? (
-                    <div className="my-3 flex justify-center">
-                      <span className="max-w-[80%] rounded-full bg-black/8 px-4 py-1.5 text-center text-[11px] text-gray-500 dark:bg-white/10 dark:text-gray-400">
-                        {msg.content}
-                      </span>
-                    </div>
                   ) : (
                     <ChatMessageBubble
                       message={msg}

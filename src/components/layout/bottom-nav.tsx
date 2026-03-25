@@ -154,10 +154,10 @@ export function BottomNav() {
                     <span
                       className={cn(
                         'absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1',
-                        'bg-indigo-600 text-[10px] font-bold text-white'
+                        'bg-red-500 text-[10px] font-bold text-white'
                       )}
                     >
-                      {chatUnread > 10 ? '10+' : chatUnread}
+                      {chatUnread}
                     </span>
                   )}
                 </span>
