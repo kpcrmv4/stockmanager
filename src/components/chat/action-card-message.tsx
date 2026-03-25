@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useChatStore } from '@/stores/chat-store';
 import { Button, PhotoUpload } from '@/components/ui';
@@ -44,7 +44,7 @@ const PRIORITY_STYLES: Record<string, string> = {
   low: 'border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50',
 };
 
-export function ActionCardMessage({ message, currentUserId, currentUserName, roomId, storeId }: ActionCardMessageProps) {
+export const ActionCardMessage = memo(function ActionCardMessage({ message, currentUserId, currentUserName, roomId, storeId }: ActionCardMessageProps) {
   const [loading, setLoading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const { updateMessage } = useChatStore();
@@ -281,7 +281,7 @@ export function ActionCardMessage({ message, currentUserId, currentUserName, roo
       </div>
     </div>
   );
-}
+});
 
 function getTimeRemaining(claimedAt: string, timeoutMinutes: number): string | null {
   const claimed = new Date(claimedAt).getTime();

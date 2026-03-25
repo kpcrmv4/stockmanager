@@ -180,14 +180,13 @@ export async function sendChatMessage(
       type: 'text',
     };
 
-    for (const member of members) {
-      // ส่ง badge ไปแต่ละ user channel
+    await Promise.all(members.map((member) =>
       supabase.channel(`chat:badge:${member.user_id}`).send({
         type: 'broadcast',
         event: 'new_message_badge',
         payload: badgePayload,
-      });
-    }
+      })
+    ));
   }
 
   // 4. Fire-and-forget: push notification สำหรับคนที่ปิดหน้าจอ
@@ -265,13 +264,13 @@ export async function sendChatImageMessage(
       type: 'image',
     };
 
-    for (const member of members) {
+    await Promise.all(members.map((member) =>
       supabase.channel(`chat:badge:${member.user_id}`).send({
         type: 'broadcast',
         event: 'new_message_badge',
         payload: badgePayload,
-      });
-    }
+      })
+    ));
   }
 
   // 5. Fire-and-forget: push notification สำหรับคนที่ปิดหน้าจอ

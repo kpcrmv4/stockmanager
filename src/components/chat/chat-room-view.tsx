@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useChatMessages } from '@/hooks/use-chat-messages';
@@ -24,7 +24,15 @@ interface ChatRoomViewProps {
 export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { rooms, setRooms, setActiveRoomId, isMuted, setIsMuted, setPinnedMessages, addPinnedMessage, removePinnedMessage, pinnedMessages } = useChatStore();
+  const rooms = useChatStore((s) => s.rooms);
+  const setRooms = useChatStore((s) => s.setRooms);
+  const setActiveRoomId = useChatStore((s) => s.setActiveRoomId);
+  const isMuted = useChatStore((s) => s.isMuted);
+  const setIsMuted = useChatStore((s) => s.setIsMuted);
+  const pinnedMessages = useChatStore((s) => s.pinnedMessages);
+  const setPinnedMessages = useChatStore((s) => s.setPinnedMessages);
+  const addPinnedMessage = useChatStore((s) => s.addPinnedMessage);
+  const removePinnedMessage = useChatStore((s) => s.removePinnedMessage);
   const { messages, hasMore, isLoadingMessages, loadMore } = useChatMessages(roomId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
