@@ -711,8 +711,8 @@ function BorrowDetailSheet({
       <div
         className={cn(
           'fixed z-50 bg-white dark:bg-gray-900 overflow-y-auto',
-          // Mobile: bottom sheet
-          'bottom-0 inset-x-0 rounded-t-2xl max-h-[90vh]',
+          // Mobile: bottom sheet — pb เผื่อ bottom nav
+          'bottom-0 inset-x-0 rounded-t-2xl max-h-[85vh] pb-20',
           // Desktop: side panel
           'md:inset-y-0 md:right-0 md:left-auto md:w-full md:max-w-2xl md:rounded-t-none md:rounded-l-2xl'
         )}
