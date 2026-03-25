@@ -363,7 +363,7 @@ export default function StaffPerformancePage() {
       setDailyData(dailyArr);
     } catch (err) {
       console.error('Failed to fetch staff performance:', err);
-      toast.error('โหลดข้อมูลไม่สำเร็จ');
+      toast({ type: 'error', title: 'โหลดข้อมูลไม่สำเร็จ' });
     } finally {
       setLoading(false);
     }

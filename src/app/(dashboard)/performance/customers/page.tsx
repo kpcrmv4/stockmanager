@@ -280,7 +280,7 @@ export default function CustomerAnalyticsPage() {
       setTimeDistribution(timeArr);
     } catch (err) {
       console.error('Failed to fetch customer analytics:', err);
-      toast.error('โหลดข้อมูลไม่สำเร็จ');
+      toast({ type: 'error', title: 'โหลดข้อมูลไม่สำเร็จ' });
     } finally {
       setLoading(false);
     }

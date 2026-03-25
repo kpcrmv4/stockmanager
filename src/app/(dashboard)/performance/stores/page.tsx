@@ -260,7 +260,7 @@ export default function StoreComparisonPage() {
       setStoreKPIs(kpis);
     } catch (err) {
       console.error('Failed to fetch store comparison:', err);
-      toast.error('โหลดข้อมูลไม่สำเร็จ');
+      toast({ type: 'error', title: 'โหลดข้อมูลไม่สำเร็จ' });
     } finally {
       setLoading(false);
     }
