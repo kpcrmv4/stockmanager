@@ -165,6 +165,7 @@ export function ChatInput({ roomId, replyTo, onClearReply }: ChatInputProps) {
         reply_preview: replyTo.type === 'image'
           ? 'รูปภาพ'
           : (replyTo.content || '').slice(0, 100),
+        reply_sender: replyTo.sender?.display_name || replyTo.sender?.username || (replyTo.sender_id ? undefined : 'Bot'),
       };
       metadata = { ...(metadata || {}), ...replyData };
     }
