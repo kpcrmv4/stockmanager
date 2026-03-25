@@ -11,23 +11,13 @@ import {
   CardContent,
   toast,
 } from '@/components/ui';
-import { formatNumber, formatPercent } from '@/lib/utils/format';
+import { formatNumber } from '@/lib/utils/format';
 import { todayBangkok, nowBangkok } from '@/lib/utils/date';
 import {
   Loader2,
   RefreshCw,
-  Store,
-  TrendingUp,
-  TrendingDown,
-  Wine,
-  ClipboardCheck,
   AlertTriangle,
-  Users,
-  Trophy,
-  ArrowUpRight,
-  ArrowDownRight,
   BarChart3,
-  GitCompare,
 } from 'lucide-react';
 import {
   ResponsiveContainer,

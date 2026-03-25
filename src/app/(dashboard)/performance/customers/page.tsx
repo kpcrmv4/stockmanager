@@ -7,7 +7,6 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import {
   Button,
-  Badge,
   Card,
   CardHeader,
   CardContent,
@@ -24,16 +23,9 @@ import {
   Loader2,
   RefreshCw,
   Users,
-  Wine,
-  Clock,
-  TrendingUp,
-  Star,
   Crown,
-  UserCheck,
   AlertTriangle,
   BarChart3,
-  Package,
-  Calendar,
   Repeat,
 } from 'lucide-react';
 import {
@@ -333,11 +325,8 @@ export default function CustomerAnalyticsPage() {
                 <Select
                   value={selectedStoreId}
                   onChange={(e) => setSelectedStoreId(e.target.value)}
-                >
-                  {stores.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </Select>
+                  options={stores.map((s) => ({ value: s.id, label: s.name }))}
+                />
               </div>
             )}
             <div>

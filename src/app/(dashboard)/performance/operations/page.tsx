@@ -7,7 +7,6 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import {
   Button,
-  Badge,
   Card,
   CardHeader,
   CardContent,
@@ -27,7 +26,6 @@ import {
   AlertCircle,
   Play,
   Pause,
-  BarChart3,
   Radio,
 } from 'lucide-react';
 
@@ -344,11 +342,8 @@ export default function OperationsPage() {
               <Select
                 value={selectedStoreId}
                 onChange={(e) => setSelectedStoreId(e.target.value)}
-              >
-                {stores.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </Select>
+                options={stores.map((s) => ({ value: s.id, label: s.name }))}
+              />
             </div>
           </CardContent>
         </Card>

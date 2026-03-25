@@ -7,12 +7,10 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import {
   Button,
-  Badge,
   Card,
   CardHeader,
   CardContent,
   Select,
-  Tabs,
   toast,
 } from '@/components/ui';
 import {
@@ -21,25 +19,12 @@ import {
 } from '@/lib/utils/format';
 import { todayBangkok, nowBangkok } from '@/lib/utils/date';
 import {
-  Trophy,
-  Clock,
   CheckCircle2,
   AlertTriangle,
   Loader2,
   RefreshCw,
-  Store,
-  Users,
   Timer,
-  TrendingUp,
-  TrendingDown,
-  ArrowUpRight,
-  ArrowDownRight,
-  Medal,
   Target,
-  Zap,
-  User,
-  ChevronDown,
-  ChevronUp,
   BarChart3,
 } from 'lucide-react';
 import {
@@ -440,11 +425,8 @@ export default function StaffPerformancePage() {
                 <Select
                   value={selectedStoreId}
                   onChange={(e) => setSelectedStoreId(e.target.value)}
-                >
-                  {stores.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </Select>
+                  options={stores.map((s) => ({ value: s.id, label: s.name }))}
+                />
               </div>
             )}
             <div>
