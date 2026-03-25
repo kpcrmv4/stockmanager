@@ -336,14 +336,17 @@ CREATE TABLE store_settings (
   chat_bot_withdrawal_enabled BOOLEAN NOT NULL DEFAULT true,
   chat_bot_stock_enabled BOOLEAN NOT NULL DEFAULT true,
   chat_bot_borrow_enabled BOOLEAN NOT NULL DEFAULT true,
+  chat_bot_transfer_enabled BOOLEAN NOT NULL DEFAULT true,
   chat_bot_timeout_deposit INTEGER NOT NULL DEFAULT 15,
   chat_bot_timeout_withdrawal INTEGER NOT NULL DEFAULT 15,
   chat_bot_timeout_stock INTEGER NOT NULL DEFAULT 60,
   chat_bot_timeout_borrow INTEGER NOT NULL DEFAULT 30,
+  chat_bot_timeout_transfer INTEGER NOT NULL DEFAULT 120,
   chat_bot_priority_deposit TEXT NOT NULL DEFAULT 'normal',
   chat_bot_priority_withdrawal TEXT NOT NULL DEFAULT 'normal',
   chat_bot_priority_stock TEXT NOT NULL DEFAULT 'normal',
   chat_bot_priority_borrow TEXT NOT NULL DEFAULT 'normal',
+  chat_bot_priority_transfer TEXT NOT NULL DEFAULT 'normal',
   chat_bot_daily_summary_enabled BOOLEAN NOT NULL DEFAULT true,
 );
 
