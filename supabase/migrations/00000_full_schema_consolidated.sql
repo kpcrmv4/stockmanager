@@ -492,6 +492,23 @@ CREATE TABLE chat_pinned_messages (
   UNIQUE(room_id, message_id)
 );
 
+-- ==========================================
+-- TRIAL REGISTRATION (00009)
+-- ==========================================
+
+CREATE TABLE trial_registrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  approved_by UUID REFERENCES profiles(id),
+  approved_at TIMESTAMPTZ,
+  rejection_reason TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- INDEXES
 -- ==========================================
 
@@ -533,6 +550,10 @@ CREATE INDEX idx_chat_messages_room_created ON chat_messages(room_id, created_at
 CREATE INDEX idx_chat_members_user ON chat_members(user_id);
 CREATE INDEX idx_chat_rooms_store ON chat_rooms(store_id) WHERE is_active = true;
 CREATE INDEX idx_chat_messages_action_cards ON chat_messages((metadata->>'status')) WHERE type = 'action_card' AND archived_at IS NULL;
+
+-- Trial registrations indexes (00009)
+CREATE INDEX idx_trial_registrations_status ON trial_registrations(status);
+CREATE INDEX idx_trial_registrations_created ON trial_registrations(created_at DESC);
 
 -- Pinned messages index (00005)
 CREATE INDEX idx_chat_pinned_room ON chat_pinned_messages(room_id, pinned_at DESC);
@@ -607,6 +628,7 @@ ALTER TABLE chat_rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_pinned_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trial_registrations ENABLE ROW LEVEL SECURITY;
 
 -- ==========================================
 -- HELPER FUNCTIONS (all with SET search_path = '')
