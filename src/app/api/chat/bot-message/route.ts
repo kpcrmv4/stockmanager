@@ -18,6 +18,7 @@ import { createServiceClient, createClient as createServerClient } from '@/lib/s
 import { getChatBotSettings, isBotTypeEnabled, getTimeoutForType, getPriorityForType } from '@/lib/chat/bot-settings';
 import type { ChatMessage, ChatBroadcastPayload, UnreadBadgePayload } from '@/types/chat';
 import { createClient as createRealtimeClient } from '@supabase/supabase-js';
+import { broadcastToChannel, broadcastToMany } from '@/lib/supabase/broadcast';
 import { sendPushToUser, type PushPayload } from '@/lib/notifications/push';
 
 export async function POST(request: Request) {
@@ -104,11 +105,10 @@ export async function POST(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    await realtimeClient.channel(`chat:room:${room.id}`).send({
-      type: 'broadcast',
-      event: 'new_message',
-      payload: { type: 'new_message', message } as ChatBroadcastPayload,
-    });
+    await broadcastToChannel(realtimeClient, `chat:room:${room.id}`, 'new_message', {
+      type: 'new_message',
+      message,
+    } as unknown as Record<string, unknown>);
 
     // 5. Broadcast badge ไปสมาชิกทุกคน
     const { data: members } = await supabase
@@ -125,13 +125,14 @@ export async function POST(request: Request) {
         type: type || 'text',
       };
 
-      await Promise.all(members.map((member) =>
-        realtimeClient.channel(`chat:badge:${member.user_id}`).send({
-          type: 'broadcast',
+      await broadcastToMany(
+        realtimeClient,
+        members.map((member) => ({
+          channel: `chat:badge:${member.user_id}`,
           event: 'new_message_badge',
-          payload: badgePayload,
-        })
-      ));
+          payload: badgePayload as unknown as Record<string, unknown>,
+        })),
+      );
     }
 
     // 6. Push notification ไปสมาชิกทุกคน (สำหรับคนปิดแอป/ปิดหน้าจอ)

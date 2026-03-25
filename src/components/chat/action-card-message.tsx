@@ -2,6 +2,7 @@
 
 import { useState, memo } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { broadcastToChannel } from '@/lib/supabase/broadcast';
 import { useChatStore } from '@/stores/chat-store';
 import { Button, PhotoUpload } from '@/components/ui';
 import {
@@ -89,11 +90,10 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         updateMessage(updated);
 
         // Broadcast update ไปห้อง
-        await supabase.channel(`chat:room:${roomId}`).send({
-          type: 'broadcast',
-          event: 'message_updated',
-          payload: { type: 'message_updated', message: updated } as ChatBroadcastPayload,
-        });
+        await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
+          type: 'message_updated',
+          message: updated,
+        } as unknown as Record<string, unknown>);
 
         // Sync photo กลับไปที่ deposit/withdrawal record (fire-and-forget)
         if (action === 'complete' && photoUrl && meta) {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { broadcastToChannel } from '@/lib/supabase/broadcast';
 import { useChatMessages } from '@/hooks/use-chat-messages';
 import { useChatRealtime } from '@/hooks/use-chat-realtime';
 import { useChatStore } from '@/stores/chat-store';
@@ -183,10 +184,8 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
       removePinnedMessage(messageId);
 
       // Broadcast unpin
-      supabase.channel(`chat:room:${roomId}`).send({
-        type: 'broadcast',
-        event: 'message_unpinned',
-        payload: { type: 'message_unpinned', message_id: messageId, room_id: roomId },
+      broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_unpinned', {
+        type: 'message_unpinned', message_id: messageId, room_id: roomId,
       });
     } else {
       // Pin
@@ -210,11 +209,9 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
       addPinnedMessage(pinnedMsg);
 
       // Broadcast pin
-      supabase.channel(`chat:room:${roomId}`).send({
-        type: 'broadcast',
-        event: 'message_pinned',
-        payload: { type: 'message_pinned', pinned_message: pinnedMsg, room_id: roomId },
-      });
+      broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_pinned', {
+        type: 'message_pinned', pinned_message: pinnedMsg, room_id: roomId,
+      } as unknown as Record<string, unknown>);
     }
 
     setContextMenu(null);
