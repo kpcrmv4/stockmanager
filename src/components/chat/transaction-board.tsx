@@ -1,0 +1,278 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import {
+  Wine,
+  Package,
+  ClipboardCheck,
+  Repeat,
+  Clock,
+  CheckCircle,
+  Hand,
+  AlertTriangle,
+  Filter,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
+import { useChatStore } from '@/stores/chat-store';
+import { ActionCardMessage } from './action-card-message';
+import type { ChatMessage, ActionCardMetadata } from '@/types/chat';
+
+interface TransactionBoardProps {
+  roomId: string;
+  storeId: string | null;
+  currentUserId: string;
+  currentUserName: string;
+}
+
+type FilterStatus = 'all' | 'pending' | 'claimed' | 'completed';
+type FilterType = 'all' | 'deposit_claim' | 'withdrawal_claim' | 'stock_explain' | 'borrow_approve' | 'transfer_receive';
+
+const TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; label: string; bgClass: string }> = {
+  deposit_claim: { icon: Wine, color: 'emerald', label: 'ฝากเหล้า', bgClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400' },
+  withdrawal_claim: { icon: Package, color: 'blue', label: 'เบิกเหล้า', bgClass: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
+  stock_explain: { icon: ClipboardCheck, color: 'amber', label: 'สต๊อก', bgClass: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
+  borrow_approve: { icon: Repeat, color: 'violet', label: 'ยืมสินค้า', bgClass: 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400' },
+  transfer_receive: { icon: Package, color: 'orange', label: 'โอนสต๊อก', bgClass: 'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400' },
+};
+
+const STATUS_CONFIG: Record<string, { icon: typeof Clock; label: string; color: string }> = {
+  pending: { icon: Clock, label: 'รอรับ', color: 'text-amber-500' },
+  claimed: { icon: Hand, label: 'กำลังทำ', color: 'text-blue-500' },
+  completed: { icon: CheckCircle, label: 'เสร็จแล้ว', color: 'text-emerald-500' },
+  expired: { icon: AlertTriangle, label: 'หมดเวลา', color: 'text-red-500' },
+};
+
+export function TransactionBoard({ roomId, storeId, currentUserId, currentUserName }: TransactionBoardProps) {
+  const messages = useChatStore((s) => s.messages);
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
+  const [filterType, setFilterType] = useState<FilterType>('all');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  // Extract action card messages only
+  const actionCards = useMemo(() => {
+    return messages.filter((msg): msg is ChatMessage & { metadata: ActionCardMetadata } => {
+      if (msg.type !== 'action_card' || !msg.metadata) return false;
+      const meta = msg.metadata as ActionCardMetadata;
+      return !!meta.action_type;
+    });
+  }, [messages]);
+
+  // Apply filters
+  const filteredCards = useMemo(() => {
+    return actionCards.filter((msg) => {
+      const meta = msg.metadata as ActionCardMetadata;
+      if (filterStatus !== 'all' && meta.status !== filterStatus) return false;
+      if (filterType !== 'all' && meta.action_type !== filterType) return false;
+      return true;
+    });
+  }, [actionCards, filterStatus, filterType]);
+
+  // Group by action_type
+  const grouped = useMemo(() => {
+    const groups = new Map<string, ChatMessage[]>();
+    for (const msg of filteredCards) {
+      const meta = msg.metadata as ActionCardMetadata;
+      const key = meta.action_type;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(msg);
+    }
+    // Sort groups: types with pending items first
+    return Array.from(groups.entries()).sort((a, b) => {
+      const aPending = a[1].filter((m) => (m.metadata as ActionCardMetadata).status === 'pending').length;
+      const bPending = b[1].filter((m) => (m.metadata as ActionCardMetadata).status === 'pending').length;
+      return bPending - aPending;
+    });
+  }, [filteredCards]);
+
+  // Stats
+  const stats = useMemo(() => {
+    const s = { pending: 0, claimed: 0, completed: 0, total: 0 };
+    for (const msg of actionCards) {
+      const meta = msg.metadata as ActionCardMetadata;
+      s.total++;
+      if (meta.status === 'pending') s.pending++;
+      else if (meta.status === 'claimed') s.claimed++;
+      else if (meta.status === 'completed') s.completed++;
+    }
+    return s;
+  }, [actionCards]);
+
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden bg-[#F0EFF5] dark:bg-gray-900">
+      {/* Stats bar */}
+      <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800">
+        <StatBadge icon={Clock} label="รอรับ" count={stats.pending} color="amber" active={filterStatus === 'pending'} onClick={() => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending')} />
+        <StatBadge icon={Hand} label="กำลังทำ" count={stats.claimed} color="blue" active={filterStatus === 'claimed'} onClick={() => setFilterStatus(filterStatus === 'claimed' ? 'all' : 'claimed')} />
+        <StatBadge icon={CheckCircle} label="เสร็จ" count={stats.completed} color="emerald" active={filterStatus === 'completed'} onClick={() => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed')} />
+      </div>
+
+      {/* Type filter chips */}
+      <div className="flex items-center gap-1.5 overflow-x-auto px-3 py-2">
+        <FilterChip label="ทั้งหมด" active={filterType === 'all'} onClick={() => setFilterType('all')} />
+        {Object.entries(TYPE_CONFIG).map(([key, cfg]) => (
+          <FilterChip
+            key={key}
+            label={cfg.label}
+            icon={cfg.icon}
+            active={filterType === key}
+            onClick={() => setFilterType(filterType === key ? 'all' : key as FilterType)}
+          />
+        ))}
+      </div>
+
+      {/* Grouped action cards */}
+      <div className="flex-1 overflow-y-auto px-3 pb-4">
+        {grouped.length === 0 ? (
+          <div className="mt-12 text-center">
+            <Filter className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              {filterStatus !== 'all' || filterType !== 'all'
+                ? 'ไม่พบรายการตามตัวกรอง'
+                : 'ยังไม่มีรายการงาน'}
+            </p>
+          </div>
+        ) : (
+          grouped.map(([type, msgs]) => {
+            const config = TYPE_CONFIG[type] || TYPE_CONFIG.deposit_claim;
+            const Icon = config.icon;
+            const isCollapsed = collapsedGroups.has(type);
+            const pendingCount = msgs.filter((m) => (m.metadata as ActionCardMetadata).status === 'pending').length;
+            const claimedCount = msgs.filter((m) => (m.metadata as ActionCardMetadata).status === 'claimed').length;
+
+            return (
+              <div key={type} className="mb-3">
+                {/* Group header */}
+                <button
+                  onClick={() => toggleGroup(type)}
+                  className="flex w-full items-center gap-2 rounded-t-xl bg-white px-3 py-2.5 shadow-sm transition-colors hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-750"
+                >
+                  <Icon className={cn('h-4 w-4', `text-${config.color}-500`)} />
+                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                    {config.label}
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {msgs.length} รายการ
+                  </span>
+                  {pendingCount > 0 && (
+                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                      รอ {pendingCount}
+                    </span>
+                  )}
+                  {claimedCount > 0 && (
+                    <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                      ทำ {claimedCount}
+                    </span>
+                  )}
+                  <span className="ml-auto">
+                    {isCollapsed ? (
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <ChevronUp className="h-4 w-4 text-gray-400" />
+                    )}
+                  </span>
+                </button>
+
+                {/* Cards list */}
+                {!isCollapsed && (
+                  <div className="space-y-1 rounded-b-xl bg-white/50 px-1 pb-2 pt-1 dark:bg-gray-800/50">
+                    {msgs.map((msg) => (
+                      <ActionCardMessage
+                        key={msg.id}
+                        message={msg}
+                        currentUserId={currentUserId}
+                        currentUserName={currentUserName}
+                        roomId={roomId}
+                        storeId={storeId}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// Sub-components
+// ==========================================
+
+function StatBadge({
+  icon: Icon,
+  label,
+  count,
+  color,
+  active,
+  onClick,
+}: {
+  icon: typeof Clock;
+  label: string;
+  count: number;
+  color: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all',
+        active
+          ? `bg-${color}-100 text-${color}-700 ring-1 ring-${color}-300 dark:bg-${color}-900/30 dark:text-${color}-400 dark:ring-${color}-700`
+          : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+      )}
+    >
+      <Icon className={cn('h-3.5 w-3.5', active ? `text-${color}-500` : 'text-gray-400')} />
+      <span>{label}</span>
+      <span className={cn(
+        'min-w-[18px] rounded-full px-1 text-center text-[10px] font-bold',
+        count > 0
+          ? `bg-${color}-500 text-white`
+          : 'bg-gray-200 text-gray-500 dark:bg-gray-600 dark:text-gray-400'
+      )}>
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function FilterChip({
+  label,
+  icon: Icon,
+  active,
+  onClick,
+}: {
+  label: string;
+  icon?: typeof Wine;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all',
+        active
+          ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-400 dark:ring-indigo-700'
+          : 'bg-white text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+      )}
+    >
+      {Icon && <Icon className="h-3 w-3" />}
+      {label}
+    </button>
+  );
+}
