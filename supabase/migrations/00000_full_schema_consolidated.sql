@@ -654,7 +654,7 @@ BEGIN
     < now()
   );
 END;
-$$ LANGUAGE plpgsql IMMUTABLE SET search_path = '';
+$$ LANGUAGE plpgsql IMMUTABLE SET search_path = public;
 
 CREATE OR REPLACE FUNCTION auto_release_timed_out(p_metadata JSONB)
 RETURNS JSONB AS $$
@@ -664,7 +664,7 @@ BEGIN
     'claimed_at', null, 'auto_released', true, 'auto_released_at', now()
   );
 END;
-$$ LANGUAGE plpgsql SET search_path = '';
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- ==========================================
 -- RLS POLICIES (final merged — all auth.uid() optimized)
@@ -838,11 +838,10 @@ CREATE OR REPLACE FUNCTION claim_action_card(
 )
 RETURNS JSONB AS $$
 DECLARE
-  v_msg chat_messages;
+  v_msg public.chat_messages;
   v_meta JSONB;
   v_profile RECORD;
 BEGIN
-  -- ดึงข้อความ
   SELECT * INTO v_msg FROM public.chat_messages WHERE id = p_message_id;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('success', false, 'error', 'Message not found');
@@ -854,23 +853,19 @@ BEGIN
 
   v_meta := v_msg.metadata;
 
-  -- ถ้า claimed แต่หมดเวลา → auto-release ก่อน
-  IF v_meta->>'status' = 'claimed' AND is_action_card_timed_out(v_meta) THEN
-    v_meta := auto_release_timed_out(v_meta);
+  IF v_meta->>'status' = 'claimed' AND public.is_action_card_timed_out(v_meta) THEN
+    v_meta := public.auto_release_timed_out(v_meta);
     UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
   END IF;
 
-  -- ตรวจสอบ status (หลัง auto-release แล้ว)
   IF v_meta->>'status' != 'pending' THEN
     RETURN jsonb_build_object('success', false, 'error', 'Already claimed',
       'claimed_by', v_meta->>'claimed_by_name');
   END IF;
 
-  -- ดึงชื่อ user
   SELECT display_name, username INTO v_profile
   FROM public.profiles WHERE id = p_user_id;
 
-  -- อัปเดต metadata
   v_meta := v_meta
     || jsonb_build_object(
       'status', 'claimed',
@@ -885,7 +880,7 @@ BEGIN
 
   RETURN jsonb_build_object('success', true, 'metadata', v_meta);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 
 CREATE OR REPLACE FUNCTION complete_action_card(
@@ -896,7 +891,7 @@ CREATE OR REPLACE FUNCTION complete_action_card(
 )
 RETURNS JSONB AS $$
 DECLARE
-  v_msg chat_messages;
+  v_msg public.chat_messages;
   v_meta JSONB;
 BEGIN
   SELECT * INTO v_msg FROM public.chat_messages WHERE id = p_message_id;
@@ -906,20 +901,17 @@ BEGIN
 
   v_meta := v_msg.metadata;
 
-  -- ต้อง claimed ก่อนถึง complete ได้
   IF v_meta->>'status' != 'claimed' THEN
     RETURN jsonb_build_object('success', false, 'error', 'Not in claimed status');
   END IF;
 
-  -- ถ้าหมดเวลา → auto-release แล้ว reject
-  IF is_action_card_timed_out(v_meta) THEN
-    v_meta := auto_release_timed_out(v_meta);
+  IF public.is_action_card_timed_out(v_meta) THEN
+    v_meta := public.auto_release_timed_out(v_meta);
     UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
     RETURN jsonb_build_object('success', false, 'error', 'หมดเวลาแล้ว งานถูกปล่อยกลับคิว',
       'metadata', v_meta, 'timed_out', true);
   END IF;
 
-  -- เฉพาะคนที่ claim
   IF v_meta->>'claimed_by' != p_user_id::text THEN
     RETURN jsonb_build_object('success', false, 'error', 'Not claimed by you');
   END IF;
@@ -936,7 +928,7 @@ BEGIN
 
   RETURN jsonb_build_object('success', true, 'metadata', v_meta);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 
 CREATE OR REPLACE FUNCTION release_action_card(
@@ -945,7 +937,7 @@ CREATE OR REPLACE FUNCTION release_action_card(
 )
 RETURNS JSONB AS $$
 DECLARE
-  v_msg chat_messages;
+  v_msg public.chat_messages;
   v_meta JSONB;
 BEGIN
   SELECT * INTO v_msg FROM public.chat_messages WHERE id = p_message_id;
@@ -955,19 +947,16 @@ BEGIN
 
   v_meta := v_msg.metadata;
 
-  -- ถ้าหมดเวลา → ใครก็ release ได้
-  IF v_meta->>'status' = 'claimed' AND is_action_card_timed_out(v_meta) THEN
-    v_meta := auto_release_timed_out(v_meta);
+  IF v_meta->>'status' = 'claimed' AND public.is_action_card_timed_out(v_meta) THEN
+    v_meta := public.auto_release_timed_out(v_meta);
     UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
     RETURN jsonb_build_object('success', true, 'metadata', v_meta);
   END IF;
 
-  -- เฉพาะคนที่ claim เท่านั้นถึงจะ release ได้ (ถ้ายังไม่หมดเวลา)
   IF v_meta->>'claimed_by' != p_user_id::text THEN
     RETURN jsonb_build_object('success', false, 'error', 'Not claimed by you');
   END IF;
 
-  -- reset กลับเป็น pending
   v_meta := v_meta
     || jsonb_build_object(
       'status', 'pending',
@@ -982,7 +971,7 @@ BEGIN
 
   RETURN jsonb_build_object('success', true, 'metadata', v_meta);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION get_chat_unread_counts(p_user_id UUID)
 RETURNS TABLE(room_id UUID, unread_count BIGINT) AS $$
