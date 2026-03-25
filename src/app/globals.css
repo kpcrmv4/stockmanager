@@ -45,3 +45,69 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ==========================================
+   Print styles — สำหรับส่งออก PDF รายงาน
+   ========================================== */
+@media print {
+  .printing-report aside {
+    display: none !important;
+  }
+  .printing-report header {
+    display: none !important;
+  }
+  .printing-report nav {
+    display: none !important;
+  }
+
+  /* main content เต็มหน้า */
+  .printing-report main {
+    overflow: visible !important;
+    padding: 8px !important;
+  }
+  .printing-report main > * {
+    max-width: 100% !important;
+  }
+  /* flex container ที่ห่อ sidebar + main → ไม่ต้อง flex */
+  .printing-report .flex.h-screen {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .printing-report .flex-1.flex-col {
+    width: 100% !important;
+  }
+
+  /* ซ่อนปุ่ม */
+  .printing-report button {
+    display: none !important;
+  }
+  /* ซ่อน tab switcher */
+  .printing-report [role="tablist"] {
+    display: none !important;
+  }
+  /* ซ่อน select arrow + input border */
+  .printing-report select,
+  .printing-report input[type="date"] {
+    border: none !important;
+    background: transparent !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+  }
+
+  /* แสดงสีพื้นหลังและกราฟ */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  body {
+    font-size: 12px;
+  }
+}

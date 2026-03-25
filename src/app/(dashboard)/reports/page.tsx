@@ -801,11 +801,13 @@ export default function ReportsPage() {
   // Export handlers
   // ------------------------------------------------------------------
   const handleExportPDF = () => {
-    toast({
-      type: 'info',
-      title: 'กำลังพัฒนา',
-      message: 'ฟีเจอร์ส่งออก PDF จะเปิดใช้งานเร็ว ๆ นี้',
-    });
+    // ใช้ window.print() เพื่อให้ browser render PDF — ภาษาไทยไม่เพี้ยน
+    // เพิ่ม class ชั่วคราวเพื่อซ่อน sidebar/header ตอน print
+    document.body.classList.add('printing-report');
+    setTimeout(() => {
+      window.print();
+      document.body.classList.remove('printing-report');
+    }, 100);
   };
 
   const handleExportCSV = () => {
