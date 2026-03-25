@@ -10,12 +10,20 @@ export async function broadcastToChannel(
   event: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  // ใช้ชื่อ channel ที่ไม่ซ้ำกับ subscription ที่มีอยู่แล้ว
-  // เพื่อป้องกัน Supabase ไม่ emit 'SUBSCRIBED' ซ้ำ
-  const uniqueName = `${channelName}:send:${Date.now()}:${Math.random().toString(36).slice(2, 6)}`;
-  const channel = supabase.channel(uniqueName);
-
   const TIMEOUT_MS = 5000;
+
+  // ถ้ามี channel ที่ subscribe อยู่แล้ว (เช่น จาก useChatRealtime) → ใช้ send ตรงเลย
+  const existing = supabase.getChannels().find(
+    (ch) => ch.topic === `realtime:${channelName}` && ch.state === 'joined',
+  );
+
+  if (existing) {
+    await existing.send({ type: 'broadcast', event, payload });
+    return;
+  }
+
+  // ไม่มี channel อยู่ → สร้างใหม่ subscribe แล้ว send
+  const channel = supabase.channel(channelName);
 
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
