@@ -289,6 +289,8 @@ CREATE TABLE borrows (
   rejection_reason TEXT,
   cancelled_by UUID REFERENCES profiles(id),
   cancelled_at TIMESTAMPTZ,
+  borrower_pos_bill_url TEXT,              -- รูป POS bill ฝั่งผู้ยืม
+  lender_pos_bill_url TEXT,                -- รูป POS bill ฝั่งผู้ให้ยืม
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -300,6 +302,7 @@ CREATE TABLE borrow_items (
   product_name TEXT NOT NULL,
   category TEXT,
   quantity NUMERIC(10,2) NOT NULL,
+  approved_quantity INTEGER,               -- จำนวนที่อนุมัติจริง (อาจน้อยกว่าที่ขอ)
   unit TEXT,
   notes TEXT
 );

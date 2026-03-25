@@ -20,6 +20,8 @@ interface PatchBody {
   reason?: string;
   side?: 'borrower' | 'lender';
   photoUrl?: string;
+  posBillUrl?: string;
+  approvedItems?: { itemId: string; approvedQuantity: number }[];
 }
 
 interface StoreRow {
@@ -191,6 +193,19 @@ export async function PATCH(
         return NextResponse.json(
           { error: 'Failed to approve borrow' },
           { status: 500 },
+        );
+      }
+
+      // Update approved_quantity per item if provided
+      if (body.approvedItems && body.approvedItems.length > 0) {
+        await Promise.allSettled(
+          body.approvedItems.map((ai) =>
+            serviceClient
+              .from('borrow_items')
+              .update({ approved_quantity: ai.approvedQuantity })
+              .eq('id', ai.itemId)
+              .eq('borrow_id', id)
+          )
         );
       }
 
@@ -426,6 +441,7 @@ export async function PATCH(
         updatePayload.borrower_pos_confirmed = true;
         updatePayload.borrower_pos_confirmed_by = user.id;
         updatePayload.borrower_pos_confirmed_at = now;
+        if (body.posBillUrl) updatePayload.borrower_pos_bill_url = body.posBillUrl;
       } else {
         if (borrow.lender_pos_confirmed) {
           return NextResponse.json(
@@ -436,6 +452,7 @@ export async function PATCH(
         updatePayload.lender_pos_confirmed = true;
         updatePayload.lender_pos_confirmed_by = user.id;
         updatePayload.lender_pos_confirmed_at = now;
+        if (body.posBillUrl) updatePayload.lender_pos_bill_url = body.posBillUrl;
       }
 
       // Determine if both sides will be confirmed after this update
