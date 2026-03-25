@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils/cn';
 import { notifyStaff } from '@/lib/notifications/client';
 import { sendChatBotMessage } from '@/lib/chat/bot-client';
 import type { ChatMessage, ActionCardMetadata, ChatBroadcastPayload } from '@/types/chat';
+import { TransferActionCard } from './transfer-action-card';
 
 interface ActionCardMessageProps {
   message: ChatMessage;
@@ -42,6 +43,7 @@ const ACTION_TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; lab
   withdrawal_claim: { icon: Package, color: 'blue', label: 'คำขอเบิกเหล้า' },
   stock_explain: { icon: ClipboardCheck, color: 'amber', label: 'สต๊อกไม่ตรง' },
   borrow_approve: { icon: Repeat, color: 'violet', label: 'คำขอยืมสินค้า' },
+  transfer_receive: { icon: Package, color: 'orange', label: 'โอนสต๊อกเข้าคลังกลาง' },
   generic: { icon: ClipboardCheck, color: 'gray', label: 'งานใหม่' },
 };
 
@@ -59,6 +61,18 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   const meta = message.metadata as ActionCardMetadata | null;
 
   if (!meta) return null;
+
+  // Transfer cards ใช้ component เฉพาะ
+  if (meta.action_type === 'transfer_receive') {
+    return (
+      <TransferActionCard
+        message={message}
+        currentUserId={currentUserId}
+        currentUserName={currentUserName}
+        roomId={roomId}
+      />
+    );
+  }
 
   const config = ACTION_TYPE_CONFIG[meta.action_type] || ACTION_TYPE_CONFIG.generic;
   const Icon = config.icon;
@@ -79,6 +93,8 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   const [borrowItems, setBorrowItems] = useState<BorrowItem[]>([]);
   const [approvedQtys, setApprovedQtys] = useState<Record<string, number>>({});
   const [borrowItemsLoaded, setBorrowItemsLoaded] = useState(false);
+  const [showBorrowRejectForm, setShowBorrowRejectForm] = useState(false);
+  const [borrowRejectReason, setBorrowRejectReason] = useState('');
 
   useEffect(() => {
     if (!isBorrow || borrowStatus !== 'pending_approval' || !isPending || borrowItemsLoaded) return;
@@ -185,6 +201,8 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           }))
         : undefined;
 
+      const reason = action === 'reject' ? (borrowRejectReason.trim() || 'ปฏิเสธจากแชท') : undefined;
+
       const res = await fetch(`/api/borrows/${meta.reference_id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -192,6 +210,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           action,
           lenderPhotoUrl: action === 'approve' ? photoUrl : undefined,
           approvedItems,
+          rejectReason: reason,
         }),
       });
 
@@ -208,7 +227,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         status: 'completed',
         borrow_status: action === 'approve' ? 'approved' : 'rejected',
         borrow_approved_by: action === 'approve' ? currentUserName : null,
-        borrow_rejected_reason: action === 'reject' ? 'ปฏิเสธจากแชท' : null,
+        borrow_rejected_reason: action === 'reject' ? reason || null : null,
         completed_at: new Date().toISOString(),
         claimed_by: currentUserId,
         claimed_by_name: currentUserName,
@@ -228,6 +247,12 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         type: 'message_updated',
         message: updated,
       } as unknown as Record<string, unknown>).catch(() => {});
+
+      // Reset reject form
+      if (action === 'reject') {
+        setShowBorrowRejectForm(false);
+        setBorrowRejectReason('');
+      }
     } finally {
       setLoading(false);
     }
@@ -279,7 +304,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         {isBorrow ? (
           <>
             {/* Pending — แสดงปุ่มอนุมัติ/ปฏิเสธ */}
-            {borrowStatus === 'pending_approval' && isPending && (
+            {borrowStatus === 'pending_approval' && isPending && !showBorrowRejectForm && (
               <div className="space-y-2">
                 {/* Borrow items — กำหนดจำนวนอนุมัติ */}
                 {borrowItems.length > 0 && (
@@ -359,10 +384,48 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                     variant="outline"
                     className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
                     icon={<ThumbsDown className="h-3.5 w-3.5" />}
+                    onClick={() => setShowBorrowRejectForm(true)}
+                  >
+                    ปฏิเสธ
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Borrow Reject Form — ถามเหตุผลก่อนปฏิเสธ */}
+            {borrowStatus === 'pending_approval' && isPending && showBorrowRejectForm && (
+              <div className="space-y-2">
+                <div className="rounded-lg bg-red-50 px-3 py-2 dark:bg-red-900/20">
+                  <p className="text-xs font-medium text-red-700 dark:text-red-300">
+                    ปฏิเสธคำขอยืมสินค้า
+                  </p>
+                </div>
+                <textarea
+                  value={borrowRejectReason}
+                  onChange={(e) => setBorrowRejectReason(e.target.value)}
+                  placeholder="เหตุผลที่ปฏิเสธ (ไม่บังคับ)"
+                  rows={2}
+                  className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-xs text-gray-700 placeholder-gray-400 focus:border-red-300 focus:outline-none focus:ring-1 focus:ring-red-300 dark:border-red-800 dark:bg-gray-800 dark:text-gray-200 dark:placeholder-gray-500"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => { setShowBorrowRejectForm(false); setBorrowRejectReason(''); }}
+                  >
+                    ยกเลิก
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="flex-1 bg-red-600 hover:bg-red-700"
+                    icon={<ThumbsDown className="h-3.5 w-3.5" />}
                     isLoading={loading}
                     onClick={() => handleBorrowAction('reject')}
                   >
-                    ปฏิเสธ
+                    ยืนยันปฏิเสธ
                   </Button>
                 </div>
               </div>

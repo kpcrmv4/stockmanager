@@ -17,7 +17,8 @@ import {
 } from '@/components/ui';
 import { formatThaiDate, formatThaiDateTime } from '@/lib/utils/format';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
-import { notifyChatTransferCreated } from '@/lib/chat/bot-client';
+import { notifyChatTransferBatch, notifyChatTransferSubmitted } from '@/lib/chat/transfer-bot-client';
+import type { TransferCardItem } from '@/types/transfer-chat';
 import { cn } from '@/lib/utils/cn';
 import { generateTransferCode } from '@/lib/utils/transfer-code';
 import {
@@ -162,6 +163,7 @@ export default function TransferPage() {
 
   // Central store
   const [centralStoreId, setCentralStoreId] = useState<string | null>(null);
+  const [currentStoreName, setCurrentStoreName] = useState<string>('');
 
   // -----------------------------------------------------------------------
   // Data loading
@@ -178,6 +180,17 @@ export default function TransferPage() {
       .single();
     if (data) setCentralStoreId(data.id);
   }, []);
+
+  const loadCurrentStoreName = useCallback(async () => {
+    if (!currentStoreId) return;
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('stores')
+      .select('store_name')
+      .eq('id', currentStoreId)
+      .single();
+    if (data) setCurrentStoreName(data.store_name);
+  }, [currentStoreId]);
 
   const loadExpiredDeposits = useCallback(async () => {
     if (!currentStoreId) return;
@@ -262,7 +275,8 @@ export default function TransferPage() {
 
   useEffect(() => {
     loadCentralStore();
-  }, [loadCentralStore]);
+    loadCurrentStoreName();
+  }, [loadCentralStore, loadCurrentStoreName]);
 
   useEffect(() => {
     loadAll();
@@ -341,7 +355,10 @@ export default function TransferPage() {
         transfer_code: transferCode,
       }));
 
-      const { error } = await supabase.from('transfers').insert(transfers);
+      const { data: insertedTransfers, error } = await supabase
+        .from('transfers')
+        .insert(transfers)
+        .select('id, deposit_id, product_name, quantity');
 
       if (error) throw error;
 
@@ -370,11 +387,36 @@ export default function TransferPage() {
       toast({ type: 'success', title: 'ส่งโอนสำเร็จ', message: `ส่งโอน ${selectedDeposits.length} รายการ (${transferCode})` });
 
       // ส่ง system message เข้าห้องแชทสาขา
-      notifyChatTransferCreated(currentStoreId, {
+      const submitterName = user.displayName || user.username || 'พนักงาน';
+      notifyChatTransferSubmitted(currentStoreId, {
         transfer_code: transferCode,
         deposit_count: selectedDeposits.length,
-        submitted_by_name: user.displayName || user.username || 'พนักงาน',
+        submitted_by_name: submitterName,
       });
+
+      // ส่ง Transfer Action Card ไปห้องแชทคลังกลาง
+      if (centralStoreId && insertedTransfers) {
+        const cardItems: TransferCardItem[] = insertedTransfers.map((t, idx) => ({
+          transfer_id: t.id,
+          deposit_id: t.deposit_id,
+          deposit_code: selectedDeposits[idx]?.deposit_code || null,
+          product_name: t.product_name || selectedDeposits[idx]?.product_name || '',
+          customer_name: selectedDeposits[idx]?.customer_name || null,
+          quantity: t.quantity || selectedDeposits[idx]?.quantity || 0,
+          category: selectedDeposits[idx]?.category || null,
+        }));
+
+        notifyChatTransferBatch(centralStoreId, {
+          transfer_code: transferCode,
+          from_store_id: currentStoreId,
+          from_store_name: currentStoreName || 'สาขา',
+          items: cardItems,
+          submitted_by: user.id,
+          submitted_by_name: submitterName,
+          photo_url: transferPhoto,
+          notes: transferNote || null,
+        });
+      }
       setShowTransferModal(false);
       setSelectedIds(new Set());
       setTransferNote('');
