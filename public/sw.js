@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stockmanager-v1';
+const CACHE_NAME = 'stockmanager-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -49,7 +49,14 @@ self.addEventListener('fetch', (event) => {
 
 // Push Notification handler
 self.addEventListener('push', (event) => {
-  const data = event.data?.json() || {};
+  let data = {};
+  try {
+    data = event.data?.json() || {};
+  } catch {
+    // Fallback if JSON parse fails
+    data = { title: 'StockManager', body: event.data?.text() || 'มีข้อความใหม่' };
+  }
+
   const title = data.title || 'StockManager';
   const isChatMessage = data.data?.type === 'chat_message';
 
@@ -57,41 +64,44 @@ self.addEventListener('push', (event) => {
     body: data.body || '',
     icon: data.icon || '/icons/icon-192.png',
     badge: data.badge || '/icons/icon-192.png',
-    image: data.image || undefined,  // รูปใหญ่แสดงใน notification (Android)
+    image: data.image || undefined,
     data: data.data || {},
     tag: data.tag || (data.data?.room_id ? `chat:${data.data.room_id}` : 'default'),
     renotify: true,
     vibrate: [200, 100, 200],
-    // Actions — ปุ่มกดตอบกลับ (Android/Desktop)
     actions: isChatMessage
       ? [{ action: 'open', title: 'เปิดแชท' }]
       : [],
-    // Timestamp — ให้ OS แสดงเวลาข้อความ
     timestamp: Date.now(),
-    // Silent = false → เสียง + สั่น ตามปกติ (เด้ง banner บนมือถือ)
     silent: false,
+    requireInteraction: false,
   };
 
-  // Skip notification if user has the chat room open already
+  // Show notification — only skip if user is actively viewing THIS specific chat room
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      const targetUrl = data.data?.url || '';
-      const isVisible = clients.some(
-        (client) => client.visibilityState === 'visible' && targetUrl && client.url.includes(targetUrl)
-      );
-      if (isVisible) return; // User is already looking at this chat
-      return self.registration.showNotification(title, options);
-    })
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => {
+        const targetUrl = data.data?.url || '';
+        // Only suppress if user is on the EXACT chat room page AND window is visible
+        const isViewingThisRoom = targetUrl && clients.some(
+          (client) => client.visibilityState === 'visible' && client.url.endsWith(targetUrl)
+        );
+        if (isViewingThisRoom) return;
+        return self.registration.showNotification(title, options);
+      })
+      .catch(() => {
+        // Fallback — always show notification if matchAll fails
+        return self.registration.showNotification(title, options);
+      })
   );
 });
 
-// Notification click handler (รวม action button "เปิดแชท")
+// Notification click handler
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data || {};
   const targetUrl = data.url || '/';
 
-  // ทั้งกดที่ notification หรือกดปุ่ม "เปิดแชท" → เปิดหน้าเดียวกัน
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       // Focus existing window if available

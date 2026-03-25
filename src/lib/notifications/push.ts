@@ -39,8 +39,11 @@ function configureVapid() {
   const subject = process.env.VAPID_SUBJECT;
 
   if (!publicKey || !privateKey || !subject) {
-    console.warn(
-      '[WebPush] VAPID keys not configured. Set VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_SUBJECT env vars.',
+    console.error(
+      '[WebPush] VAPID keys NOT configured! Push will NOT work.',
+      `PUBLIC_KEY: ${publicKey ? 'SET' : 'MISSING'},`,
+      `PRIVATE_KEY: ${privateKey ? 'SET' : 'MISSING'},`,
+      `SUBJECT: ${subject ? 'SET' : 'MISSING'}`,
     );
     return false;
   }
