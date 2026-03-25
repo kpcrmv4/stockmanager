@@ -130,8 +130,8 @@ export default function ChatPage() {
                       {preview}
                     </p>
                     {unread > 0 && (
-                      <span className="ml-2 flex h-5.5 min-w-5.5 shrink-0 items-center justify-center rounded-full bg-[#5B5FC7] px-1.5 text-[11px] font-bold text-white">
-                        {unread > 10 ? '10+' : unread}
+                      <span className="ml-2 flex h-5.5 min-w-5.5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+                        {unread}
                       </span>
                     )}
                   </div>

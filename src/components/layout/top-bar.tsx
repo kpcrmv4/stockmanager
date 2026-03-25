@@ -100,8 +100,8 @@ export function TopBar({
         >
           <MessageSquare className="h-5 w-5" />
           {chatUnread > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white">
-              {chatUnread > 10 ? '10+' : chatUnread}
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+              {chatUnread}
             </span>
           )}
         </Link>
