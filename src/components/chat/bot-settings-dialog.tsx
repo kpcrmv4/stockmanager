@@ -15,6 +15,7 @@ import {
   GlassWater,
   Package,
   ArrowLeftRight,
+  Truck,
   BarChart3,
 } from 'lucide-react';
 
@@ -28,14 +29,17 @@ interface BotSettings {
   chat_bot_withdrawal_enabled: boolean;
   chat_bot_stock_enabled: boolean;
   chat_bot_borrow_enabled: boolean;
+  chat_bot_transfer_enabled: boolean;
   chat_bot_timeout_deposit: number;
   chat_bot_timeout_withdrawal: number;
   chat_bot_timeout_stock: number;
   chat_bot_timeout_borrow: number;
+  chat_bot_timeout_transfer: number;
   chat_bot_priority_deposit: string;
   chat_bot_priority_withdrawal: string;
   chat_bot_priority_stock: string;
   chat_bot_priority_borrow: string;
+  chat_bot_priority_transfer: string;
   chat_bot_daily_summary_enabled: boolean;
 }
 
@@ -44,14 +48,17 @@ const DEFAULTS: BotSettings = {
   chat_bot_withdrawal_enabled: true,
   chat_bot_stock_enabled: true,
   chat_bot_borrow_enabled: true,
+  chat_bot_transfer_enabled: true,
   chat_bot_timeout_deposit: 15,
   chat_bot_timeout_withdrawal: 15,
   chat_bot_timeout_stock: 60,
   chat_bot_timeout_borrow: 30,
+  chat_bot_timeout_transfer: 120,
   chat_bot_priority_deposit: 'normal',
   chat_bot_priority_withdrawal: 'normal',
   chat_bot_priority_stock: 'normal',
   chat_bot_priority_borrow: 'normal',
+  chat_bot_priority_transfer: 'normal',
   chat_bot_daily_summary_enabled: true,
 };
 
@@ -191,6 +198,19 @@ export function BotSettingsDialog({ isOpen, onClose }: BotSettingsDialogProps) {
             onTimeoutChange={(v) => setNumber('chat_bot_timeout_borrow', v)}
             priority={settings.chat_bot_priority_borrow}
             onPriorityChange={(v) => setPriority('chat_bot_priority_borrow', v)}
+          />
+
+          {/* Transfer */}
+          <BotTypeSection
+            icon={<Truck className="h-4 w-4 text-orange-500" />}
+            label="โอนสต๊อก"
+            description="แจ้งเตือนเมื่อมีการโอนเข้าคลังกลาง"
+            enabled={settings.chat_bot_transfer_enabled}
+            onToggle={() => toggle('chat_bot_transfer_enabled')}
+            timeout={settings.chat_bot_timeout_transfer}
+            onTimeoutChange={(v) => setNumber('chat_bot_timeout_transfer', v)}
+            priority={settings.chat_bot_priority_transfer}
+            onPriorityChange={(v) => setPriority('chat_bot_priority_transfer', v)}
           />
 
           {/* Divider */}
