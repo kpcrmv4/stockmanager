@@ -603,7 +603,7 @@ export default function OverviewPage() {
             ภาพรวม
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            สวัสดี, {user?.displayName || user?.username || 'เจ้าของร้าน'} &mdash; {today}
+            สวัสดี, {user?.displayName || user?.username || 'เจ้าของร้าน'}<span className="hidden sm:inline"> &mdash; {today}</span>
           </p>
         </div>
         <button

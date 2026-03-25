@@ -98,6 +98,7 @@ export interface ActionCardMetadata {
 export interface ReplyMetadata {
   reply_to: string;
   reply_preview: string;
+  reply_sender?: string;
 }
 
 export interface MentionMetadata {

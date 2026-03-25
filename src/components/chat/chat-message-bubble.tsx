@@ -10,6 +10,49 @@ interface ChatMessageBubbleProps {
   showSender: boolean;
 }
 
+/* LINE-style reply quote block */
+function ReplyQuote({ replyMeta, variant }: { replyMeta: ReplyMetadata; variant: 'own' | 'other' | 'bot' }) {
+  const senderName = replyMeta.reply_sender || 'ข้อความ';
+
+  return (
+    <div
+      className={cn(
+        'mb-1 rounded-md border-l-[3px] px-2.5 py-1.5',
+        variant === 'own'
+          ? 'border-indigo-300 bg-white/20'
+          : variant === 'bot'
+            ? 'border-amber-400 bg-amber-100/40 dark:border-amber-500 dark:bg-amber-900/20'
+            : 'border-gray-400 bg-gray-100 dark:border-gray-500 dark:bg-gray-700/50',
+      )}
+    >
+      <p
+        className={cn(
+          'text-[11px] font-semibold leading-tight',
+          variant === 'own'
+            ? 'text-indigo-100'
+            : variant === 'bot'
+              ? 'text-amber-700 dark:text-amber-300'
+              : 'text-gray-600 dark:text-gray-300',
+        )}
+      >
+        {senderName}
+      </p>
+      <p
+        className={cn(
+          'mt-0.5 truncate text-xs leading-snug',
+          variant === 'own'
+            ? 'text-indigo-100/80'
+            : variant === 'bot'
+              ? 'text-amber-800/70 dark:text-amber-200/70'
+              : 'text-gray-500 dark:text-gray-400',
+        )}
+      >
+        {replyMeta.reply_preview}
+      </p>
+    </div>
+  );
+}
+
 export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBubbleProps) {
   const isBot = !message.sender_id;
   const senderName = message.sender?.display_name || message.sender?.username || 'Bot';
@@ -40,16 +83,13 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
 
         {/* Bubble */}
         <div className="max-w-[75%]">
-          {/* Reply preview */}
-          {replyMeta && (
-            <div className="mb-1 flex justify-end">
-              <div className="rounded-lg border-l-2 border-indigo-300 bg-indigo-50/80 px-2.5 py-1.5 text-xs text-gray-500 dark:border-indigo-600 dark:bg-indigo-900/20 dark:text-gray-400">
-                <p className="truncate">{replyMeta.reply_preview}</p>
-              </div>
-            </div>
-          )}
           {isImage ? (
             <div className="overflow-hidden rounded-2xl rounded-br-sm">
+              {replyMeta && (
+                <div className="bg-[#5B5FC7] px-3 pt-2.5">
+                  <ReplyQuote replyMeta={replyMeta} variant="own" />
+                </div>
+              )}
               <img
                 src={message.content || ''}
                 alt="ส่งรูปภาพ"
@@ -59,6 +99,7 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
             </div>
           ) : (
             <div className="rounded-2xl rounded-br-sm bg-[#5B5FC7] px-3.5 py-2.5 text-sm leading-relaxed text-white shadow-sm">
+              {replyMeta && <ReplyQuote replyMeta={replyMeta} variant="own" />}
               <p className="whitespace-pre-wrap break-words">{message.content}</p>
             </div>
           )}
@@ -101,17 +142,20 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
           </p>
         )}
 
-        {/* Reply preview */}
-        {replyMeta && (
-          <div className="mb-1 rounded-lg border-l-2 border-gray-300 bg-gray-100/80 px-2.5 py-1.5 text-xs text-gray-500 dark:border-gray-600 dark:bg-gray-800/50 dark:text-gray-400">
-            <p className="truncate">{replyMeta.reply_preview}</p>
-          </div>
-        )}
-
         <div className="flex items-end gap-1.5">
           {/* Bubble */}
           {isImage ? (
             <div className="overflow-hidden rounded-2xl rounded-bl-sm">
+              {replyMeta && (
+                <div className={cn(
+                  'px-3 pt-2.5',
+                  isBot
+                    ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/30 dark:to-orange-900/20'
+                    : 'bg-white dark:bg-gray-750',
+                )}>
+                  <ReplyQuote replyMeta={replyMeta} variant={isBot ? 'bot' : 'other'} />
+                </div>
+              )}
               <img
                 src={message.content || ''}
                 alt="ส่งรูปภาพ"
@@ -128,6 +172,7 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
                   : 'bg-white text-gray-800 dark:bg-gray-750 dark:text-gray-200'
               )}
             >
+              {replyMeta && <ReplyQuote replyMeta={replyMeta} variant={isBot ? 'bot' : 'other'} />}
               <p className="whitespace-pre-wrap break-words">{message.content}</p>
             </div>
           )}
@@ -143,4 +188,3 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
     </div>
   );
 }
-
