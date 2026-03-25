@@ -11,23 +11,13 @@ import {
   CardContent,
   toast,
 } from '@/components/ui';
-import { formatNumber, formatPercent } from '@/lib/utils/format';
+import { formatNumber } from '@/lib/utils/format';
 import { todayBangkok, nowBangkok } from '@/lib/utils/date';
 import {
   Loader2,
   RefreshCw,
-  Store,
-  TrendingUp,
-  TrendingDown,
-  Wine,
-  ClipboardCheck,
   AlertTriangle,
-  Users,
-  Trophy,
-  ArrowUpRight,
-  ArrowDownRight,
   BarChart3,
-  GitCompare,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -260,7 +250,7 @@ export default function StoreComparisonPage() {
       setStoreKPIs(kpis);
     } catch (err) {
       console.error('Failed to fetch store comparison:', err);
-      toast.error('โหลดข้อมูลไม่สำเร็จ');
+      toast({ type: 'error', title: 'โหลดข้อมูลไม่สำเร็จ' });
     } finally {
       setLoading(false);
     }
@@ -339,7 +329,7 @@ export default function StoreComparisonPage() {
 
       {/* Date filter */}
       <Card>
-        <CardContent padding="sm">
+        <CardContent>
           <div className="flex flex-wrap items-end gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
@@ -459,7 +449,7 @@ export default function StoreComparisonPage() {
                 </div>
               }
             />
-            <CardContent padding="none">
+            <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">

@@ -7,7 +7,6 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import {
   Button,
-  Badge,
   Card,
   CardHeader,
   CardContent,
@@ -24,16 +23,9 @@ import {
   Loader2,
   RefreshCw,
   Users,
-  Wine,
-  Clock,
-  TrendingUp,
-  Star,
   Crown,
-  UserCheck,
   AlertTriangle,
   BarChart3,
-  Package,
-  Calendar,
   Repeat,
 } from 'lucide-react';
 import {
@@ -280,7 +272,7 @@ export default function CustomerAnalyticsPage() {
       setTimeDistribution(timeArr);
     } catch (err) {
       console.error('Failed to fetch customer analytics:', err);
-      toast.error('โหลดข้อมูลไม่สำเร็จ');
+      toast({ type: 'error', title: 'โหลดข้อมูลไม่สำเร็จ' });
     } finally {
       setLoading(false);
     }
@@ -323,7 +315,7 @@ export default function CustomerAnalyticsPage() {
 
       {/* Filters */}
       <Card>
-        <CardContent padding="sm">
+        <CardContent>
           <div className="flex flex-wrap items-end gap-3">
             {isOwner && stores.length > 0 && (
               <div className="min-w-[180px]">
@@ -333,11 +325,8 @@ export default function CustomerAnalyticsPage() {
                 <Select
                   value={selectedStoreId}
                   onChange={(e) => setSelectedStoreId(e.target.value)}
-                >
-                  {stores.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </Select>
+                  options={stores.map((s) => ({ value: s.id, label: s.name }))}
+                />
               </div>
             )}
             <div>
@@ -375,7 +364,7 @@ export default function CustomerAnalyticsPage() {
           {/* Summary Cards */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <Card>
-              <CardContent padding="sm">
+              <CardContent>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
                     <Users className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
@@ -391,7 +380,7 @@ export default function CustomerAnalyticsPage() {
             </Card>
 
             <Card>
-              <CardContent padding="sm">
+              <CardContent>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
                     <Crown className="h-5 w-5 text-amber-600 dark:text-amber-400" />
@@ -407,7 +396,7 @@ export default function CustomerAnalyticsPage() {
             </Card>
 
             <Card>
-              <CardContent padding="sm">
+              <CardContent>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
                     <Repeat className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
@@ -423,7 +412,7 @@ export default function CustomerAnalyticsPage() {
             </Card>
 
             <Card>
-              <CardContent padding="sm">
+              <CardContent>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
                     <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
@@ -512,7 +501,7 @@ export default function CustomerAnalyticsPage() {
                 title={`ลูกค้าทั้งหมด (${customers.length})`}
                 description="เรียงตามจำนวนครั้งที่ฝาก"
               />
-              <CardContent padding="none">
+              <CardContent>
                 {customers.length === 0 ? (
                   <div className="flex h-32 items-center justify-center text-sm text-gray-400">
                     ยังไม่มีข้อมูลลูกค้า
