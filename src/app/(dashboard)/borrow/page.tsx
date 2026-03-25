@@ -128,6 +128,30 @@ const statusConfig: Record<
   cancelled: { label: 'ยกเลิก', variant: 'danger', step: -1 },
 };
 
+/**
+ * สถานะจากมุมมองของฝั่งที่กำลังดู:
+ * ถ้าฝั่งเราตัด POS แล้ว → แสดงเป็น "เสร็จสิ้น" แม้อีกฝั่งยังไม่ได้ทำ
+ */
+function getVisualStatus(
+  borrow: BorrowWithDetails,
+  currentStoreId: string,
+): { label: string; variant: 'warning' | 'info' | 'default' | 'success' | 'danger'; step: number } {
+  const isBorrowerSide = borrow.from_store_id === currentStoreId;
+  const isLenderSide = borrow.to_store_id === currentStoreId;
+
+  // ถ้าสถานะเป็น pos_adjusting แต่ฝั่งเราตัดแล้ว → แสดงเป็นเสร็จสิ้น
+  if (borrow.status === 'pos_adjusting' || borrow.status === 'approved') {
+    if (isBorrowerSide && borrow.borrower_pos_confirmed) {
+      return { label: 'เสร็จสิ้น (ฝั่งเรา)', variant: 'success', step: 3 };
+    }
+    if (isLenderSide && borrow.lender_pos_confirmed) {
+      return { label: 'เสร็จสิ้น (ฝั่งเรา)', variant: 'success', step: 3 };
+    }
+  }
+
+  return statusConfig[borrow.status];
+}
+
 const EMPTY_FORM_ITEM: FormItem = { product_name: '', category: '', quantity: '', unit: '' };
 
 // ---------------------------------------------------------------------------
@@ -230,7 +254,7 @@ function BorrowCard({
   currentStoreId: string;
   onClick: () => void;
 }) {
-  const config = statusConfig[borrow.status];
+  const config = getVisualStatus(borrow, currentStoreId);
   const otherStore =
     tab === 'outgoing' ? borrow.to_store_name : borrow.from_store_name;
   const itemsSummary = borrow.items
@@ -640,7 +664,7 @@ function BorrowDetailSheet({
   onAction: () => void;
 }) {
   const { user } = useAuthStore();
-  const config = statusConfig[borrow.status];
+  const config = getVisualStatus(borrow, currentStoreId);
 
   const [isActing, setIsActing] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -1298,7 +1322,13 @@ export default function BorrowPage() {
   // -----------------------------------------------------------------------
 
   const pendingCount = borrows.filter((b) => b.status === 'pending_approval').length;
-  const posWaitingCount = borrows.filter((b) => b.status === 'approved' || b.status === 'pos_adjusting').length;
+  const isOurSidePending = (b: BorrowWithDetails) => {
+    if (activeTab === 'outgoing') return !b.borrower_pos_confirmed;
+    return !b.lender_pos_confirmed;
+  };
+  const posWaitingCount = borrows.filter((b) =>
+    (b.status === 'approved' || b.status === 'pos_adjusting') && isOurSidePending(b)
+  ).length;
 
   const currentStoreName =
     stores.find((s) => s.id === currentStoreId)?.store_name || '';
@@ -1320,10 +1350,21 @@ export default function BorrowPage() {
   ];
   const subTabs = activeTab === 'outgoing' ? outgoingSubTabs : incomingSubTabs;
 
+  // Helper: check if our side has completed POS
+  const isOurSideDone = (b: BorrowWithDetails) => {
+    if (activeTab === 'outgoing') return b.borrower_pos_confirmed;
+    return b.lender_pos_confirmed;
+  };
+
   const filteredBorrows = borrows.filter((b) => {
     if (statusFilter === 'all') return true;
     if (statusFilter === 'cancelled_rejected') return b.status === 'cancelled' || b.status === 'rejected';
-    if (statusFilter === 'pos_waiting') return b.status === 'approved' || b.status === 'pos_adjusting';
+    if (statusFilter === 'pos_waiting') {
+      return (b.status === 'approved' || b.status === 'pos_adjusting') && !isOurSideDone(b);
+    }
+    if (statusFilter === 'completed') {
+      return b.status === 'completed' || ((b.status === 'approved' || b.status === 'pos_adjusting') && isOurSideDone(b));
+    }
     return b.status === statusFilter;
   });
 
@@ -1422,13 +1463,16 @@ export default function BorrowPage() {
       {/* ----------------------------------------------------------------- */}
       <div className="flex gap-2 overflow-x-auto">
         {subTabs.map((st) => {
+          const ourDone = (b: BorrowWithDetails) => activeTab === 'outgoing' ? b.borrower_pos_confirmed : b.lender_pos_confirmed;
           const count = st.key === 'all'
             ? borrows.length
             : st.key === 'cancelled_rejected'
               ? borrows.filter((b) => b.status === 'cancelled' || b.status === 'rejected').length
               : st.key === 'pos_waiting'
-                ? borrows.filter((b) => b.status === 'approved' || b.status === 'pos_adjusting').length
-                : borrows.filter((b) => b.status === st.key).length;
+                ? borrows.filter((b) => (b.status === 'approved' || b.status === 'pos_adjusting') && !ourDone(b)).length
+                : st.key === 'completed'
+                  ? borrows.filter((b) => b.status === 'completed' || ((b.status === 'approved' || b.status === 'pos_adjusting') && ourDone(b))).length
+                  : borrows.filter((b) => b.status === st.key).length;
           return (
             <button
               key={st.key}
