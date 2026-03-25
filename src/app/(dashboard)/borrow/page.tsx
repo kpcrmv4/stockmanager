@@ -647,8 +647,9 @@ function BorrowDetailSheet({
   const [borrowerPhoto, setBorrowerPhoto] = useState<string | null>(borrow.borrower_photo_url);
   const [lenderPhoto, setLenderPhoto] = useState<string | null>(borrow.lender_photo_url);
 
-  const isBorrowerSide = borrow.from_store_id === currentStoreId;
-  const isLenderSide = borrow.to_store_id === currentStoreId;
+  const isOwnerOrAdmin = user?.role === 'owner' || user?.role === 'manager';
+  const isBorrowerSide = borrow.from_store_id === currentStoreId || isOwnerOrAdmin;
+  const isLenderSide = borrow.to_store_id === currentStoreId || isOwnerOrAdmin;
 
   const patchBorrow = async (payload: Record<string, unknown>) => {
     setIsActing(true);
