@@ -913,11 +913,6 @@ function BorrowDetailSheet({
                 <XCircle className="h-4 w-4" />
                 ยกเลิกแล้ว
               </div>
-              {(borrow as Record<string, unknown>).cancelled_at && (
-                <p className="mt-1 text-xs text-orange-400 dark:text-orange-500">
-                  {formatThaiDateTime((borrow as Record<string, unknown>).cancelled_at as string)}
-                </p>
-              )}
             </div>
           )}
 
