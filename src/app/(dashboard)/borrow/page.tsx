@@ -1094,19 +1094,53 @@ export default function BorrowPage() {
   const [selectedBorrow, setSelectedBorrow] = useState<BorrowWithDetails | null>(null);
 
   // -----------------------------------------------------------------------
-  // Fetch borrows
+  // Fetch borrows — direct Supabase client (skip API route for speed)
   // -----------------------------------------------------------------------
 
   const fetchBorrows = useCallback(async () => {
     if (!currentStoreId) return;
     setIsLoading(true);
     try {
-      const res = await fetch(
-        `/api/borrows?storeId=${currentStoreId}&tab=${activeTab}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setBorrows(data);
+      const supabase = createClient();
+
+      let query = supabase
+        .from('borrows')
+        .select(`
+          *,
+          borrow_items (*),
+          from_store:stores!borrows_from_store_id_fkey (id, store_name, store_code),
+          to_store:stores!borrows_to_store_id_fkey (id, store_name, store_code),
+          requester:profiles!borrows_requested_by_fkey (id, display_name),
+          approver:profiles!borrows_approved_by_fkey (id, display_name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (activeTab === 'incoming') {
+        query = query.eq('to_store_id', currentStoreId);
+      } else {
+        query = query.eq('from_store_id', currentStoreId);
+      }
+
+      const { data } = await query;
+
+      if (data) {
+        const mapped: BorrowWithDetails[] = data.map((b: Record<string, unknown>) => {
+          const fromStore = b.from_store as Record<string, string> | null;
+          const toStore = b.to_store as Record<string, string> | null;
+          const req = b.requester as Record<string, string> | null;
+          const appr = b.approver as Record<string, string> | null;
+          const items = b.borrow_items as BorrowItem[];
+          const { from_store: _f, to_store: _t, requester: _r, approver: _a, borrow_items: _bi, ...rest } = b;
+          return {
+            ...rest,
+            from_store_name: fromStore?.store_name || null,
+            to_store_name: toStore?.store_name || null,
+            requester_name: req?.display_name || null,
+            approver_name: appr?.display_name || null,
+            items: items || [],
+          } as BorrowWithDetails;
+        });
+        setBorrows(mapped);
       }
     } catch {
       // silently ignore — user will see empty state
