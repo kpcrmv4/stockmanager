@@ -1167,6 +1167,7 @@ function BorrowDetailSheet({
                       >
                         ยืนยันตัดสต๊อก POS (ฝั่งผู้ยืม)
                       </Button>
+                    </>
                   )}
                 </div>
               )}
