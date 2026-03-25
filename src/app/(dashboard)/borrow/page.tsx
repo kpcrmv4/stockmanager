@@ -711,8 +711,8 @@ function BorrowDetailSheet({
       <div
         className={cn(
           'fixed z-50 bg-white dark:bg-gray-900 overflow-y-auto',
-          // Mobile: bottom sheet
-          'bottom-0 inset-x-0 rounded-t-2xl max-h-[90vh]',
+          // Mobile: bottom sheet — pb เผื่อ bottom nav
+          'bottom-0 inset-x-0 rounded-t-2xl max-h-[85vh] pb-20',
           // Desktop: side panel
           'md:inset-y-0 md:right-0 md:left-auto md:w-full md:max-w-2xl md:rounded-t-none md:rounded-l-2xl'
         )}
@@ -1301,7 +1301,7 @@ export default function BorrowPage() {
         <button
           type="button"
           onClick={() => setShowCreateModal(true)}
-          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 text-white shadow-lg shadow-teal-500/30 transition-transform hover:scale-105 active:scale-95 sm:h-auto sm:w-auto sm:gap-2 sm:rounded-xl sm:px-5 sm:py-3"
+          className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 text-white shadow-lg shadow-teal-500/30 transition-transform hover:scale-105 active:scale-95 sm:bottom-6 sm:right-6 sm:h-auto sm:w-auto sm:gap-2 sm:rounded-xl sm:px-5 sm:py-3"
         >
           <Plus className="h-6 w-6 sm:h-5 sm:w-5" />
           <span className="hidden sm:inline text-sm font-medium">

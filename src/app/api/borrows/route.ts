@@ -215,7 +215,15 @@ export async function POST(request: NextRequest) {
         notes: notes || null,
       });
 
-      await sendBotMessage({ storeId: toStoreId, ...actionCard });
+      console.log('[Borrows] Sending action card to lender store chat:', {
+        toStoreId,
+        borrowId: borrow.id,
+        fromStoreName,
+        preview,
+      });
+
+      const chatResult = await sendBotMessage({ storeId: toStoreId, ...actionCard });
+      console.log('[Borrows] Chat action card result:', chatResult);
     } catch (chatErr) {
       console.error('[Borrows] Failed to send chat action card:', chatErr);
     }

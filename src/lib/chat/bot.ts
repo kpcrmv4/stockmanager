@@ -21,6 +21,15 @@ interface SendBotMessageParams {
  */
 export async function sendBotMessage(params: SendBotMessageParams): Promise<boolean> {
   try {
+    console.log('[Chat Bot] sendBotMessage →', {
+      url: BOT_API_URL,
+      storeId: params.storeId,
+      type: params.type,
+      contentPreview: params.content?.slice(0, 80),
+      hasCronSecret: !!process.env.CRON_SECRET,
+      hasAppUrl: !!process.env.NEXT_PUBLIC_APP_URL,
+    });
+
     const res = await fetch(BOT_API_URL, {
       method: 'POST',
       headers: {
@@ -35,7 +44,19 @@ export async function sendBotMessage(params: SendBotMessageParams): Promise<bool
       }),
     });
 
-    return res.ok;
+    if (!res.ok) {
+      const errorBody = await res.text();
+      console.error('[Chat Bot] sendBotMessage HTTP error:', {
+        status: res.status,
+        statusText: res.statusText,
+        body: errorBody,
+      });
+      return false;
+    }
+
+    const result = await res.json();
+    console.log('[Chat Bot] sendBotMessage success:', result);
+    return true;
   } catch (error) {
     console.error('[Chat Bot] sendBotMessage failed:', error);
     return false;

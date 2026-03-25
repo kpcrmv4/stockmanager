@@ -8,6 +8,7 @@ import {
   borrowCompletedFlex,
 } from '@/lib/line/flex-templates';
 import { notifyStoreStaff } from '@/lib/notifications/service';
+import { sendBotMessage } from '@/lib/chat/bot';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -229,6 +230,19 @@ export async function PATCH(
         console.error('[Borrows] Failed to notify lender store:', err);
       }
 
+      // Chat bot — system message to both stores
+      try {
+        const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
+        const msg = `✅ อนุมัติยืมสินค้า — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nอนุมัติโดย: ${currentUserName}`;
+
+        await Promise.allSettled([
+          sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
+          sendBotMessage({ storeId: updatedBorrow.to_store_id, type: 'system', content: msg }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to send chat message (approve):', err);
+      }
+
       // LINE push to borrower store
       try {
         const flexMsg = borrowApprovedFlex({
@@ -320,6 +334,20 @@ export async function PATCH(
         });
       } catch (err) {
         console.error('[Borrows] Failed to notify borrower store:', err);
+      }
+
+      // Chat bot — system message to both stores
+      try {
+        const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
+        const reasonText = body.reason ? `\nเหตุผล: ${body.reason}` : '';
+        const msg = `❌ ปฏิเสธคำขอยืมสินค้า — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nปฏิเสธโดย: ${currentUserName}${reasonText}`;
+
+        await Promise.allSettled([
+          sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
+          sendBotMessage({ storeId: updatedBorrow.to_store_id, type: 'system', content: msg }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to send chat message (reject):', err);
       }
 
       // LINE push to borrower store
@@ -471,6 +499,19 @@ export async function PATCH(
           ]);
         } catch (err) {
           console.error('[Borrows] Failed to notify completion:', err);
+        }
+
+        // Chat bot — system message to both stores
+        try {
+          const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
+          const msg = `🎉 ยืมสินค้าเสร็จสมบูรณ์ — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nทั้งสองฝั่งยืนยันตัดสต๊อก POS แล้ว`;
+
+          await Promise.allSettled([
+            sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
+            sendBotMessage({ storeId: updatedBorrow.to_store_id, type: 'system', content: msg }),
+          ]);
+        } catch (err) {
+          console.error('[Borrows] Failed to send chat message (completed):', err);
         }
 
         // LINE push to both stores
