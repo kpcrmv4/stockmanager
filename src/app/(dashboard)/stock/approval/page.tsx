@@ -30,9 +30,23 @@ import {
 
 type ViewFilter = 'explained' | 'approved' | 'rejected';
 
+const APPROVAL_ROLES = ['owner', 'manager'];
+
 export default function ApprovalPage() {
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
+
+  // Role guard — เฉพาะ owner/manager เท่านั้น
+  if (user && !APPROVAL_ROLES.includes(user.role)) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+        <Shield className="h-10 w-10 text-gray-300 dark:text-gray-600" />
+        <p className="text-sm text-gray-500 dark:text-gray-400">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</p>
+        <a href="/stock" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">กลับหน้าสต๊อก</a>
+      </div>
+    );
+  }
+
   const [loading, setLoading] = useState(true);
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
   const [searchQuery, setSearchQuery] = useState('');

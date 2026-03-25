@@ -12,6 +12,7 @@ import {
   Card,
   CardHeader,
   CardContent,
+  PhotoUpload,
   toast,
 } from '@/components/ui';
 import {
@@ -19,11 +20,9 @@ import {
   Save,
   Trash2,
   Loader2,
-  Image,
   Send,
   Calendar,
   Bell,
-  Upload,
 } from 'lucide-react';
 import { toBangkokISO } from '@/lib/utils/date';
 
@@ -281,38 +280,15 @@ export default function EditAnnouncementPage() {
               />
             </div>
 
-            {/* Image Upload Placeholder */}
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                รูปภาพ (ไม่บังคับ)
-              </label>
-              {imageUrl ? (
-                <div className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-                  <img
-                    src={imageUrl}
-                    alt="รูปประกาศ"
-                    className="h-40 w-full object-cover"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity hover:opacity-100">
-                    <button
-                      type="button"
-                      onClick={() => setImageUrl('')}
-                      className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-white"
-                    >
-                      ลบรูปภาพ
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex h-32 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-800">
-                  <div className="flex flex-col items-center gap-1 text-gray-400">
-                    <Image className="h-6 w-6" />
-                    <p className="text-xs">อัปโหลดรูปภาพ</p>
-                    <p className="text-[10px]">PNG, JPG ไม่เกิน 5MB</p>
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Image Upload */}
+            <PhotoUpload
+              value={imageUrl || null}
+              onChange={(url) => setImageUrl(url || '')}
+              folder="announcements"
+              label="รูปภาพ (ไม่บังคับ)"
+              placeholder="อัปโหลดรูปภาพประกาศ"
+              maxSizeMB={5}
+            />
 
             {/* Send Push Notification */}
             <div className="flex items-center justify-between rounded-lg bg-gray-50 p-3 dark:bg-gray-700">
