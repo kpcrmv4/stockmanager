@@ -56,7 +56,7 @@ self.addEventListener('push', (event) => {
   const options = {
     body: data.body || '',
     icon: data.icon || '/icons/icon-192.png',
-    badge: data.badge || '/icons/icon-72.png',
+    badge: data.badge || '/icons/icon-192.png',
     image: data.image || undefined,  // รูปใหญ่แสดงใน notification (Android)
     data: data.data || {},
     tag: data.tag || (data.data?.room_id ? `chat:${data.data.room_id}` : 'default'),

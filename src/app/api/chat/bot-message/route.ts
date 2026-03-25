@@ -18,6 +18,7 @@ import { createServiceClient, createClient as createServerClient } from '@/lib/s
 import { getChatBotSettings, isBotTypeEnabled, getTimeoutForType, getPriorityForType } from '@/lib/chat/bot-settings';
 import type { ChatMessage, ChatBroadcastPayload, UnreadBadgePayload } from '@/types/chat';
 import { createClient as createRealtimeClient } from '@supabase/supabase-js';
+import { sendPushToUser, type PushPayload } from '@/lib/notifications/push';
 
 export async function POST(request: Request) {
   // Auth check: CRON_SECRET (server-to-server) OR user session (client components)
@@ -133,7 +134,33 @@ export async function POST(request: Request) {
       ));
     }
 
-    // 6. Update pinned summary ถ้าเป็น action_card
+    // 6. Push notification ไปสมาชิกทุกคน (สำหรับคนปิดแอป/ปิดหน้าจอ)
+    if (members) {
+      const { data: roomInfo } = await supabase
+        .from('chat_rooms')
+        .select('name')
+        .eq('id', room.id)
+        .single();
+
+      const pushPayload: PushPayload = {
+        title: roomInfo?.name || 'แชท',
+        body: `Bot: ${content?.slice(0, 100) || 'มีรายการใหม่'}`,
+        url: `/chat/${room.id}`,
+        data: {
+          type: 'chat_message',
+          room_id: room.id,
+          sender_id: 'bot',
+          url: `/chat/${room.id}`,
+        },
+      };
+
+      // Fire-and-forget — ไม่ต้องรอผล push
+      Promise.allSettled(
+        members.map((m) => sendPushToUser(m.user_id, pushPayload))
+      ).catch((err) => console.error('[Bot Push] error:', err));
+    }
+
+    // 7. Update pinned summary ถ้าเป็น action_card
     if (type === 'action_card') {
       await updatePinnedSummary(supabase, room.id);
     }

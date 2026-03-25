@@ -77,8 +77,8 @@ export async function sendWebPush(
     const pushPayload = JSON.stringify({
       title: payload.title,
       body: payload.body,
-      icon: payload.icon || '/icons/icon-192x192.png',
-      badge: payload.badge || '/icons/badge-72x72.png',
+      icon: payload.icon || '/icons/icon-192.png',
+      badge: payload.badge || '/icons/icon-192.png',
       url: payload.url,
       data: payload.data,
     });
