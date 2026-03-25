@@ -56,7 +56,10 @@ function ReplyQuote({ replyMeta, variant }: { replyMeta: ReplyMetadata; variant:
 
 export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBubbleProps) {
   const isBot = !message.sender_id;
-  const senderName = message.sender?.display_name || message.sender?.username || 'Bot';
+  const isSystem = message.type === 'system';
+  const senderName = isSystem
+    ? 'ข้อความจากระบบ'
+    : message.sender?.display_name || message.sender?.username || 'Bot';
   const avatarUrl = (message.sender as { avatar_url?: string | null })?.avatar_url;
   const time = new Date(message.created_at).toLocaleTimeString('th-TH', {
     hour: '2-digit',
@@ -139,7 +142,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isOw
         {/* Sender name */}
         {showSender && (
           <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-            {isBot ? 'Bot' : senderName}
+            {senderName}
           </p>
         )}
 
@@ -152,7 +155,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isOw
                   'px-3 pt-2.5',
                   isBot
                     ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/30 dark:to-orange-900/20'
-                    : 'bg-white dark:bg-gray-750',
+                    : 'bg-white dark:bg-gray-700',
                 )}>
                   <ReplyQuote replyMeta={replyMeta} variant={isBot ? 'bot' : 'other'} />
                 </div>
@@ -170,7 +173,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isOw
                 'rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm leading-relaxed shadow-sm',
                 isBot
                   ? 'bg-gradient-to-br from-amber-50 to-orange-50 text-amber-900 dark:from-amber-900/30 dark:to-orange-900/20 dark:text-amber-200'
-                  : 'bg-white text-gray-800 dark:bg-gray-750 dark:text-gray-200'
+                  : 'bg-white text-gray-800 dark:bg-gray-700 dark:text-gray-200'
               )}
             >
               {replyMeta && <ReplyQuote replyMeta={replyMeta} variant={isBot ? 'bot' : 'other'} />}
