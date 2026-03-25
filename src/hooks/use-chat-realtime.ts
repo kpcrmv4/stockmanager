@@ -158,41 +158,9 @@ export async function sendChatMessage(
     },
   };
 
-  // 2. Broadcast ไปห้อง (สำหรับคนอื่นที่กำลังดู)
-  await broadcastToChannel(supabase, `chat:room:${roomId}`, 'new_message', {
-    type: 'new_message',
-    message,
-  } as unknown as Record<string, unknown>);
-
-  // 3. Broadcast badge ไปทุกคนในห้อง
-  const { data: members } = await supabase
-    .from('chat_members')
-    .select('user_id')
-    .eq('room_id', roomId)
-    .neq('user_id', senderId);
-
-  if (members) {
-    const badgePayload: UnreadBadgePayload = {
-      room_id: roomId,
-      sender_id: senderId,
-      sender_name: senderInfo.display_name || senderInfo.username,
-      preview: content.slice(0, 100),
-      type: 'text',
-    };
-
-    await broadcastToMany(
-      supabase,
-      members.map((member) => ({
-        channel: `chat:badge:${member.user_id}`,
-        event: 'new_message_badge',
-        payload: badgePayload as unknown as Record<string, unknown>,
-      })),
-    );
-  }
-
-  // 4. Fire-and-forget: push notification สำหรับคนที่ปิดหน้าจอ
-  const mentionIds = extractMentionIds(metadata);
-  notifyChatPush(roomId, senderId, senderInfo.display_name || senderInfo.username, content.slice(0, 100), 'text', mentionIds);
+  // 2. Fire-and-forget: Broadcast + Badge + Push (ไม่ block การ return message)
+  broadcastAndNotify(supabase, roomId, senderId, senderInfo, message, content, metadata)
+    .catch((err) => console.error('[Chat] broadcast/notify failed:', err));
 
   return message;
 }
@@ -242,13 +210,37 @@ export async function sendChatImageMessage(
     sender: { id: senderId, ...senderInfo },
   };
 
-  // 3. Broadcast to room
+  // 3. Fire-and-forget: Broadcast + Badge + Push (ไม่ block การ return message)
+  broadcastAndNotify(supabase, roomId, senderId, senderInfo, message, 'ส่งรูปภาพ', null)
+    .catch((err) => console.error('[Chat] image broadcast/notify failed:', err));
+
+  return message;
+}
+
+// ==========================================
+// Helpers
+// ==========================================
+
+/**
+ * Background broadcast + badge + push notification
+ * แยกออกมาเพื่อไม่ block การ return message กลับ UI
+ */
+async function broadcastAndNotify(
+  supabase: ReturnType<typeof createClient>,
+  roomId: string,
+  senderId: string,
+  senderInfo: { username: string; display_name: string | null; avatar_url: string | null; role: string },
+  message: ChatMessage,
+  preview: string,
+  metadata?: Record<string, unknown> | null,
+) {
+  // Broadcast ไปห้อง (สำหรับคนอื่นที่กำลังดู)
   await broadcastToChannel(supabase, `chat:room:${roomId}`, 'new_message', {
     type: 'new_message',
     message,
   } as unknown as Record<string, unknown>);
 
-  // 4. Broadcast badge
+  // Broadcast badge ไปทุกคนในห้อง
   const { data: members } = await supabase
     .from('chat_members')
     .select('user_id')
@@ -260,8 +252,8 @@ export async function sendChatImageMessage(
       room_id: roomId,
       sender_id: senderId,
       sender_name: senderInfo.display_name || senderInfo.username,
-      preview: 'ส่งรูปภาพ',
-      type: 'image',
+      preview: preview.slice(0, 100),
+      type: message.type as 'text' | 'image',
     };
 
     await broadcastToMany(
@@ -274,15 +266,10 @@ export async function sendChatImageMessage(
     );
   }
 
-  // 5. Fire-and-forget: push notification สำหรับคนที่ปิดหน้าจอ
-  notifyChatPush(roomId, senderId, senderInfo.display_name || senderInfo.username, 'ส่งรูปภาพ', 'image');
-
-  return message;
+  // Push notification สำหรับคนที่ปิดหน้าจอ
+  const mentionIds = extractMentionIds(metadata);
+  notifyChatPush(roomId, senderId, senderInfo.display_name || senderInfo.username, preview.slice(0, 100), message.type, mentionIds);
 }
-
-// ==========================================
-// Helpers
-// ==========================================
 
 /** ตรวจสอบว่า message มี @mention ถึง user หรือ @all */
 function checkMention(message: ChatMessage, userId: string): boolean {
