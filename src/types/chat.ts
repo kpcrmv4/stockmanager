@@ -2,6 +2,8 @@
 // Chat System Types
 // ==========================================
 
+import type { TransferCardMetadata } from './transfer-chat';
+
 export type ChatRoomType = 'store' | 'direct' | 'cross_store';
 export type ChatMessageType = 'text' | 'image' | 'action_card' | 'system';
 export type ChatMemberRole = 'member' | 'admin';
@@ -31,7 +33,7 @@ export interface ChatMessage {
   sender_id: string | null;
   type: ChatMessageType;
   content: string | null;
-  metadata: ActionCardMetadata | ReplyMetadata | MentionMetadata | null;
+  metadata: ActionCardMetadata | TransferCardMetadata | ReplyMetadata | MentionMetadata | null;
   created_at: string;
   archived_at: string | null;
   // joined
@@ -73,7 +75,7 @@ export interface ChatPinnedMessage {
 }
 
 export interface ActionCardMetadata {
-  action_type: 'deposit_claim' | 'withdrawal_claim' | 'stock_explain' | 'borrow_approve' | 'generic';
+  action_type: 'deposit_claim' | 'withdrawal_claim' | 'stock_explain' | 'borrow_approve' | 'transfer_receive' | 'generic';
   reference_id: string;
   reference_table: string;
   status: ActionCardStatus;

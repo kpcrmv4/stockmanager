@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils/cn';
 import { notifyStaff } from '@/lib/notifications/client';
 import { sendChatBotMessage } from '@/lib/chat/bot-client';
 import type { ChatMessage, ActionCardMetadata, ChatBroadcastPayload } from '@/types/chat';
+import { TransferActionCard } from './transfer-action-card';
 
 interface ActionCardMessageProps {
   message: ChatMessage;
@@ -42,6 +43,7 @@ const ACTION_TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; lab
   withdrawal_claim: { icon: Package, color: 'blue', label: 'คำขอเบิกเหล้า' },
   stock_explain: { icon: ClipboardCheck, color: 'amber', label: 'สต๊อกไม่ตรง' },
   borrow_approve: { icon: Repeat, color: 'violet', label: 'คำขอยืมสินค้า' },
+  transfer_receive: { icon: Package, color: 'orange', label: 'โอนสต๊อกเข้าคลังกลาง' },
   generic: { icon: ClipboardCheck, color: 'gray', label: 'งานใหม่' },
 };
 
@@ -59,6 +61,18 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   const meta = message.metadata as ActionCardMetadata | null;
 
   if (!meta) return null;
+
+  // Transfer cards ใช้ component เฉพาะ
+  if (meta.action_type === 'transfer_receive') {
+    return (
+      <TransferActionCard
+        message={message}
+        currentUserId={currentUserId}
+        currentUserName={currentUserName}
+        roomId={roomId}
+      />
+    );
+  }
 
   const config = ACTION_TYPE_CONFIG[meta.action_type] || ACTION_TYPE_CONFIG.generic;
   const Icon = config.icon;

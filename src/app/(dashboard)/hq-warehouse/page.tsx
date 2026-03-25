@@ -29,6 +29,11 @@ import { todayBangkok, startOfTodayBangkokISO, daysAgoBangkokISO } from '@/lib/u
 import { PhotoUpload } from '@/components/ui/photo-upload';
 import { toast } from '@/components/ui';
 import type { Store } from '@/types/database';
+import {
+  notifyChatTransferReceived,
+  notifyChatTransferRejected,
+  notifyChatHqWithdrawal,
+} from '@/lib/chat/transfer-bot-client';
 
 // ==========================================
 // Types
@@ -609,6 +614,14 @@ export default function HqWarehousePage() {
       }
 
       toast({ type: 'success', title: 'รับสินค้าเข้าคลังเรียบร้อย' });
+
+      // ส่ง system message กลับไปห้องสาขาต้นทาง
+      notifyChatTransferReceived(selectedTransfer.from_store_id, {
+        transfer_code: selectedTransfer.transfer_code,
+        item_count: 1,
+        received_by_name: user.displayName || user.username || 'พนักงาน HQ',
+      });
+
       setShowConfirmModal(false);
       setSelectedTransfer(null);
       await loadAllData();
@@ -649,6 +662,15 @@ export default function HqWarehousePage() {
       }
 
       toast({ type: 'success', title: 'ปฏิเสธการโอนเรียบร้อย' });
+
+      // ส่ง system message กลับไปห้องสาขาต้นทาง
+      notifyChatTransferRejected(rejectingTransfer.from_store_id, {
+        transfer_code: rejectingTransfer.transfer_code,
+        product_name: rejectingTransfer.product_name || 'สินค้า',
+        rejected_by_name: user?.displayName || user?.username || 'พนักงาน HQ',
+        reason: rejectReason.trim(),
+      });
+
       setShowRejectModal(false);
       setRejectingTransfer(null);
       await loadAllData();
@@ -716,6 +738,14 @@ export default function HqWarehousePage() {
       }
 
       toast({ type: 'success', title: 'รับสินค้าทั้งหมดเรียบร้อย', message: `รับ ${batchConfirmGroup.items.length} รายการ (${batchConfirmGroup.transfer_code})` });
+
+      // ส่ง system message กลับไปห้องสาขาต้นทาง
+      notifyChatTransferReceived(batchConfirmGroup.items[0].from_store_id, {
+        transfer_code: batchConfirmGroup.transfer_code,
+        item_count: batchConfirmGroup.items.length,
+        received_by_name: user?.displayName || user?.username || 'พนักงาน HQ',
+      });
+
       setShowBatchConfirmModal(false);
       setBatchConfirmGroup(null);
       await loadAllData();
@@ -752,6 +782,19 @@ export default function HqWarehousePage() {
       if (error) throw error;
 
       toast({ type: 'success', title: 'จำหน่ายออกเรียบร้อย' });
+
+      // ส่ง system message ไปห้อง HQ + ห้องสาขาต้นทาง
+      const centralId = centralStoreIds[0];
+      if (centralId) {
+        notifyChatHqWithdrawal(centralId, {
+          product_name: selectedHqDeposit.product_name || 'สินค้า',
+          customer_name: selectedHqDeposit.customer_name,
+          from_store_name: selectedHqDeposit.from_store_name,
+          withdrawn_by_name: user?.displayName || user?.username || 'พนักงาน HQ',
+          notes: withdrawNotes || null,
+        });
+      }
+
       setShowWithdrawModal(false);
       setSelectedHqDeposit(null);
       await loadAllData();
