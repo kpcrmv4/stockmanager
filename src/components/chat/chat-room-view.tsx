@@ -160,11 +160,18 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
 
     if (isPinned) {
       // Unpin
-      await supabase
+      const { error } = await supabase
         .from('chat_pinned_messages')
         .delete()
         .eq('room_id', roomId)
         .eq('message_id', messageId);
+
+      if (error) {
+        console.error('[Pin] unpin failed:', error);
+        setContextMenu(null);
+        return;
+      }
+
       removePinnedMessage(messageId);
 
       // Broadcast unpin
@@ -176,26 +183,30 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
     } else {
       // Pin
       const msg = messages.find((m) => m.id === messageId);
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('chat_pinned_messages')
         .insert({ room_id: roomId, message_id: messageId, pinned_by: user.id })
         .select('id, room_id, message_id, pinned_by, pinned_at')
         .single();
 
-      if (data) {
-        const pinnedMsg: ChatPinnedMessage = {
-          ...data,
-          message: msg,
-        };
-        addPinnedMessage(pinnedMsg);
-
-        // Broadcast pin
-        supabase.channel(`chat:room:${roomId}`).send({
-          type: 'broadcast',
-          event: 'message_pinned',
-          payload: { type: 'message_pinned', pinned_message: pinnedMsg, room_id: roomId },
-        });
+      if (error || !data) {
+        console.error('[Pin] pin failed:', error);
+        setContextMenu(null);
+        return;
       }
+
+      const pinnedMsg: ChatPinnedMessage = {
+        ...data,
+        message: msg,
+      };
+      addPinnedMessage(pinnedMsg);
+
+      // Broadcast pin
+      supabase.channel(`chat:room:${roomId}`).send({
+        type: 'broadcast',
+        event: 'message_pinned',
+        payload: { type: 'message_pinned', pinned_message: pinnedMsg, room_id: roomId },
+      });
     }
 
     setContextMenu(null);
