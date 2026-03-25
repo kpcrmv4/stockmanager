@@ -12,9 +12,10 @@ import {
   Card,
   CardHeader,
   CardContent,
+  PhotoUpload,
   toast,
 } from '@/components/ui';
-import { ArrowLeft, Megaphone, Upload, Bell } from 'lucide-react';
+import { ArrowLeft, Megaphone, Bell } from 'lucide-react';
 import { todayBangkok, toBangkokISO } from '@/lib/utils/date';
 
 interface StoreOption {
@@ -36,6 +37,7 @@ export default function NewAnnouncementPage() {
   const [storeId, setStoreId] = useState('');
   const [startDate, setStartDate] = useState(todayBangkok());
   const [endDate, setEndDate] = useState('');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [sendPush, setSendPush] = useState(false);
 
   useEffect(() => {
@@ -67,6 +69,7 @@ export default function NewAnnouncementPage() {
       target_audience: targetAudience,
       start_date: toBangkokISO(new Date(startDate + 'T00:00:00+07:00')),
       end_date: endDate ? toBangkokISO(new Date(endDate + 'T23:59:59+07:00')) : null,
+      image_url: imageUrl || null,
       send_push: sendPush,
       active: true,
       created_by: user.id,
@@ -169,19 +172,15 @@ export default function NewAnnouncementPage() {
               />
             </div>
 
-            {/* Image Upload Placeholder */}
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                รูปภาพ (ไม่บังคับ)
-              </label>
-              <div className="flex h-32 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-800">
-                <div className="flex flex-col items-center gap-1 text-gray-400">
-                  <Upload className="h-6 w-6" />
-                  <p className="text-xs">อัปโหลดรูปภาพ</p>
-                  <p className="text-[10px]">PNG, JPG ไม่เกิน 5MB</p>
-                </div>
-              </div>
-            </div>
+            {/* Image Upload */}
+            <PhotoUpload
+              value={imageUrl}
+              onChange={setImageUrl}
+              folder="announcements"
+              label="รูปภาพ (ไม่บังคับ)"
+              placeholder="อัปโหลดรูปภาพประกาศ"
+              maxSizeMB={5}
+            />
 
             {/* Send Push */}
             <div className="flex items-center justify-between rounded-lg bg-gray-50 p-3 dark:bg-gray-700">
