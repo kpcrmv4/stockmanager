@@ -157,7 +157,7 @@ export async function PATCH(
     .eq('id', user.id)
     .single();
 
-  const currentUserName = userProfile?.display_name || 'Unknown';
+  const currentUserName = userProfile?.display_name || user.email || 'Unknown';
 
   try {
     // =====================================================================

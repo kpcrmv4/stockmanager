@@ -1012,62 +1012,72 @@ function BorrowDetailSheet({
             </div>
           )}
 
-          {/* INCOMING: lender POS confirm */}
-          {isLenderSide && (borrow.status === 'approved' || borrow.status === 'pos_adjusting') && (
-            <div>
-              {borrow.lender_pos_confirmed ? (
-                <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4" />
-                  ฝั่งเราตัดสต๊อกแล้ว
-                </div>
-              ) : (
-                <Button
-                  className="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 dark:bg-purple-500 dark:hover:bg-purple-600"
-                  icon={<Check className="h-4 w-4" />}
-                  onClick={() => handleConfirmPos('lender')}
-                  isLoading={isActing}
-                >
-                  ยืนยันตัดสต๊อก POS (ฝั่งเรา)
-                </Button>
+          {/* Pending: cancel (borrower) or waiting message */}
+          {borrow.status === 'pending_approval' && (
+            <div className="space-y-3">
+              {isBorrowerSide && (
+                <>
+                  <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
+                    <Clock className="h-4 w-4" />
+                    รออนุมัติจากสาขา {borrow.to_store_name || ''}
+                  </div>
+                  <Button
+                    className="w-full"
+                    variant="danger"
+                    icon={<XCircle className="h-4 w-4" />}
+                    onClick={handleCancel}
+                    isLoading={isActing}
+                  >
+                    ยกเลิกคำขอยืม
+                  </Button>
+                </>
               )}
             </div>
           )}
 
-          {/* OUTGOING: borrower status messages & POS confirm */}
-          {isBorrowerSide && borrow.status === 'pending_approval' && (
+          {/* POS confirm — show both sides with clear labels */}
+          {(borrow.status === 'approved' || borrow.status === 'pos_adjusting') && (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
-                <Clock className="h-4 w-4" />
-                รออนุมัติจากสาขา {borrow.to_store_name || ''}
-              </div>
-              <Button
-                className="w-full"
-                variant="danger"
-                icon={<XCircle className="h-4 w-4" />}
-                onClick={handleCancel}
-                isLoading={isActing}
-              >
-                ยกเลิกคำขอยืม
-              </Button>
-            </div>
-          )}
-
-          {isBorrowerSide && (borrow.status === 'approved' || borrow.status === 'pos_adjusting') && (
-            <div>
-              {borrow.borrower_pos_confirmed ? (
-                <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4" />
-                  ฝั่งเราตัดสต๊อกแล้ว
+              {/* ฝั่งผู้ให้ยืม (lender) */}
+              {isLenderSide && (
+                <div>
+                  {borrow.lender_pos_confirmed ? (
+                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
+                      <CheckCircle2 className="h-4 w-4" />
+                      ฝั่งผู้ให้ยืม ({borrow.to_store_name}) ตัดสต๊อกแล้ว
+                    </div>
+                  ) : (
+                    <Button
+                      className="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 dark:bg-purple-500 dark:hover:bg-purple-600"
+                      icon={<Check className="h-4 w-4" />}
+                      onClick={() => handleConfirmPos('lender')}
+                      isLoading={isActing}
+                    >
+                      ยืนยันตัดสต๊อก POS (ฝั่งผู้ให้ยืม)
+                    </Button>
+                  )}
                 </div>
-              ) : (
-                <Button
-                  className="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 dark:bg-purple-500 dark:hover:bg-purple-600"
-                  icon={<Check className="h-4 w-4" />}
-                  onClick={() => handleConfirmPos('borrower')}
-                  isLoading={isActing}
-                >
-                  ยืนยันตัดสต๊อก POS (ฝั่งเรา)
-                </Button>
+              )}
+
+              {/* ฝั่งผู้ยืม (borrower) */}
+              {isBorrowerSide && (
+                <div>
+                  {borrow.borrower_pos_confirmed ? (
+                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
+                      <CheckCircle2 className="h-4 w-4" />
+                      ฝั่งผู้ยืม ({borrow.from_store_name}) ตัดสต๊อกแล้ว
+                    </div>
+                  ) : (
+                    <Button
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+                      icon={<Check className="h-4 w-4" />}
+                      onClick={() => handleConfirmPos('borrower')}
+                      isLoading={isActing}
+                    >
+                      ยืนยันตัดสต๊อก POS (ฝั่งผู้ยืม)
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -1094,19 +1104,53 @@ export default function BorrowPage() {
   const [selectedBorrow, setSelectedBorrow] = useState<BorrowWithDetails | null>(null);
 
   // -----------------------------------------------------------------------
-  // Fetch borrows
+  // Fetch borrows — direct Supabase client (skip API route for speed)
   // -----------------------------------------------------------------------
 
   const fetchBorrows = useCallback(async () => {
     if (!currentStoreId) return;
     setIsLoading(true);
     try {
-      const res = await fetch(
-        `/api/borrows?storeId=${currentStoreId}&tab=${activeTab}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setBorrows(data);
+      const supabase = createClient();
+
+      let query = supabase
+        .from('borrows')
+        .select(`
+          *,
+          borrow_items (*),
+          from_store:stores!borrows_from_store_id_fkey (id, store_name, store_code),
+          to_store:stores!borrows_to_store_id_fkey (id, store_name, store_code),
+          requester:profiles!borrows_requested_by_fkey (id, display_name),
+          approver:profiles!borrows_approved_by_fkey (id, display_name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (activeTab === 'incoming') {
+        query = query.eq('to_store_id', currentStoreId);
+      } else {
+        query = query.eq('from_store_id', currentStoreId);
+      }
+
+      const { data } = await query;
+
+      if (data) {
+        const mapped: BorrowWithDetails[] = data.map((b: Record<string, unknown>) => {
+          const fromStore = b.from_store as Record<string, string> | null;
+          const toStore = b.to_store as Record<string, string> | null;
+          const req = b.requester as Record<string, string> | null;
+          const appr = b.approver as Record<string, string> | null;
+          const items = b.borrow_items as BorrowItem[];
+          const { from_store: _f, to_store: _t, requester: _r, approver: _a, borrow_items: _bi, ...rest } = b;
+          return {
+            ...rest,
+            from_store_name: fromStore?.store_name || null,
+            to_store_name: toStore?.store_name || null,
+            requester_name: req?.display_name || null,
+            approver_name: appr?.display_name || null,
+            items: items || [],
+          } as BorrowWithDetails;
+        });
+        setBorrows(mapped);
       }
     } catch {
       // silently ignore — user will see empty state
@@ -1177,12 +1221,8 @@ export default function BorrowPage() {
   // Computed
   // -----------------------------------------------------------------------
 
-  const outgoingPendingCount = borrows.filter(
-    (b) => activeTab === 'outgoing' && b.status === 'pending_approval'
-  ).length;
-  const incomingPendingCount = borrows.filter(
-    (b) => activeTab === 'incoming' && b.status === 'pending_approval'
-  ).length;
+  const pendingCount = borrows.filter((b) => b.status === 'pending_approval').length;
+  const posWaitingCount = borrows.filter((b) => b.status === 'approved' || b.status === 'pos_adjusting').length;
 
   const currentStoreName =
     stores.find((s) => s.id === currentStoreId)?.store_name || '';
@@ -1191,13 +1231,15 @@ export default function BorrowPage() {
   const outgoingSubTabs = [
     { key: 'all', label: 'ทั้งหมด' },
     { key: 'pending_approval', label: 'รออนุมัติ' },
+    { key: 'pos_waiting', label: 'รอตัดสต๊อก' },
     { key: 'completed', label: 'ยืมสำเร็จ' },
     { key: 'cancelled_rejected', label: 'ยกเลิก' },
   ];
   const incomingSubTabs = [
     { key: 'all', label: 'ทั้งหมด' },
     { key: 'pending_approval', label: 'รออนุมัติ' },
-    { key: 'approved', label: 'อนุมัติแล้ว' },
+    { key: 'pos_waiting', label: 'รอตัดสต๊อก' },
+    { key: 'completed', label: 'เสร็จสิ้น' },
     { key: 'cancelled_rejected', label: 'ยกเลิก' },
   ];
   const subTabs = activeTab === 'outgoing' ? outgoingSubTabs : incomingSubTabs;
@@ -1205,7 +1247,7 @@ export default function BorrowPage() {
   const filteredBorrows = borrows.filter((b) => {
     if (statusFilter === 'all') return true;
     if (statusFilter === 'cancelled_rejected') return b.status === 'cancelled' || b.status === 'rejected';
-    if (statusFilter === 'approved') return b.status === 'approved' || b.status === 'pos_adjusting';
+    if (statusFilter === 'pos_waiting') return b.status === 'approved' || b.status === 'pos_adjusting';
     return b.status === statusFilter;
   });
 
@@ -1235,34 +1277,30 @@ export default function BorrowPage() {
       <div className="grid grid-cols-2 gap-3">
         <Card padding="md">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-100 to-cyan-100 dark:from-teal-900/30 dark:to-cyan-900/30">
-              <Send className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30">
+              <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {activeTab === 'outgoing'
-                  ? borrows.filter((b) => b.status === 'pending_approval').length
-                  : outgoingPendingCount}
+                {pendingCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                รายการขอยืม (รอดำเนินการ)
+                รออนุมัติ
               </p>
             </div>
           </div>
         </Card>
         <Card padding="md">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-100 to-teal-100 dark:from-cyan-900/30 dark:to-teal-900/30">
-              <Package className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30">
+              <AlertCircle className="h-5 w-5 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {activeTab === 'incoming'
-                  ? borrows.filter((b) => b.status === 'pending_approval').length
-                  : incomingPendingCount}
+                {posWaitingCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                รายการให้ยืม (รอดำเนินการ)
+                รอตัดสต๊อก POS
               </p>
             </div>
           </div>
@@ -1312,7 +1350,7 @@ export default function BorrowPage() {
             ? borrows.length
             : st.key === 'cancelled_rejected'
               ? borrows.filter((b) => b.status === 'cancelled' || b.status === 'rejected').length
-              : st.key === 'approved'
+              : st.key === 'pos_waiting'
                 ? borrows.filter((b) => b.status === 'approved' || b.status === 'pos_adjusting').length
                 : borrows.filter((b) => b.status === st.key).length;
           return (
