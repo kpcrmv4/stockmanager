@@ -302,7 +302,7 @@ CREATE TABLE borrow_items (
   product_name TEXT NOT NULL,
   category TEXT,
   quantity NUMERIC(10,2) NOT NULL,
-  approved_quantity INTEGER,               -- จำนวนที่อนุมัติจริง (อาจน้อยกว่าที่ขอ)
+  approved_quantity NUMERIC(10,2),          -- จำนวนที่อนุมัติจริง (อาจน้อยกว่าที่ขอ)
   unit TEXT,
   notes TEXT
 );
