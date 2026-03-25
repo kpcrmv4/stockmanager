@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, memo } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { broadcastToChannel } from '@/lib/supabase/broadcast';
@@ -21,6 +21,8 @@ import {
   ExternalLink,
   ThumbsUp,
   ThumbsDown,
+  Minus,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { notifyStaff } from '@/lib/notifications/client';
@@ -71,6 +73,32 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   // Borrow-specific status
   const isBorrow = meta.action_type === 'borrow_approve';
   const borrowStatus = meta.borrow_status || (isPending ? 'pending_approval' : undefined);
+
+  // Borrow items state (fetch on mount for pending borrows)
+  interface BorrowItem { id: string; product_name: string; quantity: number; unit: string | null; }
+  const [borrowItems, setBorrowItems] = useState<BorrowItem[]>([]);
+  const [approvedQtys, setApprovedQtys] = useState<Record<string, number>>({});
+  const [borrowItemsLoaded, setBorrowItemsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!isBorrow || borrowStatus !== 'pending_approval' || !isPending || borrowItemsLoaded) return;
+    const supabase = createClient();
+    supabase
+      .from('borrow_items')
+      .select('id, product_name, quantity, unit')
+      .eq('borrow_id', meta.reference_id)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setBorrowItems(data);
+          const qtys: Record<string, number> = {};
+          for (const item of data) {
+            qtys[item.id] = item.quantity; // default = จำนวนที่ขอ
+          }
+          setApprovedQtys(qtys);
+        }
+        setBorrowItemsLoaded(true);
+      });
+  }, [isBorrow, borrowStatus, isPending, meta.reference_id, borrowItemsLoaded]);
 
   // ==========================================
   // Generic action card handler (deposit, withdrawal, stock)
@@ -150,12 +178,20 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   const handleBorrowAction = async (action: 'approve' | 'reject') => {
     setLoading(true);
     try {
+      const approvedItems = action === 'approve' && borrowItems.length > 0
+        ? borrowItems.map((item) => ({
+            itemId: item.id,
+            approvedQuantity: approvedQtys[item.id] ?? item.quantity,
+          }))
+        : undefined;
+
       const res = await fetch(`/api/borrows/${meta.reference_id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action,
           lenderPhotoUrl: action === 'approve' ? photoUrl : undefined,
+          approvedItems,
         }),
       });
 
@@ -245,6 +281,60 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             {/* Pending — แสดงปุ่มอนุมัติ/ปฏิเสธ */}
             {borrowStatus === 'pending_approval' && isPending && (
               <div className="space-y-2">
+                {/* Borrow items — กำหนดจำนวนอนุมัติ */}
+                {borrowItems.length > 0 && (
+                  <div className="space-y-1.5 rounded-lg bg-gray-50 p-2 dark:bg-gray-700/30">
+                    <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                      กำหนดจำนวนอนุมัติ
+                    </p>
+                    {borrowItems.map((item) => {
+                      const qty = approvedQtys[item.id] ?? item.quantity;
+                      return (
+                        <div key={item.id} className="flex items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-gray-300">
+                            {item.product_name}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setApprovedQtys((prev) => ({
+                                ...prev,
+                                [item.id]: Math.max(0, qty - 1),
+                              }))}
+                              className="flex h-6 w-6 items-center justify-center rounded-md bg-gray-200 text-gray-600 transition-colors hover:bg-gray-300 active:bg-gray-400 dark:bg-gray-600 dark:text-gray-300 dark:hover:bg-gray-500"
+                            >
+                              <Minus className="h-3 w-3" />
+                            </button>
+                            <input
+                              type="number"
+                              min={0}
+                              max={item.quantity}
+                              value={qty}
+                              onChange={(e) => {
+                                const val = Math.max(0, Math.min(item.quantity, Number(e.target.value) || 0));
+                                setApprovedQtys((prev) => ({ ...prev, [item.id]: val }));
+                              }}
+                              className="h-6 w-10 rounded-md border border-gray-200 bg-white text-center text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setApprovedQtys((prev) => ({
+                                ...prev,
+                                [item.id]: Math.min(item.quantity, qty + 1),
+                              }))}
+                              className="flex h-6 w-6 items-center justify-center rounded-md bg-gray-200 text-gray-600 transition-colors hover:bg-gray-300 active:bg-gray-400 dark:bg-gray-600 dark:text-gray-300 dark:hover:bg-gray-500"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </button>
+                            <span className="text-[11px] text-gray-400">
+                              /{item.quantity} {item.unit || ''}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 {/* ถ่ายรูปสินค้า (ไม่บังคับ) */}
                 <PhotoUpload
                   value={photoUrl}
@@ -275,14 +365,6 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                     ปฏิเสธ
                   </Button>
                 </div>
-                {/* Link ไปหน้ายืมเพื่อกำหนดจำนวน */}
-                <button
-                  onClick={() => router.push('/borrow')}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] text-gray-400 transition-colors hover:text-violet-600 dark:hover:text-violet-400"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  ดูรายละเอียด / กำหนดจำนวนอนุมัติ
-                </button>
               </div>
             )}
 
