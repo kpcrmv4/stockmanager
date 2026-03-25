@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    const requesterName = profile?.display_name || 'Unknown';
+    const requesterName = profile?.display_name || user.email || 'Unknown';
 
     // ----- Notify lender store (in-app + PWA push) -----
     try {

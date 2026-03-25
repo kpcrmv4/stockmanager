@@ -2,11 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, ChevronDown, LogOut, User, Settings, Bell } from 'lucide-react';
+import { Menu, ChevronDown, LogOut, User, Settings, Bell, MessageSquare } from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { NotificationCenter } from '@/components/layout/notification-center';
+import { useChatStore } from '@/stores/chat-store';
 import { ROLE_LABELS } from '@/types/roles';
 import type { Store } from '@/types/database';
 
@@ -32,6 +34,7 @@ export function TopBar({
   const { currentStoreId } = useAppStore();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const chatUnread = useChatStore((s) => s.totalUnread);
 
   const currentStore = stores.find((s) => s.id === currentStoreId);
 
@@ -89,6 +92,20 @@ export function TopBar({
 
       {/* ขวา: การแจ้งเตือน + User avatar */}
       <div className="flex items-center gap-2">
+        {/* ปุ่มแชท */}
+        <Link
+          href="/chat"
+          className="relative flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+          title="แชท"
+        >
+          <MessageSquare className="h-5 w-5" />
+          {chatUnread > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white">
+              {chatUnread > 99 ? '99+' : chatUnread}
+            </span>
+          )}
+        </Link>
+
         {/* ปุ่มแจ้งเตือน */}
         <NotificationCenter />
 

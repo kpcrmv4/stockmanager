@@ -163,7 +163,11 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
 
         {/* Summary */}
         <div className="mb-3 space-y-0.5 text-xs text-gray-600 dark:text-gray-300">
-          {meta.summary.customer && <p>ลูกค้า: {meta.summary.customer}</p>}
+          {meta.summary.customer && (
+            <p>
+              {meta.action_type === 'borrow_approve' ? 'สาขา' : 'ลูกค้า'}: {meta.summary.customer}
+            </p>
+          )}
           {meta.summary.items && <p>รายการ: {meta.summary.items}</p>}
           {meta.summary.note && (
             <p className="italic text-gray-400">"{meta.summary.note}"</p>
