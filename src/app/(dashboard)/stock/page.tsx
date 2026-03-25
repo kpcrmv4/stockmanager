@@ -354,27 +354,27 @@ export default function StockOverviewPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-white">
             ระบบนับสต๊อก
           </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-0.5 text-xs text-gray-500 sm:mt-1 sm:text-sm dark:text-gray-400">
             ภาพรวมการนับสต๊อกและตรวจสอบส่วนต่าง
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Link
             href="/stock/products"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-700 active:bg-cyan-800"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors sm:px-3 sm:py-2 sm:text-sm hover:bg-cyan-700 active:bg-cyan-800"
           >
-            <Package className="h-4 w-4" />
+            <Package className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             จัดการสินค้า
           </Link>
           <Button
             variant="outline"
             size="sm"
-            icon={<RefreshCw className="h-4 w-4" />}
+            icon={<RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
             onClick={fetchData}
           >
             รีเฟรช
