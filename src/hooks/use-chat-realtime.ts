@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { broadcastToChannel, broadcastToMany } from '@/lib/supabase/broadcast';
 import { useChatStore } from '@/stores/chat-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useChatSound } from './use-chat-sound';
@@ -158,11 +159,10 @@ export async function sendChatMessage(
   };
 
   // 2. Broadcast ไปห้อง (สำหรับคนอื่นที่กำลังดู)
-  await supabase.channel(`chat:room:${roomId}`).send({
-    type: 'broadcast',
-    event: 'new_message',
-    payload: { type: 'new_message', message } as ChatBroadcastPayload,
-  });
+  await broadcastToChannel(supabase, `chat:room:${roomId}`, 'new_message', {
+    type: 'new_message',
+    message,
+  } as unknown as Record<string, unknown>);
 
   // 3. Broadcast badge ไปทุกคนในห้อง
   const { data: members } = await supabase
@@ -180,13 +180,14 @@ export async function sendChatMessage(
       type: 'text',
     };
 
-    await Promise.all(members.map((member) =>
-      supabase.channel(`chat:badge:${member.user_id}`).send({
-        type: 'broadcast',
+    await broadcastToMany(
+      supabase,
+      members.map((member) => ({
+        channel: `chat:badge:${member.user_id}`,
         event: 'new_message_badge',
-        payload: badgePayload,
-      })
-    ));
+        payload: badgePayload as unknown as Record<string, unknown>,
+      })),
+    );
   }
 
   // 4. Fire-and-forget: push notification สำหรับคนที่ปิดหน้าจอ
@@ -242,11 +243,10 @@ export async function sendChatImageMessage(
   };
 
   // 3. Broadcast to room
-  await supabase.channel(`chat:room:${roomId}`).send({
-    type: 'broadcast',
-    event: 'new_message',
-    payload: { type: 'new_message', message } as ChatBroadcastPayload,
-  });
+  await broadcastToChannel(supabase, `chat:room:${roomId}`, 'new_message', {
+    type: 'new_message',
+    message,
+  } as unknown as Record<string, unknown>);
 
   // 4. Broadcast badge
   const { data: members } = await supabase
@@ -264,13 +264,14 @@ export async function sendChatImageMessage(
       type: 'image',
     };
 
-    await Promise.all(members.map((member) =>
-      supabase.channel(`chat:badge:${member.user_id}`).send({
-        type: 'broadcast',
+    await broadcastToMany(
+      supabase,
+      members.map((member) => ({
+        channel: `chat:badge:${member.user_id}`,
         event: 'new_message_badge',
-        payload: badgePayload,
-      })
-    ));
+        payload: badgePayload as unknown as Record<string, unknown>,
+      })),
+    );
   }
 
   // 5. Fire-and-forget: push notification สำหรับคนที่ปิดหน้าจอ

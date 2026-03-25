@@ -98,22 +98,26 @@ export async function POST(request: NextRequest) {
 
     // 6. Send push to each active (non-muted) member
     let sent = 0;
+    console.log(`[ChatNotify] Sending push to ${activeMembers.length} members for room ${room_id}`);
+
     const results = await Promise.allSettled(
       activeMembers.map(async (m) => {
         const count = await sendPushToUser(m.user_id, payload);
         if (count > 0) sent += count;
+        return { user_id: m.user_id, count };
       }),
     );
 
-    // Log failures
+    // Log results
     const failures = results.filter((r) => r.status === 'rejected');
     if (failures.length > 0) {
       console.error(
         `[ChatNotify] ${failures.length} push(es) failed for room ${room_id}`,
       );
     }
+    console.log(`[ChatNotify] Push sent: ${sent}/${activeMembers.length} for room ${room_id}`);
 
-    return NextResponse.json({ status: 'ok', sent });
+    return NextResponse.json({ status: 'ok', sent, total_members: activeMembers.length });
   } catch (error) {
     console.error('[ChatNotify] error:', error);
     return NextResponse.json(
