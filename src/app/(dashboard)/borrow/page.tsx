@@ -1221,12 +1221,8 @@ export default function BorrowPage() {
   // Computed
   // -----------------------------------------------------------------------
 
-  const outgoingPendingCount = borrows.filter(
-    (b) => activeTab === 'outgoing' && b.status === 'pending_approval'
-  ).length;
-  const incomingPendingCount = borrows.filter(
-    (b) => activeTab === 'incoming' && b.status === 'pending_approval'
-  ).length;
+  const pendingCount = borrows.filter((b) => b.status === 'pending_approval').length;
+  const posWaitingCount = borrows.filter((b) => b.status === 'approved' || b.status === 'pos_adjusting').length;
 
   const currentStoreName =
     stores.find((s) => s.id === currentStoreId)?.store_name || '';
@@ -1235,13 +1231,15 @@ export default function BorrowPage() {
   const outgoingSubTabs = [
     { key: 'all', label: 'ทั้งหมด' },
     { key: 'pending_approval', label: 'รออนุมัติ' },
+    { key: 'pos_waiting', label: 'รอตัดสต๊อก' },
     { key: 'completed', label: 'ยืมสำเร็จ' },
     { key: 'cancelled_rejected', label: 'ยกเลิก' },
   ];
   const incomingSubTabs = [
     { key: 'all', label: 'ทั้งหมด' },
     { key: 'pending_approval', label: 'รออนุมัติ' },
-    { key: 'approved', label: 'อนุมัติแล้ว' },
+    { key: 'pos_waiting', label: 'รอตัดสต๊อก' },
+    { key: 'completed', label: 'เสร็จสิ้น' },
     { key: 'cancelled_rejected', label: 'ยกเลิก' },
   ];
   const subTabs = activeTab === 'outgoing' ? outgoingSubTabs : incomingSubTabs;
@@ -1249,7 +1247,7 @@ export default function BorrowPage() {
   const filteredBorrows = borrows.filter((b) => {
     if (statusFilter === 'all') return true;
     if (statusFilter === 'cancelled_rejected') return b.status === 'cancelled' || b.status === 'rejected';
-    if (statusFilter === 'approved') return b.status === 'approved' || b.status === 'pos_adjusting';
+    if (statusFilter === 'pos_waiting') return b.status === 'approved' || b.status === 'pos_adjusting';
     return b.status === statusFilter;
   });
 
@@ -1279,34 +1277,30 @@ export default function BorrowPage() {
       <div className="grid grid-cols-2 gap-3">
         <Card padding="md">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-100 to-cyan-100 dark:from-teal-900/30 dark:to-cyan-900/30">
-              <Send className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30">
+              <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {activeTab === 'outgoing'
-                  ? borrows.filter((b) => b.status === 'pending_approval').length
-                  : outgoingPendingCount}
+                {pendingCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                รายการขอยืม (รอดำเนินการ)
+                รออนุมัติ
               </p>
             </div>
           </div>
         </Card>
         <Card padding="md">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-100 to-teal-100 dark:from-cyan-900/30 dark:to-teal-900/30">
-              <Package className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30">
+              <AlertCircle className="h-5 w-5 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {activeTab === 'incoming'
-                  ? borrows.filter((b) => b.status === 'pending_approval').length
-                  : incomingPendingCount}
+                {posWaitingCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                รายการให้ยืม (รอดำเนินการ)
+                รอตัดสต๊อก POS
               </p>
             </div>
           </div>
@@ -1356,7 +1350,7 @@ export default function BorrowPage() {
             ? borrows.length
             : st.key === 'cancelled_rejected'
               ? borrows.filter((b) => b.status === 'cancelled' || b.status === 'rejected').length
-              : st.key === 'approved'
+              : st.key === 'pos_waiting'
                 ? borrows.filter((b) => b.status === 'approved' || b.status === 'pos_adjusting').length
                 : borrows.filter((b) => b.status === st.key).length;
           return (
