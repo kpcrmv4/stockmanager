@@ -38,6 +38,9 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const isInitialRef = useRef(true);
+  const isNearBottomRef = useRef(true);
+  const [showNewMessageToast, setShowNewMessageToast] = useState(false);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -112,24 +115,51 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   // Realtime
   useChatRealtime(roomId);
 
-  // Scroll to bottom on new messages (initial + own messages)
+  // Scroll to bottom on new messages (initial + own messages + near bottom)
   useEffect(() => {
     if (isInitialRef.current && messages.length > 0) {
       bottomRef.current?.scrollIntoView();
       isInitialRef.current = false;
       return;
     }
-    // Scroll to bottom if latest message is from self
     const last = messages[messages.length - 1];
-    if (last && last.sender_id === user?.id) {
+    if (!last) return;
+
+    // ถ้าเป็นข้อความตัวเอง หรือ อยู่ใกล้ล่างสุดอยู่แล้ว → เลื่อนลงอัตโนมัติ
+    if (last.sender_id === user?.id || isNearBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      // เลื่อนขึ้นอยู่ → แสดง toast "มีข้อความใหม่"
+      setShowNewMessageToast(true);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setShowNewMessageToast(false), 3000);
     }
   }, [messages, user?.id]);
 
-  // Scroll detection for loading older messages
+  // Cleanup toast timer
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  // Scroll detection for loading older messages + near-bottom tracking
   const handleScroll = () => {
     const el = scrollRef.current;
-    if (!el || !hasMore || isLoadingMessages) return;
+    if (!el) return;
+
+    // Track ว่าอยู่ใกล้ล่างสุดหรือไม่ (ภายใน 150px)
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isNearBottomRef.current = distanceFromBottom < 150;
+
+    // ถ้าเลื่อนลงมาล่างสุดแล้ว → ซ่อน toast
+    if (isNearBottomRef.current && showNewMessageToast) {
+      setShowNewMessageToast(false);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    }
+
+    // Load older messages
+    if (!hasMore || isLoadingMessages) return;
     if (el.scrollTop < 100) {
       const prevHeight = el.scrollHeight;
       loadMore().then(() => {
@@ -141,6 +171,13 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
       });
     }
   };
+
+  // Scroll to bottom handler (for toast tap)
+  const scrollToBottom = useCallback(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setShowNewMessageToast(false);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  }, []);
 
   // Mute toggle
   const handleToggleMute = async () => {
@@ -437,6 +474,16 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
         </div>
 
         <div ref={bottomRef} />
+
+        {/* New message toast — LINE-like */}
+        {showNewMessageToast && (
+          <button
+            onClick={scrollToBottom}
+            className="sticky bottom-3 left-1/2 z-20 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-2 rounded-full bg-[#5B5FC7] px-4 py-2 text-xs font-medium text-white shadow-lg transition-all active:scale-95 dark:bg-[#7C6FD4]"
+          >
+            มีข้อความใหม่
+          </button>
+        )}
       </div>
 
       {/* Input */}
