@@ -940,7 +940,7 @@ export default function ActivityPage() {
                       label="รอตัดสต๊อก"
                       value={summary.borrow.posAdjusting}
                       color={
-                        summary.borrow.posAdjusting > 0 ? 'orange' : 'gray'
+                        summary.borrow.posAdjusting > 0 ? 'amber' : 'gray'
                       }
                     />
                   </div>
