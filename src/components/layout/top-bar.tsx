@@ -2,13 +2,14 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, ChevronDown, LogOut, User, Settings, Bell, MessageSquare } from 'lucide-react';
+import { Menu, ChevronDown, LogOut, User, Settings, Bell, MessageSquare, Download, Check, Share, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { NotificationCenter } from '@/components/layout/notification-center';
 import { useChatStore } from '@/stores/chat-store';
+import { useInstallPWA } from '@/hooks/use-install-pwa';
 import { ROLE_LABELS } from '@/types/roles';
 import type { Store } from '@/types/database';
 
@@ -33,8 +34,10 @@ export function TopBar({
   const { user, logout } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [showIosGuide, setShowIosGuide] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const chatUnread = useChatStore((s) => s.totalUnread);
+  const { canInstall, isInstalled, isInstalling, install } = useInstallPWA();
 
   const currentStore = stores.find((s) => s.id === currentStoreId);
 
@@ -52,6 +55,17 @@ export function TopBar({
   function handleLogout() {
     logout();
     router.push('/login');
+  }
+
+  const isIos = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  function handleInstallClick() {
+    setUserMenuOpen(false);
+    if (canInstall) {
+      install();
+    } else if (isIos && !isInstalled) {
+      setShowIosGuide(true);
+    }
   }
 
   if (!user) return null;
@@ -194,6 +208,32 @@ export function TopBar({
                   <Settings className="h-4 w-4" />
                   <span>ตั้งค่า</span>
                 </button>
+
+                {/* ติดตั้งแอป */}
+                <button
+                  type="button"
+                  onClick={handleInstallClick}
+                  disabled={isInstalled || isInstalling}
+                  className={cn(
+                    'flex w-full items-center gap-3 px-4 py-2.5 text-sm',
+                    isInstalled
+                      ? 'cursor-default text-green-600 dark:text-green-400'
+                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                  )}
+                >
+                  {isInstalled ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  <span>
+                    {isInstalled
+                      ? 'ติดตั้งแล้ว'
+                      : isInstalling
+                        ? 'กำลังติดตั้ง...'
+                        : 'ติดตั้งแอป'}
+                  </span>
+                </button>
               </div>
 
               {/* ออกจากระบบ */}
@@ -211,6 +251,55 @@ export function TopBar({
           )}
         </div>
       </div>
+      {/* iOS Install Guide Modal */}
+      {showIosGuide && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={() => setShowIosGuide(false)}>
+          <div
+            className="w-full max-w-sm rounded-t-2xl bg-white p-6 dark:bg-gray-800 sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                ติดตั้งแอป
+              </h3>
+              <button
+                onClick={() => setShowIosGuide(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">1</div>
+                <p className="pt-1 text-sm text-gray-600 dark:text-gray-300">
+                  กดปุ่ม <Share className="inline h-4 w-4 text-blue-500" /> <strong>แชร์</strong> ที่แถบด้านล่างของ Safari
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">2</div>
+                <p className="pt-1 text-sm text-gray-600 dark:text-gray-300">
+                  เลื่อนลงแล้วกด <Plus className="inline h-4 w-4 text-gray-500" /> <strong>เพิ่มไปยังหน้าจอโฮม</strong>
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">3</div>
+                <p className="pt-1 text-sm text-gray-600 dark:text-gray-300">
+                  กด <strong>เพิ่ม</strong> เพื่อติดตั้งแอปไปหน้าจอโฮม
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowIosGuide(false)}
+              className="mt-6 w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+            >
+              เข้าใจแล้ว
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
