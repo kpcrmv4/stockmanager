@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useChatRooms } from '@/hooks/use-chat-rooms';
-import { useChatBadge } from '@/hooks/use-chat-realtime';
 import { useChatStore } from '@/stores/chat-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { EmptyState } from '@/components/ui';
@@ -23,9 +22,6 @@ export default function ChatPage() {
   const [showBotSettings, setShowBotSettings] = useState(false);
 
   const isManagerOrOwner = user?.role === 'owner' || user?.role === 'manager';
-
-  // Subscribe to badge channel
-  useChatBadge();
 
   return (
     <div className="space-y-1">
@@ -135,7 +131,7 @@ export default function ChatPage() {
                     </p>
                     {unread > 0 && (
                       <span className="ml-2 flex h-5.5 min-w-5.5 shrink-0 items-center justify-center rounded-full bg-[#5B5FC7] px-1.5 text-[11px] font-bold text-white">
-                        {unread > 99 ? '99+' : unread}
+                        {unread > 10 ? '10+' : unread}
                       </span>
                     )}
                   </div>

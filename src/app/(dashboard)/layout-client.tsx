@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth-store';
 import { useSessionRefresh } from '@/hooks/use-session-refresh';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import { ChatBadgeProvider } from '@/components/chat/chat-badge-provider';
 import { DesktopLayout } from '@/components/layout/desktop-layout';
 import { MobileLayout } from '@/components/layout/mobile-layout';
 import { Store, ArrowRight } from 'lucide-react';
@@ -85,6 +86,7 @@ export function DashboardLayoutClient({
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ChatBadgeProvider />
       {showDesktop ? (
         <DesktopLayout stores={stores}>{content}</DesktopLayout>
       ) : (
