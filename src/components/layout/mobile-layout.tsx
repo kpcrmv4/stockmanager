@@ -73,7 +73,7 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
       {/* Side Drawer */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-xl dark:bg-gray-900',
+          'fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-white shadow-xl dark:bg-gray-900',
           'transform transition-transform duration-300 ease-in-out',
           drawerOpen ? 'translate-x-0' : '-translate-x-full'
         )}
@@ -104,14 +104,14 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
 
         {/* เมนูทั้งหมด */}
         {user && (
-          <nav className="flex-1 overflow-y-auto p-4">
-            <ul className="space-y-1">
+          <nav className="min-h-0 flex-1 overflow-y-auto p-3">
+            <ul className="space-y-0.5">
               {getModulesForRole(user.role).map((mod) => (
                 <li key={mod.id}>
                   <Link
                     href={mod.href}
                     onClick={() => setDrawerOpen(false)}
-                    className="flex min-h-[44px] items-center rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    className="flex min-h-[40px] items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                   >
                     {mod.name}
                   </Link>
