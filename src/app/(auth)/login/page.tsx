@@ -156,14 +156,23 @@ export default function LoginPage() {
         {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
       </button>
 
-      {/* Register Link */}
+      {/* Register Links */}
       <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
         ยังไม่มีบัญชี?{' '}
         <Link
           href="/register"
           className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
         >
-          ลงทะเบียน
+          ลงทะเบียนพนักงาน
+        </Link>
+      </p>
+      <p className="mt-2 text-center text-sm text-gray-500 dark:text-gray-400">
+        สนใจทดลองใช้?{' '}
+        <Link
+          href="/register/trial"
+          className="font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300"
+        >
+          สมัครทดลองใช้ฟรี
         </Link>
       </p>
     </form>
