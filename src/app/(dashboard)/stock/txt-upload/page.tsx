@@ -153,10 +153,23 @@ async function readTxtFile(file: File): Promise<string> {
 
 // ── Component ──
 
+const UPLOAD_ROLES = ['owner', 'manager', 'accountant'];
+
 export default function TxtUploadPage() {
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Role guard — เฉพาะ owner/manager/accountant เท่านั้น
+  if (user && !UPLOAD_ROLES.includes(user.role)) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+        <Upload className="h-10 w-10 text-gray-300 dark:text-gray-600" />
+        <p className="text-sm text-gray-500 dark:text-gray-400">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</p>
+        <a href="/stock" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">กลับหน้าสต๊อก</a>
+      </div>
+    );
+  }
 
   // State
   const [step, setStep] = useState<PageStep>('upload');
