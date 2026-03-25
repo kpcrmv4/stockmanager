@@ -79,6 +79,9 @@ const depositTabs = [
   { id: 'vip', label: 'VIP' },
 ];
 
+const PAGE_SIZE = 50;
+const ACTIVE_STATUSES = ['in_store', 'pending_confirm', 'pending_withdrawal', 'transfer_pending'];
+
 export default function DepositPage() {
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
@@ -86,9 +89,19 @@ export default function DepositPage() {
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [activeTab, setActiveTab] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<Deposit | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [stats, setStats] = useState({
+    activeCount: 0,
+    pendingCount: 0,
+    expiredCount: 0,
+    vipCount: 0,
+    expiringSoonCount: 0,
+    uniqueCustomers: 0,
+  });
 
   // Handle action query parameter (e.g. ?action=new or ?action=withdraw)
   useEffect(() => {
@@ -100,15 +113,52 @@ export default function DepositPage() {
     }
   }, [searchParams]);
 
+  // Load stats counts separately (lightweight queries)
+  const loadStats = useCallback(async (supabase: ReturnType<typeof createClient>, storeId: string) => {
+    const [
+      { count: activeCount },
+      { count: pendingCount },
+      { count: expiredCount },
+      { count: vipCount },
+      { data: expiringSoonData },
+      { data: customerData },
+    ] = await Promise.all([
+      supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'in_store'),
+      supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'pending_confirm'),
+      supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'expired'),
+      supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('is_vip', true),
+      supabase.from('deposits').select('expiry_date').eq('store_id', storeId).eq('status', 'in_store').not('expiry_date', 'is', null),
+      supabase.from('deposits').select('customer_name').eq('store_id', storeId).eq('status', 'in_store'),
+    ]);
+
+    const expiringSoonCount = (expiringSoonData || []).filter((d) => {
+      const days = daysUntil(d.expiry_date);
+      return days <= 7 && days > 0;
+    }).length;
+
+    const uniqueCustomers = new Set((customerData || []).map((d) => d.customer_name)).size;
+
+    setStats({
+      activeCount: activeCount || 0,
+      pendingCount: pendingCount || 0,
+      expiredCount: expiredCount || 0,
+      vipCount: vipCount || 0,
+      expiringSoonCount,
+      uniqueCustomers,
+    });
+  }, []);
+
   const loadDeposits = useCallback(async () => {
     if (!currentStoreId) return;
     setIsLoading(true);
     const supabase = createClient();
 
+    // Load active deposits (no limit — these are the important ones)
     const { data, error } = await supabase
       .from('deposits')
       .select('*')
       .eq('store_id', currentStoreId)
+      .in('status', ACTIVE_STATUSES)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -117,12 +167,58 @@ export default function DepositPage() {
     if (data) {
       setDeposits(data as Deposit[]);
     }
+
+    // Load stats in parallel
+    await loadStats(supabase, currentStoreId);
+
     setIsLoading(false);
+    setHasMore(true);
+  }, [currentStoreId, loadStats]);
+
+  // Load inactive deposits (withdrawn, expired) with pagination
+  const loadInactiveDeposits = useCallback(async (offset: number) => {
+    if (!currentStoreId) return;
+    setIsLoadingMore(true);
+    const supabase = createClient();
+
+    const inactiveStatuses = ['withdrawn', 'expired', 'transferred_out'];
+    const { data, error } = await supabase
+      .from('deposits')
+      .select('*')
+      .eq('store_id', currentStoreId)
+      .in('status', inactiveStatuses)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (!error && data) {
+      setDeposits((prev) => {
+        const existingIds = new Set(prev.map((d) => d.id));
+        const newItems = (data as Deposit[]).filter((d) => !existingIds.has(d.id));
+        return [...prev, ...newItems];
+      });
+      setHasMore(data.length === PAGE_SIZE);
+    } else {
+      setHasMore(false);
+    }
+    setIsLoadingMore(false);
   }, [currentStoreId]);
 
   useEffect(() => {
     loadDeposits();
   }, [loadDeposits]);
+
+  // Count inactive deposits already loaded
+  const loadedInactiveCount = useMemo(
+    () => deposits.filter((d) => !ACTIVE_STATUSES.includes(d.status)).length,
+    [deposits]
+  );
+
+  // When switching to "all" or "expired" tab, ensure inactive deposits are loaded
+  useEffect(() => {
+    if ((activeTab === 'all' || activeTab === 'expired') && hasMore && loadedInactiveCount === 0 && !isLoadingMore) {
+      loadInactiveDeposits(0);
+    }
+  }, [activeTab, hasMore, loadedInactiveCount, isLoadingMore, loadInactiveDeposits]);
 
   const filteredDeposits = useMemo(() => {
     let result = deposits;
@@ -148,20 +244,11 @@ export default function DepositPage() {
     return result;
   }, [deposits, activeTab, searchQuery]);
 
-  const activeCount = deposits.filter((d) => d.status === 'in_store').length;
-  const pendingCount = deposits.filter((d) => d.status === 'pending_confirm').length;
-  const expiredCount = deposits.filter((d) => d.status === 'expired').length;
-  const vipCount = deposits.filter((d) => d.is_vip).length;
-  const expiringSoonCount = deposits.filter(
-    (d) => d.expiry_date && d.status === 'in_store' && daysUntil(d.expiry_date) <= 7 && daysUntil(d.expiry_date) > 0
-  ).length;
-  const uniqueCustomers = new Set(deposits.filter((d) => d.status === 'in_store').map((d) => d.customer_name)).size;
-
   const tabsWithCounts = depositTabs.map((t) => {
-    if (t.id === 'in_store') return { ...t, count: activeCount };
-    if (t.id === 'pending_confirm') return { ...t, count: pendingCount };
-    if (t.id === 'expired') return { ...t, count: expiredCount };
-    if (t.id === 'vip') return { ...t, count: vipCount };
+    if (t.id === 'in_store') return { ...t, count: stats.activeCount };
+    if (t.id === 'pending_confirm') return { ...t, count: stats.pendingCount };
+    if (t.id === 'expired') return { ...t, count: stats.expiredCount };
+    if (t.id === 'vip') return { ...t, count: stats.vipCount };
     return t;
   });
 
@@ -221,7 +308,7 @@ export default function DepositPage() {
               <Wine className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{activeCount}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.activeCount}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">ฝากอยู่ในร้าน</p>
             </div>
           </div>
@@ -232,7 +319,7 @@ export default function DepositPage() {
               <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{pendingCount}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.pendingCount}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">รอยืนยัน</p>
             </div>
           </div>
@@ -243,7 +330,7 @@ export default function DepositPage() {
               <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{expiringSoonCount}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.expiringSoonCount}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">ใกล้หมดอายุ</p>
             </div>
           </div>
@@ -254,7 +341,7 @@ export default function DepositPage() {
               <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{uniqueCustomers}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.uniqueCustomers}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">ลูกค้าทั้งหมด</p>
             </div>
           </div>
@@ -264,7 +351,7 @@ export default function DepositPage() {
       {/* Tabs + Search */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <Tabs tabs={tabsWithCounts} activeTab={activeTab} onChange={setActiveTab} />
-        <div className="relative w-full max-w-xs">
+        <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
@@ -499,6 +586,20 @@ export default function DepositPage() {
               );
             })}
           </div>
+
+          {/* Load More */}
+          {hasMore && !searchQuery && (activeTab === 'all' || activeTab === 'expired') && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                isLoading={isLoadingMore}
+                onClick={() => loadInactiveDeposits(loadedInactiveCount)}
+              >
+                โหลดรายการเก่าเพิ่มเติม
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>
