@@ -235,6 +235,10 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
       // Don't show for action_card messages
       if (msg.type === 'action_card') return;
 
+      // Only trigger when clicking on the actual message bubble, not empty space
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-chat-bubble]')) return;
+
       const clientX = 'clientX' in e ? e.clientX : e.changedTouches?.[0]?.clientX ?? 0;
       const clientY = 'clientY' in e ? e.clientY : e.changedTouches?.[0]?.clientY ?? 0;
       setContextMenu({ messageId: msg.id, x: clientX, y: clientY });
@@ -390,7 +394,6 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
               <div
                 key={msg.id}
                 id={`msg-${msg.id}`}
-                onClick={(e) => handleMessageTap(msg, e)}
               >
                 {/* Date separator — LINE-like pill */}
                 {showDate && (
@@ -403,6 +406,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
 
                 {/* Message */}
                 <div
+                  onClick={(e) => handleMessageTap(msg, e)}
                   className={cn(
                     'relative rounded-lg transition-colors duration-700',
                     pinned && 'bg-amber-50/60 ring-1 ring-amber-200/50 dark:bg-amber-900/10 dark:ring-amber-800/30',

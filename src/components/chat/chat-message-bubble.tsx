@@ -77,7 +77,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isOw
   // --- Own message (right side) ---
   if (isOwn) {
     return (
-      <div className="flex justify-end gap-1.5">
+      <div className="flex justify-end gap-1.5" data-chat-bubble>
         {/* Time — left of bubble */}
         <div className="flex shrink-0 flex-col justify-end pb-0.5">
           <span className="text-[11px] leading-none text-gray-400 dark:text-gray-500">
@@ -114,7 +114,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isOw
 
   // --- Other's message (left side, with avatar) ---
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2" data-chat-bubble>
       {/* Avatar */}
       <div className="shrink-0 self-start pt-0.5">
         {showSender ? (
