@@ -1166,7 +1166,7 @@ function BorrowDetailSheet({
                         disabled={!posBillUrl}
                       >
                         ยืนยันตัดสต๊อก POS (ฝั่งผู้ยืม)
-                    </Button>
+                      </Button>
                   )}
                 </div>
               )}
