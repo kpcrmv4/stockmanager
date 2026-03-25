@@ -231,12 +231,11 @@ export function PhotoUpload({
         </div>
       )}
 
-      {/* Hidden file input — capture for mobile camera */}
+      {/* Hidden file input — no capture attr so user can pick camera OR gallery */}
       <input
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/heic"
-        capture="environment"
         onChange={handleInputChange}
         className="hidden"
         disabled={disabled || isUploading}
