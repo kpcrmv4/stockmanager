@@ -339,7 +339,7 @@ export default function StoreComparisonPage() {
 
       {/* Date filter */}
       <Card>
-        <CardContent padding="sm">
+        <CardContent>
           <div className="flex flex-wrap items-end gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
@@ -459,7 +459,7 @@ export default function StoreComparisonPage() {
                 </div>
               }
             />
-            <CardContent padding="none">
+            <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">

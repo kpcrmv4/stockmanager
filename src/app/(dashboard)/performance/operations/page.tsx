@@ -336,7 +336,7 @@ export default function OperationsPage() {
       {/* Store selector */}
       {isOwner && stores.length > 0 && (
         <Card>
-          <CardContent padding="sm">
+          <CardContent>
             <div className="min-w-[180px] max-w-xs">
               <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
                 สาขา
@@ -467,7 +467,7 @@ export default function OperationsPage() {
                           : 'งานที่เกินเวลา'
                   }
                 />
-                <CardContent padding="none">
+                <CardContent>
                   {filteredTasks.length === 0 ? (
                     <div className="flex h-32 items-center justify-center text-sm text-gray-400">
                       {filter === 'overdue'
@@ -561,7 +561,7 @@ export default function OperationsPage() {
                   title="Workload พนักงาน"
                   description="งานที่ถืออยู่ + สำเร็จวันนี้"
                 />
-                <CardContent padding="none">
+                <CardContent>
                   {workloads.length === 0 ? (
                     <div className="flex h-32 items-center justify-center text-sm text-gray-400">
                       ไม่มีข้อมูล

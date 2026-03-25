@@ -430,7 +430,7 @@ export default function StaffPerformancePage() {
 
       {/* Filters */}
       <Card>
-        <CardContent padding="sm">
+        <CardContent>
           <div className="flex flex-wrap items-end gap-3">
             {isOwner && stores.length > 0 && (
               <div className="min-w-[180px]">
@@ -482,7 +482,7 @@ export default function StaffPerformancePage() {
           {/* Summary Cards */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <Card>
-              <CardContent padding="sm">
+              <CardContent>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
                     <CheckCircle2 className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
@@ -498,7 +498,7 @@ export default function StaffPerformancePage() {
             </Card>
 
             <Card>
-              <CardContent padding="sm">
+              <CardContent>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
                     <Timer className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
@@ -514,7 +514,7 @@ export default function StaffPerformancePage() {
             </Card>
 
             <Card>
-              <CardContent padding="sm">
+              <CardContent>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
                     <Target className="h-5 w-5 text-amber-600 dark:text-amber-400" />
@@ -530,7 +530,7 @@ export default function StaffPerformancePage() {
             </Card>
 
             <Card>
-              <CardContent padding="sm">
+              <CardContent>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
                     <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
@@ -607,7 +607,7 @@ export default function StaffPerformancePage() {
                 </div>
               }
             />
-            <CardContent padding="none">
+            <CardContent>
               {sortedStaff.length === 0 ? (
                 <div className="flex h-32 items-center justify-center text-sm text-gray-400">
                   ไม่มีข้อมูลพนักงานในช่วงนี้
