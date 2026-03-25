@@ -124,13 +124,13 @@ export async function POST(request: Request) {
         type: type || 'text',
       };
 
-      for (const member of members) {
+      await Promise.all(members.map((member) =>
         realtimeClient.channel(`chat:badge:${member.user_id}`).send({
           type: 'broadcast',
           event: 'new_message_badge',
           payload: badgePayload,
-        });
-      }
+        })
+      ));
     }
 
     // 6. Update pinned summary ถ้าเป็น action_card

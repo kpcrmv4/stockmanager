@@ -40,15 +40,25 @@ export async function GET(request: NextRequest) {
 
     if (!expiringDeposits) continue;
 
-    for (const deposit of expiringDeposits) {
-      // Check customer notification preferences
-      if (deposit.customer_id) {
-        const { data: prefs } = await supabase
-          .from('notification_preferences')
-          .select('notify_expiry_warning, line_enabled')
-          .eq('user_id', deposit.customer_id)
-          .single();
+    // Batch fetch notification preferences for all customers (avoid N+1)
+    const customerIds = [...new Set(expiringDeposits.map((d) => d.customer_id).filter(Boolean))] as string[];
+    const prefsMap = new Map<string, { notify_expiry_warning: boolean; line_enabled: boolean }>();
+    if (customerIds.length > 0) {
+      const { data: allPrefs } = await supabase
+        .from('notification_preferences')
+        .select('user_id, notify_expiry_warning, line_enabled')
+        .in('user_id', customerIds);
+      if (allPrefs) {
+        for (const p of allPrefs) {
+          prefsMap.set(p.user_id, p);
+        }
+      }
+    }
 
+    for (const deposit of expiringDeposits) {
+      // Check customer notification preferences (from batch)
+      if (deposit.customer_id) {
+        const prefs = prefsMap.get(deposit.customer_id);
         if (prefs && !prefs.notify_expiry_warning) {
           results.push({ deposit_code: deposit.deposit_code, notified: false, error: 'Customer opted out' });
           continue;

@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   images: {
+    formats: ['image/avif', 'image/webp'],
+    deviceSizes: [320, 420, 768, 1024],
+    imageSizes: [36, 48, 96, 240],
     remotePatterns: [
       {
         protocol: 'https',

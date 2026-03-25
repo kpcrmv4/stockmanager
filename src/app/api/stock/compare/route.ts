@@ -17,41 +17,48 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // 1. Fetch manual counts for the store + date
-    const { data: manualCounts, error: manualError } = await supabase
-      .from('manual_counts')
-      .select('product_code, count_quantity')
-      .eq('store_id', store_id)
-      .eq('count_date', comp_date);
+    // 1-3. Fetch manual counts, OCR logs, and store settings in parallel
+    const [manualResult, ocrLogResult, settingsResult] = await Promise.all([
+      supabase
+        .from('manual_counts')
+        .select('product_code, count_quantity')
+        .eq('store_id', store_id)
+        .eq('count_date', comp_date),
+      supabase
+        .from('ocr_logs')
+        .select('id')
+        .eq('store_id', store_id)
+        .gte('upload_date', `${comp_date}T00:00:00`)
+        .lt('upload_date', `${comp_date}T23:59:59.999`)
+        .order('upload_date', { ascending: false })
+        .limit(1),
+      supabase
+        .from('store_settings')
+        .select('diff_tolerance')
+        .eq('store_id', store_id)
+        .single(),
+    ]);
 
-    if (manualError) {
-      console.error('Error fetching manual counts:', manualError);
+    if (manualResult.error) {
+      console.error('Error fetching manual counts:', manualResult.error);
       return NextResponse.json(
         { error: 'Failed to fetch manual counts' },
         { status: 500 }
       );
     }
-
-    // 2. Fetch POS data: get the latest ocr_log for this store + date
-    const { data: ocrLogs, error: ocrLogError } = await supabase
-      .from('ocr_logs')
-      .select('id')
-      .eq('store_id', store_id)
-      .gte('upload_date', `${comp_date}T00:00:00`)
-      .lt('upload_date', `${comp_date}T23:59:59.999`)
-      .order('upload_date', { ascending: false })
-      .limit(1);
-
-    if (ocrLogError) {
-      console.error('Error fetching OCR logs:', ocrLogError);
+    if (ocrLogResult.error) {
+      console.error('Error fetching OCR logs:', ocrLogResult.error);
       return NextResponse.json(
         { error: 'Failed to fetch OCR logs' },
         { status: 500 }
       );
     }
 
-    const latestOcrLogId = ocrLogs?.[0]?.id ?? null;
+    const manualCounts = manualResult.data;
+    const latestOcrLogId = ocrLogResult.data?.[0]?.id ?? null;
+    const diffTolerance = settingsResult.data?.diff_tolerance ?? 5;
 
+    // Fetch OCR items (depends on ocrLogResult)
     let ocrItems: Array<{ product_code: string; qty_ocr: number }> = [];
     if (latestOcrLogId) {
       const { data: ocrData, error: ocrItemsError } = await supabase
@@ -69,15 +76,6 @@ export async function POST(request: NextRequest) {
 
       ocrItems = ocrData || [];
     }
-
-    // 3. Fetch store settings for diff_tolerance
-    const { data: storeSettings } = await supabase
-      .from('store_settings')
-      .select('diff_tolerance')
-      .eq('store_id', store_id)
-      .single();
-
-    const diffTolerance = storeSettings?.diff_tolerance ?? 5;
 
     // 4. Build product set: union of all product_codes from both datasets
     const manualMap = new Map<string, number>();

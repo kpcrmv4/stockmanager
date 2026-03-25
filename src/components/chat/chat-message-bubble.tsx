@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { cn } from '@/lib/utils/cn';
 import { Bot as BotIcon, User as UserIcon } from 'lucide-react';
 import type { ChatMessage, ReplyMetadata } from '@/types/chat';
@@ -53,7 +54,7 @@ function ReplyQuote({ replyMeta, variant }: { replyMeta: ReplyMetadata; variant:
   );
 }
 
-export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBubbleProps) {
+export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBubbleProps) {
   const isBot = !message.sender_id;
   const senderName = message.sender?.display_name || message.sender?.username || 'Bot';
   const avatarUrl = (message.sender as { avatar_url?: string | null })?.avatar_url;
@@ -187,4 +188,4 @@ export function ChatMessageBubble({ message, isOwn, showSender }: ChatMessageBub
       </div>
     </div>
   );
-}
+});

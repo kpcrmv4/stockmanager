@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useChatStore } from '@/stores/chat-store';
@@ -33,7 +33,7 @@ export function ChatInput({ roomId, replyTo, onClearReply }: ChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { user } = useAuthStore();
-  const { addMessage } = useChatStore();
+  const addMessage = useChatStore((s) => s.addMessage);
 
   // Focus input when reply is set
   useEffect(() => {
@@ -90,21 +90,22 @@ export function ChatInput({ roomId, replyTo, onClearReply }: ChatInputProps) {
     display_name: 'ทุกคน',
   };
 
-  const filteredMembers = mentionQuery !== null
-    ? [
-        // Show @ทุกคน if query matches
-        ...('ทุกคน'.includes(mentionQuery) || 'all'.includes(mentionQuery) || mentionQuery === ''
-          ? [EVERYONE_OPTION]
-          : []),
-        // Then show matching members
-        ...members.filter(
-          (m) =>
-            m.user_id !== user?.id &&
-            ((m.display_name?.toLowerCase().includes(mentionQuery)) ||
-              m.username.toLowerCase().includes(mentionQuery))
-        ),
-      ]
-    : [];
+  const filteredMembers = useMemo(() => {
+    if (mentionQuery === null) return [];
+    return [
+      // Show @ทุกคน if query matches
+      ...('ทุกคน'.includes(mentionQuery) || 'all'.includes(mentionQuery) || mentionQuery === ''
+        ? [EVERYONE_OPTION]
+        : []),
+      // Then show matching members
+      ...members.filter(
+        (m) =>
+          m.user_id !== user?.id &&
+          ((m.display_name?.toLowerCase().includes(mentionQuery)) ||
+            m.username.toLowerCase().includes(mentionQuery))
+      ),
+    ];
+  }, [mentionQuery, members, user?.id]);
 
   const insertMention = (member: MemberOption) => {
     const cursorPos = inputRef.current?.selectionStart ?? text.length;

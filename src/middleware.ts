@@ -53,24 +53,30 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Get user profile for role check
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+  // Read role from JWT app_metadata (fast, no DB query)
+  // Falls back to profiles query only if app_metadata doesn't have role yet
+  let role: string | null = (user.app_metadata?.role as string) || null;
 
-  if (!profile) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  if (!role) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+    role = profile.role;
   }
 
   // Customer can only access /customer routes
-  if (profile.role === 'customer' && !CUSTOMER_ROUTES.some((r) => pathname.startsWith(r))) {
+  if (role === 'customer' && !CUSTOMER_ROUTES.some((r) => pathname.startsWith(r))) {
     return NextResponse.redirect(new URL('/customer', request.url));
   }
 
   // Non-customer cannot access /customer routes
-  if (profile.role !== 'customer' && CUSTOMER_ROUTES.some((r) => pathname.startsWith(r))) {
+  if (role !== 'customer' && CUSTOMER_ROUTES.some((r) => pathname.startsWith(r))) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 

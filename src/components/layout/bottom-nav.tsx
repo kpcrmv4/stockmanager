@@ -58,7 +58,7 @@ export function BottomNav() {
   const pathname = usePathname();
   const { user } = useAuthStore();
   const { unreadCount } = useNotificationStore();
-  const { totalUnread: chatUnread } = useChatStore();
+  const chatUnread = useChatStore((s) => s.totalUnread);
 
   if (!user) return null;
 
