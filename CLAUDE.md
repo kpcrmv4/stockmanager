@@ -80,6 +80,31 @@
 - [x] 5.5 — Quick action จาก notification popup: NotificationCenter handles routing + data.url
 - [x] 5.6 — LINE group notification toggle: `settings/notifications/page.tsx` (ปิด default)
 
+### Phase 6: Performance Analytics Dashboard ✅ COMPLETED
+> ระบบวัดประสิทธิภาพเชิงลึกสำหรับ Owner
+
+- [x] 6.1 — Staff Performance Dashboard: `src/app/(dashboard)/performance/staff/page.tsx`
+  - ตาราง ranking พนักงานทุกคน (tasks completed, avg time, timeout rate)
+  - กราฟ daily trend ต่อพนักงาน
+  - Drill-down ดูรายละเอียดแต่ละคน
+  - เปรียบเทียบ performance ข้ามช่วงเวลา
+- [x] 6.2 — Store Comparison: `src/app/(dashboard)/performance/stores/page.tsx`
+  - Side-by-side comparison ทุกสาขา
+  - KPIs: deposits, withdrawals, stock accuracy, task completion
+  - Radar chart เปรียบเทียบหลายมิติ
+  - Ranking สาขาตาม KPI ที่เลือก
+- [x] 6.3 — Real-time Operations: `src/app/(dashboard)/performance/operations/page.tsx`
+  - Live view: pending/claimed/overdue action cards
+  - ใครกำลังทำอะไร (active tasks per staff)
+  - Alert เมื่องานค้างนานผิดปกติ
+  - สรุป workload distribution
+- [x] 6.4 — Customer Analytics: `src/app/(dashboard)/performance/customers/page.tsx`
+  - Top customers by deposit frequency & value
+  - พฤติกรรมการฝาก/เบิก (ช่วงเวลา, ความถี่)
+  - Customer retention & expiry rates
+  - Product preferences per customer segment
+- [x] 6.5 — Module registry: เพิ่ม performance modules ใน `registry.ts` (owner only)
+
 ---
 
 ## DB Schema Design
