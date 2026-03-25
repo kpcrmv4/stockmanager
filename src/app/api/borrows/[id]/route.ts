@@ -15,7 +15,7 @@ import { sendBotMessage } from '@/lib/chat/bot';
 // ---------------------------------------------------------------------------
 
 interface PatchBody {
-  action: 'approve' | 'reject' | 'confirm_pos' | 'upload_photo';
+  action: 'approve' | 'reject' | 'confirm_pos' | 'upload_photo' | 'cancel';
   lenderPhotoUrl?: string;
   reason?: string;
   side?: 'borrower' | 'lender';
@@ -629,6 +629,92 @@ export async function PATCH(
         borrow: {
           ...updatedBorrow,
           borrow_items: items || [],
+        },
+      });
+    }
+
+    // =====================================================================
+    // ACTION: cancel
+    // =====================================================================
+    if (action === 'cancel') {
+      if (borrow.status !== 'pending_approval') {
+        return NextResponse.json(
+          { error: 'Borrow can only be cancelled when pending approval' },
+          { status: 400 },
+        );
+      }
+
+      const now = new Date().toISOString();
+
+      const { data: updatedBorrow, error: updateError } = await serviceClient
+        .from('borrows')
+        .update({
+          status: 'cancelled',
+          cancelled_by: user.id,
+          cancelled_at: now,
+          updated_at: now,
+        })
+        .eq('id', id)
+        .select('*')
+        .single();
+
+      if (updateError || !updatedBorrow) {
+        console.error('[Borrows] Cancel error:', updateError);
+        return NextResponse.json(
+          { error: 'Failed to cancel borrow' },
+          { status: 500 },
+        );
+      }
+
+      // Fetch context for notifications
+      const ctx = await fetchBorrowContext(serviceClient, updatedBorrow);
+
+      // Chat bot — system message to both stores
+      try {
+        const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
+        const msg = `⚠️ ยกเลิกคำขอยืมสินค้า — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nยกเลิกโดย: ${currentUserName}`;
+
+        await Promise.allSettled([
+          sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
+          sendBotMessage({ storeId: updatedBorrow.to_store_id, type: 'system', content: msg }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to send chat message (cancel):', err);
+      }
+
+      // Notify lender store (in-app + PWA push)
+      try {
+        await notifyStoreStaff({
+          storeId: updatedBorrow.to_store_id,
+          type: 'approval_request',
+          title: 'คำขอยืมสินค้าถูกยกเลิก',
+          body: `${ctx.fromStore?.store_name || 'สาขา'} ยกเลิกคำขอยืมสินค้า ${ctx.items.length} รายการ โดย ${currentUserName}`,
+          data: { borrowId: id },
+        });
+      } catch (err) {
+        console.error('[Borrows] Failed to notify lender store (cancel):', err);
+      }
+
+      // Audit log
+      await serviceClient.from('audit_logs').insert({
+        store_id: updatedBorrow.from_store_id,
+        action_type: 'BORROW_CANCELLED',
+        table_name: 'borrows',
+        new_value: {
+          borrow_id: id,
+          cancelled_by: user.id,
+          canceller_name: currentUserName,
+        },
+        changed_by: user.id,
+      });
+
+      return NextResponse.json({
+        success: true,
+        borrow: {
+          ...updatedBorrow,
+          borrow_items: ctx.items,
+          from_store_name: ctx.fromStore?.store_name,
+          to_store_name: ctx.toStore?.store_name,
         },
       });
     }

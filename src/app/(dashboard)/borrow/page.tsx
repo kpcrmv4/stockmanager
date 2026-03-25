@@ -57,7 +57,7 @@ interface BorrowWithDetails {
   from_store_id: string;
   to_store_id: string;
   requested_by: string | null;
-  status: 'pending_approval' | 'approved' | 'pos_adjusting' | 'completed' | 'rejected';
+  status: 'pending_approval' | 'approved' | 'pos_adjusting' | 'completed' | 'rejected' | 'cancelled';
   notes: string | null;
   borrower_photo_url: string | null;
   lender_photo_url: string | null;
@@ -124,6 +124,7 @@ const statusConfig: Record<
   pos_adjusting: { label: 'รอตัดสต๊อก', variant: 'default', step: 2 },
   completed: { label: 'เสร็จสิ้น', variant: 'success', step: 3 },
   rejected: { label: 'ปฏิเสธ', variant: 'danger', step: -1 },
+  cancelled: { label: 'ยกเลิก', variant: 'danger', step: -1 },
 };
 
 const EMPTY_FORM_ITEM: FormItem = { product_name: '', category: '', quantity: '', unit: '' };
@@ -646,8 +647,9 @@ function BorrowDetailSheet({
   const [borrowerPhoto, setBorrowerPhoto] = useState<string | null>(borrow.borrower_photo_url);
   const [lenderPhoto, setLenderPhoto] = useState<string | null>(borrow.lender_photo_url);
 
-  const isBorrowerSide = borrow.from_store_id === currentStoreId;
-  const isLenderSide = borrow.to_store_id === currentStoreId;
+  const isOwnerOrAdmin = user?.role === 'owner' || user?.role === 'manager';
+  const isBorrowerSide = borrow.from_store_id === currentStoreId || isOwnerOrAdmin;
+  const isLenderSide = borrow.to_store_id === currentStoreId || isOwnerOrAdmin;
 
   const patchBorrow = async (payload: Record<string, unknown>) => {
     setIsActing(true);
@@ -692,6 +694,11 @@ function BorrowDetailSheet({
     patchBorrow({ action: 'confirm_pos', side });
   };
 
+  const handleCancel = () => {
+    toast({ type: 'warning', title: 'ยกเลิกคำขอยืมแล้ว' });
+    patchBorrow({ action: 'cancel' });
+  };
+
   const handlePhotoUpload = (side: 'borrower' | 'lender', url: string | null) => {
     if (side === 'borrower') {
       setBorrowerPhoto(url);
@@ -713,8 +720,8 @@ function BorrowDetailSheet({
           'fixed z-50 bg-white dark:bg-gray-900 overflow-y-auto',
           // Mobile: bottom sheet — pb เผื่อ bottom nav
           'bottom-0 inset-x-0 rounded-t-2xl max-h-[85vh] pb-20',
-          // Desktop: side panel
-          'md:inset-y-0 md:right-0 md:left-auto md:w-full md:max-w-2xl md:rounded-t-none md:rounded-l-2xl'
+          // Desktop: centered modal
+          'md:inset-0 md:m-auto md:w-full md:max-w-2xl md:max-h-[85vh] md:rounded-2xl md:pb-0'
         )}
       >
         {/* Drag handle - mobile only */}
@@ -899,6 +906,16 @@ function BorrowDetailSheet({
             </div>
           )}
 
+          {/* Cancelled info */}
+          {borrow.status === 'cancelled' && (
+            <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 dark:border-orange-800 dark:bg-orange-900/20">
+              <div className="flex items-center gap-2 text-sm font-medium text-orange-700 dark:text-orange-400">
+                <XCircle className="h-4 w-4" />
+                ยกเลิกแล้ว
+              </div>
+            </div>
+          )}
+
           {/* Completion info */}
           {borrow.status === 'completed' && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
@@ -1018,9 +1035,20 @@ function BorrowDetailSheet({
 
           {/* OUTGOING: borrower status messages & POS confirm */}
           {isBorrowerSide && borrow.status === 'pending_approval' && (
-            <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
-              <Clock className="h-4 w-4" />
-              รออนุมัติจากสาขา {borrow.to_store_name || ''}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
+                <Clock className="h-4 w-4" />
+                รออนุมัติจากสาขา {borrow.to_store_name || ''}
+              </div>
+              <Button
+                className="w-full"
+                variant="danger"
+                icon={<XCircle className="h-4 w-4" />}
+                onClick={handleCancel}
+                isLoading={isActing}
+              >
+                ยกเลิกคำขอยืม
+              </Button>
             </div>
           )}
 
@@ -1058,6 +1086,7 @@ export default function BorrowPage() {
   const { currentStoreId } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<'outgoing' | 'incoming'>('outgoing');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [borrows, setBorrows] = useState<BorrowWithDetails[]>([]);
   const [stores, setStores] = useState<StoreOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1158,6 +1187,28 @@ export default function BorrowPage() {
   const currentStoreName =
     stores.find((s) => s.id === currentStoreId)?.store_name || '';
 
+  // Sub-tab definitions per main tab
+  const outgoingSubTabs = [
+    { key: 'all', label: 'ทั้งหมด' },
+    { key: 'pending_approval', label: 'รออนุมัติ' },
+    { key: 'completed', label: 'ยืมสำเร็จ' },
+    { key: 'cancelled_rejected', label: 'ยกเลิก' },
+  ];
+  const incomingSubTabs = [
+    { key: 'all', label: 'ทั้งหมด' },
+    { key: 'pending_approval', label: 'รออนุมัติ' },
+    { key: 'approved', label: 'อนุมัติแล้ว' },
+    { key: 'cancelled_rejected', label: 'ยกเลิก' },
+  ];
+  const subTabs = activeTab === 'outgoing' ? outgoingSubTabs : incomingSubTabs;
+
+  const filteredBorrows = borrows.filter((b) => {
+    if (statusFilter === 'all') return true;
+    if (statusFilter === 'cancelled_rejected') return b.status === 'cancelled' || b.status === 'rejected';
+    if (statusFilter === 'approved') return b.status === 'approved' || b.status === 'pos_adjusting';
+    return b.status === statusFilter;
+  });
+
   // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
@@ -1194,7 +1245,7 @@ export default function BorrowPage() {
                   : outgoingPendingCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                เรายืม (รอดำเนินการ)
+                รายการขอยืม (รอดำเนินการ)
               </p>
             </div>
           </div>
@@ -1211,7 +1262,7 @@ export default function BorrowPage() {
                   : incomingPendingCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                เขายืมเรา (รอดำเนินการ)
+                รายการให้ยืม (รอดำเนินการ)
               </p>
             </div>
           </div>
@@ -1224,25 +1275,25 @@ export default function BorrowPage() {
       <div className="flex gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
         <button
           type="button"
-          onClick={() => setActiveTab('outgoing')}
+          onClick={() => { setActiveTab('outgoing'); setStatusFilter('all'); }}
           className={cn(
             'flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors',
             activeTab === 'outgoing'
-              ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+              ? 'bg-teal-500 text-white shadow-sm dark:bg-teal-600'
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
           )}
         >
           <Send className="h-4 w-4" />
           <span className="sm:hidden">ขอยืม</span>
-          <span className="hidden sm:inline">รายการยืม</span>
+          <span className="hidden sm:inline">รายการขอยืม</span>
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab('incoming')}
+          onClick={() => { setActiveTab('incoming'); setStatusFilter('all'); }}
           className={cn(
             'flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors',
             activeTab === 'incoming'
-              ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+              ? 'bg-indigo-500 text-white shadow-sm dark:bg-indigo-600'
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
           )}
         >
@@ -1253,23 +1304,55 @@ export default function BorrowPage() {
       </div>
 
       {/* ----------------------------------------------------------------- */}
+      {/* Status sub-tabs                                                    */}
+      {/* ----------------------------------------------------------------- */}
+      <div className="flex gap-2 overflow-x-auto">
+        {subTabs.map((st) => {
+          const count = st.key === 'all'
+            ? borrows.length
+            : st.key === 'cancelled_rejected'
+              ? borrows.filter((b) => b.status === 'cancelled' || b.status === 'rejected').length
+              : st.key === 'approved'
+                ? borrows.filter((b) => b.status === 'approved' || b.status === 'pos_adjusting').length
+                : borrows.filter((b) => b.status === st.key).length;
+          return (
+            <button
+              key={st.key}
+              type="button"
+              onClick={() => setStatusFilter(st.key)}
+              className={cn(
+                'whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                statusFilter === st.key
+                  ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+              )}
+            >
+              {st.label} ({count})
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ----------------------------------------------------------------- */}
       {/* Borrow list                                                        */}
       {/* ----------------------------------------------------------------- */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-teal-500" />
         </div>
-      ) : borrows.length === 0 ? (
+      ) : filteredBorrows.length === 0 ? (
         <EmptyState
           icon={ArrowRightLeft}
-          title="ยังไม่มีรายการยืม"
+          title={statusFilter === 'all' ? 'ยังไม่มีรายการ' : `ไม่มีรายการ "${subTabs.find((s) => s.key === statusFilter)?.label}"`}
           description={
-            activeTab === 'outgoing'
+            activeTab === 'outgoing' && statusFilter === 'all'
               ? 'คุณยังไม่ได้สร้างคำขอยืมสินค้า'
-              : 'ยังไม่มีสาขาอื่นขอยืมสินค้าจากคุณ'
+              : activeTab === 'incoming' && statusFilter === 'all'
+                ? 'ยังไม่มีสาขาอื่นขอยืมสินค้าจากคุณ'
+                : undefined
           }
           action={
-            activeTab === 'outgoing' ? (
+            activeTab === 'outgoing' && statusFilter === 'all' ? (
               <Button
                 icon={<Plus className="h-4 w-4" />}
                 onClick={() => setShowCreateModal(true)}
@@ -1282,7 +1365,7 @@ export default function BorrowPage() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {borrows.map((borrow) => (
+          {filteredBorrows.map((borrow) => (
             <BorrowCard
               key={borrow.id}
               borrow={borrow}
