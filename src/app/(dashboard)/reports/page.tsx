@@ -35,7 +35,6 @@ import {
   TrendingDown,
   Package,
   Wine,
-  DollarSign,
   AlertTriangle,
   CheckCircle2,
   Clock,
@@ -110,15 +109,16 @@ interface DepositReportData {
   }[];
 }
 
-interface FinancialReportData {
-  penaltyRevenue: number;
-  depositFees: number;
-  expiredForfeit: number;
-  totalRevenue: number;
-  revenueByMonth: {
-    month: string;
-    amount: number;
-  }[];
+interface BorrowReportData {
+  totalRequests: number;
+  approved: number;
+  rejected: number;
+  completed: number;
+  pending: number;
+  cancelled: number;
+  topProducts: { productName: string; totalQty: number }[];
+  byStore: { storeName: string; outgoing: number; incoming: number }[];
+  byMonth: { month: string; requests: number; completed: number }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -143,9 +143,10 @@ interface WeeklyDepositData {
   withdrawals: number;
 }
 
-interface MonthlyPenaltyData {
+interface MonthlyBorrowData {
   month: string;
-  amount: number;
+  requests: number;
+  completed: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -174,19 +175,7 @@ function CustomTooltip({ active, payload, label }: any) {
   );
 }
 
-function FinancialTooltip({ active, payload, label }: any) {
-  if (!active || !payload) return null;
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-      <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
-      {payload.map((entry: any, idx: number) => (
-        <p key={idx} className="text-sm" style={{ color: entry.color }}>
-          {entry.name}: {formatCurrency(entry.value)}
-        </p>
-      ))}
-    </div>
-  );
-}
+// (removed FinancialTooltip — replaced by borrow tab)
 
 function ChartEmptyState({ message }: { message?: string }) {
   return (
@@ -209,7 +198,7 @@ const reportTabs = [
   { id: 'overview', label: 'ภาพรวม' },
   { id: 'stock', label: 'สต๊อก' },
   { id: 'deposit', label: 'ฝากเหล้า' },
-  { id: 'financial', label: 'การเงิน' },
+  { id: 'borrow', label: 'ยืมสินค้า' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -315,19 +304,16 @@ export default function ReportsPage() {
     expiringSoon: 0,
     popularProducts: [],
   });
-  const [financialReport, setFinancialReport] = useState<FinancialReportData>({
-    penaltyRevenue: 0,
-    depositFees: 0,
-    expiredForfeit: 0,
-    totalRevenue: 0,
-    revenueByMonth: [],
+  const [borrowReport, setBorrowReport] = useState<BorrowReportData>({
+    totalRequests: 0, approved: 0, rejected: 0, completed: 0, pending: 0, cancelled: 0,
+    topProducts: [], byStore: [], byMonth: [],
   });
 
   // Chart data
   const [dailyActivity, setDailyActivity] = useState<DailyActivity[]>([]);
   const [dailyDiffs, setDailyDiffs] = useState<DailyDiff[]>([]);
   const [weeklyDeposits, setWeeklyDeposits] = useState<WeeklyDepositData[]>([]);
-  const [monthlyPenalties, setMonthlyPenalties] = useState<MonthlyPenaltyData[]>([]);
+  const [monthlyBorrows, setMonthlyBorrows] = useState<MonthlyBorrowData[]>([]);
 
   // Whether the user can pick any store (owner / accountant)
   const canSelectStore = user?.role === 'owner' || user?.role === 'accountant';
@@ -705,58 +691,95 @@ export default function ReportsPage() {
         setWeeklyDeposits([]);
       }
 
-      // --- Financial tab: real data from penalties + expired deposits ---
-      const [{ data: penaltiesData }, { data: expiredDeposits }] = await Promise.all([
-        supabase
-          .from('penalties')
-          .select('id, amount, created_at, status')
-          .eq('store_id', selectedStoreId)
-          .eq('status', 'approved')
-          .gte('created_at', startDate)
-          .lte('created_at', endDate + 'T23:59:59'),
-        supabase
-          .from('deposits')
-          .select('id, created_at')
-          .eq('store_id', selectedStoreId)
-          .eq('status', 'expired')
-          .gte('created_at', startDate)
-          .lte('created_at', endDate + 'T23:59:59'),
-      ]);
+      // --- Borrow tab: real data from borrows + borrow_items ---
+      const { data: borrowsData } = await supabase
+        .from('borrows')
+        .select('id, from_store_id, to_store_id, status, created_at')
+        .or(`from_store_id.eq.${selectedStoreId},to_store_id.eq.${selectedStoreId}`)
+        .gte('created_at', startDate)
+        .lte('created_at', endDate + 'T23:59:59');
 
-      const penaltyRevenue = (penaltiesData || []).reduce(
-        (sum, p) => sum + (parseFloat(String(p.amount)) || 0),
-        0
-      );
-      const expiredForfeitCount = (expiredDeposits || []).length;
+      const allBorrows = borrowsData || [];
+      const borrowIds = allBorrows.map((b) => b.id);
 
-      // No deposit fees table exists
-      const depositFees = 0;
-      const totalRevenue = penaltyRevenue + depositFees;
+      // Fetch borrow items for top products
+      let borrowItemsData: { borrow_id: string; product_name: string; quantity: number }[] = [];
+      if (borrowIds.length > 0) {
+        const { data: items } = await supabase
+          .from('borrow_items')
+          .select('borrow_id, product_name, quantity')
+          .in('borrow_id', borrowIds);
+        borrowItemsData = items || [];
+      }
 
-      // Group penalties by month for chart and table
-      const penaltyByMonth: Record<string, number> = {};
-      (penaltiesData || []).forEach((p) => {
-        const mk = getMonthKey(p.created_at);
-        const label = getMonthLabel(p.created_at);
-        if (!penaltyByMonth[mk]) penaltyByMonth[mk] = 0;
-        penaltyByMonth[mk] += parseFloat(String(p.amount)) || 0;
+      // Fetch store names for byStore breakdown
+      const storeIdsSet = new Set<string>();
+      allBorrows.forEach((b) => { storeIdsSet.add(b.from_store_id); storeIdsSet.add(b.to_store_id); });
+      const { data: storesLookup } = await supabase
+        .from('stores')
+        .select('id, store_name')
+        .in('id', Array.from(storeIdsSet));
+      const storeNameMap: Record<string, string> = {};
+      (storesLookup || []).forEach((s) => { storeNameMap[s.id] = s.store_name; });
+
+      // Aggregate status counts
+      const statusCounts = { approved: 0, rejected: 0, completed: 0, pending_approval: 0, cancelled: 0, pos_adjusting: 0 };
+      allBorrows.forEach((b) => {
+        if (b.status in statusCounts) statusCounts[b.status as keyof typeof statusCounts]++;
       });
 
-      const monthlyPenaltyArr = Object.entries(penaltyByMonth)
+      // Top products
+      const productQtyMap: Record<string, number> = {};
+      borrowItemsData.forEach((item) => {
+        productQtyMap[item.product_name] = (productQtyMap[item.product_name] || 0) + Number(item.quantity);
+      });
+      const topProducts = Object.entries(productQtyMap)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10)
+        .map(([productName, totalQty]) => ({ productName, totalQty }));
+
+      // By store breakdown (other stores, not self)
+      const byStoreMap: Record<string, { outgoing: number; incoming: number }> = {};
+      allBorrows.forEach((b) => {
+        if (b.from_store_id === selectedStoreId) {
+          // ขอยืมจากเรา → to_store is the other party
+          const otherName = storeNameMap[b.to_store_id] || 'Unknown';
+          if (!byStoreMap[otherName]) byStoreMap[otherName] = { outgoing: 0, incoming: 0 };
+          byStoreMap[otherName].outgoing++;
+        } else {
+          // ยืมมาหาเรา → from_store is the other party
+          const otherName = storeNameMap[b.from_store_id] || 'Unknown';
+          if (!byStoreMap[otherName]) byStoreMap[otherName] = { outgoing: 0, incoming: 0 };
+          byStoreMap[otherName].incoming++;
+        }
+      });
+      const byStore = Object.entries(byStoreMap)
+        .map(([storeName, counts]) => ({ storeName, ...counts }))
+        .sort((a, b) => (b.outgoing + b.incoming) - (a.outgoing + a.incoming));
+
+      // By month
+      const borrowByMonth: Record<string, { requests: number; completed: number }> = {};
+      allBorrows.forEach((b) => {
+        const mk = getMonthKey(b.created_at);
+        if (!borrowByMonth[mk]) borrowByMonth[mk] = { requests: 0, completed: 0 };
+        borrowByMonth[mk].requests++;
+        if (b.status === 'completed') borrowByMonth[mk].completed++;
+      });
+      const monthlyBorrowArr = Object.entries(borrowByMonth)
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([mk, amount]) => ({
-          month: getMonthLabel(mk + '-01'),
-          amount: parseFloat(amount.toFixed(2)),
-        }));
+        .map(([mk, data]) => ({ month: getMonthLabel(mk + '-01'), ...data }));
+      setMonthlyBorrows(monthlyBorrowArr);
 
-      setMonthlyPenalties(monthlyPenaltyArr);
-
-      setFinancialReport({
-        penaltyRevenue,
-        depositFees,
-        expiredForfeit: expiredForfeitCount,
-        totalRevenue,
-        revenueByMonth: monthlyPenaltyArr,
+      setBorrowReport({
+        totalRequests: allBorrows.length,
+        approved: statusCounts.approved,
+        rejected: statusCounts.rejected,
+        completed: statusCounts.completed,
+        pending: statusCounts.pending_approval,
+        cancelled: statusCounts.cancelled,
+        topProducts,
+        byStore,
+        byMonth: monthlyBorrowArr,
       });
     } catch (error) {
       console.error('Error fetching report data:', error);
@@ -813,17 +836,23 @@ export default function ReportsPage() {
         csvContent += `"${item.productName}",${item.count}\n`;
       });
       filename = 'report-deposit';
-    } else if (activeTab === 'financial') {
-      csvContent = 'รายการ,จำนวน (บาท)\n';
-      csvContent += `รายได้จากค่าปรับ,${financialReport.penaltyRevenue.toFixed(2)}\n`;
-      csvContent += `ค่าบริการฝากเหล้า,${financialReport.depositFees.toFixed(2)}\n`;
-      csvContent += `เหล้าหมดอายุ (จำนวน),${financialReport.expiredForfeit}\n`;
-      csvContent += `รายได้รวม,${financialReport.totalRevenue.toFixed(2)}\n`;
-      csvContent += '\nเดือน,ยอดค่าปรับ (บาท)\n';
-      financialReport.revenueByMonth.forEach((row) => {
-        csvContent += `${row.month},${row.amount.toFixed(2)}\n`;
+    } else if (activeTab === 'borrow') {
+      csvContent = 'สถานะ,จำนวน\n';
+      csvContent += `คำขอทั้งหมด,${borrowReport.totalRequests}\n`;
+      csvContent += `รออนุมัติ,${borrowReport.pending}\n`;
+      csvContent += `อนุมัติ,${borrowReport.approved}\n`;
+      csvContent += `เสร็จสิ้น,${borrowReport.completed}\n`;
+      csvContent += `ปฏิเสธ,${borrowReport.rejected}\n`;
+      csvContent += `ยกเลิก,${borrowReport.cancelled}\n`;
+      csvContent += '\nสินค้ายอดนิยม,จำนวน\n';
+      borrowReport.topProducts.forEach((p) => {
+        csvContent += `"${p.productName}",${p.totalQty}\n`;
       });
-      filename = 'report-financial';
+      csvContent += '\nสาขา,ขอยืม,ให้ยืม\n';
+      borrowReport.byStore.forEach((s) => {
+        csvContent += `"${s.storeName}",${s.outgoing},${s.incoming}\n`;
+      });
+      filename = 'report-borrow';
     }
 
     if (!csvContent) return;
@@ -1318,65 +1347,31 @@ export default function ReportsPage() {
     );
   }
 
-  function renderFinancialTab() {
-    const revenueCards = [
-      {
-        label: 'รายได้จากค่าปรับ',
-        value: formatCurrency(financialReport.penaltyRevenue),
-        icon: ShieldAlert,
-        lightBg: 'bg-red-50 dark:bg-red-900/20',
-        textColor: 'text-red-600 dark:text-red-400',
-      },
-      {
-        label: 'ค่าบริการฝากเหล้า',
-        value: financialReport.depositFees === 0 ? 'ไม่มีข้อมูลค่าบริการ' : formatCurrency(financialReport.depositFees),
-        icon: Wine,
-        lightBg: 'bg-indigo-50 dark:bg-indigo-900/20',
-        textColor: 'text-indigo-600 dark:text-indigo-400',
-      },
-      {
-        label: 'เหล้าหมดอายุ (ริบ)',
-        value: `${formatNumber(financialReport.expiredForfeit)} รายการ`,
-        icon: Clock,
-        lightBg: 'bg-amber-50 dark:bg-amber-900/20',
-        textColor: 'text-amber-600 dark:text-amber-400',
-      },
-      {
-        label: 'รายได้รวม',
-        value: formatCurrency(financialReport.totalRevenue),
-        icon: DollarSign,
-        lightBg: 'bg-emerald-50 dark:bg-emerald-900/20',
-        textColor: 'text-emerald-600 dark:text-emerald-400',
-      },
+  function renderBorrowTab() {
+    const statusCards = [
+      { label: 'คำขอทั้งหมด', value: borrowReport.totalRequests, icon: Package, lightBg: 'bg-indigo-50 dark:bg-indigo-900/20', textColor: 'text-indigo-600 dark:text-indigo-400' },
+      { label: 'รออนุมัติ', value: borrowReport.pending, icon: Clock, lightBg: 'bg-amber-50 dark:bg-amber-900/20', textColor: 'text-amber-600 dark:text-amber-400' },
+      { label: 'อนุมัติ/กำลังดำเนินการ', value: borrowReport.approved, icon: CheckCircle2, lightBg: 'bg-blue-50 dark:bg-blue-900/20', textColor: 'text-blue-600 dark:text-blue-400' },
+      { label: 'เสร็จสิ้น', value: borrowReport.completed, icon: CheckCircle2, lightBg: 'bg-emerald-50 dark:bg-emerald-900/20', textColor: 'text-emerald-600 dark:text-emerald-400' },
+      { label: 'ปฏิเสธ', value: borrowReport.rejected, icon: AlertTriangle, lightBg: 'bg-red-50 dark:bg-red-900/20', textColor: 'text-red-600 dark:text-red-400' },
+      { label: 'ยกเลิก', value: borrowReport.cancelled, icon: AlertTriangle, lightBg: 'bg-gray-50 dark:bg-gray-700/30', textColor: 'text-gray-500 dark:text-gray-400' },
     ];
 
     return (
       <div className="space-y-6">
-        {/* Revenue cards */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {revenueCards.map((card) => {
+        {/* Status cards */}
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+          {statusCards.map((card) => {
             const Icon = card.icon;
             return (
-              <div
-                key={card.label}
-                className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700"
-              >
+              <div key={card.label} className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
                 <div className="flex items-center gap-4">
-                  <div
-                    className={cn(
-                      'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl',
-                      card.lightBg
-                    )}
-                  >
+                  <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', card.lightBg)}>
                     <Icon className={cn('h-5 w-5', card.textColor)} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {card.label}
-                    </p>
-                    <p className="text-lg font-bold text-gray-900 dark:text-white">
-                      {card.value}
-                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{card.label}</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">{formatNumber(card.value)}</p>
                   </div>
                 </div>
               </div>
@@ -1384,27 +1379,20 @@ export default function ReportsPage() {
           })}
         </div>
 
-        {/* Monthly penalties chart */}
+        {/* Monthly chart */}
         <Card padding="none">
-          <CardHeader
-            title="ค่าปรับรายเดือน"
-            description="สรุปยอดค่าปรับที่อนุมัติแล้วแยกตามเดือน"
-          />
+          <CardHeader title="ยืมสินค้ารายเดือน" description="จำนวนคำขอและสำเร็จแยกตามเดือน" />
           <CardContent>
-            {monthlyPenalties.length > 0 ? (
+            {monthlyBorrows.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={monthlyPenalties}>
+                <BarChart data={monthlyBorrows}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#9ca3af" />
                   <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" />
-                  <Tooltip content={<FinancialTooltip />} />
+                  <Tooltip content={<CustomTooltip />} />
                   <Legend />
-                  <Bar
-                    dataKey="amount"
-                    name="ค่าปรับ (บาท)"
-                    fill={CHART_COLORS.red}
-                    radius={[4, 4, 0, 0]}
-                  />
+                  <Bar dataKey="requests" name="คำขอ" fill={CHART_COLORS.indigo} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="completed" name="สำเร็จ" fill={CHART_COLORS.emerald} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -1413,59 +1401,65 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
 
-        {/* Monthly revenue breakdown */}
-        <Card padding="none">
-          <CardHeader title="รายละเอียดค่าปรับรายเดือน" />
-          {financialReport.revenueByMonth.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100 dark:border-gray-700">
-                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      เดือน
-                    </th>
-                    <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      ยอดค่าปรับ
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                  {financialReport.revenueByMonth.map((row) => (
-                    <tr
-                      key={row.month}
-                      className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30"
-                    >
-                      <td className="px-5 py-3.5 text-sm font-medium text-gray-900 dark:text-white">
-                        {row.month}
-                      </td>
-                      <td className="px-5 py-3.5 text-right text-sm font-semibold text-gray-900 dark:text-white">
-                        {formatCurrency(row.amount)}
-                      </td>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* By store */}
+          <Card padding="none">
+            <CardHeader title="ยืมแยกตามสาขา" description="ขอยืม (ออก) / ให้ยืม (เข้า)" />
+            {borrowReport.byStore.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-700">
+                      <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">สาขา</th>
+                      <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">ขอยืม</th>
+                      <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">ให้ยืม</th>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-200 dark:border-gray-600">
-                    <td className="px-5 py-3.5 text-sm font-bold text-gray-900 dark:text-white">
-                      รวมทั้งหมด
-                    </td>
-                    <td className="px-5 py-3.5 text-right text-sm font-bold text-indigo-600 dark:text-indigo-400">
-                      {formatCurrency(
-                        financialReport.revenueByMonth.reduce((s, r) => s + r.amount, 0)
-                      )}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          ) : (
-            <CardContent>
-              <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
-                ยังไม่มีข้อมูลค่าปรับในช่วงนี้
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                    {borrowReport.byStore.map((row) => (
+                      <tr key={row.storeName} className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td className="px-5 py-3.5 text-sm font-medium text-gray-900 dark:text-white">{row.storeName}</td>
+                        <td className="px-5 py-3.5 text-right text-sm text-violet-600 dark:text-violet-400">{row.outgoing}</td>
+                        <td className="px-5 py-3.5 text-right text-sm text-teal-600 dark:text-teal-400">{row.incoming}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </CardContent>
-          )}
-        </Card>
+            ) : (
+              <CardContent>
+                <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">ยังไม่มีข้อมูลในช่วงนี้</div>
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Top products */}
+          <Card padding="none">
+            <CardHeader title="สินค้าที่ยืมบ่อย" description="Top 10 สินค้าตามจำนวนรวม" />
+            {borrowReport.topProducts.length > 0 ? (
+              <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                {borrowReport.topProducts.map((item, idx) => (
+                  <div key={item.productName} className="flex items-center justify-between px-5 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <div className="flex items-center gap-3">
+                      <span className={cn(
+                        'flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold',
+                        idx < 3 ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                      )}>
+                        {idx + 1}
+                      </span>
+                      <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.productName}</p>
+                    </div>
+                    <Badge variant="info">{formatNumber(item.totalQty)}</Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <CardContent>
+                <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">ยังไม่มีข้อมูลในช่วงนี้</div>
+              </CardContent>
+            )}
+          </Card>
+        </div>
       </div>
     );
   }
@@ -1600,7 +1594,7 @@ export default function ReportsPage() {
       {activeTab === 'overview' && renderOverviewTab()}
       {activeTab === 'stock' && renderStockTab()}
       {activeTab === 'deposit' && renderDepositTab()}
-      {activeTab === 'financial' && renderFinancialTab()}
+      {activeTab === 'borrow' && renderBorrowTab()}
     </div>
   );
 }
