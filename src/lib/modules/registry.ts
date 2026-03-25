@@ -162,16 +162,6 @@ export const modules: ModuleConfig[] = [
     permission: 'can_borrow',
   },
   {
-    id: 'admin-trials',
-    name: 'จัดการทดลองใช้',
-    description: 'อนุมัติ/ปฏิเสธผู้สมัครทดลองใช้ระบบ',
-    icon: 'user-plus',
-    color: 'teal',
-    href: '/admin/trials',
-    roles: ['owner'],
-    permission: 'can_manage_settings',
-  },
-  {
     id: 'settings',
     name: 'ตั้งค่า',
     description: 'ตั้งค่าระบบและสาขา',
