@@ -46,8 +46,11 @@ interface StoreSummary {
     overThreshold: number;
   };
   borrow: {
-    pendingApproval: number;
-    inProgress: number;
+    outgoing: number;        // ขอยืม (from_store = this store)
+    incoming: number;        // ให้ยืม (to_store = this store)
+    pendingApproval: number; // รออนุมัติ
+    approved: number;        // อนุมัติแล้ว
+    posAdjusting: number;    // รอตัดสต๊อก
   };
   todayActivityCount: number;
 }
@@ -470,8 +473,11 @@ export default function ActivityPage() {
               pendingExplanationRes,
               pendingApprovalRes,
               activityCountRes,
+              borrowOutgoingRes,
+              borrowIncomingRes,
               borrowPendingRes,
-              borrowInProgressRes,
+              borrowApprovedRes,
+              borrowPosAdjustingRes,
             ] = await Promise.all([
               // Deposit: pending_confirm
               supabase
@@ -532,18 +538,39 @@ export default function ActivityPage() {
                 .gte('created_at', todayStart)
                 .lte('created_at', todayEnd),
 
-              // Borrow: pending approval (from or to this store)
+              // Borrow: outgoing (ขอยืม — this store is borrower, active statuses)
+              supabase
+                .from('borrows')
+                .select('*', { count: 'exact', head: true })
+                .eq('from_store_id', store.id)
+                .in('status', ['pending_approval', 'approved', 'pos_adjusting']),
+
+              // Borrow: incoming (ให้ยืม — this store is lender, active statuses)
+              supabase
+                .from('borrows')
+                .select('*', { count: 'exact', head: true })
+                .eq('to_store_id', store.id)
+                .in('status', ['pending_approval', 'approved', 'pos_adjusting']),
+
+              // Borrow: pending approval
               supabase
                 .from('borrows')
                 .select('*', { count: 'exact', head: true })
                 .eq('status', 'pending_approval')
                 .or(`from_store_id.eq.${store.id},to_store_id.eq.${store.id}`),
 
-              // Borrow: in progress (approved or pos_adjusting)
+              // Borrow: approved
               supabase
                 .from('borrows')
                 .select('*', { count: 'exact', head: true })
-                .in('status', ['approved', 'pos_adjusting'])
+                .eq('status', 'approved')
+                .or(`from_store_id.eq.${store.id},to_store_id.eq.${store.id}`),
+
+              // Borrow: pos_adjusting (รอตัดสต๊อก)
+              supabase
+                .from('borrows')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'pos_adjusting')
                 .or(`from_store_id.eq.${store.id},to_store_id.eq.${store.id}`),
             ]);
 
@@ -572,8 +599,11 @@ export default function ActivityPage() {
                 overThreshold: overThreshold || 0,
               },
               borrow: {
+                outgoing: borrowOutgoingRes.count || 0,
+                incoming: borrowIncomingRes.count || 0,
                 pendingApproval: borrowPendingRes.count || 0,
-                inProgress: borrowInProgressRes.count || 0,
+                approved: borrowApprovedRes.count || 0,
+                posAdjusting: borrowPosAdjustingRes.count || 0,
               },
               todayActivityCount: activityCountRes.count || 0,
             };
@@ -877,7 +907,21 @@ export default function ActivityPage() {
                       ยืมสินค้า
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    <StatBox
+                      label="ขอยืม"
+                      value={summary.borrow.outgoing}
+                      color={
+                        summary.borrow.outgoing > 0 ? 'violet' : 'gray'
+                      }
+                    />
+                    <StatBox
+                      label="ให้ยืม"
+                      value={summary.borrow.incoming}
+                      color={
+                        summary.borrow.incoming > 0 ? 'teal' : 'gray'
+                      }
+                    />
                     <StatBox
                       label="รออนุมัติ"
                       value={summary.borrow.pendingApproval}
@@ -886,10 +930,17 @@ export default function ActivityPage() {
                       }
                     />
                     <StatBox
-                      label="กำลังดำเนินการ"
-                      value={summary.borrow.inProgress}
+                      label="อนุมัติแล้ว"
+                      value={summary.borrow.approved}
                       color={
-                        summary.borrow.inProgress > 0 ? 'blue' : 'gray'
+                        summary.borrow.approved > 0 ? 'blue' : 'gray'
+                      }
+                    />
+                    <StatBox
+                      label="รอตัดสต๊อก"
+                      value={summary.borrow.posAdjusting}
+                      color={
+                        summary.borrow.posAdjusting > 0 ? 'amber' : 'gray'
                       }
                     />
                   </div>

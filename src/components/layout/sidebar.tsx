@@ -1,14 +1,15 @@
 'use client';
 
+import { useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ClipboardList,
+  ClipboardCheck,
   Wine,
-  Truck,
-  BarChart3,
+  ArrowLeftRight,
+  FileBarChart,
   Megaphone,
-  Users,
+  UserCog,
   Settings,
   LogOut,
   Sun,
@@ -16,11 +17,15 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Package,
-  Activity,
+  ShieldCheck,
   Warehouse,
-  Repeat,
+  Shuffle,
   LayoutDashboard,
-  MessageSquare,
+  MessageCircle,
+  Trophy,
+  Scale,
+  Zap,
+  PieChart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { getModuleColors } from '@/lib/utils/module-colors';
@@ -35,18 +40,21 @@ import type { LucideIcon } from 'lucide-react';
 // แมปชื่อ icon string จาก registry กับ Lucide component
 const iconMap: Record<string, LucideIcon> = {
   'layout-dashboard': LayoutDashboard,
-  'clipboard-list': ClipboardList,
+  'clipboard-check': ClipboardCheck,
   wine: Wine,
-  truck: Truck,
-  'bar-chart-3': BarChart3,
+  'arrow-left-right': ArrowLeftRight,
+  'file-bar-chart': FileBarChart,
   megaphone: Megaphone,
-  activity: Activity,
-  users: Users,
+  'shield-check': ShieldCheck,
+  'user-cog': UserCog,
   settings: Settings,
-  package: Package,
   warehouse: Warehouse,
-  repeat: Repeat,
-  'message-square': MessageSquare,
+  shuffle: Shuffle,
+  'message-circle': MessageCircle,
+  trophy: Trophy,
+  scale: Scale,
+  zap: Zap,
+  'pie-chart': PieChart,
 };
 
 interface SidebarProps {
@@ -59,10 +67,24 @@ export function Sidebar({ stores }: SidebarProps) {
   const { user, logout } = useAuthStore();
   const { sidebarOpen, toggleSidebar, theme, toggleTheme } = useAppStore();
 
-  if (!user) return null;
-
-  const modules = getModulesForRole(user.role);
+  const modules = useMemo(() => (user ? getModulesForRole(user.role) : []), [user?.role]);
   const collapsed = !sidebarOpen;
+
+  // จัดกลุ่มเมนูตาม group
+  const groupedModules = useMemo(() => {
+    const groups: { name: string; items: typeof modules }[] = [];
+    const seen = new Set<string>();
+    for (const mod of modules) {
+      if (!seen.has(mod.group)) {
+        seen.add(mod.group);
+        groups.push({ name: mod.group, items: [] });
+      }
+      groups.find((g) => g.name === mod.group)!.items.push(mod);
+    }
+    return groups;
+  }, [modules]);
+
+  if (!user) return null;
 
   function handleLogout() {
     logout();
@@ -99,43 +121,56 @@ export function Sidebar({ stores }: SidebarProps) {
         <StoreSwitcher stores={stores} collapsed={collapsed} />
       </div>
 
-      {/* เมนูนำทาง */}
+      {/* เมนูนำทาง — แบ่งหมวดหมู่ */}
       <nav className="flex-1 overflow-y-auto p-3">
-        <ul className="space-y-1">
-          {modules.map((mod) => {
-            const Icon = iconMap[mod.icon] ?? ClipboardList;
-            const isActive =
-              pathname === mod.href || pathname.startsWith(mod.href + '/');
-            const colors = getModuleColors(mod.color);
+        {groupedModules.map((group, gi) => (
+          <div key={group.name} className={cn(gi > 0 && 'mt-4')}>
+            {/* ชื่อหมวดหมู่ */}
+            {!collapsed && (
+              <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                {group.name}
+              </p>
+            )}
+            {collapsed && gi > 0 && (
+              <div className="mx-auto mb-2 mt-1 h-px w-8 bg-gray-200 dark:bg-gray-700" />
+            )}
+            <ul className="space-y-0.5">
+              {group.items.map((mod) => {
+                const Icon = iconMap[mod.icon] ?? ClipboardCheck;
+                const isActive =
+                  pathname === mod.href || pathname.startsWith(mod.href + '/');
+                const colors = getModuleColors(mod.color);
 
-            return (
-              <li key={mod.id}>
-                <Link
-                  href={mod.href}
-                  title={collapsed ? mod.name : undefined}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
-                    'transition-colors duration-150',
-                    isActive
-                      ? cn(colors.bg, colors.text)
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100',
-                    collapsed && 'justify-center px-2'
-                  )}
-                >
-                  <Icon
-                    className={cn(
-                      'h-5 w-5 shrink-0',
-                      isActive
-                        ? colors.text
-                        : 'text-gray-400 dark:text-gray-500'
-                    )}
-                  />
-                  {!collapsed && <span className="truncate">{mod.name}</span>}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+                return (
+                  <li key={mod.id}>
+                    <Link
+                      href={mod.href}
+                      title={collapsed ? mod.name : undefined}
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
+                        'transition-colors duration-150',
+                        isActive
+                          ? cn(colors.bg, colors.text)
+                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100',
+                        collapsed && 'justify-center px-2'
+                      )}
+                    >
+                      <Icon
+                        className={cn(
+                          'h-[18px] w-[18px] shrink-0',
+                          isActive
+                            ? colors.text
+                            : 'text-gray-400 dark:text-gray-500'
+                        )}
+                      />
+                      {!collapsed && <span className="truncate">{mod.name}</span>}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
 
       {/* ส่วนล่าง: Dark mode toggle + Collapse toggle + ข้อมูลผู้ใช้ */}
@@ -153,9 +188,9 @@ export function Sidebar({ stores }: SidebarProps) {
           )}
         >
           {theme === 'light' ? (
-            <Moon className="h-5 w-5 shrink-0" />
+            <Moon className="h-[18px] w-[18px] shrink-0" />
           ) : (
-            <Sun className="h-5 w-5 shrink-0" />
+            <Sun className="h-[18px] w-[18px] shrink-0" />
           )}
           {!collapsed && (
             <span>{theme === 'light' ? 'โหมดมืด' : 'โหมดสว่าง'}</span>
@@ -175,9 +210,9 @@ export function Sidebar({ stores }: SidebarProps) {
           )}
         >
           {collapsed ? (
-            <PanelLeftOpen className="h-5 w-5 shrink-0" />
+            <PanelLeftOpen className="h-[18px] w-[18px] shrink-0" />
           ) : (
-            <PanelLeftClose className="h-5 w-5 shrink-0" />
+            <PanelLeftClose className="h-[18px] w-[18px] shrink-0" />
           )}
           {!collapsed && <span>ยุบเมนู</span>}
         </button>

@@ -87,6 +87,10 @@ export interface ActionCardMetadata {
   confirmation_photo_url?: string | null;
   timeout_minutes: number;
   priority: ActionCardPriority;
+  // Borrow-specific fields
+  borrow_status?: 'pending_approval' | 'approved' | 'rejected' | 'cancelled';
+  borrow_approved_by?: string | null;
+  borrow_rejected_reason?: string | null;
   summary: {
     customer?: string;
     items?: string;
