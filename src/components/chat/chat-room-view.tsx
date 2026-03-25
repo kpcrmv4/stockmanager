@@ -256,6 +256,17 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const isPinnedMessage = (messageId: string) =>
     pinnedMessages.some((p) => p.message_id === messageId);
 
+  // Scroll to a specific message (used by pinned banner)
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const handleScrollToMessage = useCallback((messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightId(messageId);
+      setTimeout(() => setHighlightId(null), 1500);
+    }
+  }, []);
+
   return (
     <div className="safe-area-inset-bottom flex h-full flex-col">
       {/* Header — LINE-like gradient */}
@@ -324,7 +335,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
       </div>
 
       {/* Pinned messages banner */}
-      <PinnedMessagesBanner />
+      <PinnedMessagesBanner onScrollToMessage={handleScrollToMessage} />
 
       {/* Messages — LINE-like soft blue-gray background */}
       <div
@@ -354,6 +365,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
             return (
               <div
                 key={msg.id}
+                id={`msg-${msg.id}`}
                 onClick={(e) => handleMessageTap(msg, e)}
               >
                 {/* Date separator — LINE-like pill */}
@@ -368,8 +380,9 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
                 {/* Message */}
                 <div
                   className={cn(
-                    'relative rounded-lg transition-colors',
-                    pinned && 'bg-amber-50/60 ring-1 ring-amber-200/50 dark:bg-amber-900/10 dark:ring-amber-800/30'
+                    'relative rounded-lg transition-colors duration-700',
+                    pinned && 'bg-amber-50/60 ring-1 ring-amber-200/50 dark:bg-amber-900/10 dark:ring-amber-800/30',
+                    highlightId === msg.id && 'animate-pulse bg-indigo-100/80 ring-2 ring-indigo-300 dark:bg-indigo-900/30 dark:ring-indigo-600'
                   )}
                 >
                   {pinned && (
