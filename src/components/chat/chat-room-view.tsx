@@ -15,7 +15,7 @@ import { ChatRoomSettings } from './chat-room-settings';
 import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin, Reply } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { ChatNotificationToggle } from './chat-notification-toggle';
-import type { ChatPinnedMessage, ChatMessage } from '@/types/chat';
+import type { ChatPinnedMessage, ChatMessage, ChatRoom } from '@/types/chat';
 
 interface ChatRoomViewProps {
   roomId: string;
@@ -24,7 +24,7 @@ interface ChatRoomViewProps {
 export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { rooms, setActiveRoomId, isMuted, setIsMuted, setPinnedMessages, addPinnedMessage, removePinnedMessage, pinnedMessages } = useChatStore();
+  const { rooms, setRooms, setActiveRoomId, isMuted, setIsMuted, setPinnedMessages, addPinnedMessage, removePinnedMessage, pinnedMessages } = useChatStore();
   const { messages, hasMore, isLoadingMessages, loadMore } = useChatMessages(roomId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -251,6 +251,22 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
 
   const room = rooms.find((r) => r.id === roomId);
   const roomName = room?.name || 'แชท';
+
+  // Fetch room data if not in store (e.g. app resumed from background)
+  useEffect(() => {
+    if (room || !roomId) return;
+    const supabase = createClient();
+    supabase
+      .from('chat_rooms')
+      .select('id, store_id, name, type, is_active, pinned_summary, avatar_url, created_by, created_at, updated_at')
+      .eq('id', roomId)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setRooms([...rooms, data as unknown as ChatRoom]);
+        }
+      });
+  }, [roomId, !!room]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Check if a message is pinned
   const isPinnedMessage = (messageId: string) =>
