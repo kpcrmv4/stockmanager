@@ -32,6 +32,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   // Set active room for badge
   useEffect(() => {
@@ -225,12 +226,15 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   // Close context menu on click outside
   useEffect(() => {
     if (!contextMenu) return;
-    const handler = () => setContextMenu(null);
-    document.addEventListener('click', handler);
-    document.addEventListener('touchstart', handler);
+    const handler = (e: PointerEvent | MouseEvent) => {
+      if (contextMenuRef.current?.contains(e.target as Node)) return;
+      setContextMenu(null);
+    };
+    // Use pointerdown so it works on both desktop and mobile
+    // without interfering with click handlers inside the menu
+    document.addEventListener('pointerdown', handler);
     return () => {
-      document.removeEventListener('click', handler);
-      document.removeEventListener('touchstart', handler);
+      document.removeEventListener('pointerdown', handler);
     };
   }, [contextMenu]);
 
@@ -398,15 +402,22 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
       {/* Context menu for quote/pin */}
       {contextMenu && (
         <div
+          ref={contextMenuRef}
           className="fixed z-50 animate-in fade-in zoom-in-95 rounded-xl border border-gray-200 bg-white py-1 shadow-xl dark:border-gray-700 dark:bg-gray-800"
           style={{
             left: Math.min(contextMenu.x, window.innerWidth - 180),
             top: Math.min(contextMenu.y, window.innerHeight - 100),
           }}
           onClick={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
         >
           {/* Quote/Reply — for everyone */}
           <button
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              const msg = messages.find((m) => m.id === contextMenu.messageId);
+              if (msg) handleReplyTo(msg);
+            }}
             onClick={() => {
               const msg = messages.find((m) => m.id === contextMenu.messageId);
               if (msg) handleReplyTo(msg);
@@ -422,6 +433,10 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
           {/* Pin — for admin only */}
           {isAdmin && (
             <button
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                handlePinMessage(contextMenu.messageId);
+              }}
               onClick={() => handlePinMessage(contextMenu.messageId)}
               className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
             >
