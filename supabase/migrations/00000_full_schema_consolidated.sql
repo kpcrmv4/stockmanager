@@ -837,7 +837,7 @@ DECLARE
   v_profile RECORD;
 BEGIN
   -- ดึงข้อความ
-  SELECT * INTO v_msg FROM chat_messages WHERE id = p_message_id;
+  SELECT * INTO v_msg FROM public.chat_messages WHERE id = p_message_id;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('success', false, 'error', 'Message not found');
   END IF;
@@ -851,7 +851,7 @@ BEGIN
   -- ถ้า claimed แต่หมดเวลา → auto-release ก่อน
   IF v_meta->>'status' = 'claimed' AND is_action_card_timed_out(v_meta) THEN
     v_meta := auto_release_timed_out(v_meta);
-    UPDATE chat_messages SET metadata = v_meta WHERE id = p_message_id;
+    UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
   END IF;
 
   -- ตรวจสอบ status (หลัง auto-release แล้ว)
@@ -862,7 +862,7 @@ BEGIN
 
   -- ดึงชื่อ user
   SELECT display_name, username INTO v_profile
-  FROM profiles WHERE id = p_user_id;
+  FROM public.profiles WHERE id = p_user_id;
 
   -- อัปเดต metadata
   v_meta := v_meta
@@ -875,7 +875,7 @@ BEGIN
       'auto_released_at', null
     );
 
-  UPDATE chat_messages SET metadata = v_meta WHERE id = p_message_id;
+  UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
 
   RETURN jsonb_build_object('success', true, 'metadata', v_meta);
 END;
@@ -893,7 +893,7 @@ DECLARE
   v_msg chat_messages;
   v_meta JSONB;
 BEGIN
-  SELECT * INTO v_msg FROM chat_messages WHERE id = p_message_id;
+  SELECT * INTO v_msg FROM public.chat_messages WHERE id = p_message_id;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('success', false, 'error', 'Message not found');
   END IF;
@@ -908,7 +908,7 @@ BEGIN
   -- ถ้าหมดเวลา → auto-release แล้ว reject
   IF is_action_card_timed_out(v_meta) THEN
     v_meta := auto_release_timed_out(v_meta);
-    UPDATE chat_messages SET metadata = v_meta WHERE id = p_message_id;
+    UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
     RETURN jsonb_build_object('success', false, 'error', 'หมดเวลาแล้ว งานถูกปล่อยกลับคิว',
       'metadata', v_meta, 'timed_out', true);
   END IF;
@@ -926,7 +926,7 @@ BEGIN
       'confirmation_photo_url', p_photo_url
     );
 
-  UPDATE chat_messages SET metadata = v_meta WHERE id = p_message_id;
+  UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
 
   RETURN jsonb_build_object('success', true, 'metadata', v_meta);
 END;
@@ -942,7 +942,7 @@ DECLARE
   v_msg chat_messages;
   v_meta JSONB;
 BEGIN
-  SELECT * INTO v_msg FROM chat_messages WHERE id = p_message_id;
+  SELECT * INTO v_msg FROM public.chat_messages WHERE id = p_message_id;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('success', false, 'error', 'Message not found');
   END IF;
@@ -952,7 +952,7 @@ BEGIN
   -- ถ้าหมดเวลา → ใครก็ release ได้
   IF v_meta->>'status' = 'claimed' AND is_action_card_timed_out(v_meta) THEN
     v_meta := auto_release_timed_out(v_meta);
-    UPDATE chat_messages SET metadata = v_meta WHERE id = p_message_id;
+    UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
     RETURN jsonb_build_object('success', true, 'metadata', v_meta);
   END IF;
 
@@ -972,7 +972,7 @@ BEGIN
       'released_at', now()
     );
 
-  UPDATE chat_messages SET metadata = v_meta WHERE id = p_message_id;
+  UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
 
   RETURN jsonb_build_object('success', true, 'metadata', v_meta);
 END;
@@ -1037,7 +1037,7 @@ CREATE TRIGGER on_auth_user_created
 CREATE OR REPLACE FUNCTION create_store_chat_room()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO chat_rooms (store_id, name, type)
+  INSERT INTO public.chat_rooms (store_id, name, type)
   VALUES (NEW.id, NEW.store_name || ' — แชท', 'store');
   RETURN NEW;
 END;
@@ -1052,9 +1052,9 @@ CREATE TRIGGER trg_store_create_chat_room
 CREATE OR REPLACE FUNCTION add_user_to_store_chat()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO chat_members (room_id, user_id, role)
+  INSERT INTO public.chat_members (room_id, user_id, role)
   SELECT cr.id, NEW.user_id, 'member'
-  FROM chat_rooms cr
+  FROM public.chat_rooms cr
   WHERE cr.store_id = NEW.store_id
     AND cr.type = 'store'
     AND cr.is_active = true
@@ -1072,10 +1072,10 @@ CREATE TRIGGER trg_user_store_add_chat
 CREATE OR REPLACE FUNCTION remove_user_from_store_chat()
 RETURNS TRIGGER AS $$
 BEGIN
-  DELETE FROM chat_members
+  DELETE FROM public.chat_members
   WHERE user_id = OLD.user_id
     AND room_id IN (
-      SELECT cr.id FROM chat_rooms cr
+      SELECT cr.id FROM public.chat_rooms cr
       WHERE cr.store_id = OLD.store_id AND cr.type = 'store'
     );
   RETURN OLD;
@@ -1134,7 +1134,7 @@ USING (bucket_id = 'deposit-photos');
 -- SEED: Chat rooms for existing stores
 -- ==========================================
 
-INSERT INTO chat_rooms (store_id, name, type)
+INSERT INTO public.chat_rooms (store_id, name, type)
 SELECT s.id, s.store_name || ' — แชท', 'store'
 FROM stores s
 WHERE s.active = true

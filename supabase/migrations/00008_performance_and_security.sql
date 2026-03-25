@@ -220,21 +220,175 @@ CREATE POLICY "Admins can unpin messages" ON chat_pinned_messages FOR DELETE
 -- (Supabase Advisor: 15 functions with mutable search_path)
 -- ==========================================
 
-ALTER FUNCTION get_user_role() SET search_path = '';
-ALTER FUNCTION is_admin() SET search_path = '';
-ALTER FUNCTION get_user_store_ids() SET search_path = '';
-ALTER FUNCTION create_store_chat_room() SET search_path = '';
-ALTER FUNCTION add_user_to_store_chat() SET search_path = '';
-ALTER FUNCTION remove_user_from_store_chat() SET search_path = '';
-ALTER FUNCTION insert_bot_message(UUID, chat_message_type, TEXT, JSONB) SET search_path = '';
-ALTER FUNCTION claim_action_card(UUID, UUID) SET search_path = '';
-ALTER FUNCTION release_action_card(UUID, UUID) SET search_path = '';
-ALTER FUNCTION complete_action_card(UUID, UUID, TEXT) SET search_path = '';
-ALTER FUNCTION complete_action_card(UUID, UUID, TEXT, TEXT) SET search_path = '';
-ALTER FUNCTION is_action_card_timed_out(JSONB) SET search_path = '';
-ALTER FUNCTION auto_release_timed_out(JSONB) SET search_path = '';
-ALTER FUNCTION get_chat_unread_counts(UUID) SET search_path = '';
-ALTER FUNCTION is_chat_member(UUID) SET search_path = '';
+-- Recreate functions with public. schema prefix + SET search_path = ''
+-- (ALTER FUNCTION SET search_path alone is not enough — function body
+--  must use public.table_name when search_path is empty)
+
+CREATE OR REPLACE FUNCTION get_user_role()
+RETURNS user_role AS $$
+  SELECT role FROM public.profiles WHERE id = auth.uid();
+$$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = '';
+
+CREATE OR REPLACE FUNCTION is_admin()
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('owner', 'accountant', 'hq')
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = '';
+
+CREATE OR REPLACE FUNCTION get_user_store_ids()
+RETURNS SETOF UUID AS $$
+  SELECT store_id FROM public.user_stores WHERE user_id = auth.uid();
+$$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = '';
+
+CREATE OR REPLACE FUNCTION is_chat_member(p_room_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.chat_members
+    WHERE room_id = p_room_id AND user_id = auth.uid()
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = '';
+
+CREATE OR REPLACE FUNCTION is_action_card_timed_out(p_metadata JSONB)
+RETURNS BOOLEAN AS $$
+BEGIN
+  IF p_metadata->>'status' != 'claimed' THEN RETURN false; END IF;
+  IF p_metadata->>'claimed_at' IS NULL OR p_metadata->>'timeout_minutes' IS NULL THEN RETURN false; END IF;
+  RETURN (
+    (p_metadata->>'claimed_at')::timestamptz
+    + ((p_metadata->>'timeout_minutes')::int * interval '1 minute')
+    < now()
+  );
+END;
+$$ LANGUAGE plpgsql IMMUTABLE SET search_path = '';
+
+CREATE OR REPLACE FUNCTION auto_release_timed_out(p_metadata JSONB)
+RETURNS JSONB AS $$
+BEGIN
+  RETURN p_metadata || jsonb_build_object(
+    'status', 'pending', 'claimed_by', null, 'claimed_by_name', null,
+    'claimed_at', null, 'auto_released', true, 'auto_released_at', now()
+  );
+END;
+$$ LANGUAGE plpgsql SET search_path = '';
+
+CREATE OR REPLACE FUNCTION create_store_chat_room()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.chat_rooms (store_id, name, type)
+  VALUES (NEW.id, NEW.store_name || ' — แชท', 'store');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
+
+CREATE OR REPLACE FUNCTION add_user_to_store_chat()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.chat_members (room_id, user_id, role)
+  SELECT cr.id, NEW.user_id, 'member'
+  FROM public.chat_rooms cr
+  WHERE cr.store_id = NEW.store_id AND cr.type = 'store' AND cr.is_active = true
+  ON CONFLICT (room_id, user_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
+
+CREATE OR REPLACE FUNCTION remove_user_from_store_chat()
+RETURNS TRIGGER AS $$
+BEGIN
+  DELETE FROM public.chat_members
+  WHERE user_id = OLD.user_id
+    AND room_id IN (SELECT cr.id FROM public.chat_rooms cr WHERE cr.store_id = OLD.store_id AND cr.type = 'store');
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
+
+CREATE OR REPLACE FUNCTION insert_bot_message(
+  p_room_id UUID, p_type chat_message_type, p_content TEXT, p_metadata JSONB DEFAULT NULL
+) RETURNS UUID AS $$
+DECLARE v_id UUID;
+BEGIN
+  INSERT INTO public.chat_messages (room_id, sender_id, type, content, metadata)
+  VALUES (p_room_id, NULL, p_type, p_content, p_metadata)
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
+
+CREATE OR REPLACE FUNCTION claim_action_card(p_message_id UUID, p_user_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+  v_msg public.chat_messages; v_meta JSONB; v_profile RECORD;
+BEGIN
+  SELECT * INTO v_msg FROM public.chat_messages WHERE id = p_message_id;
+  IF NOT FOUND THEN RETURN jsonb_build_object('success', false, 'error', 'Message not found'); END IF;
+  IF v_msg.type != 'action_card' THEN RETURN jsonb_build_object('success', false, 'error', 'Not an action card'); END IF;
+  v_meta := v_msg.metadata;
+  IF v_meta->>'status' = 'claimed' AND is_action_card_timed_out(v_meta) THEN
+    v_meta := auto_release_timed_out(v_meta);
+    UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
+  END IF;
+  IF v_meta->>'status' != 'pending' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Already claimed', 'claimed_by', v_meta->>'claimed_by_name');
+  END IF;
+  SELECT display_name, username INTO v_profile FROM public.profiles WHERE id = p_user_id;
+  v_meta := v_meta || jsonb_build_object('status', 'claimed', 'claimed_by', p_user_id, 'claimed_by_name', COALESCE(v_profile.display_name, v_profile.username), 'claimed_at', now(), 'auto_released', null, 'auto_released_at', null);
+  UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
+  RETURN jsonb_build_object('success', true, 'metadata', v_meta);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
+
+CREATE OR REPLACE FUNCTION release_action_card(p_message_id UUID, p_user_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+  v_msg public.chat_messages; v_meta JSONB;
+BEGIN
+  SELECT * INTO v_msg FROM public.chat_messages WHERE id = p_message_id;
+  IF NOT FOUND THEN RETURN jsonb_build_object('success', false, 'error', 'Message not found'); END IF;
+  v_meta := v_msg.metadata;
+  IF v_meta->>'status' = 'claimed' AND is_action_card_timed_out(v_meta) THEN
+    v_meta := auto_release_timed_out(v_meta);
+    UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
+    RETURN jsonb_build_object('success', true, 'metadata', v_meta);
+  END IF;
+  IF v_meta->>'claimed_by' != p_user_id::text THEN RETURN jsonb_build_object('success', false, 'error', 'Not claimed by you'); END IF;
+  v_meta := v_meta || jsonb_build_object('status', 'pending', 'claimed_by', null, 'claimed_by_name', null, 'claimed_at', null, 'released_by', p_user_id, 'released_at', now());
+  UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
+  RETURN jsonb_build_object('success', true, 'metadata', v_meta);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
+
+CREATE OR REPLACE FUNCTION complete_action_card(p_message_id UUID, p_user_id UUID, p_notes TEXT DEFAULT NULL, p_photo_url TEXT DEFAULT NULL)
+RETURNS JSONB AS $$
+DECLARE
+  v_msg public.chat_messages; v_meta JSONB;
+BEGIN
+  SELECT * INTO v_msg FROM public.chat_messages WHERE id = p_message_id;
+  IF NOT FOUND THEN RETURN jsonb_build_object('success', false, 'error', 'Message not found'); END IF;
+  v_meta := v_msg.metadata;
+  IF v_meta->>'status' != 'claimed' THEN RETURN jsonb_build_object('success', false, 'error', 'Not in claimed status'); END IF;
+  IF is_action_card_timed_out(v_meta) THEN
+    v_meta := auto_release_timed_out(v_meta);
+    UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
+    RETURN jsonb_build_object('success', false, 'error', 'หมดเวลาแล้ว', 'metadata', v_meta, 'timed_out', true);
+  END IF;
+  IF v_meta->>'claimed_by' != p_user_id::text THEN RETURN jsonb_build_object('success', false, 'error', 'Not claimed by you'); END IF;
+  v_meta := v_meta || jsonb_build_object('status', 'completed', 'completed_at', now(), 'completion_notes', p_notes, 'confirmation_photo_url', p_photo_url);
+  UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
+  RETURN jsonb_build_object('success', true, 'metadata', v_meta);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
+
+CREATE OR REPLACE FUNCTION get_chat_unread_counts(p_user_id UUID)
+RETURNS TABLE(room_id UUID, unread_count BIGINT) AS $$
+  SELECT cm.room_id, COUNT(msg.id) AS unread_count
+  FROM public.chat_members cm
+  LEFT JOIN public.chat_messages msg
+    ON msg.room_id = cm.room_id AND msg.created_at > cm.last_read_at
+    AND msg.sender_id != p_user_id AND msg.archived_at IS NULL
+  WHERE cm.user_id = p_user_id
+  GROUP BY cm.room_id;
+$$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = '';
 
 -- ==========================================
 -- 4. ENABLE RLS ON UNPROTECTED TABLES
