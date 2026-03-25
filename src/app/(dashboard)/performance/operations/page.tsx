@@ -270,7 +270,7 @@ export default function OperationsPage() {
   // Auto-refresh every 30 seconds
   useEffect(() => {
     if (!autoRefresh) return;
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, 60000);
     return () => clearInterval(interval);
   }, [autoRefresh, fetchData]);
 
