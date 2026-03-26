@@ -861,7 +861,7 @@ BEGIN
     UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;
   END IF;
 
-  IF v_meta->>'status' != 'pending' THEN
+  IF v_meta->>'status' NOT IN ('pending', 'pending_bar') THEN
     RETURN jsonb_build_object('success', false, 'error', 'Already claimed',
       'claimed_by', v_meta->>'claimed_by_name');
   END IF;
@@ -960,14 +960,16 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Not claimed by you');
   END IF;
 
+  -- Restore to pending_bar if _bar_step is set, otherwise pending
   v_meta := v_meta
     || jsonb_build_object(
-      'status', 'pending',
+      'status', CASE WHEN (v_meta->>'_bar_step')::boolean IS TRUE THEN 'pending_bar' ELSE 'pending' END,
       'claimed_by', null,
       'claimed_by_name', null,
       'claimed_at', null,
       'released_by', p_user_id,
-      'released_at', now()
+      'released_at', now(),
+      '_bar_step', null
     );
 
   UPDATE public.chat_messages SET metadata = v_meta WHERE id = p_message_id;

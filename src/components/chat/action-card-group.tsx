@@ -10,6 +10,7 @@ interface ActionCardGroupProps {
   messages: ChatMessage[];
   currentUserId: string;
   currentUserName: string;
+  currentUserRole?: string;
   roomId: string;
   storeId: string | null;
 }
@@ -43,7 +44,7 @@ const TYPE_COLOR: Record<string, string> = {
  * Shows a summary header with count + pending/claimed badges.
  * Always shows the first card; remaining are collapsed by default.
  */
-export function ActionCardGroup({ messages, currentUserId, currentUserName, roomId, storeId }: ActionCardGroupProps) {
+export function ActionCardGroup({ messages, currentUserId, currentUserName, currentUserRole, roomId, storeId }: ActionCardGroupProps) {
   const [expanded, setExpanded] = useState(false);
 
   // Determine the dominant type for the group header
@@ -56,7 +57,7 @@ export function ActionCardGroup({ messages, currentUserId, currentUserName, room
       const meta = msg.metadata as ActionCardMetadata;
       if (!meta) continue;
       typeCounts.set(meta.action_type, (typeCounts.get(meta.action_type) || 0) + 1);
-      if (meta.status === 'pending') pendingCount++;
+      if (meta.status === 'pending' || meta.status === 'pending_bar') pendingCount++;
       else if (meta.status === 'claimed') claimedCount++;
     }
 
@@ -81,6 +82,7 @@ export function ActionCardGroup({ messages, currentUserId, currentUserName, room
         message={messages[0]}
         currentUserId={currentUserId}
         currentUserName={currentUserName}
+        currentUserRole={currentUserRole}
         roomId={roomId}
         storeId={storeId}
       />
@@ -94,7 +96,10 @@ export function ActionCardGroup({ messages, currentUserId, currentUserName, room
   const color = TYPE_COLOR[groupInfo.dominantType] || 'gray';
 
   // Show the most recent pending card (or last card) as preview
-  const previewMsg = messages.find((m) => (m.metadata as ActionCardMetadata)?.status === 'pending') || messages[messages.length - 1];
+  const previewMsg = messages.find((m) => {
+    const s = (m.metadata as ActionCardMetadata)?.status;
+    return s === 'pending' || s === 'pending_bar';
+  }) || messages[messages.length - 1];
   const hiddenMessages = messages.filter((m) => m.id !== previewMsg.id);
 
   return (

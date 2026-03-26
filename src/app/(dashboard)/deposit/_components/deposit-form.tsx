@@ -26,11 +26,13 @@ import {
   Package,
   Crown,
   Truck,
+  User,
+  Phone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
-import { notifyChatNewDeposit } from '@/lib/chat/bot-client';
+import { notifyChatNewDepositForBar } from '@/lib/chat/bot-client';
 import { expiryDateISO } from '@/lib/utils/date';
 import { formatThaiDate } from '@/lib/utils/format';
 
@@ -94,6 +96,125 @@ async function generateDepositCode(storeId: string): Promise<string> {
   const storeCode = data?.store_code || 'UNKNOWN';
   const random = generateRandomAlphanumeric(5);
   return `DEP-${storeCode}-${random}`;
+}
+
+// ---------------------------------------------------------------------------
+// Customer option from previous deposits
+// ---------------------------------------------------------------------------
+
+interface CustomerOption {
+  customer_name: string;
+  customer_phone: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Customer Search Input — autocomplete with free-text support
+// ---------------------------------------------------------------------------
+
+function CustomerSearchInput({
+  value,
+  onChange,
+  onSelectCustomer,
+  label,
+  placeholder,
+  icon: Icon,
+  error,
+  disabled,
+  customers,
+  matchField,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSelectCustomer: (customer: CustomerOption) => void;
+  label: string;
+  placeholder: string;
+  icon: typeof User;
+  error?: string;
+  disabled?: boolean;
+  customers: CustomerOption[];
+  matchField: 'customer_name' | 'customer_phone';
+}) {
+  const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const filtered = value.trim()
+    ? customers.filter((c) => {
+        const field = matchField === 'customer_name' ? c.customer_name : (c.customer_phone || '');
+        return field.toLowerCase().includes(value.toLowerCase());
+      })
+    : customers;
+
+  const handleBlur = () => {
+    blurTimeout.current = setTimeout(() => setShowDropdown(false), 200);
+  };
+
+  const handleFocus = () => {
+    if (blurTimeout.current) clearTimeout(blurTimeout.current);
+    setShowDropdown(true);
+  };
+
+  const handleSelect = (customer: CustomerOption) => {
+    if (blurTimeout.current) clearTimeout(blurTimeout.current);
+    setShowDropdown(false);
+    onSelectCustomer(customer);
+  };
+
+  return (
+    <div className="relative">
+      <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+        {label}
+      </label>
+      <div className="relative">
+        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <input
+          type={matchField === 'customer_phone' ? 'tel' : 'text'}
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setShowDropdown(true);
+          }}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={cn(
+            'w-full rounded-lg border bg-white py-2 pl-9 pr-3 text-sm transition-colors',
+            'focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500',
+            'dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:focus:border-indigo-400 dark:focus:ring-indigo-400',
+            'disabled:cursor-not-allowed disabled:opacity-60',
+            error
+              ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+              : 'border-gray-300'
+          )}
+        />
+      </div>
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+
+      {/* Dropdown */}
+      {showDropdown && !disabled && filtered.length > 0 && (
+        <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+          {filtered.slice(0, 30).map((customer, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleSelect(customer)}
+              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+            >
+              <span className="font-medium text-gray-800 dark:text-gray-200">
+                {customer.customer_name}
+              </span>
+              {customer.customer_phone && (
+                <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">
+                  {customer.customer_phone}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -230,6 +351,9 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
+  // ----- Customers from previous deposits -----
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+
   // ----- Submit state -----
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -249,9 +373,36 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
     setLoadingProducts(false);
   }, [currentStoreId]);
 
+  // ----- Fetch unique customers from deposits -----
+  const fetchCustomers = useCallback(async () => {
+    if (!currentStoreId) return;
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('deposits')
+      .select('customer_name, customer_phone')
+      .eq('store_id', currentStoreId)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (data) {
+      // Deduplicate by customer_name
+      const seen = new Map<string, CustomerOption>();
+      for (const d of data) {
+        const key = d.customer_name.toLowerCase();
+        if (!seen.has(key)) {
+          seen.set(key, { customer_name: d.customer_name, customer_phone: d.customer_phone });
+        } else if (!seen.get(key)!.customer_phone && d.customer_phone) {
+          // Fill in phone if missing
+          seen.set(key, { customer_name: d.customer_name, customer_phone: d.customer_phone });
+        }
+      }
+      setCustomers(Array.from(seen.values()));
+    }
+  }, [currentStoreId]);
+
   useEffect(() => {
     fetchProducts();
-  }, [fetchProducts]);
+    fetchCustomers();
+  }, [fetchProducts, fetchCustomers]);
 
   // ----- Item helpers -----
   const updateItem = (index: number, field: keyof DepositItem, value: string | boolean) => {
@@ -416,15 +567,17 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
       });
 
       // ส่ง Action Card เข้าห้องแชทสาขา (ไม่ส่งสำหรับรายการ "ไม่ฝาก")
+      // Staff สร้าง manual → ส่งเป็น "รอบาร์ยืนยัน" ทันที
       if (!isNoDeposit) {
         for (let i = 0; i < items.length; i++) {
-          notifyChatNewDeposit(currentStoreId, {
+          notifyChatNewDepositForBar(currentStoreId, {
             deposit_code: depositCodes[i],
             customer_name: customerName.trim(),
             product_name: items[i].productName.trim(),
             quantity: parseFloat(items[i].quantity),
             table_number: tableNumber.trim() || null,
             notes: notes.trim() || null,
+            received_by_name: user.displayName || user.username || 'พนักงาน',
           });
         }
       }
@@ -478,24 +631,38 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
         <CardContent>
           <div className={cn('space-y-4', isNoDeposit && 'opacity-60')}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input
+              <CustomerSearchInput
                 label="ชื่อลูกค้า *"
                 value={customerName}
-                onChange={(e) => {
-                  setCustomerName(e.target.value);
+                onChange={(v) => {
+                  setCustomerName(v);
                   if (errors.customerName) setErrors((prev) => ({ ...prev, customerName: '' }));
                 }}
-                placeholder="เช่น คุณสมชาย"
+                onSelectCustomer={(c) => {
+                  setCustomerName(c.customer_name);
+                  if (c.customer_phone) setCustomerPhone(c.customer_phone);
+                  if (errors.customerName) setErrors((prev) => ({ ...prev, customerName: '' }));
+                }}
+                placeholder="พิมพ์ค้นหาหรือกรอกชื่อลูกค้า"
+                icon={User}
                 error={errors.customerName}
                 disabled={isNoDeposit}
+                customers={customers}
+                matchField="customer_name"
               />
-              <Input
+              <CustomerSearchInput
                 label="เบอร์โทรศัพท์"
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="เช่น 0812345678"
-                type="tel"
+                onChange={setCustomerPhone}
+                onSelectCustomer={(c) => {
+                  setCustomerPhone(c.customer_phone || '');
+                  if (!customerName) setCustomerName(c.customer_name);
+                }}
+                placeholder="พิมพ์ค้นหาหรือกรอกเบอร์โทร"
+                icon={Phone}
                 disabled={isNoDeposit}
+                customers={customers.filter((c) => !!c.customer_phone)}
+                matchField="customer_phone"
               />
             </div>
             <Input

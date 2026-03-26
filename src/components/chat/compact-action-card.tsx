@@ -35,6 +35,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; label: str
 const STATUS_ICON: Record<string, { icon: typeof Clock; className: string; label: string }> = {
   // ActionCardMetadata statuses
   pending: { icon: Clock, className: 'text-amber-500', label: 'รอรับ' },
+  pending_bar: { icon: Clock, className: 'text-orange-500', label: 'รอBar' },
   claimed: { icon: Hand, className: 'text-blue-500', label: 'กำลังทำ' },
   completed: { icon: CheckCircle, className: 'text-emerald-500', label: 'เสร็จ' },
   expired: { icon: AlertTriangle, className: 'text-red-500', label: 'หมดเวลา' },

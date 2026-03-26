@@ -25,19 +25,25 @@ interface TransactionBoardProps {
   storeId: string | null;
   currentUserId: string;
   currentUserName: string;
+  currentUserRole?: string;
 }
 
-type FilterStatus = 'all' | 'pending' | 'claimed' | 'completed';
+type FilterStatus = 'all' | 'pending' | 'pending_bar' | 'claimed' | 'completed';
 
 /**
  * Normalize status across ActionCard and Transfer metadata into
  * unified categories: pending / claimed / completed
  */
-function getNormalizedStatus(meta: Record<string, unknown>): 'pending' | 'claimed' | 'completed' | 'other' {
+function getNormalizedStatus(meta: Record<string, unknown>): 'pending' | 'pending_bar' | 'claimed' | 'completed' | 'other' {
   const status = meta.status as string;
   if (status === 'pending' || status === 'pending_approval') return 'pending';
+  if (status === 'pending_bar') return 'pending_bar';
   if (status === 'claimed') return 'claimed';
-  if (status === 'completed' || status === 'received') return 'completed';
+  if (status === 'completed' || status === 'received') {
+    const summary = meta.summary as Record<string, unknown> | undefined;
+    if (summary?.rejected) return 'other';
+    return 'completed';
+  }
   if (status === 'rejected' || status === 'expired' || status === 'cancelled' || status === 'partial') return 'other';
   return 'other';
 }
@@ -58,7 +64,7 @@ const STATUS_CONFIG: Record<string, { icon: typeof Clock; label: string; color: 
   expired: { icon: AlertTriangle, label: 'หมดเวลา', color: 'text-red-500' },
 };
 
-export function TransactionBoard({ roomId, storeId, currentUserId, currentUserName }: TransactionBoardProps) {
+export function TransactionBoard({ roomId, storeId, currentUserId, currentUserName, currentUserRole }: TransactionBoardProps) {
   const messages = useChatStore((s) => s.messages);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -80,7 +86,14 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
       if (filterType !== 'all' && meta.action_type !== filterType) return false;
       if (filterStatus !== 'all') {
         const normalized = getNormalizedStatus(meta);
-        if (normalized !== filterStatus) return false;
+        if (filterStatus === 'pending') {
+          // "รอรับ" includes both pending and pending_bar
+          if (normalized !== 'pending' && normalized !== 'pending_bar') return false;
+        } else if (filterStatus === 'pending_bar') {
+          if (normalized !== 'pending_bar') return false;
+        } else {
+          if (normalized !== filterStatus) return false;
+        }
       }
       return true;
     });
@@ -97,19 +110,20 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
     }
     // Sort groups: types with pending items first
     return Array.from(groups.entries()).sort((a, b) => {
-      const aPending = a[1].filter((m) => getNormalizedStatus(m.metadata as unknown as Record<string, unknown>) === 'pending').length;
-      const bPending = b[1].filter((m) => getNormalizedStatus(m.metadata as unknown as Record<string, unknown>) === 'pending').length;
+      const aPending = a[1].filter((m) => { const n = getNormalizedStatus(m.metadata as unknown as Record<string, unknown>); return n === 'pending' || n === 'pending_bar'; }).length;
+      const bPending = b[1].filter((m) => { const n = getNormalizedStatus(m.metadata as unknown as Record<string, unknown>); return n === 'pending' || n === 'pending_bar'; }).length;
       return bPending - aPending;
     });
   }, [filteredCards]);
 
   // Stats (normalized across all card types)
   const stats = useMemo(() => {
-    const s = { pending: 0, claimed: 0, completed: 0, total: 0 };
+    const s = { pending: 0, pending_bar: 0, claimed: 0, completed: 0, total: 0 };
     for (const msg of actionCards) {
       const normalized = getNormalizedStatus(msg.metadata as unknown as Record<string, unknown>);
       s.total++;
       if (normalized === 'pending') s.pending++;
+      else if (normalized === 'pending_bar') s.pending_bar++;
       else if (normalized === 'claimed') s.claimed++;
       else if (normalized === 'completed') s.completed++;
     }
@@ -128,8 +142,8 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F0EFF5] dark:bg-gray-900">
       {/* Stats bar */}
-      <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800">
-        <StatBadge icon={Clock} label="รอรับ" count={stats.pending} color="amber" active={filterStatus === 'pending'} onClick={() => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending')} />
+      <div className="flex items-center gap-2 overflow-x-auto border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800">
+        <StatBadge icon={Clock} label="รอรับ" count={stats.pending + stats.pending_bar} color="amber" active={filterStatus === 'pending'} onClick={() => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending')} />
         <StatBadge icon={Hand} label="กำลังทำ" count={stats.claimed} color="blue" active={filterStatus === 'claimed'} onClick={() => setFilterStatus(filterStatus === 'claimed' ? 'all' : 'claimed')} />
         <StatBadge icon={CheckCircle} label="เสร็จ" count={stats.completed} color="emerald" active={filterStatus === 'completed'} onClick={() => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed')} />
       </div>
@@ -164,7 +178,11 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
             const config = TYPE_CONFIG[type] || TYPE_CONFIG.deposit_claim;
             const Icon = config.icon;
             const isCollapsed = collapsedGroups.has(type);
-            const pendingCount = msgs.filter((m) => getNormalizedStatus(m.metadata as unknown as Record<string, unknown>) === 'pending').length;
+            const pendingCount = msgs.filter((m) => {
+              const n = getNormalizedStatus(m.metadata as unknown as Record<string, unknown>);
+              return n === 'pending';
+            }).length;
+            const pendingBarCount = msgs.filter((m) => getNormalizedStatus(m.metadata as unknown as Record<string, unknown>) === 'pending_bar').length;
             const claimedCount = msgs.filter((m) => getNormalizedStatus(m.metadata as unknown as Record<string, unknown>) === 'claimed').length;
 
             return (
@@ -184,6 +202,11 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
                   {pendingCount > 0 && (
                     <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                       รอ {pendingCount}
+                    </span>
+                  )}
+                  {pendingBarCount > 0 && (
+                    <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                      รอBar {pendingBarCount}
                     </span>
                   )}
                   {claimedCount > 0 && (
@@ -209,6 +232,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
                         message={msg}
                         currentUserId={currentUserId}
                         currentUserName={currentUserName}
+                        currentUserRole={currentUserRole}
                         roomId={roomId}
                         storeId={storeId}
                       />
