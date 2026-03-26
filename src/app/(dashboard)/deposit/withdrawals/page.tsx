@@ -41,7 +41,7 @@ import {
 import Link from 'next/link';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
-import { notifyChatWithdrawalCompleted } from '@/lib/chat/bot-client';
+import { notifyChatWithdrawalCompleted, syncChatActionCardStatus } from '@/lib/chat/bot-client';
 
 interface Withdrawal {
   id: string;
@@ -399,7 +399,7 @@ export default function WithdrawalsPage() {
       // Update deposit remaining quantity
       const { data: deposit } = await supabase
         .from('deposits')
-        .select('remaining_qty, quantity')
+        .select('remaining_qty, quantity, deposit_code')
         .eq('id', selectedWithdrawal.deposit_id)
         .single();
 
@@ -427,6 +427,18 @@ export default function WithdrawalsPage() {
         actual_qty: qty,
         processed_by_name: user.displayName || user.username || 'พนักงาน',
       });
+
+      // Sync action card ในแชทให้เป็น completed
+      if (deposit?.deposit_code) {
+        syncChatActionCardStatus({
+          storeId: currentStoreId!,
+          referenceId: deposit.deposit_code,
+          actionType: 'withdrawal_claim',
+          newStatus: 'completed',
+          completedBy: user.id,
+          completedByName: user.displayName || user.username || 'พนักงาน',
+        });
+      }
 
       // Notify bar staff about the completed withdrawal
       notifyStaff({
@@ -468,6 +480,12 @@ export default function WithdrawalsPage() {
       }
 
       // Reset deposit status back to in_store if it was pending_withdrawal
+      const { data: rejectedDeposit } = await supabase
+        .from('deposits')
+        .select('deposit_code')
+        .eq('id', selectedWithdrawal.deposit_id)
+        .single();
+
       await supabase
         .from('deposits')
         .update({ status: 'in_store' })
@@ -475,6 +493,17 @@ export default function WithdrawalsPage() {
         .eq('status', 'pending_withdrawal');
 
       toast({ type: 'warning', title: 'ปฏิเสธรายการเบิกเหล้าแล้ว' });
+
+      // Sync action card ในแชทให้เป็น rejected
+      if (rejectedDeposit?.deposit_code && currentStoreId) {
+        syncChatActionCardStatus({
+          storeId: currentStoreId,
+          referenceId: rejectedDeposit.deposit_code,
+          actionType: 'withdrawal_claim',
+          newStatus: 'rejected',
+        });
+      }
+
       await logAudit({
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.WITHDRAWAL_REJECTED,

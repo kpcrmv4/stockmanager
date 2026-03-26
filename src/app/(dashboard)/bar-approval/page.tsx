@@ -20,7 +20,7 @@ import { formatThaiDateTime, formatNumber } from '@/lib/utils/format';
 import { DEPOSIT_STATUS_LABELS, WITHDRAWAL_STATUS_LABELS } from '@/lib/utils/constants';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { sendNotification } from '@/lib/notifications/client';
-import { notifyChatDepositConfirmed } from '@/lib/chat/bot-client';
+import { notifyChatDepositConfirmed, syncChatActionCardStatus } from '@/lib/chat/bot-client';
 import { TableCardGrid, type TableCardItem } from '@/components/deposit/table-card-grid';
 import { useRealtime } from '@/hooks/use-realtime';
 import { cn } from '@/lib/utils/cn';
@@ -332,6 +332,16 @@ export default function BarApprovalPage() {
         product_name: deposit.product_name,
         quantity: deposit.quantity,
         confirmed_by_name: user.displayName || user.username || 'พนักงาน',
+      });
+
+      // Sync action card ในแชทให้เป็น completed
+      syncChatActionCardStatus({
+        storeId: deposit.store_id,
+        referenceId: deposit.deposit_code,
+        actionType: 'deposit_claim',
+        newStatus: 'completed',
+        completedBy: user.id,
+        completedByName: user.displayName || user.username || 'พนักงาน',
       });
 
       // Notify the customer that their deposit has been confirmed

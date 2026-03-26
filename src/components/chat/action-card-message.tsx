@@ -42,6 +42,7 @@ interface ActionCardMessageProps {
   currentUserRole?: string;
   roomId: string;
   storeId: string | null;
+  onStatusChange?: () => void;
 }
 
 const ACTION_TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; label: string }> = {
@@ -59,7 +60,7 @@ const PRIORITY_STYLES: Record<string, string> = {
   low: 'border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50',
 };
 
-export const ActionCardMessage = memo(function ActionCardMessage({ message, currentUserId, currentUserName, currentUserRole, roomId, storeId }: ActionCardMessageProps) {
+export const ActionCardMessage = memo(function ActionCardMessage({ message, currentUserId, currentUserName, currentUserRole, roomId, storeId, onStatusChange }: ActionCardMessageProps) {
   const [loading, setLoading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [barRemainingPercent, setBarRemainingPercent] = useState('');
@@ -178,6 +179,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
 
         const updated: ChatMessage = { ...message, metadata: newMeta };
         updateMessage(updated);
+        onStatusChange?.();
 
         await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
           type: 'message_updated',
@@ -292,6 +294,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             metadata: updatedMeta,
           };
           updateMessage(updated);
+          onStatusChange?.();
 
           await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
             type: 'message_updated',
@@ -456,6 +459,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
       if (!error) {
         const updated: ChatMessage = { ...message, metadata: newMeta };
         updateMessage(updated);
+        onStatusChange?.();
 
         await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
           type: 'message_updated',
@@ -495,6 +499,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
 
       const updated: ChatMessage = { ...message, metadata: newMeta };
       updateMessage(updated);
+      onStatusChange?.();
 
       await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
         type: 'message_updated',
@@ -689,6 +694,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
 
       const updated: ChatMessage = { ...message, metadata: newMeta };
       updateMessage(updated);
+      onStatusChange?.();
 
       // Broadcast update ไปห้อง
       broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
