@@ -6,6 +6,7 @@ import {
   Package,
   ClipboardCheck,
   Repeat,
+  Truck,
   Clock,
   CheckCircle,
   Hand,
@@ -17,7 +18,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { useChatStore } from '@/stores/chat-store';
 import { ActionCardMessage } from './action-card-message';
-import type { ChatMessage, ActionCardMetadata } from '@/types/chat';
+import type { ChatMessage } from '@/types/chat';
 
 interface TransactionBoardProps {
   roomId: string;
@@ -27,6 +28,19 @@ interface TransactionBoardProps {
 }
 
 type FilterStatus = 'all' | 'pending' | 'claimed' | 'completed';
+
+/**
+ * Normalize status across ActionCard and Transfer metadata into
+ * unified categories: pending / claimed / completed
+ */
+function getNormalizedStatus(meta: Record<string, unknown>): 'pending' | 'claimed' | 'completed' | 'other' {
+  const status = meta.status as string;
+  if (status === 'pending' || status === 'pending_approval') return 'pending';
+  if (status === 'claimed') return 'claimed';
+  if (status === 'completed' || status === 'received') return 'completed';
+  if (status === 'rejected' || status === 'expired' || status === 'cancelled' || status === 'partial') return 'other';
+  return 'other';
+}
 type FilterType = 'all' | 'deposit_claim' | 'withdrawal_claim' | 'stock_explain' | 'borrow_approve' | 'transfer_receive';
 
 const TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; label: string; bgClass: string }> = {
@@ -34,7 +48,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; label: str
   withdrawal_claim: { icon: Package, color: 'blue', label: 'เบิกเหล้า', bgClass: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
   stock_explain: { icon: ClipboardCheck, color: 'amber', label: 'สต๊อก', bgClass: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
   borrow_approve: { icon: Repeat, color: 'violet', label: 'ยืมสินค้า', bgClass: 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400' },
-  transfer_receive: { icon: Package, color: 'orange', label: 'โอนสต๊อก', bgClass: 'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400' },
+  transfer_receive: { icon: Truck, color: 'orange', label: 'โอนสต๊อก', bgClass: 'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400' },
 };
 
 const STATUS_CONFIG: Record<string, { icon: typeof Clock; label: string; color: string }> = {
@@ -50,21 +64,24 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
-  // Extract action card messages only
+  // Extract action card messages only (works for both ActionCard and Transfer metadata)
   const actionCards = useMemo(() => {
-    return messages.filter((msg): msg is ChatMessage & { metadata: ActionCardMetadata } => {
+    return messages.filter((msg) => {
       if (msg.type !== 'action_card' || !msg.metadata) return false;
-      const meta = msg.metadata as ActionCardMetadata;
+      const meta = msg.metadata as unknown as Record<string, unknown>;
       return !!meta.action_type;
     });
   }, [messages]);
 
-  // Apply filters
+  // Apply filters (using normalized status for cross-type compatibility)
   const filteredCards = useMemo(() => {
     return actionCards.filter((msg) => {
-      const meta = msg.metadata as ActionCardMetadata;
-      if (filterStatus !== 'all' && meta.status !== filterStatus) return false;
+      const meta = msg.metadata as unknown as Record<string, unknown>;
       if (filterType !== 'all' && meta.action_type !== filterType) return false;
+      if (filterStatus !== 'all') {
+        const normalized = getNormalizedStatus(meta);
+        if (normalized !== filterStatus) return false;
+      }
       return true;
     });
   }, [actionCards, filterStatus, filterType]);
@@ -73,28 +90,28 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
   const grouped = useMemo(() => {
     const groups = new Map<string, ChatMessage[]>();
     for (const msg of filteredCards) {
-      const meta = msg.metadata as ActionCardMetadata;
-      const key = meta.action_type;
+      const meta = msg.metadata as unknown as Record<string, unknown>;
+      const key = meta.action_type as string;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(msg);
     }
     // Sort groups: types with pending items first
     return Array.from(groups.entries()).sort((a, b) => {
-      const aPending = a[1].filter((m) => (m.metadata as ActionCardMetadata).status === 'pending').length;
-      const bPending = b[1].filter((m) => (m.metadata as ActionCardMetadata).status === 'pending').length;
+      const aPending = a[1].filter((m) => getNormalizedStatus(m.metadata as unknown as Record<string, unknown>) === 'pending').length;
+      const bPending = b[1].filter((m) => getNormalizedStatus(m.metadata as unknown as Record<string, unknown>) === 'pending').length;
       return bPending - aPending;
     });
   }, [filteredCards]);
 
-  // Stats
+  // Stats (normalized across all card types)
   const stats = useMemo(() => {
     const s = { pending: 0, claimed: 0, completed: 0, total: 0 };
     for (const msg of actionCards) {
-      const meta = msg.metadata as ActionCardMetadata;
+      const normalized = getNormalizedStatus(msg.metadata as unknown as Record<string, unknown>);
       s.total++;
-      if (meta.status === 'pending') s.pending++;
-      else if (meta.status === 'claimed') s.claimed++;
-      else if (meta.status === 'completed') s.completed++;
+      if (normalized === 'pending') s.pending++;
+      else if (normalized === 'claimed') s.claimed++;
+      else if (normalized === 'completed') s.completed++;
     }
     return s;
   }, [actionCards]);
@@ -147,8 +164,8 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
             const config = TYPE_CONFIG[type] || TYPE_CONFIG.deposit_claim;
             const Icon = config.icon;
             const isCollapsed = collapsedGroups.has(type);
-            const pendingCount = msgs.filter((m) => (m.metadata as ActionCardMetadata).status === 'pending').length;
-            const claimedCount = msgs.filter((m) => (m.metadata as ActionCardMetadata).status === 'claimed').length;
+            const pendingCount = msgs.filter((m) => getNormalizedStatus(m.metadata as unknown as Record<string, unknown>) === 'pending').length;
+            const claimedCount = msgs.filter((m) => getNormalizedStatus(m.metadata as unknown as Record<string, unknown>) === 'claimed').length;
 
             return (
               <div key={type} className="mb-3">
