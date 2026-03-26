@@ -1060,7 +1060,23 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             </Card>
           )}
 
-          {/* Actions (hidden from staff) */}
+          {/* Staff: only withdraw button */}
+          {user && user.role === 'staff' && canWithdraw && (
+            <Card padding="none">
+              <CardContent>
+                <Button
+                  className="min-h-[44px] w-full justify-center"
+                  variant="outline"
+                  icon={<Minus className="h-4 w-4" />}
+                  onClick={() => setShowWithdrawModal(true)}
+                >
+                  เบิกเหล้า
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Actions (non-staff) */}
           {user && user.role !== 'staff' && (canWithdraw || canMarkExpired || canTransfer || canExtendExpiry || canToggleVip) && (
             <Card padding="none">
               <CardHeader title="ดำเนินการ" />
