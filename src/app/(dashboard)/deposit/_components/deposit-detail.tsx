@@ -1060,8 +1060,8 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             </Card>
           )}
 
-          {/* Actions */}
-          {(canWithdraw || canMarkExpired || canTransfer || canExtendExpiry || canToggleVip) && (
+          {/* Actions (hidden from staff) */}
+          {user && user.role !== 'staff' && (canWithdraw || canMarkExpired || canTransfer || canExtendExpiry || canToggleVip) && (
             <Card padding="none">
               <CardHeader title="ดำเนินการ" />
               <CardContent>

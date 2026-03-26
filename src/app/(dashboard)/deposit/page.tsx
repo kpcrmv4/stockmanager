@@ -21,7 +21,6 @@ import {
   Plus,
   Search,
   Clock,
-  Users,
   AlertTriangle,
   Package,
   Eye,
@@ -110,7 +109,7 @@ export default function DepositPage() {
     expiredCount: 0,
     vipCount: 0,
     expiringSoonCount: 0,
-    uniqueCustomers: 0,
+    pendingWithdrawalCount: 0,
   });
 
   // Handle action query parameter (e.g. ?action=new or ?action=withdraw)
@@ -131,14 +130,14 @@ export default function DepositPage() {
       { count: expiredCount },
       { count: vipCount },
       { data: expiringSoonData },
-      { data: customerData },
+      { count: pendingWithdrawalCount },
     ] = await Promise.all([
       supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'in_store'),
       supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'pending_confirm'),
       supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'expired'),
       supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('is_vip', true),
       supabase.from('deposits').select('expiry_date').eq('store_id', storeId).eq('status', 'in_store').not('expiry_date', 'is', null),
-      supabase.from('deposits').select('customer_name').eq('store_id', storeId).eq('status', 'in_store'),
+      supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('store_id', storeId).in('status', ['pending', 'approved']),
     ]);
 
     const expiringSoonCount = (expiringSoonData || []).filter((d) => {
@@ -146,15 +145,13 @@ export default function DepositPage() {
       return days <= 7 && days > 0;
     }).length;
 
-    const uniqueCustomers = new Set((customerData || []).map((d) => d.customer_name)).size;
-
     setStats({
       activeCount: activeCount || 0,
       pendingCount: pendingCount || 0,
       expiredCount: expiredCount || 0,
       vipCount: vipCount || 0,
       expiringSoonCount,
-      uniqueCustomers,
+      pendingWithdrawalCount: pendingWithdrawalCount || 0,
     });
   }, []);
 
@@ -321,7 +318,7 @@ export default function DepositPage() {
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Link href="/deposit/withdrawals">
-            <Button variant="outline" icon={<Minus className="h-4 w-4" />} className="w-full sm:w-auto">
+            <Button variant="danger" icon={<Minus className="h-4 w-4" />} className="w-full sm:w-auto">
               เบิกเหล้า
             </Button>
           </Link>
@@ -368,12 +365,12 @@ export default function DepositPage() {
         </Card>
         <Card padding="md">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/20">
-              <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-900/20">
+              <Package className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.uniqueCustomers}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">ลูกค้าทั้งหมด</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.pendingWithdrawalCount}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">คำขอเบิก</p>
             </div>
           </div>
         </Card>

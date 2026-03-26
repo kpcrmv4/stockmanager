@@ -682,19 +682,19 @@ export default function WithdrawalsPage() {
                     <div className="flex gap-2">
                       <Button
                         className="min-h-[44px] flex-1"
-                        variant="primary"
-                        icon={<CheckCircle2 className="h-4 w-4" />}
-                        onClick={() => openProcessModal(withdrawal, 'complete')}
-                      >
-                        ดำเนินการเบิก
-                      </Button>
-                      <Button
-                        className="min-h-[44px] flex-1"
                         variant="danger"
                         icon={<XCircle className="h-4 w-4" />}
                         onClick={() => openProcessModal(withdrawal, 'reject')}
                       >
                         ปฏิเสธ
+                      </Button>
+                      <Button
+                        className="min-h-[44px] flex-1"
+                        variant="primary"
+                        icon={<CheckCircle2 className="h-4 w-4" />}
+                        onClick={() => openProcessModal(withdrawal, 'complete')}
+                      >
+                        ดำเนินการเบิก
                       </Button>
                     </div>
                   )}
