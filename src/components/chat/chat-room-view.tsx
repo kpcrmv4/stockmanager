@@ -13,8 +13,9 @@ import { ChatInput } from './chat-input';
 import { PinnedMessagesBanner } from './pinned-messages-banner';
 import { ChatRoomSettings } from './chat-room-settings';
 import { TransactionBoard } from './transaction-board';
+import { MyTasksBoard } from './my-tasks-board';
 import { CompactActionCard } from './compact-action-card';
-import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin, Reply, MessageSquare, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin, Reply, MessageSquare, ClipboardList, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { ChatNotificationToggle } from './chat-notification-toggle';
 import type { ChatPinnedMessage, ChatMessage, ChatRoom } from '@/types/chat';
@@ -400,7 +401,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
         </button>
       </div>
 
-      {/* Tab toggle — แชท / รายการงาน */}
+      {/* Tab toggle — แชท / รายการงาน / งานของฉัน */}
       <div className="flex border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
         <button
           onClick={() => setActiveTab('chat')}
@@ -431,11 +432,34 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
             </span>
           )}
         </button>
+        <button
+          onClick={() => setActiveTab('my-tasks')}
+          className={cn(
+            'flex flex-1 items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors',
+            activeTab === 'my-tasks'
+              ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          )}
+        >
+          <UserCircle className="h-3.5 w-3.5" />
+          งานของฉัน
+        </button>
       </div>
 
       {/* Task Board tab */}
       {activeTab === 'tasks' && (
         <TransactionBoard
+          roomId={roomId}
+          storeId={room?.store_id || null}
+          currentUserId={user?.id || ''}
+          currentUserName={user?.displayName || user?.username || 'พนักงาน'}
+          currentUserRole={user?.role}
+        />
+      )}
+
+      {/* My Tasks tab */}
+      {activeTab === 'my-tasks' && (
+        <MyTasksBoard
           roomId={roomId}
           storeId={room?.store_id || null}
           currentUserId={user?.id || ''}

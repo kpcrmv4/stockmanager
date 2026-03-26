@@ -21,8 +21,8 @@ interface ChatState {
   // mute state (ห้องที่เปิดดู)
   isMuted: boolean;
 
-  // active tab (แชท vs รายการงาน)
-  activeTab: 'chat' | 'tasks';
+  // active tab (แชท vs รายการงาน vs งานของฉัน)
+  activeTab: 'chat' | 'tasks' | 'my-tasks';
 
   // actions
   setRooms: (rooms: ChatRoom[]) => void;
@@ -40,7 +40,7 @@ interface ChatState {
   addPinnedMessage: (msg: ChatPinnedMessage) => void;
   removePinnedMessage: (messageId: string) => void;
   setIsMuted: (muted: boolean) => void;
-  setActiveTab: (tab: 'chat' | 'tasks') => void;
+  setActiveTab: (tab: 'chat' | 'tasks' | 'my-tasks') => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
