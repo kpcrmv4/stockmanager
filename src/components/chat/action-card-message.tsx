@@ -296,22 +296,29 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
     }
   };
 
-  // Bar step: claim pending_bar → sets _bar_step flag before calling normal claim
+  // Bar step: claim pending_bar → sets _bar_step flag
   const handleBarClaim = async () => {
     setLoading(true);
     try {
       const supabase = createClient();
-      const { data: result } = await supabase.rpc('claim_action_card', {
-        p_message_id: message.id,
-        p_user_id: currentUserId,
-      });
 
-      if (result?.success) {
-        const updatedMeta = {
-          ...(result.metadata || {}),
-          _bar_step: true,
-        };
-        const updated: ChatMessage = { ...message, metadata: updatedMeta };
+      // Directly update metadata: pending_bar → claimed with _bar_step flag
+      const newMeta: ActionCardMetadata & { _bar_step: boolean } = {
+        ...meta,
+        status: 'claimed',
+        claimed_by: currentUserId,
+        claimed_by_name: currentUserName,
+        claimed_at: new Date().toISOString(),
+        _bar_step: true,
+      };
+
+      const { error } = await supabase
+        .from('chat_messages')
+        .update({ metadata: newMeta })
+        .eq('id', message.id);
+
+      if (!error) {
+        const updated: ChatMessage = { ...message, metadata: newMeta };
         updateMessage(updated);
 
         await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
@@ -833,7 +840,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                       isLoading={loading}
                       onClick={handleBarClaim}
                     >
-                      รับยืนยัน (Bar)
+                      ยืนยันรับ (Bar)
                     </Button>
                     <Button
                       size="sm"
