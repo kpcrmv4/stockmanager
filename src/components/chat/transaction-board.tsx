@@ -216,10 +216,13 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
             return (
               <div key={type} className="mb-3">
                 {/* Group header */}
-                <button
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggleGroup(type)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleGroup(type); }}
                   className={cn(
-                    'flex w-full items-center gap-2 px-3 py-2.5 shadow-sm transition-colors',
+                    'flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 shadow-sm transition-colors',
                     'bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700',
                     isCollapsed ? 'rounded-xl' : 'rounded-t-xl'
                   )}
@@ -294,7 +297,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
                       <ChevronUp className="h-4 w-4 text-gray-400" />
                     )}
                   </span>
-                </button>
+                </div>
 
                 {/* Cards list */}
                 {!isCollapsed && (

@@ -1,5 +1,3 @@
-import { createClient } from '@/lib/supabase/client';
-
 /**
  * Audit action types สำหรับระบบต่างๆ
  */
@@ -100,19 +98,23 @@ interface AuditLogParams {
 
 /**
  * บันทึก audit log (client-side) — fire-and-forget ไม่ throw error
+ * ใช้ API route เพื่อ bypass RLS (audit_logs อนุญาตเฉพาะ service role เขียน)
  */
 export async function logAudit(params: AuditLogParams): Promise<void> {
   try {
-    const supabase = createClient();
-    await supabase.from('audit_logs').insert({
-      store_id: params.store_id || null,
-      action_type: params.action_type,
-      table_name: params.table_name || null,
-      record_id: params.record_id || null,
-      old_value: params.old_value || null,
-      new_value: params.new_value || null,
-      changed_by: params.changed_by || null,
-    });
+    fetch('/api/audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        store_id: params.store_id || null,
+        action_type: params.action_type,
+        table_name: params.table_name || null,
+        record_id: params.record_id || null,
+        old_value: params.old_value || null,
+        new_value: params.new_value || null,
+        changed_by: params.changed_by || null,
+      }),
+    }).catch(() => {});
   } catch (error) {
     // Audit logging should never break the main flow
     console.error('[Audit] Failed to log:', error);
