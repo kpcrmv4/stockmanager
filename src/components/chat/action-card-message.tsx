@@ -313,9 +313,23 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             }).catch(() => {});
           }
 
-          // Bar completed deposit → notify and send system message
+          // Bar completed deposit → update deposit status + notify
           if (isBarCompleting && storeId) {
             const summary = meta.summary;
+
+            // Update deposit record: pending_confirm → in_store
+            if (meta.reference_table === 'deposits' && meta.reference_id) {
+              supabase
+                .from('deposits')
+                .update({
+                  status: 'in_store',
+                  confirm_photo_url: photoUrl || undefined,
+                  remaining_percent: barRemainingPercent ? Number(barRemainingPercent) : undefined,
+                })
+                .eq('deposit_code', meta.reference_id)
+                .then(() => {});
+            }
+
             sendChatBotMessage({
               storeId,
               type: 'system',
@@ -594,7 +608,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             {isPendingBar ? 'รอบาร์ยืนยัน' : isPending && isDepositCard ? 'รอ Staff รับ' : config.label}
           </span>
           <span className="text-xs text-gray-400">
-            #{meta.reference_id?.slice(0, 8)}
+            #{meta.reference_id}
           </span>
         </div>
 
