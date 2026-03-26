@@ -69,6 +69,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [groupStatusFilter, setGroupStatusFilter] = useState<Record<string, string>>({}); // type → status filter
 
   // Extract action card messages only (works for both ActionCard and Transfer metadata)
   const actionCards = useMemo(() => {
@@ -185,6 +186,33 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
             const pendingBarCount = msgs.filter((m) => getNormalizedStatus(m.metadata as unknown as Record<string, unknown>) === 'pending_bar').length;
             const claimedCount = msgs.filter((m) => getNormalizedStatus(m.metadata as unknown as Record<string, unknown>) === 'claimed').length;
 
+            const completedCount = msgs.filter((m) => getNormalizedStatus(m.metadata as unknown as Record<string, unknown>) === 'completed').length;
+            const activeGroupFilter = groupStatusFilter[type] || 'all';
+
+            // Filter msgs within group by group-level status filter
+            const displayMsgs = activeGroupFilter === 'all'
+              ? msgs
+              : msgs.filter((m) => {
+                  const n = getNormalizedStatus(m.metadata as unknown as Record<string, unknown>);
+                  return n === activeGroupFilter;
+                });
+
+            const handleChipClick = (status: string, e: React.MouseEvent) => {
+              e.stopPropagation();
+              setGroupStatusFilter((prev) => ({
+                ...prev,
+                [type]: prev[type] === status ? 'all' : status,
+              }));
+              // auto-expand when filtering
+              if (isCollapsed) {
+                setCollapsedGroups((prev) => {
+                  const next = new Set(prev);
+                  next.delete(type);
+                  return next;
+                });
+              }
+            };
+
             return (
               <div key={type} className="mb-3">
                 {/* Group header */}
@@ -204,18 +232,59 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
                     {msgs.length} รายการ
                   </span>
                   {pendingCount > 0 && (
-                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                    <span
+                      role="button"
+                      onClick={(e) => handleChipClick('pending', e)}
+                      className={cn(
+                        'cursor-pointer rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-all',
+                        activeGroupFilter === 'pending'
+                          ? 'bg-amber-500 text-white ring-1 ring-amber-600'
+                          : 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50'
+                      )}
+                    >
                       รอ {pendingCount}
                     </span>
                   )}
                   {pendingBarCount > 0 && (
-                    <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                    <span
+                      role="button"
+                      onClick={(e) => handleChipClick('pending_bar', e)}
+                      className={cn(
+                        'cursor-pointer rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-all',
+                        activeGroupFilter === 'pending_bar'
+                          ? 'bg-orange-500 text-white ring-1 ring-orange-600'
+                          : 'bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50'
+                      )}
+                    >
                       รอBar {pendingBarCount}
                     </span>
                   )}
                   {claimedCount > 0 && (
-                    <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                    <span
+                      role="button"
+                      onClick={(e) => handleChipClick('claimed', e)}
+                      className={cn(
+                        'cursor-pointer rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-all',
+                        activeGroupFilter === 'claimed'
+                          ? 'bg-blue-500 text-white ring-1 ring-blue-600'
+                          : 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50'
+                      )}
+                    >
                       ทำ {claimedCount}
+                    </span>
+                  )}
+                  {completedCount > 0 && (
+                    <span
+                      role="button"
+                      onClick={(e) => handleChipClick('completed', e)}
+                      className={cn(
+                        'cursor-pointer rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-all',
+                        activeGroupFilter === 'completed'
+                          ? 'bg-emerald-500 text-white ring-1 ring-emerald-600'
+                          : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50'
+                      )}
+                    >
+                      เสร็จ {completedCount}
                     </span>
                   )}
                   <span className="ml-auto">
@@ -230,17 +299,23 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
                 {/* Cards list */}
                 {!isCollapsed && (
                   <div className="space-y-1 rounded-b-xl bg-white/50 px-1 pb-2 pt-1 dark:bg-gray-800/50">
-                    {msgs.map((msg) => (
-                      <ActionCardMessage
-                        key={msg.id}
-                        message={msg}
-                        currentUserId={currentUserId}
-                        currentUserName={currentUserName}
-                        currentUserRole={currentUserRole}
-                        roomId={roomId}
-                        storeId={storeId}
-                      />
-                    ))}
+                    {displayMsgs.length === 0 ? (
+                      <p className="py-3 text-center text-xs text-gray-400 dark:text-gray-500">
+                        ไม่มีรายการในตัวกรองนี้
+                      </p>
+                    ) : (
+                      displayMsgs.map((msg) => (
+                        <ActionCardMessage
+                          key={msg.id}
+                          message={msg}
+                          currentUserId={currentUserId}
+                          currentUserName={currentUserName}
+                          currentUserRole={currentUserRole}
+                          roomId={roomId}
+                          storeId={storeId}
+                        />
+                      ))
+                    )}
                   </div>
                 )}
               </div>
