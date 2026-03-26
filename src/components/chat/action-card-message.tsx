@@ -807,11 +807,11 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             {/* Pending Bar — เฉพาะ bar/manager/owner กดรับได้ */}
             {isPendingBar && !isClaimed && (
               <div className="space-y-2">
-                {meta.summary.received_by && (
+                {typeof meta.summary.received_by === 'string' && (
                   <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 dark:bg-blue-900/20">
                     <CheckCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
-                      {meta.summary.received_by as string} รับของแล้ว — รอบาร์ยืนยัน
+                      {meta.summary.received_by} รับของแล้ว — รอบาร์ยืนยัน
                     </span>
                   </div>
                 )}
@@ -949,9 +949,9 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                     <span className="text-xs font-medium text-red-700 dark:text-red-300">
                       ยกเลิกแล้ว
                     </span>
-                    {meta.summary.rejected_by && (
+                    {typeof meta.summary.rejected_by === 'string' && (
                       <span className="text-xs text-red-500/70">
-                        โดย {meta.summary.rejected_by as string}
+                        โดย {meta.summary.rejected_by}
                       </span>
                     )}
                   </div>
@@ -971,10 +971,10 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                         <Camera className="ml-auto h-3.5 w-3.5 text-emerald-500" />
                       )}
                     </div>
-                    {meta.summary.remaining_percent && (
+                    {typeof meta.summary.remaining_percent === 'string' && (
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        คงเหลือ {meta.summary.remaining_percent as string}%
-                        {meta.summary.confirmed_by && ` — ยืนยันโดย ${meta.summary.confirmed_by as string}`}
+                        คงเหลือ {meta.summary.remaining_percent}%
+                        {typeof meta.summary.confirmed_by === 'string' && ` — ยืนยันโดย ${meta.summary.confirmed_by}`}
                       </p>
                     )}
                     {meta.confirmation_photo_url && (
@@ -988,7 +988,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                       </div>
                     )}
                     {/* Print buttons — only for deposit_claim after bar confirmation */}
-                    {isDepositCard && meta.summary.confirmed_by && (
+                    {isDepositCard && typeof meta.summary.confirmed_by === 'string' && (
                       <div className="flex gap-2">
                         <Button
                           size="sm"
