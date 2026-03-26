@@ -10,11 +10,10 @@ import { useChatStore } from '@/stores/chat-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { ChatMessageBubble } from './chat-message-bubble';
 import { ChatInput } from './chat-input';
-import { ActionCardMessage } from './action-card-message';
 import { PinnedMessagesBanner } from './pinned-messages-banner';
 import { ChatRoomSettings } from './chat-room-settings';
 import { TransactionBoard } from './transaction-board';
-import { ActionCardGroup, groupConsecutiveActionCards } from './action-card-group';
+import { CompactActionCard } from './compact-action-card';
 import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin, Reply, MessageSquare, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { ChatNotificationToggle } from './chat-notification-toggle';
@@ -302,12 +301,6 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const room = rooms.find((r) => r.id === roomId);
   const roomName = room?.name || 'แชท';
 
-  // Group consecutive action cards for collapsed view
-  const groupedMessages = useMemo(
-    () => groupConsecutiveActionCards(messages),
-    [messages]
-  );
-
   // Count pending action cards for badge
   const pendingActionCount = useMemo(() => {
     return messages.filter((m) => {
@@ -477,44 +470,14 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
           </div>
         )}
 
-        {/* Messages list — with action card grouping */}
+        {/* Messages list — action cards shown as compact notifications */}
         <div className="space-y-2">
-          {groupedMessages.map((group, gi) => {
-            if (group.type === 'action_group') {
-              // Find first message for date separator
-              const firstMsg = group.messages[0];
-              const prevGroup = gi > 0 ? groupedMessages[gi - 1] : null;
-              const prevLastMsg = prevGroup ? prevGroup.messages[prevGroup.messages.length - 1] : null;
-              const showDate = !prevLastMsg || !isSameDay(prevLastMsg.created_at, firstMsg.created_at);
-
-              return (
-                <div key={`group-${firstMsg.id}`}>
-                  {showDate && (
-                    <div className="my-4 flex justify-center">
-                      <span className="rounded-full bg-black/10 px-4 py-1 text-[11px] font-medium text-gray-600 backdrop-blur-sm dark:bg-white/10 dark:text-gray-400">
-                        {formatDateSeparator(firstMsg.created_at)}
-                      </span>
-                    </div>
-                  )}
-                  <ActionCardGroup
-                    messages={group.messages}
-                    currentUserId={user?.id || ''}
-                    currentUserName={user?.displayName || user?.username || 'พนักงาน'}
-                    roomId={roomId}
-                    storeId={room?.store_id || null}
-                  />
-                </div>
-              );
-            }
-
-            // Single message (text/image/system)
-            const msg = group.messages[0];
-            const prevGroup = gi > 0 ? groupedMessages[gi - 1] : null;
-            const prevLastMsg = prevGroup ? prevGroup.messages[prevGroup.messages.length - 1] : null;
-            const showDate = !prevLastMsg || !isSameDay(prevLastMsg.created_at, msg.created_at);
+          {messages.map((msg, i) => {
+            const prevMsg = i > 0 ? messages[i - 1] : null;
+            const showDate = !prevMsg || !isSameDay(prevMsg.created_at, msg.created_at);
             const showSender =
-              !prevLastMsg ||
-              prevLastMsg.sender_id !== msg.sender_id ||
+              !prevMsg ||
+              prevMsg.sender_id !== msg.sender_id ||
               showDate;
 
             const pinned = isPinnedMessage(msg.id);
@@ -533,26 +496,30 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
                   </div>
                 )}
 
-                {/* Message */}
-                <div
-                  onClick={(e) => handleMessageTap(msg, e)}
-                  className={cn(
-                    'relative rounded-lg transition-colors duration-700',
-                    pinned && 'bg-amber-50/60 ring-1 ring-amber-200/50 dark:bg-amber-900/10 dark:ring-amber-800/30',
-                    highlightId === msg.id && 'animate-pulse bg-indigo-100/80 ring-2 ring-indigo-300 dark:bg-indigo-900/30 dark:ring-indigo-600'
-                  )}
-                >
-                  {pinned && (
-                    <div className="absolute -top-1 right-2 z-10">
-                      <Pin className="h-3 w-3 text-amber-500" />
-                    </div>
-                  )}
-                  <ChatMessageBubble
-                    message={msg}
-                    isOwn={msg.sender_id === user?.id}
-                    showSender={showSender}
-                  />
-                </div>
+                {/* Action cards → compact notification (tap to go to tasks tab) */}
+                {msg.type === 'action_card' ? (
+                  <CompactActionCard message={msg} />
+                ) : (
+                  <div
+                    onClick={(e) => handleMessageTap(msg, e)}
+                    className={cn(
+                      'relative rounded-lg transition-colors duration-700',
+                      pinned && 'bg-amber-50/60 ring-1 ring-amber-200/50 dark:bg-amber-900/10 dark:ring-amber-800/30',
+                      highlightId === msg.id && 'animate-pulse bg-indigo-100/80 ring-2 ring-indigo-300 dark:bg-indigo-900/30 dark:ring-indigo-600'
+                    )}
+                  >
+                    {pinned && (
+                      <div className="absolute -top-1 right-2 z-10">
+                        <Pin className="h-3 w-3 text-amber-500" />
+                      </div>
+                    )}
+                    <ChatMessageBubble
+                      message={msg}
+                      isOwn={msg.sender_id === user?.id}
+                      showSender={showSender}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
