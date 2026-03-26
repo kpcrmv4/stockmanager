@@ -68,7 +68,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
   const actionCards = useMemo(() => {
     return messages.filter((msg) => {
       if (msg.type !== 'action_card' || !msg.metadata) return false;
-      const meta = msg.metadata as Record<string, unknown>;
+      const meta = msg.metadata as unknown as Record<string, unknown>;
       return !!meta.action_type;
     });
   }, [messages]);
@@ -76,7 +76,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
   // Apply filters (using normalized status for cross-type compatibility)
   const filteredCards = useMemo(() => {
     return actionCards.filter((msg) => {
-      const meta = msg.metadata as Record<string, unknown>;
+      const meta = msg.metadata as unknown as Record<string, unknown>;
       if (filterType !== 'all' && meta.action_type !== filterType) return false;
       if (filterStatus !== 'all') {
         const normalized = getNormalizedStatus(meta);
@@ -90,7 +90,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
   const grouped = useMemo(() => {
     const groups = new Map<string, ChatMessage[]>();
     for (const msg of filteredCards) {
-      const meta = msg.metadata as Record<string, unknown>;
+      const meta = msg.metadata as unknown as Record<string, unknown>;
       const key = meta.action_type as string;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(msg);
