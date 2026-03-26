@@ -137,15 +137,17 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
     try {
       const supabase = createClient();
 
+      // Check if this is bar completing pending_bar step (must check BEFORE staff check)
+      const isBarCompleting = action === 'complete' && isDepositCard && meta.status === 'claimed'
+        && (meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step === true;
+
       // Deposit 2-step: staff completes "pending" → transitions to "pending_bar"
+      // Exclude bar completing (_bar_step) so it falls through to normal complete flow
       const isStaffCompletingDeposit = action === 'complete'
         && isDepositCard
         && meta.status === 'claimed'
-        && !isPendingBar;
-
-      // Check if this is bar completing pending_bar step
-      const isBarCompleting = action === 'complete' && isDepositCard && meta.status === 'claimed'
-        && (meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step === true;
+        && !isPendingBar
+        && !isBarCompleting;
 
       if (isStaffCompletingDeposit) {
         // Staff complete → transition to pending_bar (NOT completed)
