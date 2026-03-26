@@ -25,6 +25,8 @@ import {
   Plus,
   Printer,
   Ban,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { notifyStaff } from '@/lib/notifications/client';
@@ -63,6 +65,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   const [barRemainingPercent, setBarRemainingPercent] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const { updateMessage } = useChatStore();
   const router = useRouter();
   const meta = message.metadata as ActionCardMetadata | null;
@@ -709,15 +712,16 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
     : null;
 
   return (
-    <div className="my-2 flex justify-center">
+    <div className={cn('flex justify-center', isCompleted ? 'my-1' : 'my-2')}>
       <div
         className={cn(
-          'w-full max-w-[90%] rounded-xl border p-3 shadow-sm',
+          'w-full max-w-[90%] rounded-xl border shadow-sm',
+          isCompleted ? 'p-2.5' : 'p-3',
           PRIORITY_STYLES[meta.priority] || PRIORITY_STYLES.normal
         )}
       >
         {/* Header */}
-        <div className="mb-2 flex items-center gap-2">
+        <div className={cn('flex items-center gap-2', isCompleted ? 'mb-1' : 'mb-2')}>
           {meta.priority === 'urgent' && (
             <AlertTriangle className="h-4 w-4 text-red-500" />
           )}
@@ -730,18 +734,24 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           </span>
         </div>
 
-        {/* Summary */}
-        <div className="mb-3 space-y-0.5 text-xs text-gray-600 dark:text-gray-300">
-          {meta.summary.customer && (
-            <p>
-              {isBorrow ? 'สาขา' : 'ลูกค้า'}: {meta.summary.customer}
-            </p>
-          )}
-          {meta.summary.items && <p>รายการ: {meta.summary.items}</p>}
-          {meta.summary.note && (
-            <p className="italic text-gray-400">"{meta.summary.note}"</p>
-          )}
-        </div>
+        {/* Summary — compact single-line for completed, full for active */}
+        {isCompleted ? (
+          <p className="mb-1.5 truncate text-xs text-gray-500 dark:text-gray-400">
+            {meta.summary.customer}{meta.summary.items ? ` · ${meta.summary.items}` : ''}
+          </p>
+        ) : (
+          <div className="mb-3 space-y-0.5 text-xs text-gray-600 dark:text-gray-300">
+            {meta.summary.customer && (
+              <p>
+                {isBorrow ? 'สาขา' : 'ลูกค้า'}: {meta.summary.customer}
+              </p>
+            )}
+            {meta.summary.items && <p>รายการ: {meta.summary.items}</p>}
+            {meta.summary.note && (
+              <p className="italic text-gray-400">"{meta.summary.note}"</p>
+            )}
+          </div>
+        )}
 
         {/* ==========================================
             BORROW-SPECIFIC UI
@@ -1116,7 +1126,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
               </div>
             )}
 
-            {/* Completed */}
+            {/* Completed — compact by default, expand on tap */}
             {isCompleted && (
               <div className="space-y-2">
                 {meta.summary.rejected ? (
@@ -1133,7 +1143,11 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
+                    <button
+                      type="button"
+                      onClick={() => setIsExpanded(!isExpanded)}
+                      className="flex w-full items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 transition-colors hover:bg-emerald-100 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/30"
+                    >
                       <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                       <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
                         เสร็จสิ้น
@@ -1144,49 +1158,62 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                         </span>
                       )}
                       {meta.confirmation_photo_url && (
-                        <Camera className="ml-auto h-3.5 w-3.5 text-emerald-500" />
+                        <Camera className="h-3.5 w-3.5 text-emerald-500" />
                       )}
-                    </div>
-                    {typeof meta.summary.remaining_percent === 'string' && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        คงเหลือ {meta.summary.remaining_percent}%
-                        {typeof meta.summary.confirmed_by === 'string' && ` — ยืนยันโดย ${meta.summary.confirmed_by}`}
-                      </p>
-                    )}
-                    {meta.confirmation_photo_url && (
-                      <div className="overflow-hidden rounded-lg">
-                        <img
-                          src={meta.confirmation_photo_url}
-                          alt="รูปยืนยัน"
-                          className="w-full max-h-36 object-cover sm:max-h-48"
-                          loading="lazy"
-                        />
-                      </div>
-                    )}
-                    {/* Print buttons — only for deposit_claim after bar confirmation */}
-                    {isDepositCard && typeof meta.summary.confirmed_by === 'string' && (
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40"
-                          icon={<Printer className="h-3.5 w-3.5" />}
-                          isLoading={isPrinting}
-                          onClick={() => handlePrint('receipt')}
-                        >
-                          พิมพ์ใบรับฝาก
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40"
-                          icon={<Printer className="h-3.5 w-3.5" />}
-                          isLoading={isPrinting}
-                          onClick={() => handlePrint('label')}
-                        >
-                          พิมพ์ป้ายขวด
-                        </Button>
-                      </div>
+                      {typeof meta.summary.remaining_percent === 'string' && (
+                        <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                          คงเหลือ {meta.summary.remaining_percent}%
+                        </span>
+                      )}
+                      <span className="ml-auto">
+                        {isExpanded
+                          ? <ChevronUp className="h-3.5 w-3.5 text-gray-400" />
+                          : <ChevronDown className="h-3.5 w-3.5 text-gray-400" />}
+                      </span>
+                    </button>
+                    {isExpanded && (
+                      <>
+                        {typeof meta.summary.remaining_percent === 'string' && typeof meta.summary.confirmed_by === 'string' && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            ยืนยันโดย {meta.summary.confirmed_by}
+                          </p>
+                        )}
+                        {meta.confirmation_photo_url && (
+                          <div className="overflow-hidden rounded-lg">
+                            <img
+                              src={meta.confirmation_photo_url}
+                              alt="รูปยืนยัน"
+                              className="w-full max-h-36 object-cover sm:max-h-48"
+                              loading="lazy"
+                            />
+                          </div>
+                        )}
+                        {/* Print buttons — only for deposit_claim after bar confirmation */}
+                        {isDepositCard && typeof meta.summary.confirmed_by === 'string' && (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40"
+                              icon={<Printer className="h-3.5 w-3.5" />}
+                              isLoading={isPrinting}
+                              onClick={() => handlePrint('receipt')}
+                            >
+                              พิมพ์ใบรับฝาก
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40"
+                              icon={<Printer className="h-3.5 w-3.5" />}
+                              isLoading={isPrinting}
+                              onClick={() => handlePrint('label')}
+                            >
+                              พิมพ์ป้ายขวด
+                            </Button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </>
                 )}
