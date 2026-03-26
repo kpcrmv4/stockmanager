@@ -15,7 +15,7 @@ import { ChatRoomSettings } from './chat-room-settings';
 import { TransactionBoard } from './transaction-board';
 import { MyTasksBoard } from './my-tasks-board';
 import { CompactActionCard } from './compact-action-card';
-import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin, Reply, MessageSquare, ClipboardList, UserCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin, Reply, MessageSquare, ClipboardList, UserCircle, Users, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { ChatNotificationToggle } from './chat-notification-toggle';
 import type { ChatPinnedMessage, ChatMessage, ChatRoom } from '@/types/chat';
@@ -344,106 +344,103 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
 
   return (
     <div className="safe-area-inset-bottom flex h-full flex-col">
-      {/* Header — LINE-like gradient */}
-      <div className="flex items-center gap-2 bg-gradient-to-r from-[#5B5FC7] to-[#7C6FD4] px-2 py-2 shadow-md dark:from-[#3B3F8C] dark:to-[#5B4FA6]">
-        <button
-          onClick={() => router.push('/chat')}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/10 active:bg-white/20"
-        >
-          <ArrowLeft className="h-5 w-5 text-white" />
-        </button>
+      {/* Header — Modern frosted design */}
+      <div className="relative border-b border-white/10 bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-500 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 dark:border-gray-700/60">
+        {/* Subtle pattern overlay */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.08),transparent_50%)]" />
 
-        {/* Room avatar */}
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/20">
-          {room?.avatar_url ? (
-            <img src={room.avatar_url} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <span className="text-sm font-bold text-white">
-              {roomName.charAt(0)}
-            </span>
-          )}
+        <div className="relative flex items-center gap-2.5 px-2 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+          {/* Back button */}
+          <button
+            onClick={() => router.push('/chat')}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm transition-all hover:bg-white/20 active:scale-95 dark:bg-white/5 dark:hover:bg-white/10 sm:h-10 sm:w-10"
+          >
+            <ChevronLeft className="h-5 w-5 text-white" />
+          </button>
+
+          {/* Room avatar */}
+          <div className="relative shrink-0">
+            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white/15 shadow-sm ring-2 ring-white/20 backdrop-blur-sm dark:bg-white/10 dark:ring-white/10 sm:h-11 sm:w-11">
+              {room?.avatar_url ? (
+                <img src={room.avatar_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-base font-bold text-white sm:text-lg">
+                  {roomName.charAt(0)}
+                </span>
+              )}
+            </div>
+            {/* Online indicator */}
+            <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-indigo-500 bg-emerald-400 dark:border-gray-800" />
+          </div>
+
+          {/* Room info */}
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-sm font-bold leading-tight text-white sm:text-base">
+              {roomName}
+            </h2>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-white/70 backdrop-blur-sm dark:bg-white/5 sm:text-[11px]">
+                {room?.type === 'store' ? (
+                  <><Users className="h-2.5 w-2.5" /> แชทสาขา</>
+                ) : 'แชท'}
+              </span>
+            </div>
+          </div>
+
+          {/* Action buttons group */}
+          <div className="flex items-center gap-0.5 rounded-xl bg-white/8 p-0.5 backdrop-blur-sm dark:bg-white/5 sm:gap-1 sm:p-1">
+            <ChatNotificationToggle />
+            <button
+              onClick={handleToggleMute}
+              className={cn(
+                'flex h-8 w-8 items-center justify-center rounded-lg transition-all sm:h-9 sm:w-9',
+                isMuted
+                  ? 'bg-white/10 text-white/40'
+                  : 'text-white/70 hover:bg-white/10 hover:text-white'
+              )}
+              title={isMuted ? 'เปิดเสียง' : 'ปิดเสียง'}
+            >
+              {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 transition-all hover:bg-white/10 hover:text-white sm:h-9 sm:w-9"
+              title="ตั้งค่า"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-bold text-white">
-            {roomName}
-          </h2>
-          <p className="text-[11px] text-white/60">{room?.type === 'store' ? 'แชทสาขา' : 'แชท'}</p>
+        {/* Tabs — Pill / segment style */}
+        <div className="relative px-2 pb-2 sm:px-4 sm:pb-3">
+          <div className="flex gap-1 rounded-xl bg-white/10 p-1 backdrop-blur-sm dark:bg-white/5">
+            {([
+              { key: 'chat' as const, icon: MessageSquare, label: 'แชท' },
+              { key: 'tasks' as const, icon: ClipboardList, label: 'รายการงาน', badge: pendingActionCount },
+              { key: 'my-tasks' as const, icon: UserCircle, label: 'งานของฉัน' },
+            ]).map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  'relative flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all sm:py-2.5 sm:text-[13px]',
+                  activeTab === tab.key
+                    ? 'bg-white text-indigo-700 shadow-sm dark:bg-gray-700 dark:text-indigo-300'
+                    : 'text-white/60 hover:bg-white/5 hover:text-white/80 dark:text-gray-400 dark:hover:text-gray-300'
+                )}
+              >
+                <tab.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden min-[360px]:inline">{tab.label}</span>
+                {tab.badge && tab.badge > 0 ? (
+                  <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-sm">
+                    {tab.badge}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
         </div>
-
-        {/* Push notification toggle */}
-        <ChatNotificationToggle />
-
-        {/* Mute toggle */}
-        <button
-          onClick={handleToggleMute}
-          className={cn(
-            'flex h-9 w-9 items-center justify-center rounded-full transition-colors',
-            isMuted
-              ? 'bg-white/10 text-white/50'
-              : 'text-white/80 hover:bg-white/10'
-          )}
-          title={isMuted ? 'เปิดเสียง' : 'ปิดเสียง'}
-        >
-          {isMuted ? (
-            <VolumeX className="h-4.5 w-4.5" />
-          ) : (
-            <Volume2 className="h-4.5 w-4.5" />
-          )}
-        </button>
-
-        {/* Settings */}
-        <button
-          onClick={() => setShowSettings(true)}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10"
-        >
-          <Settings className="h-4.5 w-4.5" />
-        </button>
-      </div>
-
-      {/* Tab toggle — แชท / รายการงาน / งานของฉัน */}
-      <div className="flex border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-        <button
-          onClick={() => setActiveTab('chat')}
-          className={cn(
-            'flex flex-1 items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors',
-            activeTab === 'chat'
-              ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-          )}
-        >
-          <MessageSquare className="h-3.5 w-3.5" />
-          แชท
-        </button>
-        <button
-          onClick={() => setActiveTab('tasks')}
-          className={cn(
-            'flex flex-1 items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors',
-            activeTab === 'tasks'
-              ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-          )}
-        >
-          <ClipboardList className="h-3.5 w-3.5" />
-          รายการงาน
-          {pendingActionCount > 0 && (
-            <span className="min-w-[18px] rounded-full bg-red-500 px-1 text-center text-[10px] font-bold text-white">
-              {pendingActionCount}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('my-tasks')}
-          className={cn(
-            'flex flex-1 items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors',
-            activeTab === 'my-tasks'
-              ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-          )}
-        >
-          <UserCircle className="h-3.5 w-3.5" />
-          งานของฉัน
-        </button>
       </div>
 
       {/* Task Board tab */}
