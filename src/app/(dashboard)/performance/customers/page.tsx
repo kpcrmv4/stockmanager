@@ -450,10 +450,7 @@ export default function CustomerAnalyticsPage() {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          label={({ name, percent }: any) =>
-                            `${name} (${(percent * 100).toFixed(0)}%)`
-                          }
-                          outerRadius={100}
+                          outerRadius="70%"
                           dataKey="count"
                           nameKey="productName"
                         >
@@ -461,7 +458,18 @@ export default function CustomerAnalyticsPage() {
                             <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend
+                          layout="horizontal"
+                          verticalAlign="bottom"
+                          wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                          formatter={(value: string) => {
+                            const item = topProducts.find((p) => p.productName === value);
+                            const total = topProducts.slice(0, 8).reduce((s, p) => s + p.count, 0);
+                            const pct = item && total > 0 ? ((item.count / total) * 100).toFixed(0) : '0';
+                            return `${value} (${pct}%)`;
+                          }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
@@ -476,12 +484,12 @@ export default function CustomerAnalyticsPage() {
                 <CardContent>
                   {timeDistribution.some((t) => t.deposits > 0 || t.withdrawals > 0) ? (
                     <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={timeDistribution}>
+                      <BarChart data={timeDistribution} margin={{ left: -10, right: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="hour" tick={{ fontSize: 10 }} interval={2} />
-                        <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                        <XAxis dataKey="hour" tick={{ fontSize: 10 }} interval={5} tickFormatter={(v: string) => v.replace(':00', '')} />
+                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={30} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Legend />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
                         <Bar dataKey="deposits" name="ฝาก" fill="#6366f1" />
                         <Bar dataKey="withdrawals" name="เบิก" fill="#10b981" />
                       </BarChart>
@@ -607,14 +615,14 @@ export default function CustomerAnalyticsPage() {
               <CardContent>
                 {topProducts.length > 0 ? (
                   <ResponsiveContainer width="100%" height={400}>
-                    <BarChart data={topProducts} layout="vertical">
+                    <BarChart data={topProducts} layout="vertical" margin={{ left: 0, right: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis type="number" tick={{ fontSize: 12 }} allowDecimals={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
                       <YAxis
                         type="category"
                         dataKey="productName"
-                        tick={{ fontSize: 11 }}
-                        width={180}
+                        tick={{ fontSize: 10 }}
+                        width={120}
                       />
                       <Tooltip content={<CustomTooltip />} />
                       <Bar dataKey="count" name="จำนวนครั้ง" fill="#6366f1" radius={[0, 4, 4, 0]} />
@@ -639,12 +647,12 @@ export default function CustomerAnalyticsPage() {
                 <CardContent>
                   {timeDistribution.some((t) => t.deposits > 0 || t.withdrawals > 0) ? (
                     <ResponsiveContainer width="100%" height={350}>
-                      <BarChart data={timeDistribution}>
+                      <BarChart data={timeDistribution} margin={{ left: -10, right: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="hour" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                        <XAxis dataKey="hour" tick={{ fontSize: 10 }} interval={5} tickFormatter={(v: string) => v.replace(':00', '')} />
+                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={30} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Legend />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
                         <Bar dataKey="deposits" name="ฝาก" fill="#6366f1" />
                         <Bar dataKey="withdrawals" name="เบิก" fill="#10b981" />
                       </BarChart>
