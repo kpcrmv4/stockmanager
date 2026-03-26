@@ -317,6 +317,10 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
                           currentUserRole={currentUserRole}
                           roomId={roomId}
                           storeId={storeId}
+                          onStatusChange={() => {
+                            setFilterStatus('all');
+                            setGroupStatusFilter({});
+                          }}
                         />
                       ))
                     )}
