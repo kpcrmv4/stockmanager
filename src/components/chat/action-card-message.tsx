@@ -338,6 +338,16 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
               type: 'system',
               content: `✅ ${currentUserName} ยืนยันรับฝาก ${summary.items || ''} (${meta.reference_id}) — ${summary.customer || ''} — คงเหลือ ${barRemainingPercent || '?'}%`,
             });
+
+            // Push notification: bar confirmed deposit
+            notifyStaff({
+              storeId,
+              type: 'deposit_confirmed',
+              title: 'ฝากเหล้ายืนยันแล้ว',
+              body: `${currentUserName} ยืนยันรับฝาก ${summary.items || ''} — ${summary.customer || ''} (${meta.reference_id})`,
+              data: { deposit_code: meta.reference_id },
+              excludeUserId: currentUserId,
+            });
           }
 
           // Withdrawal completed → update withdrawal + deposit records
@@ -396,6 +406,16 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                   storeId,
                   type: 'system',
                   content: `✅ ${currentUserName} เบิกเหล้า ${meta.summary.items || ''} (${meta.reference_id}) — ${meta.summary.customer || ''}`,
+                });
+
+                // Push notification: withdrawal approved
+                notifyStaff({
+                  storeId,
+                  type: 'withdrawal_request',
+                  title: 'อนุมัติเบิกเหล้าแล้ว',
+                  body: `${currentUserName} อนุมัติเบิก ${meta.summary.items || ''} — ${meta.summary.customer || ''} (${meta.reference_id})`,
+                  data: { deposit_code: meta.reference_id },
+                  excludeUserId: currentUserId,
                 });
               }
             } catch {

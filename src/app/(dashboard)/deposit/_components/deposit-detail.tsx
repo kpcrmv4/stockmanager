@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyChatWithdrawalCompleted, notifyChatWithdrawalRequest } from '@/lib/chat/bot-client';
+import { notifyStaff } from '@/lib/notifications/client';
 import { extendExpiryISO } from '@/lib/utils/date';
 import type { ReceiptSettings } from '@/types/database';
 
@@ -286,7 +287,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
 
     toast({ type: 'success', title: 'สร้างคำขอเบิกแล้ว', message: 'รอ Bar อนุมัติในแชท' });
 
-    // Send action card to chat for Bar approval
+    // Send action card to chat + push notification for Bar approval
     if (currentStoreId) {
       notifyChatWithdrawalRequest(currentStoreId, {
         deposit_code: deposit.deposit_code,
@@ -295,6 +296,16 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         requested_qty: qty,
         table_number: deposit.table_number,
         notes: withdrawNotes.trim() || null,
+      });
+
+      notifyStaff({
+        storeId: currentStoreId,
+        type: 'withdrawal_request',
+        title: 'มีคำขอเบิกเหล้า',
+        body: `${deposit.customer_name} ขอเบิก ${deposit.product_name} x${qty} (${deposit.deposit_code})`,
+        data: { deposit_code: deposit.deposit_code },
+        excludeUserId: user?.id,
+        roles: ['bar', 'manager', 'owner'],
       });
     }
 
