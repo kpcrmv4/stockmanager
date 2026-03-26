@@ -11,7 +11,7 @@ import { Button, EmptyState } from '@/components/ui';
 interface Notification {
   id: string;
   title: string;
-  message: string;
+  body: string | null;
   read: boolean;
   created_at: string;
 }
