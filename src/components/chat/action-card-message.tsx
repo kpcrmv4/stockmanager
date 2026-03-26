@@ -1033,7 +1033,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                         <Button
                           size="sm"
                           variant="outline"
-                          className="flex-1"
+                          className="flex-1 border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40"
                           icon={<Printer className="h-3.5 w-3.5" />}
                           isLoading={isPrinting}
                           onClick={() => handlePrint('receipt')}
@@ -1043,7 +1043,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                         <Button
                           size="sm"
                           variant="outline"
-                          className="flex-1"
+                          className="flex-1 border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40"
                           icon={<Printer className="h-3.5 w-3.5" />}
                           isLoading={isPrinting}
                           onClick={() => handlePrint('label')}
