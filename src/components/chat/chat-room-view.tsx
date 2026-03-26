@@ -367,15 +367,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
           <h2 className="truncate text-sm font-bold text-white">
             {roomName}
           </h2>
-          {room?.pinned_summary ? (
-            <p className="text-[11px] text-white/70">
-              รอรับ {room.pinned_summary.pending_count} | กำลังทำ{' '}
-              {room.pinned_summary.in_progress_count} | เสร็จวันนี้{' '}
-              {room.pinned_summary.completed_today}
-            </p>
-          ) : (
-            <p className="text-[11px] text-white/60">แชทห้องนี้</p>
-          )}
+          <p className="text-[11px] text-white/60">{room?.type === 'store' ? 'แชทสาขา' : 'แชท'}</p>
         </div>
 
         {/* Push notification toggle */}
