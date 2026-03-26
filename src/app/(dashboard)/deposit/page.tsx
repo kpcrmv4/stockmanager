@@ -400,7 +400,7 @@ export default function DepositPage() {
           <button
             onClick={() => setDateFilterEnabled(!dateFilterEnabled)}
             className={cn(
-              'flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all',
+              'flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all sm:w-auto sm:justify-start',
               dateFilterEnabled
                 ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400'
                 : 'border-gray-300 bg-white text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400'
@@ -410,12 +410,12 @@ export default function DepositPage() {
             {dateFilterEnabled ? 'กรองวันที่' : 'กรองวันที่ (ปิด)'}
           </button>
           {dateFilterEnabled && (
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => handleDateFromChange(e.target.value)}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               />
               <span className="text-xs text-gray-400">ถึง</span>
               <input
@@ -423,7 +423,7 @@ export default function DepositPage() {
                 value={dateTo}
                 min={dateFrom}
                 onChange={(e) => handleDateToChange(e.target.value)}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               />
             </div>
           )}
