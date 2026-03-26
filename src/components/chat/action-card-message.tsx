@@ -211,43 +211,74 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         }
       } else {
         // Normal flow: claim/release/complete (including bar completing deposit)
-        const fnName =
-          action === 'claim'
-            ? 'claim_action_card'
-            : action === 'release'
-              ? 'release_action_card'
-              : 'complete_action_card';
+        // Use direct DB updates instead of RPC functions for reliability
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let updatedMeta: any;
 
-        const completeNotes = isBarCompleting && barRemainingPercent
-          ? `คงเหลือ ${barRemainingPercent}%`
-          : null;
-
-        const params =
-          action === 'complete'
-            ? { p_message_id: message.id, p_user_id: currentUserId, p_notes: completeNotes, p_photo_url: photoUrl }
-            : { p_message_id: message.id, p_user_id: currentUserId };
-
-        const { data: result } = await supabase.rpc(fnName, params);
-
-        if (result?.success || result?.timed_out) {
-          let updatedMeta = result.metadata || result?.metadata;
-
-          // For bar completing deposit: store remaining percent in summary
+        if (action === 'claim') {
+          // Check timeout and auto-release if needed
+          let currentMeta: Record<string, unknown> = { ...meta };
+          if (meta.status === 'claimed' && meta.claimed_at && meta.timeout_minutes) {
+            const claimedAt = new Date(meta.claimed_at).getTime();
+            const now = Date.now();
+            if (now - claimedAt > meta.timeout_minutes * 60 * 1000) {
+              currentMeta = { ...currentMeta, status: 'pending', claimed_by: null, claimed_by_name: null, claimed_at: null, auto_released: true, auto_released_at: new Date().toISOString() };
+            }
+          }
+          if ((currentMeta.status ?? meta.status) !== 'pending' && (currentMeta.status ?? meta.status) !== 'pending_bar') {
+            setLoading(false);
+            return;
+          }
+          updatedMeta = {
+            ...currentMeta,
+            status: 'claimed',
+            claimed_by: currentUserId,
+            claimed_by_name: currentUserName,
+            claimed_at: new Date().toISOString(),
+            auto_released: null,
+            auto_released_at: null,
+          };
+        } else if (action === 'release') {
+          const metaAny = meta as unknown as Record<string, unknown>;
+          const restoreStatus = metaAny._bar_step ? 'pending_bar' : 'pending';
+          updatedMeta = {
+            ...meta,
+            status: restoreStatus,
+            claimed_by: null,
+            claimed_by_name: null,
+            claimed_at: null,
+            _bar_step: null,
+          };
+        } else {
+          // complete
+          const completeNotes = isBarCompleting && barRemainingPercent
+            ? `คงเหลือ ${barRemainingPercent}%`
+            : null;
+          updatedMeta = {
+            ...meta,
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            completion_notes: completeNotes,
+            confirmation_photo_url: photoUrl || meta.confirmation_photo_url || null,
+          };
           if (isBarCompleting && barRemainingPercent) {
             updatedMeta = {
               ...updatedMeta,
               summary: {
-                ...(updatedMeta?.summary || {}),
+                ...(updatedMeta.summary || {}),
                 remaining_percent: barRemainingPercent,
                 confirmed_by: currentUserName,
               },
             };
-            await supabase
-              .from('chat_messages')
-              .update({ metadata: updatedMeta })
-              .eq('id', message.id);
           }
+        }
 
+        const { error } = await supabase
+          .from('chat_messages')
+          .update({ metadata: updatedMeta })
+          .eq('id', message.id);
+
+        if (!error) {
           const updated: ChatMessage = {
             ...message,
             metadata: updatedMeta,
