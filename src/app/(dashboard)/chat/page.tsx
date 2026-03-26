@@ -171,10 +171,26 @@ function getMessagePreview(msg: typeof undefined extends never ? never : ReturnT
     case 'action_card': {
       const meta = msg.metadata as Record<string, unknown> | null;
       const status = meta?.status as string;
-      if (status === 'pending') return `${prefix}งานใหม่รอรับ`;
-      if (status === 'claimed') return `${prefix}${meta?.claimed_by_name || 'มีคน'} รับงานแล้ว`;
-      if (status === 'completed') return `${prefix}งานเสร็จแล้ว`;
-      return `${prefix}Action Card`;
+      const actionType = meta?.action_type as string;
+      const summary = meta?.summary as Record<string, unknown> | undefined;
+      const typeLabel =
+        actionType === 'deposit_claim' ? 'ฝากเหล้า'
+        : actionType === 'withdrawal_claim' ? 'เบิกเหล้า'
+        : actionType === 'stock_explain' ? 'สต๊อก'
+        : actionType === 'borrow_approve' ? 'ยืมสินค้า'
+        : actionType === 'transfer_receive' ? 'โอนสต๊อก'
+        : 'งาน';
+      const ref = meta?.reference_id ? `#${String(meta.reference_id).slice(-8)}` : '';
+      const customer = summary?.customer ? ` · ${summary.customer}` : '';
+
+      if (status === 'pending') return `${typeLabel} ${ref}${customer} · รอรับ`;
+      if (status === 'pending_bar') return `${typeLabel} ${ref}${customer} · รอBarยืนยัน`;
+      if (status === 'claimed') return `${typeLabel} ${ref} · ${meta?.claimed_by_name || 'มีคน'} กำลังทำ`;
+      if (status === 'completed') {
+        if (summary?.rejected) return `${typeLabel} ${ref} · ยกเลิกแล้ว`;
+        return `${typeLabel} ${ref}${customer} · เสร็จ`;
+      }
+      return `${typeLabel} ${ref}${customer}`;
     }
     case 'system':
       return msg.content || 'ข้อความระบบ';

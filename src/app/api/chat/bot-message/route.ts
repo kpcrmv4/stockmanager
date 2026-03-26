@@ -200,7 +200,7 @@ async function updatePinnedSummary(
   for (const card of cards) {
     const meta = card.metadata as Record<string, unknown> | null;
     const status = meta?.status as string;
-    if (status === 'pending') pending++;
+    if (status === 'pending' || status === 'pending_bar') pending++;
     else if (status === 'claimed') inProgress++;
     else if (status === 'completed') completed++;
   }
