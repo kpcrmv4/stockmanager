@@ -29,6 +29,7 @@ import {
   Crown,
   Minus,
   Truck,
+  CalendarDays,
 } from 'lucide-react';
 import Link from 'next/link';
 import { DepositForm } from './_components/deposit-form';
@@ -91,6 +92,15 @@ export default function DepositPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Date range filter (default: yesterday → today)
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dateFilterEnabled, setDateFilterEnabled] = useState(true);
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<Deposit | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -220,8 +230,29 @@ export default function DepositPage() {
     }
   }, [activeTab, hasMore, loadedInactiveCount, isLoadingMore, loadInactiveDeposits]);
 
+  // Validate and correct date range
+  const handleDateFromChange = (value: string) => {
+    setDateFrom(value);
+    if (dateTo && value > dateTo) setDateTo(value);
+  };
+  const handleDateToChange = (value: string) => {
+    if (value >= dateFrom) setDateTo(value);
+  };
+
   const filteredDeposits = useMemo(() => {
     let result = deposits;
+
+    // Filter by date range
+    if (dateFilterEnabled && dateFrom && dateTo) {
+      const from = new Date(dateFrom);
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      result = result.filter((d) => {
+        const created = new Date(d.created_at);
+        return created >= from && created <= to;
+      });
+    }
 
     // Filter by tab
     if (activeTab === 'vip') {
@@ -242,7 +273,7 @@ export default function DepositPage() {
     }
 
     return result;
-  }, [deposits, activeTab, searchQuery]);
+  }, [deposits, activeTab, searchQuery, dateFilterEnabled, dateFrom, dateTo]);
 
   const tabsWithCounts = depositTabs.map((t) => {
     if (t.id === 'in_store') return { ...t, count: stats.activeCount };
@@ -348,18 +379,54 @@ export default function DepositPage() {
         </Card>
       </div>
 
-      {/* Tabs + Search */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <Tabs tabs={tabsWithCounts} activeTab={activeTab} onChange={setActiveTab} />
-        <div className="relative w-full sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ค้นหารหัส/ชื่อลูกค้า..."
-            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-          />
+      {/* Tabs + Search + Date Filter */}
+      <div className="space-y-3">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <Tabs tabs={tabsWithCounts} activeTab={activeTab} onChange={setActiveTab} />
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ค้นหารหัส/ชื่อลูกค้า..."
+              className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            />
+          </div>
+        </div>
+
+        {/* Date range filter */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <button
+            onClick={() => setDateFilterEnabled(!dateFilterEnabled)}
+            className={cn(
+              'flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all',
+              dateFilterEnabled
+                ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400'
+                : 'border-gray-300 bg-white text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400'
+            )}
+          >
+            <CalendarDays className="h-3.5 w-3.5" />
+            {dateFilterEnabled ? 'กรองวันที่' : 'กรองวันที่ (ปิด)'}
+          </button>
+          {dateFilterEnabled && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => handleDateFromChange(e.target.value)}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              />
+              <span className="text-xs text-gray-400">ถึง</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom}
+                onChange={(e) => handleDateToChange(e.target.value)}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              />
+            </div>
+          )}
         </div>
       </div>
 
