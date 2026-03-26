@@ -75,5 +75,48 @@ export function useChatSound() {
     }
   }, [getAudioContext]);
 
-  return { playMessageSound, playMentionSound };
+  /** เสียงแจ้งเตือน action card / งานใหม่ (โน้ตต่ำกว่า + สั่น) */
+  const playTaskSound = useCallback(() => {
+    try {
+      const ctx = getAudioContext();
+      const now = ctx.currentTime;
+
+      // Two low-pitched notes — distinct from chat message sound
+      const notes = [523, 659]; // C5, E5 (lower, more "alert" tone)
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle'; // softer waveform, feels different from sine
+        osc.frequency.value = freq;
+        const start = now + i * 0.15;
+        gain.gain.setValueAtTime(0.2, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.25);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.25);
+      });
+    } catch {
+      // Audio not available
+    }
+
+    // Vibrate on mobile — short-long pattern so staff can feel it's a task
+    vibrate([100, 50, 200]);
+  }, [getAudioContext]);
+
+  return { playMessageSound, playMentionSound, playTaskSound };
+}
+
+/**
+ * เรียก Vibration API (mobile only, no-op on desktop)
+ * Pattern: array of [vibrate, pause, vibrate, ...] in ms
+ */
+function vibrate(pattern: number | number[]) {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(pattern);
+    }
+  } catch {
+    // Vibration not supported
+  }
 }
