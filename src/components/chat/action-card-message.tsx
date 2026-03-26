@@ -177,17 +177,16 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           message: updated,
         } as unknown as Record<string, unknown>);
 
-        // Sync photo back to deposit
-        if (photoUrl) {
-          fetch('/api/chat/sync-photo', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              reference_table: meta.reference_table,
-              reference_id: meta.reference_id,
-              photo_url: photoUrl,
-            }),
-          }).catch(() => {});
+        // Sync staff received info back to deposit record
+        if (meta.reference_table === 'deposits' && meta.reference_id) {
+          supabase
+            .from('deposits')
+            .update({
+              received_by: currentUserId,
+              received_photo_url: photoUrl || undefined,
+            })
+            .eq('deposit_code', meta.reference_id)
+            .then(() => {});
         }
 
         // Audit: staff completed deposit step 1
