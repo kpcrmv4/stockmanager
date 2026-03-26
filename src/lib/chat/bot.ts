@@ -13,7 +13,7 @@ interface SendBotMessageParams {
   storeId: string;
   type: 'text' | 'action_card' | 'system';
   content: string;
-  metadata?: ActionCardMetadata | null;
+  metadata?: ActionCardMetadata | Record<string, unknown> | null;
 }
 
 /**

@@ -4,6 +4,8 @@ import { memo } from 'react';
 import { cn } from '@/lib/utils/cn';
 import { Bot as BotIcon, User as UserIcon } from 'lucide-react';
 import type { ChatMessage, ReplyMetadata } from '@/types/chat';
+import { DailySummaryCard } from './daily-summary-card';
+import type { DailySummaryData } from './daily-summary-card';
 
 interface ChatMessageBubbleProps {
   message: ChatMessage;
@@ -67,6 +69,16 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isOw
   });
 
   const isImage = message.type === 'image';
+
+  // Check for daily summary card
+  const dailySummary = isSystem && message.metadata
+    ? (message.metadata as unknown as Record<string, unknown>)
+    : null;
+  if (dailySummary?.type === 'daily_summary') {
+    return (
+      <DailySummaryCard data={dailySummary as unknown as DailySummaryData} time={time} />
+    );
+  }
 
   // Check for reply metadata
   const meta = message.metadata as unknown as Record<string, unknown> | null;
