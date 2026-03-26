@@ -117,10 +117,10 @@ export async function GET(request: NextRequest) {
 
       const activeDeposits = activeDepositsCount ?? 0;
 
-      // Get expiring soon (within 7 days)
-      const in7Days = new Date(bangkokNow);
-      in7Days.setDate(in7Days.getDate() + 7);
-      const in7DaysUTC = new Date(in7Days.getTime() - bangkokOffset).toISOString();
+      // Get expiring soon (within 3 days)
+      const in3Days = new Date(bangkokNow);
+      in3Days.setDate(in3Days.getDate() + 3);
+      const in3DaysUTC = new Date(in3Days.getTime() - bangkokOffset).toISOString();
       const nowUTC = new Date(bangkokNow.getTime() - bangkokOffset).toISOString();
 
       const { count: expiringSoonCount } = await supabase
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
         .eq('store_id', store.id)
         .eq('status', 'in_store')
         .gt('expiry_date', nowUTC)
-        .lte('expiry_date', in7DaysUTC);
+        .lte('expiry_date', in3DaysUTC);
 
       const expiringSoon = expiringSoonCount ?? 0;
 
@@ -145,79 +145,24 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // Build summary message
-      const lines: string[] = [
-        `📊 สรุปประจำวัน — ${dateLabel}`,
-        '',
-      ];
-
-      // Deposits section
-      lines.push(`🍷 ฝากเหล้า`);
-      lines.push(`  ในร้าน: ${activeDeposits} รายการ`);
-      if (newDeposits > 0) lines.push(`  ใหม่ (11:00-06:00): +${newDeposits}`);
-      if (expiringSoon > 0) lines.push(`  ⚠️ ใกล้หมดอายุ (7 วัน): ${expiringSoon}`);
-
-      // Withdrawals
-      if (completedWithdrawals > 0) {
-        lines.push(`  เบิกเมื่อวาน: ${completedWithdrawals}`);
-      }
-
-      // Stock
-      if (pendingExplanations > 0) {
-        lines.push('');
-        lines.push(`📦 สต๊อก`);
-        lines.push(`  ⚠️ รอชี้แจง: ${pendingExplanations} รายการ`);
-      }
-
-      // Borrows
-      if (activeBorrows > 0) {
-        lines.push('');
-        lines.push(`🔄 ยืมสินค้า`);
-        lines.push(`  รายการที่ยังดำเนินการ: ${activeBorrows}`);
-      }
-
-      // Staff leaderboard (action cards completed yesterday)
-      const { data: staffStats } = await supabase
-        .from('chat_messages')
-        .select('metadata')
-        .eq('type', 'action_card')
-        .gte('created_at', startUTC)
-        .lte('created_at', endUTC)
-        .not('metadata->completed_at', 'is', null);
-
-      if (staffStats && staffStats.length > 0) {
-        // Count completions per staff
-        const staffCounts: Record<string, { name: string; count: number }> = {};
-        for (const row of staffStats) {
-          const meta = row.metadata as Record<string, unknown> | null;
-          const claimedBy = meta?.claimed_by_name as string | null;
-          if (claimedBy) {
-            if (!staffCounts[claimedBy]) {
-              staffCounts[claimedBy] = { name: claimedBy, count: 0 };
-            }
-            staffCounts[claimedBy].count++;
-          }
-        }
-
-        const ranked = Object.values(staffCounts)
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 5);
-
-        if (ranked.length > 0) {
-          lines.push('');
-          lines.push('🏆 พนักงานดีเด่นเมื่อวาน');
-          const medals = ['🥇', '🥈', '🥉'];
-          ranked.forEach((s, i) => {
-            const medal = medals[i] || '  ';
-            lines.push(`${medal} ${s.name}: ${s.count} งาน`);
-          });
-        }
-      }
+      // Build summary card with structured metadata
+      const summaryData = {
+        type: 'daily_summary' as const,
+        date_label: dateLabel,
+        new_deposits: newDeposits,
+        withdrawals_today: completedWithdrawals,
+        active_deposits: activeDeposits,
+        expiring_soon: expiringSoon,
+        expiring_days: 3,
+        pending_explanations: pendingExplanations,
+        active_borrows: activeBorrows,
+      };
 
       await sendBotMessage({
         storeId: store.id,
         type: 'system',
-        content: lines.join('\n'),
+        content: `📊 สรุปประจำวัน — ${dateLabel}`,
+        metadata: summaryData,
       });
 
       results.push({ store: store.store_name, sent: true });
