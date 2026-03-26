@@ -28,6 +28,8 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
 
   // Chat room view ต้องการ full-height ไม่มี padding/bottom nav
   const isChatRoom = /^\/chat\/[^/]+/.test(pathname);
+  // Performance pages จัดการ padding เองเพื่อใช้พื้นที่เต็มจอ
+  const isFullWidthPage = pathname.startsWith('/performance');
 
   function handleLogout() {
     logout();
@@ -52,7 +54,9 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
           'flex-1',
           isChatRoom
             ? 'overflow-hidden'
-            : 'overflow-y-auto px-4 pb-20 pt-4'
+            : isFullWidthPage
+              ? 'overflow-y-auto px-2 pb-20 pt-4'
+              : 'overflow-y-auto px-4 pb-20 pt-4'
         )}
       >
         {children}
