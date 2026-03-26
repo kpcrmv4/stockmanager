@@ -28,7 +28,7 @@ export default function NotificationsPage() {
       const supabase = createClient();
       const { data } = await supabase
         .from('notifications')
-        .select('id, title, message, read, created_at')
+        .select('id, title, body, read, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -146,9 +146,9 @@ export default function NotificationsPage() {
                   >
                     {notif.title}
                   </p>
-                  {notif.message && (
+                  {notif.body && (
                     <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      {notif.message}
+                      {notif.body}
                     </p>
                   )}
                   <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
