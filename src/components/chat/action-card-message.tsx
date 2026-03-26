@@ -94,7 +94,11 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
 
   // Deposit 2-step flow: staff can't claim pending_bar, only bar/manager/owner
   const isDepositCard = meta.action_type === 'deposit_claim';
+  const isWithdrawalCard = meta.action_type === 'withdrawal_claim';
   const canClaimBarStep = isPendingBar && isDepositCard
+    && currentUserRole && ['bar', 'manager', 'owner'].includes(currentUserRole);
+  // Withdrawal action cards: only bar/manager/owner can approve
+  const canApproveWithdrawal = isWithdrawalCard && isPending
     && currentUserRole && ['bar', 'manager', 'owner'].includes(currentUserRole);
 
   // Borrow-specific status
@@ -907,7 +911,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                 GENERIC ACTION CARD UI (deposit, withdrawal, stock)
                 ========================================== */}
 
-            {/* Pending — ทุก role กดรับได้ */}
+            {/* Pending — withdrawal: เฉพาะ bar/manager/owner, อื่นๆ: ทุก role */}
             {isPending && (
               <div className="space-y-2">
                 {isTimedOut && (
@@ -918,7 +922,11 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                     </span>
                   </div>
                 )}
-                {showRejectConfirm ? (
+                {isWithdrawalCard && !canApproveWithdrawal ? (
+                  <div className="rounded-lg bg-gray-100 px-3 py-2 text-center text-xs text-gray-500 dark:bg-gray-700/50 dark:text-gray-400">
+                    รอ Bar/Manager อนุมัติเบิก
+                  </div>
+                ) : showRejectConfirm ? (
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-red-600 dark:text-red-400">ยืนยันยกเลิกรายการนี้?</p>
                     <div className="flex gap-2">
@@ -931,12 +939,12 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                     <Button
                       size="sm"
                       variant="primary"
-                      className="flex-1"
+                      className={cn('flex-1', isWithdrawalCard && 'bg-emerald-600 hover:bg-emerald-700')}
                       icon={<Hand className="h-4 w-4" />}
                       isLoading={loading}
                       onClick={() => handleAction('claim')}
                     >
-                      {isTimedOut ? 'รับงานต่อ' : 'รับรายการนี้'}
+                      {isWithdrawalCard ? 'อนุมัติเบิก' : isTimedOut ? 'รับงานต่อ' : 'รับรายการนี้'}
                     </Button>
                     <Button
                       size="sm"
