@@ -68,6 +68,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
   const messages = useChatStore((s) => s.messages);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterType, setFilterType] = useState<FilterType>('all');
+  // Auto-collapse groups that have only completed items
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupStatusFilter, setGroupStatusFilter] = useState<Record<string, string>>({}); // type → status filter
 
