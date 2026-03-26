@@ -335,7 +335,7 @@ export default function OperationsPage() {
       {isOwner && stores.length > 0 && (
         <Card>
           <CardContent>
-            <div className="min-w-[180px] max-w-xs">
+            <div className="w-full sm:min-w-[180px] sm:max-w-xs">
               <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
                 สาขา
               </label>
