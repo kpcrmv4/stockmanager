@@ -110,11 +110,12 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(msg);
     }
-    // Sort groups: types with pending items first
+    // Fixed order based on TYPE_CONFIG keys — no re-sorting when status changes
+    const typeOrder = Object.keys(TYPE_CONFIG);
     return Array.from(groups.entries()).sort((a, b) => {
-      const aPending = a[1].filter((m) => { const n = getNormalizedStatus(m.metadata as unknown as Record<string, unknown>); return n === 'pending' || n === 'pending_bar'; }).length;
-      const bPending = b[1].filter((m) => { const n = getNormalizedStatus(m.metadata as unknown as Record<string, unknown>); return n === 'pending' || n === 'pending_bar'; }).length;
-      return bPending - aPending;
+      const aIdx = typeOrder.indexOf(a[0]);
+      const bIdx = typeOrder.indexOf(b[0]);
+      return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
     });
   }, [filteredCards]);
 
