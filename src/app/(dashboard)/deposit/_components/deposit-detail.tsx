@@ -16,6 +16,7 @@ import {
   ModalFooter,
   Textarea,
   EmptyState,
+  PhotoUpload,
   toast,
 } from '@/components/ui';
 import { formatThaiDate, formatThaiDateTime, formatNumber, daysUntil } from '@/lib/utils/format';
@@ -43,9 +44,10 @@ import {
   Image as ImageIcon,
   Crown,
   Truck,
+  ShieldCheck,
 } from 'lucide-react';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
-import { notifyChatWithdrawalCompleted, notifyChatWithdrawalRequest } from '@/lib/chat/bot-client';
+import { notifyChatWithdrawalCompleted, notifyChatWithdrawalRequest, sendChatBotMessage } from '@/lib/chat/bot-client';
 import { notifyStaff } from '@/lib/notifications/client';
 import { extendExpiryISO } from '@/lib/utils/date';
 import type { ReceiptSettings } from '@/types/database';
@@ -152,6 +154,12 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [printPreviewType, setPrintPreviewType] = useState<'receipt' | 'label'>('receipt');
 
+  // Bar confirm modal
+  const [showBarConfirmModal, setShowBarConfirmModal] = useState(false);
+  const [barConfirmPercent, setBarConfirmPercent] = useState('');
+  const [barConfirmQty, setBarConfirmQty] = useState('');
+  const [barConfirmPhoto, setBarConfirmPhoto] = useState<string | null>(null);
+
   // Staff/Bar names
   const [receivedByName, setReceivedByName] = useState<string | null>(null);
   const [confirmedByName, setConfirmedByName] = useState<string | null>(null);
@@ -245,6 +253,86 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   // Determine current timeline step
   const currentStatusIndex = statusTimeline.findIndex((s) => s.key === deposit.status);
   const effectiveIndex = deposit.status === 'expired' || deposit.status === 'transfer_pending' || deposit.status === 'transferred_out' ? -1 : currentStatusIndex;
+
+  const handleBarConfirm = async () => {
+    if (!user || !currentStoreId) return;
+    const percent = parseFloat(barConfirmPercent);
+    if (isNaN(percent) || percent < 0 || percent > 100) {
+      toast({ type: 'error', title: 'กรุณาระบุ % คงเหลือให้ถูกต้อง (0-100)' });
+      return;
+    }
+    if (!barConfirmPhoto) {
+      toast({ type: 'error', title: 'กรุณาถ่ายรูปยืนยัน' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    const supabase = createClient();
+
+    const qty = barConfirmQty ? parseFloat(barConfirmQty) : deposit.quantity;
+    const updateData: Record<string, unknown> = {
+      status: 'in_store',
+      confirm_photo_url: barConfirmPhoto,
+      remaining_percent: percent,
+    };
+    if (barConfirmQty && !isNaN(qty) && qty > 0) {
+      updateData.quantity = qty;
+      updateData.remaining_qty = qty;
+    }
+
+    const { error } = await supabase
+      .from('deposits')
+      .update(updateData)
+      .eq('id', deposit.id);
+
+    if (error) {
+      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถยืนยันได้' });
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Audit log
+    await logAudit({
+      action_type: AUDIT_ACTIONS.DEPOSIT_BAR_CONFIRMED,
+      record_id: deposit.id,
+      table_name: 'deposits',
+      changed_by: user.id,
+      store_id: currentStoreId,
+      new_value: {
+        deposit_code: deposit.deposit_code,
+        remaining_percent: percent,
+        quantity: qty,
+        confirm_photo_url: barConfirmPhoto,
+      },
+    });
+
+    // Chat system message
+    const displayName = user.displayName || user.username || 'Bar';
+    sendChatBotMessage({
+      storeId: currentStoreId,
+      type: 'system',
+      content: `✅ ${displayName} ยืนยันรับฝาก ${deposit.product_name} x${qty} (${deposit.deposit_code}) — ${deposit.customer_name} — คงเหลือ ${percent}%`,
+    });
+
+    // Push notification
+    notifyStaff({
+      storeId: currentStoreId,
+      type: 'deposit_confirmed',
+      title: 'ฝากเหล้ายืนยันแล้ว',
+      body: `${displayName} ยืนยันรับฝาก ${deposit.product_name} — ${deposit.customer_name} (${deposit.deposit_code})`,
+      data: { deposit_code: deposit.deposit_code },
+      excludeUserId: user.id,
+    });
+
+    toast({ type: 'success', title: 'ยืนยันรับเข้าระบบแล้ว' });
+    setShowBarConfirmModal(false);
+    setBarConfirmPercent('');
+    setBarConfirmQty('');
+    setBarConfirmPhoto(null);
+    setIsSubmitting(false);
+    refreshDeposit();
+    loadStaffNames();
+  };
 
   const handleWithdrawal = async () => {
     if (!user || !currentStoreId) return;
@@ -544,6 +632,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     setLoading(false);
   };
 
+  const canBarConfirm = deposit.status === 'pending_confirm' && user && ['bar', 'manager', 'owner'].includes(user.role);
   const canWithdraw = deposit.status === 'in_store' && deposit.remaining_qty > 0;
   const canMarkExpired = (deposit.status === 'in_store' || deposit.status === 'pending_confirm') && !deposit.is_vip;
   const canTransfer = deposit.status === 'in_store';
@@ -951,6 +1040,25 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
               </div>
             </CardContent>
           </Card>
+
+          {/* Bar Confirm Action */}
+          {canBarConfirm && (
+            <Card padding="none">
+              <CardContent>
+                <Button
+                  className="min-h-[48px] w-full justify-center bg-emerald-600 hover:bg-emerald-700"
+                  variant="primary"
+                  icon={<ShieldCheck className="h-5 w-5" />}
+                  onClick={() => {
+                    setBarConfirmQty(String(deposit.quantity));
+                    setShowBarConfirmModal(true);
+                  }}
+                >
+                  ยืนยันรับเข้าระบบ (Bar)
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Actions */}
           {(canWithdraw || canMarkExpired || canTransfer || canExtendExpiry || canToggleVip) && (
@@ -1399,6 +1507,90 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             icon={printPreviewType === 'receipt' ? <Printer className="h-4 w-4" /> : <Tag className="h-4 w-4" />}
           >
             ยืนยันพิมพ์
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Bar Confirm Modal */}
+      <Modal
+        isOpen={showBarConfirmModal}
+        onClose={() => {
+          setShowBarConfirmModal(false);
+          setBarConfirmPercent('');
+          setBarConfirmQty('');
+          setBarConfirmPhoto(null);
+        }}
+        title="ยืนยันรับเข้าระบบ"
+        description={`${deposit.deposit_code} — ${deposit.product_name} (${deposit.customer_name})`}
+        size="md"
+      >
+        <div className="space-y-4">
+          <Input
+            label="จำนวน (แก้ไขได้)"
+            type="number"
+            value={barConfirmQty}
+            onChange={(e) => setBarConfirmQty(e.target.value)}
+            placeholder={String(deposit.quantity)}
+            hint={`จำนวนเดิม: ${formatNumber(deposit.quantity)}`}
+          />
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              % คงเหลือ <span className="text-red-500">*</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={barConfirmPercent}
+                onChange={(e) => setBarConfirmPercent(e.target.value)}
+                placeholder="เช่น 100"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              />
+              <span className="shrink-0 text-sm font-medium text-gray-500">%</span>
+            </div>
+            {barConfirmPercent && (parseFloat(barConfirmPercent) < 0 || parseFloat(barConfirmPercent) > 100) && (
+              <p className="mt-1 text-xs text-red-500">กรุณาระบุค่า 0-100</p>
+            )}
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              ถ่ายรูปยืนยัน <span className="text-red-500">*</span>
+            </label>
+            <PhotoUpload
+              value={barConfirmPhoto}
+              onChange={setBarConfirmPhoto}
+              folder="deposits"
+              placeholder="ถ่ายรูปเหล้าเพื่อยืนยัน"
+              required
+            />
+          </div>
+        </div>
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowBarConfirmModal(false);
+              setBarConfirmPercent('');
+              setBarConfirmQty('');
+              setBarConfirmPhoto(null);
+            }}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            onClick={handleBarConfirm}
+            isLoading={isSubmitting}
+            disabled={
+              !barConfirmPercent ||
+              isNaN(parseFloat(barConfirmPercent)) ||
+              parseFloat(barConfirmPercent) < 0 ||
+              parseFloat(barConfirmPercent) > 100 ||
+              !barConfirmPhoto
+            }
+            icon={<ShieldCheck className="h-4 w-4" />}
+          >
+            ยืนยันรับเข้าระบบ
           </Button>
         </ModalFooter>
       </Modal>
