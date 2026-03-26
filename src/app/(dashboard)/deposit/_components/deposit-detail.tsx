@@ -45,7 +45,8 @@ import {
   Truck,
 } from 'lucide-react';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
-import { notifyChatWithdrawalCompleted } from '@/lib/chat/bot-client';
+import { notifyChatWithdrawalCompleted, notifyChatWithdrawalRequest } from '@/lib/chat/bot-client';
+import { notifyStaff } from '@/lib/notifications/client';
 import { extendExpiryISO } from '@/lib/utils/date';
 import type { ReceiptSettings } from '@/types/database';
 
@@ -260,7 +261,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     setIsSubmitting(true);
     const supabase = createClient();
 
-    // Create withdrawal record
+    // Create withdrawal record as pending (requires Bar approval)
     const { error: withdrawalError } = await supabase.from('withdrawals').insert({
       deposit_id: deposit.id,
       store_id: currentStoreId,
@@ -268,9 +269,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       customer_name: deposit.customer_name,
       product_name: deposit.product_name,
       requested_qty: qty,
-      actual_qty: qty,
-      status: 'completed',
-      processed_by: user.id,
+      status: 'pending',
       notes: withdrawNotes.trim() || null,
     });
 
@@ -280,35 +279,34 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       return;
     }
 
-    // Update deposit
-    const newRemaining = Math.max(0, deposit.remaining_qty - qty);
-    const newPercent = deposit.quantity > 0 ? (newRemaining / deposit.quantity) * 100 : 0;
-    const newStatus = newRemaining <= 0 ? 'withdrawn' : 'in_store';
-
-    const { error: updateError } = await supabase
+    // Update deposit status to pending_withdrawal
+    await supabase
       .from('deposits')
-      .update({
-        remaining_qty: newRemaining,
-        remaining_percent: newPercent,
-        status: newStatus,
-      })
+      .update({ status: 'pending_withdrawal' })
       .eq('id', deposit.id);
 
-    if (updateError) {
-      toast({ type: 'warning', title: 'บันทึกรายการเบิกแล้ว', message: 'แต่อัปเดตยอดคงเหลือไม่สำเร็จ' });
-    } else {
-      toast({ type: 'success', title: 'เบิกเหล้าสำเร็จ', message: `เบิก ${formatNumber(qty)} หน่วย` });
+    toast({ type: 'success', title: 'สร้างคำขอเบิกแล้ว', message: 'รอ Bar อนุมัติในแชท' });
 
-      // ส่ง system message เข้าห้องแชทสาขา
-      if (currentStoreId) {
-        notifyChatWithdrawalCompleted(currentStoreId, {
-          deposit_code: deposit.deposit_code,
-          customer_name: deposit.customer_name,
-          product_name: deposit.product_name,
-          actual_qty: qty,
-          processed_by_name: user.displayName || user.username || 'พนักงาน',
-        });
-      }
+    // Send action card to chat + push notification for Bar approval
+    if (currentStoreId) {
+      notifyChatWithdrawalRequest(currentStoreId, {
+        deposit_code: deposit.deposit_code,
+        customer_name: deposit.customer_name,
+        product_name: deposit.product_name,
+        requested_qty: qty,
+        table_number: deposit.table_number,
+        notes: withdrawNotes.trim() || null,
+      });
+
+      notifyStaff({
+        storeId: currentStoreId,
+        type: 'withdrawal_request',
+        title: 'มีคำขอเบิกเหล้า',
+        body: `${deposit.customer_name} ขอเบิก ${deposit.product_name} x${qty} (${deposit.deposit_code})`,
+        data: { deposit_code: deposit.deposit_code },
+        excludeUserId: user?.id,
+        roles: ['bar', 'manager', 'owner'],
+      });
     }
 
     setShowWithdrawModal(false);

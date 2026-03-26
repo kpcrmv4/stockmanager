@@ -94,7 +94,11 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
 
   // Deposit 2-step flow: staff can't claim pending_bar, only bar/manager/owner
   const isDepositCard = meta.action_type === 'deposit_claim';
+  const isWithdrawalCard = meta.action_type === 'withdrawal_claim';
   const canClaimBarStep = isPendingBar && isDepositCard
+    && currentUserRole && ['bar', 'manager', 'owner'].includes(currentUserRole);
+  // Withdrawal action cards: only bar/manager/owner can approve
+  const canApproveWithdrawal = isWithdrawalCard && isPending
     && currentUserRole && ['bar', 'manager', 'owner'].includes(currentUserRole);
 
   // Borrow-specific status
@@ -177,17 +181,16 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           message: updated,
         } as unknown as Record<string, unknown>);
 
-        // Sync photo back to deposit
-        if (photoUrl) {
-          fetch('/api/chat/sync-photo', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              reference_table: meta.reference_table,
-              reference_id: meta.reference_id,
-              photo_url: photoUrl,
-            }),
-          }).catch(() => {});
+        // Sync staff received info back to deposit record
+        if (meta.reference_table === 'deposits' && meta.reference_id) {
+          supabase
+            .from('deposits')
+            .update({
+              received_by: currentUserId,
+              received_photo_url: photoUrl || undefined,
+            })
+            .eq('deposit_code', meta.reference_id)
+            .then(() => {});
         }
 
         // Audit: staff completed deposit step 1
@@ -313,14 +316,111 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             }).catch(() => {});
           }
 
-          // Bar completed deposit → notify and send system message
+          // Bar completed deposit → update deposit status + notify
           if (isBarCompleting && storeId) {
             const summary = meta.summary;
+
+            // Update deposit record: pending_confirm → in_store
+            if (meta.reference_table === 'deposits' && meta.reference_id) {
+              supabase
+                .from('deposits')
+                .update({
+                  status: 'in_store',
+                  confirm_photo_url: photoUrl || undefined,
+                  remaining_percent: barRemainingPercent ? Number(barRemainingPercent) : undefined,
+                })
+                .eq('deposit_code', meta.reference_id)
+                .then(() => {});
+            }
+
             sendChatBotMessage({
               storeId,
               type: 'system',
               content: `✅ ${currentUserName} ยืนยันรับฝาก ${summary.items || ''} (${meta.reference_id}) — ${summary.customer || ''} — คงเหลือ ${barRemainingPercent || '?'}%`,
             });
+
+            // Push notification: bar confirmed deposit
+            notifyStaff({
+              storeId,
+              type: 'deposit_confirmed',
+              title: 'ฝากเหล้ายืนยันแล้ว',
+              body: `${currentUserName} ยืนยันรับฝาก ${summary.items || ''} — ${summary.customer || ''} (${meta.reference_id})`,
+              data: { deposit_code: meta.reference_id },
+              excludeUserId: currentUserId,
+            });
+          }
+
+          // Withdrawal completed → update withdrawal + deposit records
+          if (action === 'complete' && meta.action_type === 'withdrawal_claim' && meta.reference_id) {
+            try {
+              // Find deposit by deposit_code
+              const { data: deposit } = await supabase
+                .from('deposits')
+                .select('id, remaining_qty, quantity')
+                .eq('deposit_code', meta.reference_id)
+                .single();
+
+              if (deposit) {
+                // Find the latest pending/approved withdrawal for this deposit
+                const { data: withdrawal } = await supabase
+                  .from('withdrawals')
+                  .select('id, requested_qty')
+                  .eq('deposit_id', deposit.id)
+                  .in('status', ['pending', 'approved'])
+                  .order('created_at', { ascending: false })
+                  .limit(1)
+                  .single();
+
+                if (withdrawal) {
+                  const qty = withdrawal.requested_qty;
+
+                  // Update withdrawal status to completed
+                  await supabase
+                    .from('withdrawals')
+                    .update({
+                      status: 'completed',
+                      actual_qty: qty,
+                      processed_by: currentUserId,
+                      photo_url: photoUrl || undefined,
+                    })
+                    .eq('id', withdrawal.id);
+
+                  // Update deposit remaining qty
+                  const newRemaining = Math.max(0, deposit.remaining_qty - qty);
+                  const newPercent = deposit.quantity > 0 ? (newRemaining / deposit.quantity) * 100 : 0;
+                  const newStatus = newRemaining <= 0 ? 'withdrawn' : 'in_store';
+
+                  await supabase
+                    .from('deposits')
+                    .update({
+                      remaining_qty: newRemaining,
+                      remaining_percent: newPercent,
+                      status: newStatus,
+                    })
+                    .eq('id', deposit.id);
+                }
+              }
+
+              if (storeId) {
+                sendChatBotMessage({
+                  storeId,
+                  type: 'system',
+                  content: `✅ ${currentUserName} เบิกเหล้า ${meta.summary.items || ''} (${meta.reference_id}) — ${meta.summary.customer || ''}`,
+                });
+
+                // Push notification: withdrawal approved
+                notifyStaff({
+                  storeId,
+                  type: 'withdrawal_request',
+                  title: 'อนุมัติเบิกเหล้าแล้ว',
+                  body: `${currentUserName} อนุมัติเบิก ${meta.summary.items || ''} — ${meta.summary.customer || ''} (${meta.reference_id})`,
+                  data: { deposit_code: meta.reference_id },
+                  excludeUserId: currentUserId,
+                });
+              }
+            } catch {
+              // Non-blocking: withdrawal sync failure shouldn't break the UI
+            }
           }
         }
       }
@@ -419,6 +519,38 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         },
         changed_by: currentUserId,
       });
+
+      // Sync rejection to source table
+      if (meta.action_type === 'withdrawal_claim' && meta.reference_id) {
+        try {
+          const { data: deposit } = await supabase
+            .from('deposits')
+            .select('id')
+            .eq('deposit_code', meta.reference_id)
+            .single();
+
+          if (deposit) {
+            // Reject the pending withdrawal
+            await supabase
+              .from('withdrawals')
+              .update({ status: 'rejected', processed_by: currentUserId, notes: 'ยกเลิกจากแชท' })
+              .eq('deposit_id', deposit.id)
+              .in('status', ['pending', 'approved']);
+
+            // Restore deposit status back to in_store
+            await supabase
+              .from('deposits')
+              .update({ status: 'in_store' })
+              .eq('id', deposit.id)
+              .eq('status', 'pending_withdrawal');
+          }
+        } catch {
+          // Non-blocking
+        }
+      } else if (meta.action_type === 'deposit_claim' && meta.reference_table === 'deposits' && meta.reference_id) {
+        // Reject deposit → restore to pending_confirm or mark accordingly
+        // (ยกเลิกรายการฝากเหล้า — doesn't delete, just cancels the action card)
+      }
 
       setShowRejectConfirm(false);
     } finally {
@@ -594,7 +726,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             {isPendingBar ? 'รอบาร์ยืนยัน' : isPending && isDepositCard ? 'รอ Staff รับ' : config.label}
           </span>
           <span className="text-xs text-gray-400">
-            #{meta.reference_id?.slice(0, 8)}
+            #{meta.reference_id}
           </span>
         </div>
 
@@ -799,7 +931,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                 GENERIC ACTION CARD UI (deposit, withdrawal, stock)
                 ========================================== */}
 
-            {/* Pending — ทุก role กดรับได้ */}
+            {/* Pending — withdrawal: เฉพาะ bar/manager/owner, อื่นๆ: ทุก role */}
             {isPending && (
               <div className="space-y-2">
                 {isTimedOut && (
@@ -810,7 +942,11 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                     </span>
                   </div>
                 )}
-                {showRejectConfirm ? (
+                {isWithdrawalCard && !canApproveWithdrawal ? (
+                  <div className="rounded-lg bg-gray-100 px-3 py-2 text-center text-xs text-gray-500 dark:bg-gray-700/50 dark:text-gray-400">
+                    รอ Bar/Manager อนุมัติเบิก
+                  </div>
+                ) : showRejectConfirm ? (
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-red-600 dark:text-red-400">ยืนยันยกเลิกรายการนี้?</p>
                     <div className="flex gap-2">
@@ -823,12 +959,12 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                     <Button
                       size="sm"
                       variant="primary"
-                      className="flex-1"
+                      className={cn('flex-1', isWithdrawalCard && 'bg-emerald-600 hover:bg-emerald-700')}
                       icon={<Hand className="h-4 w-4" />}
                       isLoading={loading}
                       onClick={() => handleAction('claim')}
                     >
-                      {isTimedOut ? 'รับงานต่อ' : 'รับรายการนี้'}
+                      {isWithdrawalCard ? 'อนุมัติเบิก' : isTimedOut ? 'รับงานต่อ' : 'รับรายการนี้'}
                     </Button>
                     <Button
                       size="sm"
@@ -1033,7 +1169,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                         <Button
                           size="sm"
                           variant="outline"
-                          className="flex-1"
+                          className="flex-1 border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40"
                           icon={<Printer className="h-3.5 w-3.5" />}
                           isLoading={isPrinting}
                           onClick={() => handlePrint('receipt')}
@@ -1043,7 +1179,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                         <Button
                           size="sm"
                           variant="outline"
-                          className="flex-1"
+                          className="flex-1 border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40"
                           icon={<Printer className="h-3.5 w-3.5" />}
                           isLoading={isPrinting}
                           onClick={() => handlePrint('label')}
