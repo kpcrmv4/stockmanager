@@ -190,7 +190,11 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
                 {/* Group header */}
                 <button
                   onClick={() => toggleGroup(type)}
-                  className="flex w-full items-center gap-2 rounded-t-xl bg-white px-3 py-2.5 shadow-sm transition-colors hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-750"
+                  className={cn(
+                    'flex w-full items-center gap-2 px-3 py-2.5 shadow-sm transition-colors',
+                    'bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700',
+                    isCollapsed ? 'rounded-xl' : 'rounded-t-xl'
+                  )}
                 >
                   <Icon className={cn('h-4 w-4', `text-${config.color}-500`)} />
                   <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
