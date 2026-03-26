@@ -23,10 +23,13 @@ import {
   ThumbsDown,
   Minus,
   Plus,
+  Printer,
+  Ban,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { notifyStaff } from '@/lib/notifications/client';
 import { sendChatBotMessage } from '@/lib/chat/bot-client';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import type { ChatMessage, ActionCardMetadata, ChatBroadcastPayload } from '@/types/chat';
 import { TransferActionCard } from './transfer-action-card';
 
@@ -58,6 +61,8 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   const [loading, setLoading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [barRemainingPercent, setBarRemainingPercent] = useState('');
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const { updateMessage } = useChatStore();
   const router = useRouter();
   const meta = message.metadata as ActionCardMetadata | null;
@@ -183,6 +188,9 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           }).catch(() => {});
         }
 
+        // Audit: staff completed deposit step 1
+        auditActionCard(AUDIT_ACTIONS.ACTION_CARD_COMPLETED, { step: 'staff_received' });
+
         // แจ้งเตือน bar
         if (storeId) {
           const summary = meta.summary;
@@ -251,6 +259,14 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             message: updated,
           } as unknown as Record<string, unknown>);
 
+          // Audit log
+          if (action === 'claim') auditActionCard(AUDIT_ACTIONS.ACTION_CARD_CLAIMED);
+          else if (action === 'release') auditActionCard(AUDIT_ACTIONS.ACTION_CARD_RELEASED);
+          else if (action === 'complete') auditActionCard(AUDIT_ACTIONS.ACTION_CARD_COMPLETED, {
+            step: isBarCompleting ? 'bar_confirmed' : 'completed',
+            remaining_percent: barRemainingPercent || undefined,
+          });
+
           // Sync photo กลับไปที่ deposit/withdrawal record (fire-and-forget)
           if (action === 'complete' && photoUrl && meta) {
             fetch('/api/chat/sync-photo', {
@@ -302,10 +318,147 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           type: 'message_updated',
           message: updated,
         } as unknown as Record<string, unknown>);
+
+        auditActionCard(AUDIT_ACTIONS.ACTION_CARD_CLAIMED, { step: 'bar_claimed' });
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  // Reject/cancel an action card (pending or pending_bar)
+  const handleReject = async () => {
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      const newMeta: ActionCardMetadata = {
+        ...meta,
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        claimed_by: currentUserId,
+        claimed_by_name: currentUserName,
+        completion_notes: 'ยกเลิกรายการ',
+        summary: {
+          ...meta.summary,
+          rejected: true,
+          rejected_by: currentUserName,
+        },
+      };
+
+      await supabase
+        .from('chat_messages')
+        .update({ metadata: newMeta })
+        .eq('id', message.id);
+
+      const updated: ChatMessage = { ...message, metadata: newMeta };
+      updateMessage(updated);
+
+      await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
+        type: 'message_updated',
+        message: updated,
+      } as unknown as Record<string, unknown>);
+
+      if (storeId) {
+        sendChatBotMessage({
+          storeId,
+          type: 'system',
+          content: `❌ ${currentUserName} ยกเลิกรายการ ${meta.summary.items || ''} (${meta.reference_id}) — ${meta.summary.customer || ''}`,
+        });
+      }
+
+      logAudit({
+        store_id: storeId,
+        action_type: AUDIT_ACTIONS.ACTION_CARD_REJECTED,
+        table_name: meta.reference_table,
+        record_id: meta.reference_id,
+        new_value: {
+          action_type: meta.action_type,
+          customer: meta.summary.customer,
+          items: meta.summary.items,
+          rejected_by: currentUserName,
+        },
+        changed_by: currentUserId,
+      });
+
+      setShowRejectConfirm(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Print receipt/label after bar confirms deposit
+  const handlePrint = async (jobType: 'receipt' | 'label') => {
+    if (!storeId) return;
+    setIsPrinting(true);
+    try {
+      const supabase = createClient();
+
+      // Fetch deposit data for print payload
+      const { data: deposit } = await supabase
+        .from('deposits')
+        .select('id, deposit_code, customer_name, customer_phone, product_name, category, quantity, remaining_qty, table_number, expiry_date, created_at')
+        .eq('deposit_code', meta.reference_id)
+        .single();
+
+      if (!deposit) {
+        setIsPrinting(false);
+        return;
+      }
+
+      const { data: store } = await supabase
+        .from('stores')
+        .select('store_name')
+        .eq('id', storeId)
+        .single();
+
+      const payload = {
+        deposit_code: deposit.deposit_code,
+        customer_name: deposit.customer_name,
+        customer_phone: deposit.customer_phone,
+        product_name: deposit.product_name,
+        category: deposit.category,
+        quantity: deposit.quantity,
+        remaining_qty: deposit.remaining_qty,
+        table_number: deposit.table_number,
+        expiry_date: deposit.expiry_date,
+        created_at: deposit.created_at,
+        store_name: store?.store_name || '',
+      };
+
+      const copies = jobType === 'label' ? (deposit.remaining_qty || 1) : 1;
+
+      await supabase.from('print_queue').insert({
+        store_id: storeId,
+        deposit_id: deposit.id,
+        job_type: jobType,
+        status: 'pending',
+        copies,
+        payload,
+        requested_by: currentUserId,
+      });
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  // ==========================================
+  // Audit helper — fire-and-forget after action card operations
+  // ==========================================
+  const auditActionCard = (action: string, extra?: Record<string, unknown>) => {
+    logAudit({
+      store_id: storeId,
+      action_type: action,
+      table_name: meta.reference_table,
+      record_id: meta.reference_id,
+      new_value: {
+        action_type: meta.action_type,
+        customer: meta.summary.customer,
+        items: meta.summary.items,
+        performed_by: currentUserName,
+        ...extra,
+      },
+      changed_by: currentUserId,
+    });
   };
 
   // ==========================================
@@ -617,16 +770,37 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                     </span>
                   </div>
                 )}
-                <Button
-                  size="sm"
-                  variant="primary"
-                  className="w-full"
-                  icon={<Hand className="h-4 w-4" />}
-                  isLoading={loading}
-                  onClick={() => handleAction('claim')}
-                >
-                  {isTimedOut ? 'รับงานต่อ' : 'รับรายการนี้'}
-                </Button>
+                {showRejectConfirm ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-red-600 dark:text-red-400">ยืนยันยกเลิกรายการนี้?</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="primary" className="flex-1 bg-red-600 hover:bg-red-700" icon={<Ban className="h-3.5 w-3.5" />} isLoading={loading} onClick={handleReject}>ยืนยัน</Button>
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => setShowRejectConfirm(false)}>ไม่ใช่</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      className="flex-1"
+                      icon={<Hand className="h-4 w-4" />}
+                      isLoading={loading}
+                      onClick={() => handleAction('claim')}
+                    >
+                      {isTimedOut ? 'รับงานต่อ' : 'รับรายการนี้'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                      icon={<Ban className="h-3.5 w-3.5" />}
+                      onClick={() => setShowRejectConfirm(true)}
+                    >
+                      ยกเลิก
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -641,17 +815,36 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                     </span>
                   </div>
                 )}
-                {canClaimBarStep ? (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    className="w-full bg-emerald-600 hover:bg-emerald-700"
-                    icon={<Hand className="h-4 w-4" />}
-                    isLoading={loading}
-                    onClick={handleBarClaim}
-                  >
-                    รับยืนยัน (Bar)
-                  </Button>
+                {showRejectConfirm ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-red-600 dark:text-red-400">ยืนยันยกเลิกรายการนี้?</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="primary" className="flex-1 bg-red-600 hover:bg-red-700" icon={<Ban className="h-3.5 w-3.5" />} isLoading={loading} onClick={handleReject}>ยืนยัน</Button>
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => setShowRejectConfirm(false)}>ไม่ใช่</Button>
+                    </div>
+                  </div>
+                ) : canClaimBarStep ? (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                      icon={<Hand className="h-4 w-4" />}
+                      isLoading={loading}
+                      onClick={handleBarClaim}
+                    >
+                      รับยืนยัน (Bar)
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                      icon={<Ban className="h-3.5 w-3.5" />}
+                      onClick={() => setShowRejectConfirm(true)}
+                    >
+                      ยกเลิก
+                    </Button>
+                  </div>
                 ) : (
                   <div className="rounded-lg bg-gray-100 px-3 py-2 text-center text-xs text-gray-500 dark:bg-gray-700/50 dark:text-gray-400">
                     รอ Bar/Manager ยืนยัน
@@ -750,35 +943,76 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             {/* Completed */}
             {isCompleted && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
-                  <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                    เสร็จสิ้น
-                  </span>
-                  {meta.completed_at && (
-                    <span className="text-xs text-emerald-500/70">
-                      {new Date(meta.completed_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                {meta.summary.rejected ? (
+                  <div className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 dark:bg-red-900/20">
+                    <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                    <span className="text-xs font-medium text-red-700 dark:text-red-300">
+                      ยกเลิกแล้ว
                     </span>
-                  )}
-                  {meta.confirmation_photo_url && (
-                    <Camera className="ml-auto h-3.5 w-3.5 text-emerald-500" />
-                  )}
-                </div>
-                {meta.summary.remaining_percent && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    คงเหลือ {meta.summary.remaining_percent as string}%
-                    {meta.summary.confirmed_by && ` — ยืนยันโดย ${meta.summary.confirmed_by as string}`}
-                  </p>
-                )}
-                {meta.confirmation_photo_url && (
-                  <div className="overflow-hidden rounded-lg">
-                    <img
-                      src={meta.confirmation_photo_url}
-                      alt="รูปยืนยัน"
-                      className="w-full max-h-36 object-cover sm:max-h-48"
-                      loading="lazy"
-                    />
+                    {meta.summary.rejected_by && (
+                      <span className="text-xs text-red-500/70">
+                        โดย {meta.summary.rejected_by as string}
+                      </span>
+                    )}
                   </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
+                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                        เสร็จสิ้น
+                      </span>
+                      {meta.completed_at && (
+                        <span className="text-xs text-emerald-500/70">
+                          {new Date(meta.completed_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                      {meta.confirmation_photo_url && (
+                        <Camera className="ml-auto h-3.5 w-3.5 text-emerald-500" />
+                      )}
+                    </div>
+                    {meta.summary.remaining_percent && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        คงเหลือ {meta.summary.remaining_percent as string}%
+                        {meta.summary.confirmed_by && ` — ยืนยันโดย ${meta.summary.confirmed_by as string}`}
+                      </p>
+                    )}
+                    {meta.confirmation_photo_url && (
+                      <div className="overflow-hidden rounded-lg">
+                        <img
+                          src={meta.confirmation_photo_url}
+                          alt="รูปยืนยัน"
+                          className="w-full max-h-36 object-cover sm:max-h-48"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
+                    {/* Print buttons — only for deposit_claim after bar confirmation */}
+                    {isDepositCard && meta.summary.confirmed_by && (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          icon={<Printer className="h-3.5 w-3.5" />}
+                          isLoading={isPrinting}
+                          onClick={() => handlePrint('receipt')}
+                        >
+                          พิมพ์ใบรับฝาก
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          icon={<Printer className="h-3.5 w-3.5" />}
+                          isLoading={isPrinting}
+                          onClick={() => handlePrint('label')}
+                        >
+                          พิมพ์ป้ายขวด
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

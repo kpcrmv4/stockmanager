@@ -71,6 +71,12 @@ export const AUDIT_ACTIONS = {
   BORROW_POS_CONFIRMED: 'BORROW_POS_CONFIRMED',
   BORROW_COMPLETED: 'BORROW_COMPLETED',
 
+  // === Chat Action Cards ===
+  ACTION_CARD_CLAIMED: 'ACTION_CARD_CLAIMED',
+  ACTION_CARD_RELEASED: 'ACTION_CARD_RELEASED',
+  ACTION_CARD_COMPLETED: 'ACTION_CARD_COMPLETED',
+  ACTION_CARD_REJECTED: 'ACTION_CARD_REJECTED',
+
   // === Settings ===
   SETTINGS_UPDATED: 'SETTINGS_UPDATED',
   STORE_CREATED: 'STORE_CREATED',
@@ -184,6 +190,12 @@ export const AUDIT_ACTION_LABELS: Record<
   USER_UPDATED: { label: 'แก้ไขข้อมูลผู้ใช้', color: 'amber', icon: 'user' },
   USER_DEACTIVATED: { label: 'ปิดการใช้งานผู้ใช้', color: 'red', icon: 'user-x' },
   USER_LOGIN: { label: 'เข้าสู่ระบบ', color: 'gray', icon: 'log-in' },
+
+  // Chat Action Cards
+  ACTION_CARD_CLAIMED: { label: 'รับงานในแชท', color: 'blue', icon: 'hand' },
+  ACTION_CARD_RELEASED: { label: 'ยกเลิกรับงานในแชท', color: 'amber', icon: 'x-circle' },
+  ACTION_CARD_COMPLETED: { label: 'ทำงานในแชทเสร็จ', color: 'emerald', icon: 'check-circle' },
+  ACTION_CARD_REJECTED: { label: 'ปฏิเสธรายการในแชท', color: 'red', icon: 'x-circle' },
 
   // Settings
   SETTINGS_UPDATED: { label: 'อัพเดตการตั้งค่า', color: 'gray', icon: 'settings' },

@@ -39,7 +39,11 @@ function getNormalizedStatus(meta: Record<string, unknown>): 'pending' | 'pendin
   if (status === 'pending' || status === 'pending_approval') return 'pending';
   if (status === 'pending_bar') return 'pending_bar';
   if (status === 'claimed') return 'claimed';
-  if (status === 'completed' || status === 'received') return 'completed';
+  if (status === 'completed' || status === 'received') {
+    const summary = meta.summary as Record<string, unknown> | undefined;
+    if (summary?.rejected) return 'other';
+    return 'completed';
+  }
   if (status === 'rejected' || status === 'expired' || status === 'cancelled' || status === 'partial') return 'other';
   return 'other';
 }
