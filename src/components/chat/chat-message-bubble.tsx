@@ -86,6 +86,22 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isOw
     ? (meta as unknown as ReplyMetadata)
     : null;
 
+  // --- System message (compact centered style) ---
+  if (isSystem) {
+    return (
+      <div className="flex justify-center" data-chat-bubble>
+        <div className="max-w-[85%] rounded-lg bg-black/[0.04] px-3 py-1.5 dark:bg-white/[0.06]">
+          <p className="text-center text-xs leading-snug text-gray-600 dark:text-gray-400">
+            {message.content}
+          </p>
+          <p className="mt-0.5 text-center text-[10px] leading-none text-gray-400 dark:text-gray-500">
+            {time}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // --- Own message (right side) ---
   if (isOwn) {
     return (
