@@ -34,12 +34,13 @@ interface ActionCardMessageProps {
   message: ChatMessage;
   currentUserId: string;
   currentUserName: string;
+  currentUserRole?: string;
   roomId: string;
   storeId: string | null;
 }
 
 const ACTION_TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; label: string }> = {
-  deposit_claim: { icon: Wine, color: 'emerald', label: 'รายการฝากใหม่' },
+  deposit_claim: { icon: Wine, color: 'emerald', label: 'ฝากเหล้า' },
   withdrawal_claim: { icon: Package, color: 'blue', label: 'คำขอเบิกเหล้า' },
   stock_explain: { icon: ClipboardCheck, color: 'amber', label: 'สต๊อกไม่ตรง' },
   borrow_approve: { icon: Repeat, color: 'violet', label: 'คำขอยืมสินค้า' },
@@ -53,9 +54,10 @@ const PRIORITY_STYLES: Record<string, string> = {
   low: 'border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50',
 };
 
-export const ActionCardMessage = memo(function ActionCardMessage({ message, currentUserId, currentUserName, roomId, storeId }: ActionCardMessageProps) {
+export const ActionCardMessage = memo(function ActionCardMessage({ message, currentUserId, currentUserName, currentUserRole, roomId, storeId }: ActionCardMessageProps) {
   const [loading, setLoading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [barRemainingPercent, setBarRemainingPercent] = useState('');
   const { updateMessage } = useChatStore();
   const router = useRouter();
   const meta = message.metadata as ActionCardMetadata | null;
@@ -82,7 +84,13 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   const isClaimed = meta.status === 'claimed' && !isTimedOut;
   const isCompleted = meta.status === 'completed';
   const isPending = meta.status === 'pending' || isTimedOut;
+  const isPendingBar = meta.status === 'pending_bar';
   const isClaimedByMe = meta.claimed_by === currentUserId && !isTimedOut;
+
+  // Deposit 2-step flow: staff can't claim pending_bar, only bar/manager/owner
+  const isDepositCard = meta.action_type === 'deposit_claim';
+  const canClaimBarStep = isPendingBar && isDepositCard
+    && currentUserRole && ['bar', 'manager', 'owner'].includes(currentUserRole);
 
   // Borrow-specific status
   const isBorrow = meta.action_type === 'borrow_approve';
@@ -123,36 +131,47 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
     setLoading(true);
     try {
       const supabase = createClient();
-      const fnName =
-        action === 'claim'
-          ? 'claim_action_card'
-          : action === 'release'
-            ? 'release_action_card'
-            : 'complete_action_card';
 
-      const params =
-        action === 'complete'
-          ? { p_message_id: message.id, p_user_id: currentUserId, p_notes: null, p_photo_url: photoUrl }
-          : { p_message_id: message.id, p_user_id: currentUserId };
+      // Deposit 2-step: staff completes "pending" → transitions to "pending_bar"
+      const isStaffCompletingDeposit = action === 'complete'
+        && isDepositCard
+        && meta.status === 'claimed'
+        && !isPendingBar;
 
-      const { data: result } = await supabase.rpc(fnName, params);
+      // Check if this is bar completing pending_bar step
+      const isBarCompleting = action === 'complete' && isDepositCard && meta.status === 'claimed'
+        && (meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step === true;
 
-      if (result?.success || result?.timed_out) {
-        const updatedMeta = result.metadata || result?.metadata;
-        const updated: ChatMessage = {
-          ...message,
-          metadata: updatedMeta,
+      if (isStaffCompletingDeposit) {
+        // Staff complete → transition to pending_bar (NOT completed)
+        const newMeta: ActionCardMetadata = {
+          ...meta,
+          status: 'pending_bar',
+          claimed_by: null,
+          claimed_by_name: null,
+          claimed_at: null,
+          confirmation_photo_url: photoUrl || meta.confirmation_photo_url || null,
+          summary: {
+            ...meta.summary,
+            received_by: currentUserName,
+          },
         };
+
+        await supabase
+          .from('chat_messages')
+          .update({ metadata: newMeta })
+          .eq('id', message.id);
+
+        const updated: ChatMessage = { ...message, metadata: newMeta };
         updateMessage(updated);
 
-        // Broadcast update ไปห้อง
         await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
           type: 'message_updated',
           message: updated,
         } as unknown as Record<string, unknown>);
 
-        // Sync photo กลับไปที่ deposit/withdrawal record (fire-and-forget)
-        if (action === 'complete' && photoUrl && meta) {
+        // Sync photo back to deposit
+        if (photoUrl) {
           fetch('/api/chat/sync-photo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -164,13 +183,13 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           }).catch(() => {});
         }
 
-        // แจ้งเตือน bar เมื่อ staff รับของ (complete deposit_claim)
-        if (action === 'complete' && meta.action_type === 'deposit_claim' && storeId) {
+        // แจ้งเตือน bar
+        if (storeId) {
           const summary = meta.summary;
           notifyStaff({
             storeId,
             type: 'deposit_received',
-            title: 'รอรับเข้าระบบ',
+            title: 'รอบาร์ยืนยัน',
             body: `${currentUserName} รับของแล้ว — ${summary.customer || ''} ${summary.items || ''} (${meta.reference_id})`,
             data: { deposit_code: meta.reference_id },
             excludeUserId: currentUserId,
@@ -182,6 +201,107 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             content: `📦 ${currentUserName} รับของแล้ว — ${summary.customer || ''} ${summary.items || ''} (${meta.reference_id}) — รอ Bar ยืนยันเข้าระบบ`,
           });
         }
+      } else {
+        // Normal flow: claim/release/complete (including bar completing deposit)
+        const fnName =
+          action === 'claim'
+            ? 'claim_action_card'
+            : action === 'release'
+              ? 'release_action_card'
+              : 'complete_action_card';
+
+        const completeNotes = isBarCompleting && barRemainingPercent
+          ? `คงเหลือ ${barRemainingPercent}%`
+          : null;
+
+        const params =
+          action === 'complete'
+            ? { p_message_id: message.id, p_user_id: currentUserId, p_notes: completeNotes, p_photo_url: photoUrl }
+            : { p_message_id: message.id, p_user_id: currentUserId };
+
+        const { data: result } = await supabase.rpc(fnName, params);
+
+        if (result?.success || result?.timed_out) {
+          let updatedMeta = result.metadata || result?.metadata;
+
+          // For bar completing deposit: store remaining percent in summary
+          if (isBarCompleting && barRemainingPercent) {
+            updatedMeta = {
+              ...updatedMeta,
+              summary: {
+                ...(updatedMeta?.summary || {}),
+                remaining_percent: barRemainingPercent,
+                confirmed_by: currentUserName,
+              },
+            };
+            await supabase
+              .from('chat_messages')
+              .update({ metadata: updatedMeta })
+              .eq('id', message.id);
+          }
+
+          const updated: ChatMessage = {
+            ...message,
+            metadata: updatedMeta,
+          };
+          updateMessage(updated);
+
+          await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
+            type: 'message_updated',
+            message: updated,
+          } as unknown as Record<string, unknown>);
+
+          // Sync photo กลับไปที่ deposit/withdrawal record (fire-and-forget)
+          if (action === 'complete' && photoUrl && meta) {
+            fetch('/api/chat/sync-photo', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                reference_table: meta.reference_table,
+                reference_id: meta.reference_id,
+                photo_url: photoUrl,
+              }),
+            }).catch(() => {});
+          }
+
+          // Bar completed deposit → notify and send system message
+          if (isBarCompleting && storeId) {
+            const summary = meta.summary;
+            sendChatBotMessage({
+              storeId,
+              type: 'system',
+              content: `✅ ${currentUserName} ยืนยันรับฝาก ${summary.items || ''} (${meta.reference_id}) — ${summary.customer || ''} — คงเหลือ ${barRemainingPercent || '?'}%`,
+            });
+          }
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Bar step: claim pending_bar → sets _bar_step flag before calling normal claim
+  const handleBarClaim = async () => {
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      const { data: result } = await supabase.rpc('claim_action_card', {
+        p_message_id: message.id,
+        p_user_id: currentUserId,
+      });
+
+      if (result?.success) {
+        const updatedMeta = {
+          ...(result.metadata || {}),
+          _bar_step: true,
+        };
+        const updated: ChatMessage = { ...message, metadata: updatedMeta };
+        updateMessage(updated);
+
+        await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
+          type: 'message_updated',
+          message: updated,
+        } as unknown as Record<string, unknown>);
       }
     } finally {
       setLoading(false);
@@ -278,7 +398,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           )}
           <Icon className={cn('h-4 w-4', `text-${config.color}-600 dark:text-${config.color}-400`)} />
           <span className="text-xs font-bold text-gray-900 dark:text-white">
-            {config.label}
+            {isPendingBar ? 'รอบาร์ยืนยัน' : isPending && isDepositCard ? 'รอ Staff รับ' : config.label}
           </span>
           <span className="text-xs text-gray-400">
             #{meta.reference_id?.slice(0, 8)}
@@ -485,6 +605,8 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             {/* ==========================================
                 GENERIC ACTION CARD UI (deposit, withdrawal, stock)
                 ========================================== */}
+
+            {/* Pending — ทุก role กดรับได้ */}
             {isPending && (
               <div className="space-y-2">
                 {isTimedOut && (
@@ -508,6 +630,37 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
               </div>
             )}
 
+            {/* Pending Bar — เฉพาะ bar/manager/owner กดรับได้ */}
+            {isPendingBar && !isClaimed && (
+              <div className="space-y-2">
+                {meta.summary.received_by && (
+                  <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 dark:bg-blue-900/20">
+                    <CheckCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                      {meta.summary.received_by as string} รับของแล้ว — รอบาร์ยืนยัน
+                    </span>
+                  </div>
+                )}
+                {canClaimBarStep ? (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700"
+                    icon={<Hand className="h-4 w-4" />}
+                    isLoading={loading}
+                    onClick={handleBarClaim}
+                  >
+                    รับยืนยัน (Bar)
+                  </Button>
+                ) : (
+                  <div className="rounded-lg bg-gray-100 px-3 py-2 text-center text-xs text-gray-500 dark:bg-gray-700/50 dark:text-gray-400">
+                    รอ Bar/Manager ยืนยัน
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Claimed — แสดงสถานะ + ฟอร์มสำหรับคนที่รับ */}
             {isClaimed && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 dark:bg-indigo-900/20">
@@ -530,11 +683,35 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
 
                 {isClaimedByMe && (
                   <div className="space-y-2">
+                    {/* Bar step: require %remaining + photo */}
+                    {(meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                            % คงเหลือ *
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={barRemainingPercent}
+                            onChange={(e) => setBarRemainingPercent(e.target.value)}
+                            placeholder="เช่น 80"
+                            className="w-20 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-center text-xs text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                          />
+                          <span className="text-xs text-gray-400">%</span>
+                        </div>
+                      </div>
+                    )}
                     <PhotoUpload
                       value={photoUrl}
                       onChange={setPhotoUrl}
                       folder="confirmations"
-                      placeholder="ถ่ายรูปยืนยัน (ไม่บังคับ)"
+                      placeholder={
+                        (meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step
+                          ? 'ถ่ายรูปเหล้า (บังคับ)'
+                          : 'ถ่ายรูปยืนยัน (ไม่บังคับ)'
+                      }
                       compact
                     />
                     <div className="flex gap-2">
@@ -544,9 +721,16 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                         className="flex-1"
                         icon={<CheckCircle className="h-3.5 w-3.5" />}
                         isLoading={loading}
+                        disabled={
+                          (meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step
+                            ? !photoUrl || !barRemainingPercent
+                            : false
+                        }
                         onClick={() => handleAction('complete')}
                       >
-                        {photoUrl ? 'เสร็จ + ส่งรูป' : 'เสร็จแล้ว'}
+                        {(meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step
+                          ? 'ยืนยันรับฝาก'
+                          : photoUrl ? 'เสร็จ + ส่งรูป' : 'เสร็จแล้ว'}
                       </Button>
                       <Button
                         size="sm"
@@ -563,6 +747,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
               </div>
             )}
 
+            {/* Completed */}
             {isCompleted && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
@@ -579,6 +764,12 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                     <Camera className="ml-auto h-3.5 w-3.5 text-emerald-500" />
                   )}
                 </div>
+                {meta.summary.remaining_percent && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    คงเหลือ {meta.summary.remaining_percent as string}%
+                    {meta.summary.confirmed_by && ` — ยืนยันโดย ${meta.summary.confirmed_by as string}`}
+                  </p>
+                )}
                 {meta.confirmation_photo_url && (
                   <div className="overflow-hidden rounded-lg">
                     <img

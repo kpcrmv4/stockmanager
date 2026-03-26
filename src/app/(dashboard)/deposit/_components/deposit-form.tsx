@@ -32,7 +32,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
-import { notifyChatNewDeposit } from '@/lib/chat/bot-client';
+import { notifyChatNewDepositForBar } from '@/lib/chat/bot-client';
 import { expiryDateISO } from '@/lib/utils/date';
 import { formatThaiDate } from '@/lib/utils/format';
 
@@ -567,15 +567,17 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
       });
 
       // ส่ง Action Card เข้าห้องแชทสาขา (ไม่ส่งสำหรับรายการ "ไม่ฝาก")
+      // Staff สร้าง manual → ส่งเป็น "รอบาร์ยืนยัน" ทันที
       if (!isNoDeposit) {
         for (let i = 0; i < items.length; i++) {
-          notifyChatNewDeposit(currentStoreId, {
+          notifyChatNewDepositForBar(currentStoreId, {
             deposit_code: depositCodes[i],
             customer_name: customerName.trim(),
             product_name: items[i].productName.trim(),
             quantity: parseFloat(items[i].quantity),
             table_number: tableNumber.trim() || null,
             notes: notes.trim() || null,
+            received_by_name: user.displayName || user.username || 'พนักงาน',
           });
         }
       }

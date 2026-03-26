@@ -79,6 +79,51 @@ export function notifyChatNewDeposit(
 }
 
 /**
+ * ส่ง Action Card ฝากเหล้ารอบาร์ยืนยัน (staff สร้าง manual)
+ * ข้ามขั้นตอน "รอรับ" ไปเป็น "รอบาร์ยืนยัน" ทันที
+ */
+export function notifyChatNewDepositForBar(
+  storeId: string,
+  deposit: {
+    deposit_code: string;
+    customer_name: string;
+    product_name: string;
+    quantity: number;
+    table_number?: string | null;
+    notes?: string | null;
+    received_by_name?: string;
+  }
+): void {
+  const meta: ActionCardMetadata = {
+    action_type: 'deposit_claim',
+    reference_id: deposit.deposit_code,
+    reference_table: 'deposits',
+    status: 'pending_bar',
+    claimed_by: null,
+    claimed_by_name: null,
+    claimed_at: null,
+    completed_at: null,
+    timeout_minutes: 15,
+    priority: 'normal',
+    summary: {
+      customer: deposit.customer_name,
+      items: `${deposit.product_name} x${deposit.quantity}`,
+      note: deposit.table_number
+        ? `โต๊ะ ${deposit.table_number}`
+        : deposit.notes || undefined,
+      received_by: deposit.received_by_name,
+    },
+  };
+
+  sendChatBotMessage({
+    storeId,
+    type: 'action_card',
+    content: `รอบาร์ยืนยัน ${deposit.deposit_code} — ${deposit.customer_name} (${deposit.product_name})`,
+    metadata: meta,
+  });
+}
+
+/**
  * ส่ง Action Card คำขอเบิกเหล้าเข้าห้องแชทสาขา
  */
 export function notifyChatWithdrawalRequest(

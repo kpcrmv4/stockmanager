@@ -7,7 +7,7 @@ import type { TransferCardMetadata } from './transfer-chat';
 export type ChatRoomType = 'store' | 'direct' | 'cross_store';
 export type ChatMessageType = 'text' | 'image' | 'action_card' | 'system';
 export type ChatMemberRole = 'member' | 'admin';
-export type ActionCardStatus = 'pending' | 'claimed' | 'completed' | 'expired';
+export type ActionCardStatus = 'pending' | 'pending_bar' | 'claimed' | 'completed' | 'expired';
 export type ActionCardPriority = 'urgent' | 'normal' | 'low';
 
 export interface ChatRoom {

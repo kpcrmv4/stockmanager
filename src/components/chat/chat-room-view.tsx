@@ -306,7 +306,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
     return messages.filter((m) => {
       if (m.type !== 'action_card' || !m.metadata) return false;
       const meta = m.metadata as import('@/types/chat').ActionCardMetadata;
-      return meta.status === 'pending';
+      return meta.status === 'pending' || meta.status === 'pending_bar';
     }).length;
   }, [messages]);
 
@@ -448,6 +448,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
           storeId={room?.store_id || null}
           currentUserId={user?.id || ''}
           currentUserName={user?.displayName || user?.username || 'พนักงาน'}
+          currentUserRole={user?.role}
         />
       )}
 
