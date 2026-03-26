@@ -15,7 +15,7 @@ import type { ChatMessage, ChatBroadcastPayload, UnreadBadgePayload, ChatPinnedM
 export function useChatRealtime(roomId: string | null) {
   const { user } = useAuthStore();
   const { addMessage, updateMessage, clearUnread, isMuted, addPinnedMessage, removePinnedMessage } = useChatStore();
-  const { playMessageSound, playMentionSound } = useChatSound();
+  const { playMessageSound, playMentionSound, playTaskSound } = useChatSound();
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null);
 
   useEffect(() => {
@@ -34,9 +34,13 @@ export function useChatRealtime(roomId: string | null) {
           markAsReadQuiet(roomId, user.id);
           clearUnread(roomId);
 
-          // Play sound (respect mute, but always play for @mention)
+          // Play sound — different for action cards vs chat vs @mention
           const isMentioned = checkMention(data.message, user.id);
-          if (isMentioned) {
+          const isActionCard = data.message.type === 'action_card';
+          if (isActionCard) {
+            // Action card / task: distinct sound + vibrate (always, ignore mute)
+            playTaskSound();
+          } else if (isMentioned) {
             playMentionSound();
           } else if (!isMuted) {
             playMessageSound();
@@ -72,7 +76,7 @@ export function useChatRealtime(roomId: string | null) {
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [roomId, user, addMessage, updateMessage, clearUnread, isMuted, playMessageSound, playMentionSound, addPinnedMessage, removePinnedMessage]);
+  }, [roomId, user, addMessage, updateMessage, clearUnread, isMuted, playMessageSound, playMentionSound, playTaskSound, addPinnedMessage, removePinnedMessage]);
 
   return channelRef;
 }
@@ -85,7 +89,7 @@ export function useChatRealtime(roomId: string | null) {
 export function useChatBadge() {
   const { user } = useAuthStore();
   const { activeRoomId, incrementUnread } = useChatStore();
-  const { playMessageSound, playMentionSound } = useChatSound();
+  const { playMessageSound, playMentionSound, playTaskSound } = useChatSound();
 
   useEffect(() => {
     if (!user) return;
@@ -99,6 +103,12 @@ export function useChatBadge() {
         // ไม่ increment ถ้ากำลังดูห้องนั้นอยู่
         if (data.room_id !== activeRoomId && data.sender_id !== user.id) {
           incrementUnread(data.room_id);
+
+          // Action card / task: always play task sound + vibrate (even non-active room)
+          if (data.type === 'action_card') {
+            playTaskSound();
+            return;
+          }
 
           // Check if @mention or @all in preview
           const preview = data.preview || '';
@@ -119,7 +129,7 @@ export function useChatBadge() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, activeRoomId, incrementUnread, playMessageSound, playMentionSound]);
+  }, [user, activeRoomId, incrementUnread, playMessageSound, playMentionSound, playTaskSound]);
 }
 
 // ==========================================
