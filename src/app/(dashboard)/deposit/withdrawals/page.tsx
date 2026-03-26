@@ -31,6 +31,9 @@ import {
   Loader2,
   Inbox,
   Wine,
+  Plus,
+  Search,
+  Minus,
 } from 'lucide-react';
 import Link from 'next/link';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
@@ -53,6 +56,18 @@ interface Withdrawal {
   notes: string | null;
   photo_url: string | null;
   created_at: string;
+}
+
+interface DepositForWithdraw {
+  id: string;
+  deposit_code: string;
+  customer_name: string;
+  product_name: string;
+  quantity: number;
+  remaining_qty: number;
+  line_user_id: string | null;
+  status: string;
+  category: string | null;
 }
 
 const statusVariantMap: Record<string, 'warning' | 'success' | 'default' | 'danger' | 'info'> = {
@@ -83,6 +98,18 @@ export default function WithdrawalsPage() {
   const [processNotes, setProcessNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [withdrawalPhotoUrl, setWithdrawalPhotoUrl] = useState<string | null>(null);
+
+  // Manual withdrawal modal
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [manualStep, setManualStep] = useState<'search' | 'form'>('search');
+  const [depositSearch, setDepositSearch] = useState('');
+  const [depositResults, setDepositResults] = useState<DepositForWithdraw[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedDeposit, setSelectedDeposit] = useState<DepositForWithdraw | null>(null);
+  const [manualQty, setManualQty] = useState('');
+  const [manualNotes, setManualNotes] = useState('');
+  const [manualPhotoUrl, setManualPhotoUrl] = useState<string | null>(null);
+  const [isManualSubmitting, setIsManualSubmitting] = useState(false);
 
   const loadWithdrawals = useCallback(async () => {
     if (!currentStoreId) return;
@@ -123,6 +150,169 @@ export default function WithdrawalsPage() {
   useEffect(() => {
     loadWithdrawals();
   }, [loadWithdrawals]);
+
+  // Search deposits for manual withdrawal
+  const searchDeposits = useCallback(async (query: string) => {
+    if (!currentStoreId || !query.trim()) {
+      setDepositResults([]);
+      return;
+    }
+    setIsSearching(true);
+    const supabase = createClient();
+    const q = query.trim();
+
+    const { data } = await supabase
+      .from('deposits')
+      .select('id, deposit_code, customer_name, product_name, quantity, remaining_qty, line_user_id, status, category')
+      .eq('store_id', currentStoreId)
+      .eq('status', 'in_store')
+      .gt('remaining_qty', 0)
+      .or(`customer_name.ilike.%${q}%,product_name.ilike.%${q}%,deposit_code.ilike.%${q}%`)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    setDepositResults((data as DepositForWithdraw[]) || []);
+    setIsSearching(false);
+  }, [currentStoreId]);
+
+  // Debounced search
+  useEffect(() => {
+    if (!showManualModal || manualStep !== 'search') return;
+    const timer = setTimeout(() => {
+      searchDeposits(depositSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [depositSearch, showManualModal, manualStep, searchDeposits]);
+
+  // Load all available deposits when modal opens
+  useEffect(() => {
+    if (showManualModal && manualStep === 'search' && !depositSearch) {
+      const loadAll = async () => {
+        if (!currentStoreId) return;
+        setIsSearching(true);
+        const supabase = createClient();
+        const { data } = await supabase
+          .from('deposits')
+          .select('id, deposit_code, customer_name, product_name, quantity, remaining_qty, line_user_id, status, category')
+          .eq('store_id', currentStoreId)
+          .eq('status', 'in_store')
+          .gt('remaining_qty', 0)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        setDepositResults((data as DepositForWithdraw[]) || []);
+        setIsSearching(false);
+      };
+      loadAll();
+    }
+  }, [showManualModal, manualStep, currentStoreId, depositSearch]);
+
+  const openManualModal = () => {
+    setShowManualModal(true);
+    setManualStep('search');
+    setDepositSearch('');
+    setDepositResults([]);
+    setSelectedDeposit(null);
+    setManualQty('');
+    setManualNotes('');
+    setManualPhotoUrl(null);
+  };
+
+  const selectDeposit = (deposit: DepositForWithdraw) => {
+    setSelectedDeposit(deposit);
+    setManualQty('');
+    setManualNotes('');
+    setManualPhotoUrl(null);
+    setManualStep('form');
+  };
+
+  const handleManualWithdrawal = async () => {
+    if (!selectedDeposit || !user || !currentStoreId) return;
+    const qty = parseFloat(manualQty);
+    if (isNaN(qty) || qty <= 0) {
+      toast({ type: 'error', title: 'กรุณาระบุจำนวนที่ถูกต้อง' });
+      return;
+    }
+    if (qty > selectedDeposit.remaining_qty) {
+      toast({ type: 'error', title: 'จำนวนเกินกว่าที่คงเหลือ', message: `คงเหลือ ${formatNumber(selectedDeposit.remaining_qty)} หน่วย` });
+      return;
+    }
+
+    setIsManualSubmitting(true);
+    const supabase = createClient();
+
+    // Create withdrawal record (directly completed)
+    const { error: withdrawalError } = await supabase.from('withdrawals').insert({
+      deposit_id: selectedDeposit.id,
+      store_id: currentStoreId,
+      line_user_id: selectedDeposit.line_user_id,
+      customer_name: selectedDeposit.customer_name,
+      product_name: selectedDeposit.product_name,
+      requested_qty: qty,
+      actual_qty: qty,
+      status: 'completed',
+      processed_by: user.id,
+      notes: manualNotes.trim() || null,
+      photo_url: manualPhotoUrl,
+    });
+
+    if (withdrawalError) {
+      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถสร้างรายการเบิกได้' });
+      setIsManualSubmitting(false);
+      return;
+    }
+
+    // Update deposit remaining quantity
+    const newRemaining = Math.max(0, selectedDeposit.remaining_qty - qty);
+    const newPercent = selectedDeposit.quantity > 0 ? (newRemaining / selectedDeposit.quantity) * 100 : 0;
+    const newStatus = newRemaining <= 0 ? 'withdrawn' : 'in_store';
+
+    await supabase
+      .from('deposits')
+      .update({
+        remaining_qty: newRemaining,
+        remaining_percent: newPercent,
+        status: newStatus,
+      })
+      .eq('id', selectedDeposit.id);
+
+    toast({ type: 'success', title: 'เบิกเหล้าสำเร็จ', message: `${selectedDeposit.product_name} x${formatNumber(qty)}` });
+
+    // Send chat notification
+    notifyChatWithdrawalCompleted(currentStoreId, {
+      customer_name: selectedDeposit.customer_name,
+      product_name: selectedDeposit.product_name,
+      actual_qty: qty,
+      processed_by_name: user.displayName || user.username || 'พนักงาน',
+    });
+
+    // Notify other staff
+    notifyStaff({
+      storeId: currentStoreId,
+      type: 'withdrawal_request',
+      title: 'เบิกเหล้าแล้ว',
+      body: `${selectedDeposit.customer_name} เบิก ${selectedDeposit.product_name} x${qty}`,
+      data: { deposit_id: selectedDeposit.id },
+      excludeUserId: user.id,
+    });
+
+    await logAudit({
+      store_id: currentStoreId,
+      action_type: AUDIT_ACTIONS.WITHDRAWAL_COMPLETED,
+      table_name: 'withdrawals',
+      record_id: selectedDeposit.id,
+      new_value: {
+        customer_name: selectedDeposit.customer_name,
+        product_name: selectedDeposit.product_name,
+        actual_qty: qty,
+        manual: true,
+      },
+      changed_by: user.id,
+    });
+
+    setIsManualSubmitting(false);
+    setShowManualModal(false);
+    loadWithdrawals();
+  };
 
   const openProcessModal = (withdrawal: Withdrawal, action: 'complete' | 'reject') => {
     setSelectedWithdrawal(withdrawal);
@@ -294,10 +484,22 @@ export default function WithdrawalsPage() {
             กลับหน้าฝากเหล้า
           </Link>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">เบิกเหล้า</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          ประวัติและจัดการรายการเบิกเหล้าของลูกค้า
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">เบิกเหล้า</h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              ประวัติและจัดการรายการเบิกเหล้าของลูกค้า
+            </p>
+          </div>
+          <Button
+            className="min-h-[44px]"
+            variant="primary"
+            icon={<Plus className="h-4 w-4" />}
+            onClick={openManualModal}
+          >
+            เบิกเหล้าใหม่
+          </Button>
+        </div>
       </div>
 
       {/* Summary */}
@@ -568,6 +770,169 @@ export default function WithdrawalsPage() {
           >
             {processAction === 'complete' ? 'ยืนยันเบิก' : 'ปฏิเสธ'}
           </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Manual Withdrawal Modal */}
+      <Modal
+        isOpen={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        title={manualStep === 'search' ? 'เบิกเหล้าใหม่ — เลือกรายการฝาก' : 'เบิกเหล้าใหม่ — กรอกรายละเอียด'}
+        description={
+          manualStep === 'search'
+            ? 'ค้นหาจากชื่อลูกค้า, รหัสฝาก, หรือชื่อสินค้า'
+            : selectedDeposit
+              ? `${selectedDeposit.deposit_code} — ${selectedDeposit.product_name}`
+              : undefined
+        }
+        size="lg"
+      >
+        {manualStep === 'search' ? (
+          <div className="space-y-4">
+            {/* Search input */}
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={depositSearch}
+                onChange={(e) => setDepositSearch(e.target.value)}
+                placeholder="พิมพ์ชื่อลูกค้า, รหัสฝาก, หรือชื่อสินค้า..."
+                className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition-colors focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-indigo-400"
+                autoFocus
+              />
+            </div>
+
+            {/* Results */}
+            <div className="max-h-[360px] space-y-2 overflow-y-auto">
+              {isSearching ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                </div>
+              ) : depositResults.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  {depositSearch ? 'ไม่พบรายการฝากที่ค้นหา' : 'ไม่มีรายการฝากที่สามารถเบิกได้'}
+                </div>
+              ) : (
+                depositResults.map((dep) => (
+                  <button
+                    key={dep.id}
+                    type="button"
+                    onClick={() => selectDeposit(dep)}
+                    className="w-full rounded-lg border border-gray-200 p-3 text-left transition-colors hover:border-indigo-300 hover:bg-indigo-50 dark:border-gray-700 dark:hover:border-indigo-600 dark:hover:bg-indigo-900/20"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Wine className="h-4 w-4 shrink-0 text-indigo-500" />
+                          <span className="font-medium text-gray-900 dark:text-white">{dep.product_name}</span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                          <span className="flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {dep.customer_name}
+                          </span>
+                          <span className="font-mono">{dep.deposit_code}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="info">
+                          คงเหลือ {formatNumber(dep.remaining_qty)}/{formatNumber(dep.quantity)}
+                        </Badge>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        ) : selectedDeposit ? (
+          <div className="space-y-4">
+            {/* Selected deposit summary */}
+            <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">รหัสฝาก</span>
+                  <span className="font-mono font-medium text-gray-900 dark:text-white">{selectedDeposit.deposit_code}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">สินค้า</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{selectedDeposit.product_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">ลูกค้า</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{selectedDeposit.customer_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">คงเหลือ</span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {formatNumber(selectedDeposit.remaining_qty)} / {formatNumber(selectedDeposit.quantity)} หน่วย
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <Input
+              label="จำนวนที่ต้องการเบิก"
+              type="number"
+              value={manualQty}
+              onChange={(e) => setManualQty(e.target.value)}
+              placeholder="0"
+              hint={`สูงสุด ${formatNumber(selectedDeposit.remaining_qty)} หน่วย`}
+              error={
+                manualQty && parseFloat(manualQty) > selectedDeposit.remaining_qty
+                  ? `เกินจำนวนคงเหลือ (${formatNumber(selectedDeposit.remaining_qty)})`
+                  : undefined
+              }
+            />
+
+            <PhotoUpload
+              value={manualPhotoUrl}
+              onChange={(url) => setManualPhotoUrl(url)}
+              folder="withdrawals"
+              label="ถ่ายรูปประกอบ (ไม่บังคับ)"
+              compact={true}
+            />
+
+            <Textarea
+              label="หมายเหตุ"
+              value={manualNotes}
+              onChange={(e) => setManualNotes(e.target.value)}
+              placeholder="หมายเหตุเพิ่มเติม (ไม่บังคับ)"
+              rows={3}
+            />
+          </div>
+        ) : null}
+
+        <ModalFooter>
+          {manualStep === 'form' ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setManualStep('search');
+                  setSelectedDeposit(null);
+                }}
+              >
+                เลือกรายการใหม่
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleManualWithdrawal}
+                isLoading={isManualSubmitting}
+                disabled={!manualQty || parseFloat(manualQty) <= 0 || parseFloat(manualQty) > (selectedDeposit?.remaining_qty || 0)}
+                icon={<Minus className="h-4 w-4" />}
+              >
+                ยืนยันเบิก
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => setShowManualModal(false)}
+            >
+              ปิด
+            </Button>
+          )}
         </ModalFooter>
       </Modal>
     </div>
