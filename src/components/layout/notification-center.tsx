@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils/cn';
 import { formatThaiDate } from '@/lib/utils/format';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useNotificationStore } from '@/stores/notification-store';
+import { resolveNotificationUrl } from '@/lib/notifications/resolve-url';
 import type { Notification } from '@/types/database';
 
 interface NotificationCenterProps {
@@ -154,45 +155,10 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
       markRead(notification.id);
     }
 
-    // Navigate based on notification type / data
+    // Navigate — prefer data.url if available, otherwise map by type
     const data = notification.data;
-    switch (notification.type) {
-      case 'deposit_confirmed':
-      case 'new_deposit':
-      case 'deposit_expiry':
-        if (data?.deposit_id) {
-          router.push(`/deposits/${data.deposit_id}`);
-        } else {
-          router.push('/deposits');
-        }
-        break;
-      case 'deposit_received':
-        // รอ bar ยืนยัน → ไปหน้า bar-approval
-        router.push('/bar-approval');
-        break;
-      case 'withdrawal_completed':
-      case 'withdrawal_request':
-        if (data?.withdrawal_id) {
-          router.push(`/withdrawals/${data.withdrawal_id}`);
-        } else {
-          router.push('/withdrawals');
-        }
-        break;
-      case 'approval_request':
-      case 'approval_result':
-      case 'explanation_submitted':
-        router.push('/approvals');
-        break;
-      case 'stock_alert':
-        router.push('/stock');
-        break;
-      case 'promotion':
-        router.push('/notifications');
-        break;
-      default:
-        router.push('/notifications');
-    }
-
+    const url = resolveNotificationUrl(notification.type, data);
+    router.push(url);
     setOpen(false);
   }
 
