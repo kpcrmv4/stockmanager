@@ -36,6 +36,7 @@ import {
   Minus,
   X,
   ShoppingCart,
+  ChevronDown,
 } from 'lucide-react';
 import Link from 'next/link';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
@@ -105,6 +106,17 @@ export default function WithdrawalsPage() {
   const [processNotes, setProcessNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [withdrawalPhotoUrl, setWithdrawalPhotoUrl] = useState<string | null>(null);
+
+  // Expand/collapse for completed/rejected cards
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // Manual withdrawal modal
   const [showManualModal, setShowManualModal] = useState(false);
@@ -597,108 +609,130 @@ export default function WithdrawalsPage() {
         <div className="space-y-3">
           {filteredWithdrawals.map((withdrawal) => {
             const isPending = withdrawal.status === 'pending' || withdrawal.status === 'approved';
+            const isExpanded = isPending || expandedIds.has(withdrawal.id);
 
             return (
               <Card key={withdrawal.id} padding="none">
-                <div className="p-4 sm:p-5">
-                  {/* Withdrawal Info */}
-                  <div className="mb-3 flex items-start justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-gray-900 dark:text-white">
-                          {withdrawal.product_name}
-                        </h3>
-                        <Badge variant={statusVariantMap[withdrawal.status] || 'default'}>
-                          {WITHDRAWAL_STATUS_LABELS[withdrawal.status] || withdrawal.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Details Grid */}
-                  <div className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">ลูกค้า</span>
-                      <p className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
-                        <User className="h-3.5 w-3.5 text-gray-400" />
-                        {withdrawal.customer_name}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">จำนวนขอเบิก</span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {formatNumber(withdrawal.requested_qty)}
-                      </p>
-                    </div>
-                    {withdrawal.actual_qty !== null && (
-                      <div>
-                        <span className="text-gray-500 dark:text-gray-400">จำนวนจริง</span>
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {formatNumber(withdrawal.actual_qty)}
-                        </p>
-                      </div>
-                    )}
-                    {withdrawal.table_number && (
-                      <div>
-                        <span className="text-gray-500 dark:text-gray-400">โต๊ะ</span>
-                        <p className="font-medium text-gray-900 dark:text-white">{withdrawal.table_number}</p>
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">วันที่</span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {formatThaiDateTime(withdrawal.created_at)}
-                      </p>
-                    </div>
-                    {withdrawal.processed_by_name && (
-                      <div>
-                        <span className="text-gray-500 dark:text-gray-400">ดำเนินการโดย</span>
-                        <p className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
-                          <User className="h-3.5 w-3.5 text-gray-400" />
-                          {withdrawal.processed_by_name}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {withdrawal.photo_url && (
-                    <div className="mb-3">
-                      <img
-                        src={withdrawal.photo_url}
-                        alt="รูปถ่ายเบิกเหล้า"
-                        className="h-20 w-20 rounded-lg object-cover"
-                      />
-                    </div>
+                {/* Compact header — always visible, clickable for non-pending */}
+                <div
+                  className={cn(
+                    'flex items-center gap-3 p-4 sm:p-5',
+                    !isPending && 'cursor-pointer select-none',
+                    isExpanded && !isPending && 'border-b border-gray-100 dark:border-gray-800'
                   )}
-
-                  {withdrawal.notes && (
-                    <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                      หมายเหตุ: {withdrawal.notes}
+                  onClick={!isPending ? () => toggleExpand(withdrawal.id) : undefined}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="truncate font-semibold text-gray-900 dark:text-white">
+                        {withdrawal.product_name}
+                      </h3>
+                      <Badge variant={statusVariantMap[withdrawal.status] || 'default'}>
+                        {WITHDRAWAL_STATUS_LABELS[withdrawal.status] || withdrawal.status}
+                      </Badge>
+                    </div>
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {withdrawal.customer_name} · x{formatNumber(withdrawal.requested_qty)} · {formatThaiDateTime(withdrawal.created_at)}
                     </p>
-                  )}
-
-                  {/* Action Buttons for Pending */}
-                  {isPending && (
-                    <div className="flex gap-2">
-                      <Button
-                        className="min-h-[44px] flex-1"
-                        variant="danger"
-                        icon={<XCircle className="h-4 w-4" />}
-                        onClick={() => openProcessModal(withdrawal, 'reject')}
-                      >
-                        ปฏิเสธ
-                      </Button>
-                      <Button
-                        className="min-h-[44px] flex-1"
-                        variant="primary"
-                        icon={<CheckCircle2 className="h-4 w-4" />}
-                        onClick={() => openProcessModal(withdrawal, 'complete')}
-                      >
-                        ดำเนินการเบิก
-                      </Button>
-                    </div>
+                  </div>
+                  {!isPending && (
+                    <ChevronDown
+                      className={cn(
+                        'h-5 w-5 shrink-0 text-gray-400 transition-transform',
+                        isExpanded && 'rotate-180'
+                      )}
+                    />
                   )}
                 </div>
+
+                {/* Expanded details */}
+                {isExpanded && (
+                  <div className="p-4 pt-0 sm:p-5 sm:pt-0">
+                    {/* Details Grid */}
+                    <div className="mb-4 mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">ลูกค้า</span>
+                        <p className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
+                          <User className="h-3.5 w-3.5 text-gray-400" />
+                          {withdrawal.customer_name}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">จำนวนขอเบิก</span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {formatNumber(withdrawal.requested_qty)}
+                        </p>
+                      </div>
+                      {withdrawal.actual_qty !== null && (
+                        <div>
+                          <span className="text-gray-500 dark:text-gray-400">จำนวนจริง</span>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {formatNumber(withdrawal.actual_qty)}
+                          </p>
+                        </div>
+                      )}
+                      {withdrawal.table_number && (
+                        <div>
+                          <span className="text-gray-500 dark:text-gray-400">โต๊ะ</span>
+                          <p className="font-medium text-gray-900 dark:text-white">{withdrawal.table_number}</p>
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">วันที่</span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {formatThaiDateTime(withdrawal.created_at)}
+                        </p>
+                      </div>
+                      {withdrawal.processed_by_name && (
+                        <div>
+                          <span className="text-gray-500 dark:text-gray-400">ดำเนินการโดย</span>
+                          <p className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
+                            <User className="h-3.5 w-3.5 text-gray-400" />
+                            {withdrawal.processed_by_name}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {withdrawal.photo_url && (
+                      <div className="mb-3">
+                        <img
+                          src={withdrawal.photo_url}
+                          alt="รูปถ่ายเบิกเหล้า"
+                          className="h-20 w-20 rounded-lg object-cover"
+                        />
+                      </div>
+                    )}
+
+                    {withdrawal.notes && (
+                      <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                        หมายเหตุ: {withdrawal.notes}
+                      </p>
+                    )}
+
+                    {/* Action Buttons for Pending */}
+                    {isPending && (
+                      <div className="flex gap-2">
+                        <Button
+                          className="min-h-[44px] flex-1"
+                          variant="danger"
+                          icon={<XCircle className="h-4 w-4" />}
+                          onClick={() => openProcessModal(withdrawal, 'reject')}
+                        >
+                          ปฏิเสธ
+                        </Button>
+                        <Button
+                          className="min-h-[44px] flex-1"
+                          variant="primary"
+                          icon={<CheckCircle2 className="h-4 w-4" />}
+                          onClick={() => openProcessModal(withdrawal, 'complete')}
+                        >
+                          ดำเนินการเบิก
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </Card>
             );
           })}
