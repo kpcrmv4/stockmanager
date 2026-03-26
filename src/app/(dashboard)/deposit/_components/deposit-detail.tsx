@@ -47,7 +47,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
-import { notifyChatWithdrawalCompleted, notifyChatWithdrawalRequest, sendChatBotMessage } from '@/lib/chat/bot-client';
+import { notifyChatWithdrawalCompleted, notifyChatWithdrawalRequest, sendChatBotMessage, syncChatActionCardStatus } from '@/lib/chat/bot-client';
 import { notifyStaff } from '@/lib/notifications/client';
 import { extendExpiryISO } from '@/lib/utils/date';
 import type { ReceiptSettings } from '@/types/database';
@@ -322,6 +322,16 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       body: `${displayName} ยืนยันรับฝาก ${deposit.product_name} — ${deposit.customer_name} (${deposit.deposit_code})`,
       data: { deposit_code: deposit.deposit_code },
       excludeUserId: user.id,
+    });
+
+    // Sync action card ในแชทให้เป็น completed
+    syncChatActionCardStatus({
+      storeId: currentStoreId,
+      referenceId: deposit.deposit_code,
+      actionType: 'deposit_claim',
+      newStatus: 'completed',
+      completedBy: user.id,
+      completedByName: displayName,
     });
 
     toast({ type: 'success', title: 'ยืนยันรับเข้าระบบแล้ว' });

@@ -166,6 +166,32 @@ export function notifyChatWithdrawalRequest(
 }
 
 /**
+ * Fire-and-forget: sync action card status in chat when processed outside of chat
+ * (e.g. withdrawal completed/rejected on the withdrawals page, deposit confirmed on bar-approval page)
+ */
+export function syncChatActionCardStatus(params: {
+  storeId: string;
+  referenceId: string;
+  actionType: string;
+  newStatus: string;
+  completedBy?: string;
+  completedByName?: string;
+}): void {
+  fetch('/api/chat/sync-action-card', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      store_id: params.storeId,
+      reference_id: params.referenceId,
+      action_type: params.actionType,
+      new_status: params.newStatus,
+      completed_by: params.completedBy,
+      completed_by_name: params.completedByName,
+    }),
+  }).catch((err) => console.error('[Chat Bot Client] syncChatActionCardStatus failed:', err));
+}
+
+/**
  * ส่ง system message ว่าฝากเหล้ายืนยันแล้ว
  */
 export function notifyChatDepositConfirmed(
