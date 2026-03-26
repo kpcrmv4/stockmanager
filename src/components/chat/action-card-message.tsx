@@ -335,6 +335,69 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
               content: `✅ ${currentUserName} ยืนยันรับฝาก ${summary.items || ''} (${meta.reference_id}) — ${summary.customer || ''} — คงเหลือ ${barRemainingPercent || '?'}%`,
             });
           }
+
+          // Withdrawal completed → update withdrawal + deposit records
+          if (action === 'complete' && meta.action_type === 'withdrawal_claim' && meta.reference_id) {
+            try {
+              // Find deposit by deposit_code
+              const { data: deposit } = await supabase
+                .from('deposits')
+                .select('id, remaining_qty, quantity')
+                .eq('deposit_code', meta.reference_id)
+                .single();
+
+              if (deposit) {
+                // Find the latest pending/approved withdrawal for this deposit
+                const { data: withdrawal } = await supabase
+                  .from('withdrawals')
+                  .select('id, requested_qty')
+                  .eq('deposit_id', deposit.id)
+                  .in('status', ['pending', 'approved'])
+                  .order('created_at', { ascending: false })
+                  .limit(1)
+                  .single();
+
+                if (withdrawal) {
+                  const qty = withdrawal.requested_qty;
+
+                  // Update withdrawal status to completed
+                  await supabase
+                    .from('withdrawals')
+                    .update({
+                      status: 'completed',
+                      actual_qty: qty,
+                      processed_by: currentUserId,
+                      photo_url: photoUrl || undefined,
+                    })
+                    .eq('id', withdrawal.id);
+
+                  // Update deposit remaining qty
+                  const newRemaining = Math.max(0, deposit.remaining_qty - qty);
+                  const newPercent = deposit.quantity > 0 ? (newRemaining / deposit.quantity) * 100 : 0;
+                  const newStatus = newRemaining <= 0 ? 'withdrawn' : 'in_store';
+
+                  await supabase
+                    .from('deposits')
+                    .update({
+                      remaining_qty: newRemaining,
+                      remaining_percent: newPercent,
+                      status: newStatus,
+                    })
+                    .eq('id', deposit.id);
+                }
+              }
+
+              if (storeId) {
+                sendChatBotMessage({
+                  storeId,
+                  type: 'system',
+                  content: `✅ ${currentUserName} เบิกเหล้า ${meta.summary.items || ''} (${meta.reference_id}) — ${meta.summary.customer || ''}`,
+                });
+              }
+            } catch {
+              // Non-blocking: withdrawal sync failure shouldn't break the UI
+            }
+          }
         }
       }
     } finally {
@@ -432,6 +495,38 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         },
         changed_by: currentUserId,
       });
+
+      // Sync rejection to source table
+      if (meta.action_type === 'withdrawal_claim' && meta.reference_id) {
+        try {
+          const { data: deposit } = await supabase
+            .from('deposits')
+            .select('id')
+            .eq('deposit_code', meta.reference_id)
+            .single();
+
+          if (deposit) {
+            // Reject the pending withdrawal
+            await supabase
+              .from('withdrawals')
+              .update({ status: 'rejected', processed_by: currentUserId, notes: 'ยกเลิกจากแชท' })
+              .eq('deposit_id', deposit.id)
+              .in('status', ['pending', 'approved']);
+
+            // Restore deposit status back to in_store
+            await supabase
+              .from('deposits')
+              .update({ status: 'in_store' })
+              .eq('id', deposit.id)
+              .eq('status', 'pending_withdrawal');
+          }
+        } catch {
+          // Non-blocking
+        }
+      } else if (meta.action_type === 'deposit_claim' && meta.reference_table === 'deposits' && meta.reference_id) {
+        // Reject deposit → restore to pending_confirm or mark accordingly
+        // (ยกเลิกรายการฝากเหล้า — doesn't delete, just cancels the action card)
+      }
 
       setShowRejectConfirm(false);
     } finally {
