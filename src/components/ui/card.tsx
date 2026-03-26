@@ -8,9 +8,9 @@ interface CardProps {
 
 const paddingStyles = {
   none: '',
-  sm: 'p-4',
-  md: 'p-5',
-  lg: 'p-6',
+  sm: 'p-3 sm:p-4',
+  md: 'p-3 sm:p-5',
+  lg: 'p-4 sm:p-6',
 };
 
 export function Card({ children, className, padding = 'md' }: CardProps) {
@@ -38,7 +38,7 @@ export function CardHeader({ title, description, action, className }: CardHeader
   return (
     <div
       className={cn(
-        'flex items-start justify-between border-b border-gray-100 px-5 py-4 dark:border-gray-700',
+        'flex items-start justify-between border-b border-gray-100 px-3 py-3 sm:px-5 sm:py-4 dark:border-gray-700',
         className
       )}
     >
@@ -61,5 +61,5 @@ interface CardContentProps {
 }
 
 export function CardContent({ children, className }: CardContentProps) {
-  return <div className={cn('p-5', className)}>{children}</div>;
+  return <div className={cn('p-3 sm:p-5', className)}>{children}</div>;
 }
