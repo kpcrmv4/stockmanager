@@ -844,7 +844,8 @@ export default function PrintStationPage() {
               <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {recentJobs.map((job) => {
                   const isReprinting = reprintingId === job.id;
-                  const canReprint = job.status === 'completed' || job.status === 'failed';
+                  const canPrint = job.status === 'pending' || job.status === 'completed' || job.status === 'failed';
+                  const isPendingJob = job.status === 'pending';
 
                   return (
                     <div
@@ -889,23 +890,27 @@ export default function PrintStationPage() {
                         {STATUS_LABELS[job.status] ?? job.status}
                       </span>
 
-                      {/* Reprint */}
-                      {canReprint && (
+                      {/* Print / Reprint button */}
+                      {canPrint && (
                         <button
                           onClick={() => handleReprint(job)}
                           disabled={isPrinting || isReprinting}
                           className={cn(
                             'flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
-                            'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600',
+                            isPendingJob
+                              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600',
                             'disabled:cursor-not-allowed disabled:opacity-50',
                           )}
                         >
                           {isReprinting ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : isPendingJob ? (
+                            <Printer className="h-3.5 w-3.5" />
                           ) : (
                             <RotateCcw className="h-3.5 w-3.5" />
                           )}
-                          พิมพ์ซ้ำ
+                          {isPendingJob ? 'พิมพ์' : 'พิมพ์ซ้ำ'}
                         </button>
                       )}
                     </div>
