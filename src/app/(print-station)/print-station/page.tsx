@@ -100,6 +100,9 @@ export default function PrintStationPage() {
   const printQueueRef = useRef<PrintJob[]>([]);
   const isProcessingRef = useRef(false);
 
+  // แจ้งเตือนเมื่อมีงานใหม่แต่ auto-print ถูกบล็อก
+  const [pendingAlert, setPendingAlert] = useState(false);
+
   // -----------------------------------------------------------------------
   // Logout
   // -----------------------------------------------------------------------
@@ -334,7 +337,7 @@ export default function PrintStationPage() {
   // -----------------------------------------------------------------------
 
   const executePrint = useCallback(
-    async (job: PrintJob) => {
+    async (job: PrintJob, fromUserGesture = false) => {
       setIsPrinting(true);
       setActivePrintJob(job);
 
@@ -354,11 +357,12 @@ export default function PrintStationPage() {
 
         window.print();
 
-        // รอให้ afterprint fire (หรือ timeout 1 วินาที)
-        await new Promise((r) => setTimeout(r, 1000));
+        // รอให้ afterprint fire (หรือ timeout 1.5 วินาที)
+        await new Promise((r) => setTimeout(r, 1500));
         window.removeEventListener('afterprint', onAfterPrint);
 
-        if (didPrint) {
+        if (didPrint || fromUserGesture) {
+          // พิมพ์สำเร็จ หรือ user กดปุ่มพิมพ์เอง
           await updateJobStatus(job.id, 'completed');
           setRecentJobs((prev) =>
             prev.map((j) =>
@@ -367,16 +371,41 @@ export default function PrintStationPage() {
                 : j,
             ),
           );
+          setPendingAlert(false);
         } else {
-          // window.print() ถูกบล็อก — mark completed anyway (kiosk mode จะพิมพ์ไปแล้ว)
-          await updateJobStatus(job.id, 'completed');
+          // window.print() ถูก Chrome บล็อก (ไม่ได้เรียกจาก user click)
+          // → คืนสถานะเป็น pending เพื่อให้ user กดพิมพ์เอง
+          await updateJobStatus(job.id, 'pending');
           setRecentJobs((prev) =>
             prev.map((j) =>
-              j.id === job.id
-                ? { ...j, status: 'completed' as const, printed_at: new Date().toISOString() }
-                : j,
+              j.id === job.id ? { ...j, status: 'pending' as const } : j,
             ),
           );
+          // แจ้งเตือนด้วยเสียงและ alert bar
+          setPendingAlert(true);
+          try {
+            const audioCtx = new AudioContext();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = 800;
+            gain.gain.value = 0.3;
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.15);
+            setTimeout(() => {
+              const osc2 = audioCtx.createOscillator();
+              const gain2 = audioCtx.createGain();
+              osc2.connect(gain2);
+              gain2.connect(audioCtx.destination);
+              osc2.frequency.value = 1000;
+              gain2.gain.value = 0.3;
+              osc2.start();
+              osc2.stop(audioCtx.currentTime + 0.15);
+            }, 200);
+          } catch {
+            // audio not available
+          }
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ';
@@ -395,12 +424,11 @@ export default function PrintStationPage() {
   );
 
   // -----------------------------------------------------------------------
-  // Print queue processor — ทีละ job เรียงลำดับ
+  // Print queue processor — ทีละ job, หยุดทันทีถ้า auto-print ถูกบล็อก
   // -----------------------------------------------------------------------
 
   const processQueueRef = useRef<(() => Promise<void>) | undefined>(undefined);
 
-  // เก็บ executePrint ใน ref เพื่อให้ processQueue เรียกตัวล่าสุดเสมอ
   const executePrintRef = useRef(executePrint);
   executePrintRef.current = executePrint;
 
@@ -415,7 +443,6 @@ export default function PrintStationPage() {
       } catch {
         // error handled inside executePrint
       }
-      // หน่วงเล็กน้อยระหว่าง job เพื่อให้ printer พร้อม
       await new Promise((r) => setTimeout(r, 500));
     }
 
@@ -479,11 +506,21 @@ export default function PrintStationPage() {
   const handleReprint = useCallback(
     async (job: PrintJob) => {
       setReprintingId(job.id);
-      await executePrint(job);
+      await executePrint(job, true); // fromUserGesture = true
       setReprintingId(null);
     },
     [executePrint],
   );
+
+  // พิมพ์ pending jobs ทั้งหมด (จาก user click)
+  const handlePrintAllPending = useCallback(async () => {
+    const pending = recentJobs.filter((j) => j.status === 'pending');
+    setPendingAlert(false);
+    for (const job of pending) {
+      await executePrint(job, true);
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }, [recentJobs, executePrint]);
 
   // -----------------------------------------------------------------------
   // Select store (for multi-store users only)
@@ -822,6 +859,19 @@ export default function PrintStationPage() {
               กำลังพิมพ์ {activePrintJob ? JOB_TYPE_LABELS[activePrintJob.job_type] : ''}...
             </span>
           </div>
+        )}
+
+        {/* ---- Pending alert: มีงานรอพิมพ์ กดเพื่อพิมพ์ ---- */}
+        {pendingAlert && jobCounts.pending > 0 && !isPrinting && (
+          <button
+            onClick={handlePrintAllPending}
+            className="mb-4 flex w-full animate-pulse items-center justify-center gap-3 rounded-xl bg-amber-500 p-4 text-white shadow-lg transition-all hover:bg-amber-600 hover:shadow-xl active:scale-[0.98]"
+          >
+            <Printer className="h-6 w-6" />
+            <span className="text-base font-bold">
+              มีงานรอพิมพ์ {jobCounts.pending} รายการ — กดที่นี่เพื่อพิมพ์
+            </span>
+          </button>
         )}
 
         {/* ---- Job List ---- */}
