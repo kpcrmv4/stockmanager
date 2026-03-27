@@ -398,7 +398,7 @@ export default function PrintStationPage() {
   // Print queue processor — ทีละ job เรียงลำดับ
   // -----------------------------------------------------------------------
 
-  const processQueueRef = useRef<() => Promise<void>>();
+  const processQueueRef = useRef<(() => Promise<void>) | undefined>(undefined);
 
   // เก็บ executePrint ใน ref เพื่อให้ processQueue เรียกตัวล่าสุดเสมอ
   const executePrintRef = useRef(executePrint);
