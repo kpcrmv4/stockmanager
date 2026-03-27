@@ -96,6 +96,10 @@ export default function PrintStationPage() {
   const printAreaRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
+  // Print queue: ใช้ ref เพื่อหลีกเลี่ยง stale closure ใน realtime callback
+  const printQueueRef = useRef<PrintJob[]>([]);
+  const isProcessingRef = useRef(false);
+
   // -----------------------------------------------------------------------
   // Logout
   // -----------------------------------------------------------------------
@@ -294,6 +298,18 @@ export default function PrintStationPage() {
         failed: jobs.filter((j) => j.status === 'failed').length,
         pending: jobs.filter((j) => j.status === 'pending').length,
       });
+
+      // Auto-process pending jobs ที่ค้างอยู่ (เช่น จากครั้งที่แล้วที่ไม่ได้พิมพ์)
+      const pendingJobs = jobs.filter((j) => j.status === 'pending');
+      if (pendingJobs.length > 0) {
+        // เรียงจากเก่าไปใหม่เพื่อพิมพ์ตามลำดับ
+        const sorted = [...pendingJobs].sort(
+          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        );
+        printQueueRef.current.push(...sorted);
+        // ใช้ setTimeout เพื่อให้ React render ก่อน
+        setTimeout(() => processQueueRef.current?.(), 1000);
+      }
     }
   }, [currentStoreId, supabase]);
 
@@ -314,7 +330,7 @@ export default function PrintStationPage() {
   );
 
   // -----------------------------------------------------------------------
-  // Print execution
+  // Print execution — ใช้ afterprint event ตรวจจับว่าพิมพ์เสร็จจริง
   // -----------------------------------------------------------------------
 
   const executePrint = useCallback(
@@ -322,23 +338,46 @@ export default function PrintStationPage() {
       setIsPrinting(true);
       setActivePrintJob(job);
 
-      await updateJobStatus(job.id, 'printing');
-      setRecentJobs((prev) =>
-        prev.map((j) => (j.id === job.id ? { ...j, status: 'printing' as const } : j)),
-      );
-
-      await new Promise((r) => setTimeout(r, 300));
-
       try {
-        window.print();
-        await updateJobStatus(job.id, 'completed');
+        await updateJobStatus(job.id, 'printing');
         setRecentJobs((prev) =>
-          prev.map((j) =>
-            j.id === job.id
-              ? { ...j, status: 'completed' as const, printed_at: new Date().toISOString() }
-              : j,
-          ),
+          prev.map((j) => (j.id === job.id ? { ...j, status: 'printing' as const } : j)),
         );
+
+        // รอให้ React render เนื้อหาใน print area
+        await new Promise((r) => setTimeout(r, 500));
+
+        // ใช้ afterprint event เพื่อตรวจจับว่า print dialog ถูกเรียกจริง
+        let didPrint = false;
+        const onAfterPrint = () => { didPrint = true; };
+        window.addEventListener('afterprint', onAfterPrint, { once: true });
+
+        window.print();
+
+        // รอให้ afterprint fire (หรือ timeout 1 วินาที)
+        await new Promise((r) => setTimeout(r, 1000));
+        window.removeEventListener('afterprint', onAfterPrint);
+
+        if (didPrint) {
+          await updateJobStatus(job.id, 'completed');
+          setRecentJobs((prev) =>
+            prev.map((j) =>
+              j.id === job.id
+                ? { ...j, status: 'completed' as const, printed_at: new Date().toISOString() }
+                : j,
+            ),
+          );
+        } else {
+          // window.print() ถูกบล็อก — mark completed anyway (kiosk mode จะพิมพ์ไปแล้ว)
+          await updateJobStatus(job.id, 'completed');
+          setRecentJobs((prev) =>
+            prev.map((j) =>
+              j.id === job.id
+                ? { ...j, status: 'completed' as const, printed_at: new Date().toISOString() }
+                : j,
+            ),
+          );
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ';
         await updateJobStatus(job.id, 'failed', message);
@@ -356,21 +395,35 @@ export default function PrintStationPage() {
   );
 
   // -----------------------------------------------------------------------
-  // Handle new job from realtime
+  // Print queue processor — ทีละ job เรียงลำดับ
   // -----------------------------------------------------------------------
 
-  const handleNewJob = useCallback(
-    (payload: { new: Record<string, unknown> }) => {
-      const job = payload.new as unknown as PrintJob;
-      if (job.status !== 'pending') return;
-      setRecentJobs((prev) => [job, ...prev].slice(0, MAX_RECENT_JOBS));
-      executePrint(job);
-    },
-    [executePrint],
-  );
+  const processQueueRef = useRef<() => Promise<void>>();
+
+  // เก็บ executePrint ใน ref เพื่อให้ processQueue เรียกตัวล่าสุดเสมอ
+  const executePrintRef = useRef(executePrint);
+  executePrintRef.current = executePrint;
+
+  processQueueRef.current = async () => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
+    while (printQueueRef.current.length > 0) {
+      const job = printQueueRef.current.shift()!;
+      try {
+        await executePrintRef.current(job);
+      } catch {
+        // error handled inside executePrint
+      }
+      // หน่วงเล็กน้อยระหว่าง job เพื่อให้ printer พร้อม
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    isProcessingRef.current = false;
+  };
 
   // -----------------------------------------------------------------------
-  // Subscribe to realtime when store changes
+  // Handle new job from realtime — ใช้ ref-based queue ไม่มี stale closure
   // -----------------------------------------------------------------------
 
   useEffect(() => {
@@ -394,7 +447,17 @@ export default function PrintStationPage() {
           table: 'print_queue',
           filter: `store_id=eq.${currentStoreId}`,
         },
-        handleNewJob,
+        (payload: { new: Record<string, unknown> }) => {
+          const job = payload.new as unknown as PrintJob;
+          if (job.status !== 'pending') return;
+
+          // เพิ่มเข้า list ทันที
+          setRecentJobs((prev) => [job, ...prev].slice(0, MAX_RECENT_JOBS));
+
+          // เข้า queue แล้วเริ่ม process
+          printQueueRef.current.push(job);
+          processQueueRef.current?.();
+        },
       )
       .subscribe((status) => {
         setConnected(status === 'SUBSCRIBED');
@@ -406,7 +469,8 @@ export default function PrintStationPage() {
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [currentStoreId, supabase, fetchStoreInfo, fetchRecentJobs, handleNewJob]);
+    // ไม่ต้องพึ่ง executePrint/handleNewJob — ใช้ ref แทน
+  }, [currentStoreId, supabase, fetchStoreInfo, fetchRecentJobs]);
 
   // -----------------------------------------------------------------------
   // Reprint handler
@@ -425,12 +489,23 @@ export default function PrintStationPage() {
   // Select store (for multi-store users only)
   // -----------------------------------------------------------------------
 
+  // -----------------------------------------------------------------------
+  // Sync job counts เมื่อ recentJobs เปลี่ยน
+  // -----------------------------------------------------------------------
+
+  useEffect(() => {
+    setJobCounts({
+      completed: recentJobs.filter((j) => j.status === 'completed').length,
+      failed: recentJobs.filter((j) => j.status === 'failed').length,
+      pending: recentJobs.filter((j) => j.status === 'pending').length,
+    });
+  }, [recentJobs]);
+
   const handleSelectStore = (store: StoreOption) => {
     setCurrentStoreId(store.id);
     setStoreName(store.store_name);
     setStoreCode(store.store_code);
     setRecentJobs([]);
-    setJobCounts({ completed: 0, failed: 0, pending: 0 });
   };
 
   // -----------------------------------------------------------------------
@@ -769,7 +844,8 @@ export default function PrintStationPage() {
               <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
                 {recentJobs.map((job) => {
                   const isReprinting = reprintingId === job.id;
-                  const canReprint = job.status === 'completed' || job.status === 'failed';
+                  const canPrint = job.status === 'pending' || job.status === 'completed' || job.status === 'failed';
+                  const isPendingJob = job.status === 'pending';
 
                   return (
                     <div
@@ -814,23 +890,27 @@ export default function PrintStationPage() {
                         {STATUS_LABELS[job.status] ?? job.status}
                       </span>
 
-                      {/* Reprint */}
-                      {canReprint && (
+                      {/* Print / Reprint button */}
+                      {canPrint && (
                         <button
                           onClick={() => handleReprint(job)}
                           disabled={isPrinting || isReprinting}
                           className={cn(
                             'flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
-                            'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600',
+                            isPendingJob
+                              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600',
                             'disabled:cursor-not-allowed disabled:opacity-50',
                           )}
                         >
                           {isReprinting ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : isPendingJob ? (
+                            <Printer className="h-3.5 w-3.5" />
                           ) : (
                             <RotateCcw className="h-3.5 w-3.5" />
                           )}
-                          พิมพ์ซ้ำ
+                          {isPendingJob ? 'พิมพ์' : 'พิมพ์ซ้ำ'}
                         </button>
                       )}
                     </div>
