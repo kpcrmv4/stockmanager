@@ -273,48 +273,60 @@ export default function PrintListenerPage() {
         }
 
         @media print {
-          /* Hide everything on screen */
-          body * {
-            visibility: hidden;
+          /* Reset ทุก element: ซ่อน + ลบ background เพื่อไม่ให้ dark mode พิมพ์เป็นแถบดำ */
+          *, *::before, *::after {
+            visibility: hidden !important;
+            background: transparent !important;
+            background-color: transparent !important;
+            box-shadow: none !important;
           }
-
-          /* Show only the print area */
-          #print-area,
-          #print-area * {
-            visibility: visible;
+          html, body {
+            background: #fff !important;
+            background-color: #fff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
           }
-
+          /* แสดงเฉพาะ print area */
+          #print-area, #print-area * {
+            visibility: visible !important;
+          }
           #print-area {
-            display: block;
+            display: block !important;
             position: absolute;
             top: 0;
             left: 0;
-            width: 302px;
-            max-width: 302px;
+            width: ${receiptSettings?.paper_width === 58 ? '219px' : '302px'};
+            max-width: ${receiptSettings?.paper_width === 58 ? '219px' : '302px'};
             padding: 8px 4px;
             margin: 0;
             font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
+            font-size: ${receiptSettings?.paper_width === 58 ? '10px' : '12px'};
             line-height: 1.4;
-            color: #000;
-            background: #fff;
+            color: #000 !important;
+            background: #fff !important;
+            background-color: #fff !important;
           }
-
+          #print-area * {
+            color: #000 !important;
+          }
+          #print-area img {
+            visibility: visible !important;
+          }
           /* Label-specific overrides */
           #print-area.print-label {
             width: 70mm;
             max-width: 70mm;
             height: 40mm;
             padding: 2mm 3mm;
-            border: 1px dashed #000;
+            border: 1px dashed #000 !important;
             box-sizing: border-box;
             font-family: 'Sarabun', sans-serif;
             font-size: 9pt;
           }
-
-          @page {
-            margin: 0;
-          }
+          @page { size: ${receiptSettings?.paper_width === 58 ? '58mm' : '80mm'} auto; margin: 0; }
         }
       `}</style>
 
