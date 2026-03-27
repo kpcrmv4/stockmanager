@@ -151,8 +151,8 @@ export default function PrintStationPage() {
       'echo URL: %URL%',
       'echo.',
       '',
-      ':: Create shortcut via PowerShell',
-      'powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut(\'%SHORTCUT%\'); $s.TargetPath = \'%CHROME%\'; $s.Arguments = \'--app=%URL%\'; $s.WindowStyle = 1; $s.Description = \'Print Station - StockManager\'; $s.Save()"',
+      ':: Create shortcut via PowerShell (--kiosk-printing = พิมพ์อัตโนมัติไม่ต้องกด dialog)',
+      'powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut(\'%SHORTCUT%\'); $s.TargetPath = \'%CHROME%\'; $s.Arguments = \'--app=%URL% --kiosk-printing\'; $s.WindowStyle = 1; $s.Description = \'Print Station - StockManager\'; $s.Save()"',
       '',
       'if exist "%SHORTCUT%" (',
       '  echo.',
@@ -457,10 +457,28 @@ export default function PrintStationPage() {
           display: none;
         }
         @media print {
-          body * { visibility: hidden; }
-          #print-area, #print-area * { visibility: visible; }
+          /* Reset ทุก element: ซ่อน + ลบ background เพื่อไม่ให้ dark mode พิมพ์เป็นแถบดำ */
+          *, *::before, *::after {
+            visibility: hidden !important;
+            background: transparent !important;
+            background-color: transparent !important;
+            box-shadow: none !important;
+          }
+          html, body {
+            background: #fff !important;
+            background-color: #fff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+          }
+          /* แสดงเฉพาะ print area */
+          #print-area, #print-area * {
+            visibility: visible !important;
+          }
           #print-area {
-            display: block;
+            display: block !important;
             position: absolute;
             top: 0;
             left: 0;
@@ -471,8 +489,15 @@ export default function PrintStationPage() {
             font-family: 'Courier New', Courier, monospace;
             font-size: ${receiptSettings?.paper_width === 58 ? '10px' : '12px'};
             line-height: 1.4;
-            color: #000;
-            background: #fff;
+            color: #000 !important;
+            background: #fff !important;
+            background-color: #fff !important;
+          }
+          #print-area * {
+            color: #000 !important;
+          }
+          #print-area img {
+            visibility: visible !important;
           }
           #print-area .print-copy-separator {
             page-break-after: always;
@@ -492,7 +517,7 @@ export default function PrintStationPage() {
             width: 70mm;
             height: 40mm;
             padding: 2mm 3mm;
-            border: 1px dashed #000;
+            border: 1px dashed #000 !important;
             box-sizing: border-box;
             font-family: 'Sarabun', sans-serif;
             font-size: 9pt;
@@ -501,7 +526,7 @@ export default function PrintStationPage() {
           #print-area.print-label .print-label-copy:last-child {
             page-break-after: avoid;
           }
-          @page { margin: 0; }
+          @page { size: ${receiptSettings?.paper_width === 58 ? '58mm' : '80mm'} auto; margin: 0; }
         }
       `}</style>
 
