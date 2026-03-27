@@ -326,7 +326,11 @@ export default function PrintListenerPage() {
             font-family: 'Sarabun', sans-serif;
             font-size: 9pt;
           }
-          @page { size: ${receiptSettings?.paper_width === 58 ? '58mm' : '80mm'} auto; margin: 0; }
+          /* Portrait: กว้าง x ยาวอัตโนมัติ — thermal printer จะตัดกระดาษตาม page break */
+          @page {
+            size: ${receiptSettings?.paper_width === 58 ? '58mm' : '80mm'} portrait;
+            margin: 0 !important;
+          }
         }
       `}</style>
 

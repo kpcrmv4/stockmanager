@@ -106,8 +106,11 @@
     font-size: 12px;
   }
 
-  /* Default page size สำหรับรายงาน (print station จะ override เอง) */
-  @page {
+  /* Page size สำหรับรายงาน — ใช้ named page เพื่อไม่ทับ print station */
+  .printing-report {
+    page: report;
+  }
+  @page report {
     size: A4 landscape;
     margin: 10mm;
   }
