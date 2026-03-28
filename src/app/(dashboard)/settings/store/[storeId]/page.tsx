@@ -330,9 +330,9 @@ export default function StoreDetailSettingsPage() {
       URL.revokeObjectURL(url);
 
       setPrintServerHasAccount(true);
-      toast.success('ดาวน์โหลด config.json สำเร็จ! วางไฟล์ในโฟลเดอร์ print-server แล้วรัน SETUP.bat');
+      toast({ type: 'success', title: 'ดาวน์โหลด config.json สำเร็จ!', message: 'วางไฟล์ในโฟลเดอร์ print-server แล้วรัน SETUP.bat' });
     } catch (error) {
-      toast.error((error as Error).message);
+      toast({ type: 'error', title: 'ดาวน์โหลดไม่สำเร็จ', message: (error as Error).message });
     } finally {
       setIsDownloadingConfig(false);
     }
@@ -368,9 +368,9 @@ export default function StoreDetailSettingsPage() {
       });
 
       if (error) throw error;
-      toast.success('ส่งงานทดสอบพิมพ์แล้ว! ตรวจสอบเครื่องพิมพ์');
+      toast({ type: 'success', title: 'ส่งงานทดสอบพิมพ์แล้ว!', message: 'ตรวจสอบเครื่องพิมพ์' });
     } catch (error) {
-      toast.error('ส่งงานทดสอบไม่สำเร็จ: ' + (error as Error).message);
+      toast({ type: 'error', title: 'ส่งงานทดสอบไม่สำเร็จ', message: (error as Error).message });
     } finally {
       setIsTestingPrint(false);
     }
@@ -382,7 +382,7 @@ export default function StoreDetailSettingsPage() {
       .from('store_settings')
       .update({ print_server_working_hours: printServerWorkingHours })
       .eq('store_id', storeId);
-    toast.success('บันทึกเวลาทำงานแล้ว');
+    toast({ type: 'success', title: 'บันทึกเวลาทำงานแล้ว' });
   };
 
   // ---------------------------------------------------------------------------
