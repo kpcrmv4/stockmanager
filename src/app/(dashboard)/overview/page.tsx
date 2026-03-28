@@ -480,94 +480,126 @@ export default function OverviewPage() {
       // --- Per-store statuses (owner only) ---
       if (isOwner) {
         try {
-          const { data: allStores } = await supabase
+          const { data: allStores, error: storesError } = await supabase
             .from('stores')
-            .select('id, name, code')
+            .select('id, store_name, store_code')
             .eq('active', true)
-            .order('name');
+            .order('store_name');
 
-          if (allStores && allStores.length > 0) {
+          if (storesError) {
+            console.error('Error fetching stores:', storesError);
+          } else if (allStores && allStores.length > 0) {
             const sevenDaysFromNow = daysFromNowISO(7);
             const todayISO = startOfTodayBangkokISO();
 
             const storeResults = await Promise.all(
               allStores.map(async (store) => {
+                // Each query individually caught to prevent one bad query from breaking all
+                const safeCount = async (queryFn: () => Promise<{ count: number | null }>) => {
+                  try {
+                    const { count } = await queryFn();
+                    return count || 0;
+                  } catch {
+                    return 0;
+                  }
+                };
+
                 const [
-                  { count: pendingDeposits },
-                  { count: pendingWithdrawals },
-                  { count: expiringDeposits },
-                  { count: activeDeposits },
-                  { count: pendingExpl },
-                  { count: pendingAppr },
-                  { count: pendingTrans },
+                  pendingWithdrawals,
+                  expiringDeposits,
+                  activeDeposits,
+                  pendingExpl,
+                  pendingAppr,
+                  pendingTrans,
                 ] = await Promise.all([
-                  supabase
+                  safeCount(() =>
+                    supabase
+                      .from('deposits')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('store_id', store.id)
+                      .eq('status', 'pending_withdrawal')
+                  ),
+                  safeCount(() =>
+                    supabase
+                      .from('deposits')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('store_id', store.id)
+                      .eq('status', 'in_store')
+                      .lt('expiry_date', sevenDaysFromNow)
+                      .gt('expiry_date', todayISO)
+                  ),
+                  safeCount(() =>
+                    supabase
+                      .from('deposits')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('store_id', store.id)
+                      .eq('status', 'in_store')
+                  ),
+                  safeCount(() =>
+                    supabase
+                      .from('comparisons')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('store_id', store.id)
+                      .eq('status', 'pending')
+                  ),
+                  safeCount(() =>
+                    supabase
+                      .from('comparisons')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('store_id', store.id)
+                      .eq('status', 'explained')
+                  ),
+                  safeCount(() =>
+                    supabase
+                      .from('transfers')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('from_store_id', store.id)
+                      .eq('status', 'pending')
+                  ),
+                ]);
+
+                // deposit_requests might not exist — try separately
+                let pendingDeposits = 0;
+                try {
+                  const { count } = await supabase
                     .from('deposit_requests')
                     .select('*', { count: 'exact', head: true })
                     .eq('store_id', store.id)
-                    .eq('status', 'pending'),
-                  supabase
-                    .from('deposits')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('store_id', store.id)
-                    .eq('status', 'pending_withdrawal'),
-                  supabase
-                    .from('deposits')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('store_id', store.id)
-                    .eq('status', 'in_store')
-                    .lt('expiry_date', sevenDaysFromNow)
-                    .gt('expiry_date', todayISO),
-                  supabase
-                    .from('deposits')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('store_id', store.id)
-                    .eq('status', 'in_store'),
-                  supabase
-                    .from('comparisons')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('store_id', store.id)
-                    .eq('status', 'pending'),
-                  supabase
-                    .from('comparisons')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('store_id', store.id)
-                    .eq('status', 'explained'),
-                  supabase
-                    .from('transfers')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('from_store_id', store.id)
-                    .eq('status', 'pending'),
-                ]);
+                    .eq('status', 'pending');
+                  pendingDeposits = count || 0;
+                } catch {
+                  // Table may not exist — ignore
+                }
 
-                const lastCheckQ = await supabase
-                  .from('manual_counts')
-                  .select('count_date')
-                  .eq('store_id', store.id)
-                  .order('count_date', { ascending: false })
-                  .limit(1)
-                  .maybeSingle();
+                let lastStockCheck: string | null = null;
+                try {
+                  const { data: lastCheck } = await supabase
+                    .from('manual_counts')
+                    .select('count_date')
+                    .eq('store_id', store.id)
+                    .order('count_date', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                  lastStockCheck = lastCheck?.count_date || null;
+                } catch {
+                  // ignore
+                }
 
-                const pd = pendingDeposits || 0;
-                const pw = pendingWithdrawals || 0;
-                const ed = expiringDeposits || 0;
-                const pe = pendingExpl || 0;
-                const pa = pendingAppr || 0;
-                const pt = pendingTrans || 0;
+                const totalIssues = pendingDeposits + pendingWithdrawals + expiringDeposits + pendingExpl + pendingAppr + pendingTrans;
 
                 const result: StoreStatus = {
                   id: store.id,
-                  name: store.name,
-                  code: store.code || '',
-                  pendingDeposits: pd,
-                  pendingWithdrawals: pw,
-                  expiringDeposits: ed,
-                  activeDeposits: activeDeposits || 0,
-                  pendingExplanations: pe,
-                  pendingApprovals: pa,
-                  pendingTransfers: pt,
-                  lastStockCheck: lastCheckQ.data?.count_date || null,
-                  totalIssues: pd + pw + ed + pe + pa + pt,
+                  name: store.store_name,
+                  code: store.store_code || '',
+                  pendingDeposits,
+                  pendingWithdrawals,
+                  expiringDeposits,
+                  activeDeposits,
+                  pendingExplanations: pendingExpl,
+                  pendingApprovals: pendingAppr,
+                  pendingTransfers: pendingTrans,
+                  lastStockCheck,
+                  totalIssues,
                 };
                 return result;
               })
@@ -579,7 +611,6 @@ export default function OverviewPage() {
           }
         } catch (storeErr) {
           console.error('Error fetching per-store statuses:', storeErr);
-          // Non-fatal — main overview data still displays
         }
       }
     } catch (error) {
