@@ -30,6 +30,7 @@ class HtmlRenderer {
     // GAS exact format: inline styles, no <head> CSS
     return `<html><head><meta charset="UTF-8"></head>` +
       `<body style="font-family:Tahoma,sans-serif;font-size:11pt;width:70mm;margin:0 auto;padding:3mm;">` +
+      `<center style="font-size:10pt;">${this.storeName}</center>` +
       `<center><b style="font-size:14pt;">DEPOSIT RECEIPT</b></center>` +
       `<hr>` +
       `<center><b style="font-size:16pt;">${payload.deposit_code}</b></center>` +
