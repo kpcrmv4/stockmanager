@@ -1167,15 +1167,60 @@ export default function StoreDetailSettingsPage() {
             </Button>
           </div>
 
-          {/* Setup guide */}
-          {!printServerHasAccount && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
-              <p className="mb-2 text-sm font-medium text-blue-700 dark:text-blue-400">วิธีตั้งค่า (3 ขั้นตอน)</p>
-              <ol className="space-y-1 text-xs text-blue-600 dark:text-blue-400">
-                <li>1. กด &quot;ดาวน์โหลดตัวติดตั้ง&quot; → ได้ config.json</li>
-                <li>2. วาง config.json ในโฟลเดอร์ print-server ที่ PC สาขา → รัน SETUP.bat</li>
-                <li>3. ดับเบิลคลิก START-PrintServer.bat → สถานะจะเปลี่ยนเป็น Online</li>
-              </ol>
+          {/* Setup guide — แสดงเสมอถ้ายังไม่ Online */}
+          {!(printServerStatus?.is_online && printServerStatus?.last_heartbeat &&
+            new Date().getTime() - new Date(printServerStatus.last_heartbeat).getTime() < 120000) && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+              <p className="mb-3 text-sm font-semibold text-blue-700 dark:text-blue-400">
+                วิธีติดตั้ง Print Server ที่ PC สาขา
+              </p>
+              <div className="space-y-3">
+                {/* Step 1 */}
+                <div className="flex gap-3">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold text-blue-800 dark:bg-blue-800 dark:text-blue-200">1</div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">ดาวน์โหลด config.json</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      กดปุ่ม &quot;{printServerHasAccount ? 'ดาวน์โหลด config ใหม่' : 'ดาวน์โหลดตัวติดตั้ง'}&quot; ด้านบน จะได้ไฟล์ config.json ที่มี Store ID และรหัสเข้าสู่ระบบพร้อมแล้ว
+                    </p>
+                  </div>
+                </div>
+                {/* Step 2 */}
+                <div className="flex gap-3">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold text-blue-800 dark:bg-blue-800 dark:text-blue-200">2</div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">วาง config.json ที่ PC สาขา</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      Copy ไฟล์ config.json ไปวางในโฟลเดอร์ <code className="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-800/50">print-server</code> ที่ PC สาขา
+                      แล้วคลิกขวา <code className="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-800/50">SETUP.bat</code> → Run as administrator (ครั้งแรกครั้งเดียว)
+                    </p>
+                  </div>
+                </div>
+                {/* Step 3 */}
+                <div className="flex gap-3">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold text-blue-800 dark:bg-blue-800 dark:text-blue-200">3</div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">เปิด Print Server</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      ดับเบิลคลิก <code className="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-800/50">START-PrintServer.bat</code> — สถานะด้านบนจะเปลี่ยนเป็น
+                      <span className="ml-1 inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+                        <Wifi className="inline h-3 w-3" /> Online
+                      </span>
+                      {' '}อัตโนมัติ (Print Server จะเปิดเองทุกครั้งที่เปิดเครื่อง)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Troubleshooting tips */}
+              <div className="mt-3 border-t border-blue-200 pt-3 dark:border-blue-700">
+                <p className="mb-1 text-xs font-medium text-blue-700 dark:text-blue-400">แก้ปัญหาเบื้องต้น</p>
+                <ul className="space-y-0.5 text-xs text-blue-600 dark:text-blue-400">
+                  <li>• ไม่พิมพ์ — ตรวจชื่อเครื่องพิมพ์ให้ตรงกับ Windows Settings &gt; Printers</li>
+                  <li>• ภาษาไทยเพี้ยน — ตรวจว่า PC มีฟอนต์ Tahoma ติดตั้งอยู่</li>
+                  <li>• สถานะ Offline — ลองรัน START-PrintServer.bat ใหม่</li>
+                </ul>
+              </div>
             </div>
           )}
 
