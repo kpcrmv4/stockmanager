@@ -1,9 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { X, LogOut, Sun, Moon } from 'lucide-react';
+import {
+  X,
+  LogOut,
+  Sun,
+  Moon,
+  ClipboardCheck,
+  Wine,
+  ArrowLeftRight,
+  FileBarChart,
+  Megaphone,
+  UserCog,
+  Settings,
+  Warehouse,
+  Shuffle,
+  LayoutDashboard,
+  MessageCircle,
+  Trophy,
+  Scale,
+  Zap,
+  PieChart,
+  ShieldCheck,
+} from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { getModuleColors } from '@/lib/utils/module-colors';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { getModulesForRole } from '@/lib/modules/registry';
@@ -12,7 +34,27 @@ import { TopBar } from './top-bar';
 import { BottomNav } from './bottom-nav';
 import { StoreSwitcher } from './store-switcher';
 import type { Store } from '@/types/database';
+import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
+
+const iconMap: Record<string, LucideIcon> = {
+  'layout-dashboard': LayoutDashboard,
+  'clipboard-check': ClipboardCheck,
+  wine: Wine,
+  'arrow-left-right': ArrowLeftRight,
+  'file-bar-chart': FileBarChart,
+  megaphone: Megaphone,
+  'shield-check': ShieldCheck,
+  'user-cog': UserCog,
+  settings: Settings,
+  warehouse: Warehouse,
+  shuffle: Shuffle,
+  'message-circle': MessageCircle,
+  trophy: Trophy,
+  scale: Scale,
+  zap: Zap,
+  'pie-chart': PieChart,
+};
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -25,6 +67,22 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useAppStore();
+
+  const modules = useMemo(() => (user ? getModulesForRole(user.role) : []), [user?.role]);
+
+  // จัดกลุ่มเมนูตาม group (เหมือน sidebar desktop)
+  const groupedModules = useMemo(() => {
+    const groups: { name: string; items: typeof modules }[] = [];
+    const seen = new Set<string>();
+    for (const mod of modules) {
+      if (!seen.has(mod.group)) {
+        seen.add(mod.group);
+        groups.push({ name: mod.group, items: [] });
+      }
+      groups.find((g) => g.name === mod.group)!.items.push(mod);
+    }
+    return groups;
+  }, [modules]);
 
   // Chat room view ต้องการ full-height ไม่มี padding/bottom nav
   const isChatRoom = /^\/chat\/[^/]+/.test(pathname);
@@ -106,22 +164,61 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
           <StoreSwitcher stores={stores} />
         </div>
 
-        {/* เมนูทั้งหมด */}
+        {/* เมนูทั้งหมด — แบ่งหมวดหมู่เหมือน sidebar */}
         {user && (
           <nav className="min-h-0 flex-1 overflow-y-auto p-3">
-            <ul className="space-y-0.5">
-              {getModulesForRole(user.role).map((mod) => (
-                <li key={mod.id}>
-                  <Link
-                    href={mod.href}
-                    onClick={() => setDrawerOpen(false)}
-                    className="flex min-h-[40px] items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                  >
-                    {mod.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            {groupedModules.map((group, gi) => (
+              <div key={group.name} className={cn(gi > 0 && 'mt-3')}>
+                {/* ชื่อหมวดหมู่ */}
+                <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                  {group.name}
+                </p>
+                <ul className="space-y-0.5">
+                  {group.items.map((mod) => {
+                    const Icon = iconMap[mod.icon] ?? ClipboardCheck;
+                    const isActive =
+                      pathname === mod.href || pathname.startsWith(mod.href + '/');
+                    const colors = getModuleColors(mod.color);
+
+                    return (
+                      <li key={mod.id}>
+                        <Link
+                          href={mod.href}
+                          onClick={() => setDrawerOpen(false)}
+                          className={cn(
+                            'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2',
+                            'transition-colors duration-150',
+                            isActive
+                              ? cn(colors.bg, colors.text)
+                              : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              'h-[18px] w-[18px] shrink-0',
+                              isActive
+                                ? colors.text
+                                : 'text-gray-400 dark:text-gray-500'
+                            )}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <span className="text-sm font-medium">{mod.name}</span>
+                            <p className={cn(
+                              'truncate text-[11px] leading-tight',
+                              isActive
+                                ? 'opacity-70'
+                                : 'text-gray-400 dark:text-gray-500'
+                            )}>
+                              {mod.description}
+                            </p>
+                          </div>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
           </nav>
         )}
 
