@@ -108,7 +108,7 @@ export default function DepositPage() {
     pendingCount: 0,
     expiredCount: 0,
     vipCount: 0,
-    expiringSoonCount: 0,
+    transferPendingCount: 0,
     pendingWithdrawalCount: 0,
   });
 
@@ -129,28 +129,23 @@ export default function DepositPage() {
       { count: pendingCount },
       { count: expiredCount },
       { count: vipCount },
-      { data: expiringSoonData },
+      { count: transferPendingCount },
       { count: pendingWithdrawalCount },
     ] = await Promise.all([
       supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'in_store'),
       supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'pending_confirm'),
       supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'expired'),
       supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('is_vip', true),
-      supabase.from('deposits').select('expiry_date').eq('store_id', storeId).eq('status', 'in_store').not('expiry_date', 'is', null),
+      supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'transfer_pending'),
       supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('store_id', storeId).in('status', ['pending', 'approved']),
     ]);
-
-    const expiringSoonCount = (expiringSoonData || []).filter((d) => {
-      const days = daysUntil(d.expiry_date);
-      return days <= 7 && days > 0;
-    }).length;
 
     setStats({
       activeCount: activeCount || 0,
       pendingCount: pendingCount || 0,
       expiredCount: expiredCount || 0,
       vipCount: vipCount || 0,
-      expiringSoonCount,
+      transferPendingCount: transferPendingCount || 0,
       pendingWithdrawalCount: pendingWithdrawalCount || 0,
     });
   }, []);
@@ -254,6 +249,9 @@ export default function DepositPage() {
     // Filter by tab
     if (activeTab === 'vip') {
       result = result.filter((d) => d.is_vip);
+    } else if (activeTab === 'expired') {
+      // "หมดอายุ" tab shows both expired and transfer_pending
+      result = result.filter((d) => d.status === 'expired' || d.status === 'transfer_pending');
     } else if (activeTab !== 'all') {
       result = result.filter((d) => d.status === activeTab);
     }
@@ -275,7 +273,7 @@ export default function DepositPage() {
   const tabsWithCounts = depositTabs.map((t) => {
     if (t.id === 'in_store') return { ...t, count: stats.activeCount };
     if (t.id === 'pending_confirm') return { ...t, count: stats.pendingCount };
-    if (t.id === 'expired') return { ...t, count: stats.expiredCount };
+    if (t.id === 'expired') return { ...t, count: stats.expiredCount + stats.transferPendingCount };
     if (t.id === 'vip') return { ...t, count: stats.vipCount };
     return t;
   });
@@ -358,8 +356,8 @@ export default function DepositPage() {
               <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.expiringSoonCount}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">ใกล้หมดอายุ</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.expiredCount + stats.transferPendingCount}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">หมดอายุ</p>
             </div>
           </div>
         </Card>
