@@ -27,6 +27,8 @@ import {
   Trash2,
   RotateCcw,
   BarChart3,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 
 // ── Types ──
@@ -149,6 +151,261 @@ async function readTxtFile(file: File): Promise<string> {
   }
 
   return utf8Content;
+}
+
+// ── Grouped Preview Component ──
+
+interface GroupConfig {
+  key: 'new' | 'matched' | 'zero_qty';
+  label: string;
+  icon: typeof Plus;
+  badgeVariant: 'info' | 'success' | 'default';
+  badgeLabel: string;
+  ringColor: string;
+  headerBg: string;
+  headerText: string;
+  countBg: string;
+  countText: string;
+  itemBg: string;
+  itemRing: string;
+  textColor: string;
+  qtyColor: string;
+}
+
+const GROUP_CONFIGS: GroupConfig[] = [
+  {
+    key: 'new',
+    label: 'สินค้าใหม่',
+    icon: Plus,
+    badgeVariant: 'info',
+    badgeLabel: 'ใหม่',
+    ringColor: 'ring-blue-200 dark:ring-blue-800',
+    headerBg: 'bg-blue-50 dark:bg-blue-900/20',
+    headerText: 'text-blue-700 dark:text-blue-300',
+    countBg: 'bg-blue-100 dark:bg-blue-900/40',
+    countText: 'text-blue-700 dark:text-blue-300',
+    itemBg: 'bg-blue-50/50 dark:bg-blue-900/10',
+    itemRing: 'ring-blue-100 dark:ring-blue-900/30',
+    textColor: 'text-gray-900 dark:text-white',
+    qtyColor: 'text-gray-900 dark:text-white',
+  },
+  {
+    key: 'matched',
+    label: 'ตรงกับระบบ',
+    icon: CheckCircle2,
+    badgeVariant: 'success',
+    badgeLabel: 'ตรงกัน',
+    ringColor: 'ring-emerald-200 dark:ring-emerald-800',
+    headerBg: 'bg-emerald-50 dark:bg-emerald-900/20',
+    headerText: 'text-emerald-700 dark:text-emerald-300',
+    countBg: 'bg-emerald-100 dark:bg-emerald-900/40',
+    countText: 'text-emerald-700 dark:text-emerald-300',
+    itemBg: 'bg-white dark:bg-gray-800',
+    itemRing: 'ring-emerald-100 dark:ring-emerald-900/30',
+    textColor: 'text-gray-900 dark:text-white',
+    qtyColor: 'text-gray-900 dark:text-white',
+  },
+  {
+    key: 'zero_qty',
+    label: 'จำนวน = 0',
+    icon: XCircle,
+    badgeVariant: 'default',
+    badgeLabel: 'qty = 0',
+    ringColor: 'ring-gray-200 dark:ring-gray-700',
+    headerBg: 'bg-gray-100 dark:bg-gray-800',
+    headerText: 'text-gray-600 dark:text-gray-400',
+    countBg: 'bg-gray-200 dark:bg-gray-700',
+    countText: 'text-gray-600 dark:text-gray-300',
+    itemBg: 'bg-gray-50 dark:bg-gray-800/50',
+    itemRing: 'ring-gray-200 dark:ring-gray-700',
+    textColor: 'text-gray-400 dark:text-gray-500',
+    qtyColor: 'text-gray-300 dark:text-gray-600',
+  },
+];
+
+function GroupedPreview({
+  classifiedItems,
+  previewStats,
+}: {
+  classifiedItems: ClassifiedItem[];
+  previewStats: { matched: number; new: number; zero: number };
+}) {
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    new: false,
+    matched: false,
+    zero_qty: false,
+  });
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const getCount = (key: string) => {
+    if (key === 'new') return previewStats.new;
+    if (key === 'matched') return previewStats.matched;
+    return previewStats.zero;
+  };
+
+  const getItems = (key: string) =>
+    classifiedItems.filter((i) => i.status === key);
+
+  return (
+    <div className="space-y-3">
+      {GROUP_CONFIGS.map((group) => {
+        const count = getCount(group.key);
+        if (count === 0) return null;
+
+        const items = getItems(group.key);
+        const isExpanded = expandedGroups[group.key];
+        const Icon = group.icon;
+
+        return (
+          <div
+            key={group.key}
+            className={cn(
+              'overflow-hidden rounded-xl ring-1 shadow-sm',
+              group.ringColor
+            )}
+          >
+            {/* Group Header — clickable */}
+            <button
+              type="button"
+              onClick={() => toggleGroup(group.key)}
+              className={cn(
+                'flex w-full items-center justify-between px-4 py-3 transition-colors',
+                group.headerBg
+              )}
+            >
+              <div className="flex items-center gap-2.5">
+                <Icon className={cn('h-4.5 w-4.5', group.headerText)} />
+                <span className={cn('text-sm font-semibold', group.headerText)}>
+                  {group.label}
+                </span>
+                <span
+                  className={cn(
+                    'flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-bold',
+                    group.countBg,
+                    group.countText
+                  )}
+                >
+                  {count}
+                </span>
+              </div>
+              {isExpanded ? (
+                <ChevronDown className={cn('h-5 w-5', group.headerText)} />
+              ) : (
+                <ChevronRight className={cn('h-5 w-5', group.headerText)} />
+              )}
+            </button>
+
+            {/* Collapsible content */}
+            {isExpanded && (
+              <>
+                {/* Desktop Table */}
+                <div className="hidden md:block">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-800/50">
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                          #
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                          รหัส
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                          ชื่อสินค้า
+                        </th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
+                          จำนวน
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                          หน่วย
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                          หมวด
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                      {items.map((item, idx) => (
+                        <tr
+                          key={idx}
+                          className={cn('transition-colors hover:bg-gray-50/50 dark:hover:bg-gray-700/30', group.itemBg)}
+                        >
+                          <td className="px-4 py-2.5 text-xs text-gray-400 dark:text-gray-500">
+                            {idx + 1}
+                          </td>
+                          <td className="px-4 py-2.5 font-mono text-xs text-gray-700 dark:text-gray-300">
+                            {item.product_code}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <p className={cn('font-medium', group.textColor)}>
+                              {item.product_name || '-'}
+                            </p>
+                            {item.existing_name &&
+                              item.existing_name !== item.product_name && (
+                                <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                                  ระบบ: {item.existing_name}
+                                </p>
+                              )}
+                          </td>
+                          <td className={cn('px-4 py-2.5 text-right font-medium', group.qtyColor)}>
+                            {formatNumber(item.quantity)}
+                          </td>
+                          <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400">
+                            {item.unit || '-'}
+                          </td>
+                          <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400">
+                            {item.category || '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Cards */}
+                <div className="space-y-1.5 p-2 md:hidden">
+                  {items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className={cn(
+                        'rounded-lg p-3 ring-1',
+                        group.itemBg,
+                        group.itemRing
+                      )}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="min-w-0 flex-1">
+                          <p className={cn('text-sm font-medium', group.textColor)}>
+                            {item.product_name || item.product_code}
+                          </p>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-400 dark:text-gray-500">
+                            <span className="font-mono">{item.product_code}</span>
+                            {item.category && <span>{item.category}</span>}
+                            {item.unit && <span>({item.unit})</span>}
+                          </div>
+                          {item.existing_name &&
+                            item.existing_name !== item.product_name && (
+                              <p className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500">
+                                ระบบ: {item.existing_name}
+                              </p>
+                            )}
+                        </div>
+                        <span className={cn('text-lg font-bold', group.qtyColor)}>
+                          {formatNumber(item.quantity)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // ── Component ──
@@ -790,192 +1047,8 @@ export default function TxtUploadPage() {
         </label>
       </div>
 
-      {/* Preview Table — Desktop */}
-      <div className="hidden overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700 md:block">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/80">
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">
-                  #
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">
-                  รหัส
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">
-                  ชื่อสินค้า
-                </th>
-                <th className="px-4 py-3 text-right font-medium text-gray-500 dark:text-gray-400">
-                  จำนวน
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">
-                  หน่วย
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">
-                  หมวด
-                </th>
-                <th className="px-4 py-3 text-center font-medium text-gray-500 dark:text-gray-400">
-                  สถานะ
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {classifiedItems.map((item, idx) => (
-                <tr
-                  key={idx}
-                  className={cn(
-                    'transition-colors',
-                    item.status === 'matched' &&
-                      'bg-white hover:bg-emerald-50/50 dark:bg-gray-800 dark:hover:bg-emerald-900/10',
-                    item.status === 'new' &&
-                      'bg-blue-50/30 hover:bg-blue-50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20',
-                    item.status === 'zero_qty' &&
-                      'bg-gray-50 text-gray-400 hover:bg-gray-100 dark:bg-gray-800/50 dark:text-gray-500 dark:hover:bg-gray-700/50'
-                  )}
-                >
-                  <td className="px-4 py-3 text-xs text-gray-400 dark:text-gray-500">
-                    {idx + 1}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
-                    {item.product_code}
-                  </td>
-                  <td className="px-4 py-3">
-                    <p
-                      className={cn(
-                        'font-medium',
-                        item.status === 'zero_qty'
-                          ? 'text-gray-400 dark:text-gray-500'
-                          : 'text-gray-900 dark:text-white'
-                      )}
-                    >
-                      {item.product_name || '-'}
-                    </p>
-                    {item.existing_name &&
-                      item.existing_name !== item.product_name && (
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                          ระบบ: {item.existing_name}
-                        </p>
-                      )}
-                  </td>
-                  <td
-                    className={cn(
-                      'px-4 py-3 text-right font-medium',
-                      item.status === 'zero_qty'
-                        ? 'text-gray-400 dark:text-gray-500'
-                        : 'text-gray-900 dark:text-white'
-                    )}
-                  >
-                    {formatNumber(item.quantity)}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                    {item.unit || '-'}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                    {item.category || '-'}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {item.status === 'matched' && (
-                      <Badge variant="success">
-                        <CheckCircle2 className="mr-1 h-3 w-3" />
-                        ตรงกัน
-                      </Badge>
-                    )}
-                    {item.status === 'new' && (
-                      <Badge variant="info">
-                        <Plus className="mr-1 h-3 w-3" />
-                        ใหม่
-                      </Badge>
-                    )}
-                    {item.status === 'zero_qty' && (
-                      <Badge variant="default">
-                        <XCircle className="mr-1 h-3 w-3" />
-                        qty=0
-                      </Badge>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Preview Cards — Mobile */}
-      <div className="space-y-2 md:hidden">
-        {classifiedItems.map((item, idx) => (
-          <div
-            key={idx}
-            className={cn(
-              'rounded-xl p-4 shadow-sm ring-1',
-              item.status === 'matched' &&
-                'bg-white ring-emerald-200 dark:bg-gray-800 dark:ring-emerald-800',
-              item.status === 'new' &&
-                'bg-blue-50/50 ring-blue-200 dark:bg-blue-900/10 dark:ring-blue-800',
-              item.status === 'zero_qty' &&
-                'bg-gray-50 ring-gray-200 dark:bg-gray-800/50 dark:ring-gray-700'
-            )}
-          >
-            <div className="flex items-start justify-between">
-              <div className="min-w-0 flex-1">
-                <p
-                  className={cn(
-                    'text-sm font-medium',
-                    item.status === 'zero_qty'
-                      ? 'text-gray-400 dark:text-gray-500'
-                      : 'text-gray-900 dark:text-white'
-                  )}
-                >
-                  {item.product_name || item.product_code}
-                </p>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-400 dark:text-gray-500">
-                  <span className="font-mono">{item.product_code}</span>
-                  {item.category && <span>{item.category}</span>}
-                  {item.unit && <span>({item.unit})</span>}
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <span
-                  className={cn(
-                    'text-lg font-bold',
-                    item.status === 'zero_qty'
-                      ? 'text-gray-300 dark:text-gray-600'
-                      : 'text-gray-900 dark:text-white'
-                  )}
-                >
-                  {formatNumber(item.quantity)}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-2 flex items-center justify-between">
-              {item.status === 'matched' && (
-                <Badge variant="success" size="sm">
-                  <CheckCircle2 className="mr-1 h-3 w-3" />
-                  ตรงกัน
-                </Badge>
-              )}
-              {item.status === 'new' && (
-                <Badge variant="info" size="sm">
-                  <Plus className="mr-1 h-3 w-3" />
-                  สินค้าใหม่
-                </Badge>
-              )}
-              {item.status === 'zero_qty' && (
-                <Badge variant="default" size="sm">
-                  <XCircle className="mr-1 h-3 w-3" />
-                  qty = 0
-                </Badge>
-              )}
-              {item.existing_name &&
-                item.existing_name !== item.product_name && (
-                  <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                    ระบบ: {item.existing_name}
-                  </span>
-                )}
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Grouped collapsible sections */}
+      <GroupedPreview classifiedItems={classifiedItems} previewStats={previewStats} />
 
       {/* Bottom Action Bar */}
       <div className="sticky bottom-0 -mx-4 border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/95 sm:-mx-6 sm:px-6">

@@ -26,6 +26,7 @@ import {
   Scale,
   Zap,
   PieChart,
+  BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { getModuleColors } from '@/lib/utils/module-colors';
@@ -55,6 +56,7 @@ const iconMap: Record<string, LucideIcon> = {
   scale: Scale,
   zap: Zap,
   'pie-chart': PieChart,
+  'book-open': BookOpen,
 };
 
 interface SidebarProps {
