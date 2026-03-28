@@ -480,94 +480,69 @@ export default function OverviewPage() {
       // --- Per-store statuses (owner only) ---
       if (isOwner) {
         try {
-          const { data: allStores } = await supabase
+          const { data: allStores, error: storesError } = await supabase
             .from('stores')
-            .select('id, name, code')
+            .select('id, store_name, store_code')
             .eq('active', true)
-            .order('name');
+            .order('store_name');
 
-          if (allStores && allStores.length > 0) {
+          if (storesError) {
+            console.error('Error fetching stores:', storesError);
+          } else if (allStores && allStores.length > 0) {
             const sevenDaysFromNow = daysFromNowISO(7);
             const todayISO = startOfTodayBangkokISO();
 
             const storeResults = await Promise.all(
               allStores.map(async (store) => {
+                const sid = store.id;
+
                 const [
-                  { count: pendingDeposits },
-                  { count: pendingWithdrawals },
-                  { count: expiringDeposits },
-                  { count: activeDeposits },
-                  { count: pendingExpl },
-                  { count: pendingAppr },
-                  { count: pendingTrans },
+                  pwRes,
+                  edRes,
+                  adRes,
+                  peRes,
+                  paRes,
+                  ptRes,
                 ] = await Promise.all([
-                  supabase
-                    .from('deposit_requests')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('store_id', store.id)
-                    .eq('status', 'pending'),
-                  supabase
-                    .from('deposits')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('store_id', store.id)
-                    .eq('status', 'pending_withdrawal'),
-                  supabase
-                    .from('deposits')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('store_id', store.id)
-                    .eq('status', 'in_store')
-                    .lt('expiry_date', sevenDaysFromNow)
-                    .gt('expiry_date', todayISO),
-                  supabase
-                    .from('deposits')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('store_id', store.id)
-                    .eq('status', 'in_store'),
-                  supabase
-                    .from('comparisons')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('store_id', store.id)
-                    .eq('status', 'pending'),
-                  supabase
-                    .from('comparisons')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('store_id', store.id)
-                    .eq('status', 'explained'),
-                  supabase
-                    .from('transfers')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('from_store_id', store.id)
-                    .eq('status', 'pending'),
+                  supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending_withdrawal'),
+                  supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'in_store').lt('expiry_date', sevenDaysFromNow).gt('expiry_date', todayISO),
+                  supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'in_store'),
+                  supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending'),
+                  supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'explained'),
+                  supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('from_store_id', sid).eq('status', 'pending'),
                 ]);
 
-                const lastCheckQ = await supabase
-                  .from('manual_counts')
-                  .select('count_date')
-                  .eq('store_id', store.id)
-                  .order('count_date', { ascending: false })
-                  .limit(1)
-                  .maybeSingle();
+                const pendingWithdrawals = pwRes.count || 0;
+                const expiringDeposits = edRes.count || 0;
+                const activeDeposits = adRes.count || 0;
+                const pendingExpl = peRes.count || 0;
+                const pendingAppr = paRes.count || 0;
+                const pendingTrans = ptRes.count || 0;
 
-                const pd = pendingDeposits || 0;
-                const pw = pendingWithdrawals || 0;
-                const ed = expiringDeposits || 0;
-                const pe = pendingExpl || 0;
-                const pa = pendingAppr || 0;
-                const pt = pendingTrans || 0;
+                // deposit_requests might not exist — try separately
+                let pendingDeposits = 0;
+                const drRes = await supabase.from('deposit_requests').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending');
+                if (!drRes.error) pendingDeposits = drRes.count || 0;
+
+                let lastStockCheck: string | null = null;
+                const lcRes = await supabase.from('manual_counts').select('count_date').eq('store_id', sid).order('count_date', { ascending: false }).limit(1).maybeSingle();
+                if (lcRes.data) lastStockCheck = lcRes.data.count_date || null;
+
+                const totalIssues = pendingDeposits + pendingWithdrawals + expiringDeposits + pendingExpl + pendingAppr + pendingTrans;
 
                 const result: StoreStatus = {
                   id: store.id,
-                  name: store.name,
-                  code: store.code || '',
-                  pendingDeposits: pd,
-                  pendingWithdrawals: pw,
-                  expiringDeposits: ed,
-                  activeDeposits: activeDeposits || 0,
-                  pendingExplanations: pe,
-                  pendingApprovals: pa,
-                  pendingTransfers: pt,
-                  lastStockCheck: lastCheckQ.data?.count_date || null,
-                  totalIssues: pd + pw + ed + pe + pa + pt,
+                  name: store.store_name,
+                  code: store.store_code || '',
+                  pendingDeposits,
+                  pendingWithdrawals,
+                  expiringDeposits,
+                  activeDeposits,
+                  pendingExplanations: pendingExpl,
+                  pendingApprovals: pendingAppr,
+                  pendingTransfers: pendingTrans,
+                  lastStockCheck,
+                  totalIssues,
                 };
                 return result;
               })
@@ -579,7 +554,6 @@ export default function OverviewPage() {
           }
         } catch (storeErr) {
           console.error('Error fetching per-store statuses:', storeErr);
-          // Non-fatal — main overview data still displays
         }
       }
     } catch (error) {
