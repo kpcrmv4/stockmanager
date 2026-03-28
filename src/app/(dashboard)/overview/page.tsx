@@ -479,101 +479,107 @@ export default function OverviewPage() {
 
       // --- Per-store statuses (owner only) ---
       if (isOwner) {
-        const { data: allStores } = await supabase
-          .from('stores')
-          .select('id, name, code')
-          .eq('active', true)
-          .order('name');
+        try {
+          const { data: allStores } = await supabase
+            .from('stores')
+            .select('id, name, code')
+            .eq('active', true)
+            .order('name');
 
-        if (allStores && allStores.length > 0) {
-          const sevenDaysFromNow = daysFromNowISO(7);
-          const todayISO = startOfTodayBangkokISO();
+          if (allStores && allStores.length > 0) {
+            const sevenDaysFromNow = daysFromNowISO(7);
+            const todayISO = startOfTodayBangkokISO();
 
-          const storeResults = await Promise.all(
-            allStores.map(async (store) => {
-              const [
-                { count: pendingDeposits },
-                { count: pendingWithdrawals },
-                { count: expiringDeposits },
-                { count: activeDeposits },
-                { count: pendingExpl },
-                { count: pendingAppr },
-                { count: pendingTrans },
-              ] = await Promise.all([
-                supabase
-                  .from('deposit_requests')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('store_id', store.id)
-                  .eq('status', 'pending'),
-                supabase
-                  .from('deposits')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('store_id', store.id)
-                  .eq('status', 'pending_withdrawal'),
-                supabase
-                  .from('deposits')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('store_id', store.id)
-                  .eq('status', 'in_store')
-                  .lt('expiry_date', sevenDaysFromNow)
-                  .gt('expiry_date', todayISO),
-                supabase
-                  .from('deposits')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('store_id', store.id)
-                  .eq('status', 'in_store'),
-                supabase
-                  .from('comparisons')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('store_id', store.id)
-                  .eq('status', 'pending'),
-                supabase
-                  .from('comparisons')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('store_id', store.id)
-                  .eq('status', 'explained'),
-                supabase
-                  .from('transfers')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('from_store_id', store.id)
-                  .eq('status', 'pending'),
-              ]);
+            const storeResults = await Promise.all(
+              allStores.map(async (store) => {
+                const [
+                  { count: pendingDeposits },
+                  { count: pendingWithdrawals },
+                  { count: expiringDeposits },
+                  { count: activeDeposits },
+                  { count: pendingExpl },
+                  { count: pendingAppr },
+                  { count: pendingTrans },
+                ] = await Promise.all([
+                  supabase
+                    .from('deposit_requests')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('store_id', store.id)
+                    .eq('status', 'pending'),
+                  supabase
+                    .from('deposits')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('store_id', store.id)
+                    .eq('status', 'pending_withdrawal'),
+                  supabase
+                    .from('deposits')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('store_id', store.id)
+                    .eq('status', 'in_store')
+                    .lt('expiry_date', sevenDaysFromNow)
+                    .gt('expiry_date', todayISO),
+                  supabase
+                    .from('deposits')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('store_id', store.id)
+                    .eq('status', 'in_store'),
+                  supabase
+                    .from('comparisons')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('store_id', store.id)
+                    .eq('status', 'pending'),
+                  supabase
+                    .from('comparisons')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('store_id', store.id)
+                    .eq('status', 'explained'),
+                  supabase
+                    .from('transfers')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('from_store_id', store.id)
+                    .eq('status', 'pending'),
+                ]);
 
-              const lastCheckQ = await supabase
-                .from('manual_counts')
-                .select('count_date')
-                .eq('store_id', store.id)
-                .order('count_date', { ascending: false })
-                .limit(1)
-                .maybeSingle();
+                const lastCheckQ = await supabase
+                  .from('manual_counts')
+                  .select('count_date')
+                  .eq('store_id', store.id)
+                  .order('count_date', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
 
-              const pd = pendingDeposits || 0;
-              const pw = pendingWithdrawals || 0;
-              const ed = expiringDeposits || 0;
-              const pe = pendingExpl || 0;
-              const pa = pendingAppr || 0;
-              const pt = pendingTrans || 0;
+                const pd = pendingDeposits || 0;
+                const pw = pendingWithdrawals || 0;
+                const ed = expiringDeposits || 0;
+                const pe = pendingExpl || 0;
+                const pa = pendingAppr || 0;
+                const pt = pendingTrans || 0;
 
-              return {
-                id: store.id,
-                name: store.name,
-                code: store.code || '',
-                pendingDeposits: pd,
-                pendingWithdrawals: pw,
-                expiringDeposits: ed,
-                activeDeposits: activeDeposits || 0,
-                pendingExplanations: pe,
-                pendingApprovals: pa,
-                pendingTransfers: pt,
-                lastStockCheck: lastCheckQ.data?.count_date || null,
-                totalIssues: pd + pw + ed + pe + pa + pt,
-              } satisfies StoreStatus;
-            })
-          );
+                const result: StoreStatus = {
+                  id: store.id,
+                  name: store.name,
+                  code: store.code || '',
+                  pendingDeposits: pd,
+                  pendingWithdrawals: pw,
+                  expiringDeposits: ed,
+                  activeDeposits: activeDeposits || 0,
+                  pendingExplanations: pe,
+                  pendingApprovals: pa,
+                  pendingTransfers: pt,
+                  lastStockCheck: lastCheckQ.data?.count_date || null,
+                  totalIssues: pd + pw + ed + pe + pa + pt,
+                };
+                return result;
+              })
+            );
 
-          // Sort: stores with most issues first
-          storeResults.sort((a, b) => b.totalIssues - a.totalIssues);
-          setStoreStatuses(storeResults);
+            // Sort: stores with most issues first
+            storeResults.sort((a, b) => b.totalIssues - a.totalIssues);
+            setStoreStatuses(storeResults);
+          }
+        } catch (storeErr) {
+          console.error('Error fetching per-store statuses:', storeErr);
+          // Non-fatal — main overview data still displays
         }
       }
     } catch (error) {
