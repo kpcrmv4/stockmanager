@@ -1,7 +1,7 @@
 -- ==========================================
 -- StockManager — Consolidated Schema (Fresh Install)
--- Merged from migrations 00001 through 00008
--- Generated: 2026-03-25
+-- Merged from migrations 00001 through 00013
+-- Generated: 2026-03-28
 --
 -- This single file creates the entire schema from scratch.
 -- Do NOT run individual 00001-00008 migrations if using this file.
@@ -348,6 +348,9 @@ CREATE TABLE store_settings (
   chat_bot_priority_borrow TEXT NOT NULL DEFAULT 'normal',
   chat_bot_priority_transfer TEXT NOT NULL DEFAULT 'normal',
   chat_bot_daily_summary_enabled BOOLEAN NOT NULL DEFAULT true,
+  /** Print Server (00013) */
+  print_server_account_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  print_server_working_hours JSONB DEFAULT '{"enabled": true, "startHour": 12, "startMinute": 0, "endHour": 6, "endMinute": 0}'::jsonb
 );
 
 CREATE TABLE app_settings (
@@ -450,6 +453,28 @@ CREATE TABLE print_queue (
   error_message TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- ==========================================
+-- PRINT SERVER STATUS (00013)
+-- ==========================================
+
+CREATE TABLE print_server_status (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id UUID REFERENCES stores(id) ON DELETE CASCADE UNIQUE,
+  is_online BOOLEAN DEFAULT false,
+  last_heartbeat TIMESTAMPTZ,
+  server_version TEXT,
+  printer_name TEXT DEFAULT 'POS80',
+  printer_status TEXT DEFAULT 'unknown',
+  hostname TEXT,
+  jobs_printed_today INTEGER DEFAULT 0,
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_print_server_status_store ON print_server_status(store_id);
+CREATE INDEX idx_print_queue_store_pending ON print_queue(store_id, created_at ASC) WHERE status = 'pending';
 
 -- ==========================================
 -- ==========================================
@@ -638,6 +663,15 @@ RETURNS SETOF UUID AS $$
   SELECT store_id FROM public.user_stores WHERE user_id = auth.uid();
 $$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = '';
 
+CREATE OR REPLACE FUNCTION is_print_server_online(p_store_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.print_server_status
+    WHERE store_id = p_store_id
+      AND last_heartbeat > now() - INTERVAL '2 minutes'
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
+
 CREATE OR REPLACE FUNCTION is_chat_member(p_room_id UUID)
 RETURNS BOOLEAN AS $$
   SELECT EXISTS (
@@ -768,6 +802,10 @@ CREATE POLICY "Admin write app_settings" ON app_settings FOR ALL USING (is_admin
 -- ========== print_queue ==========
 CREATE POLICY "Staff see store print jobs" ON print_queue FOR SELECT USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
 CREATE POLICY "Staff manage print jobs" ON print_queue FOR ALL USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
+
+ALTER TABLE print_server_status ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Staff see store print server status" ON print_server_status FOR SELECT USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
+CREATE POLICY "Staff manage print server status" ON print_server_status FOR ALL USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
 
 -- ========== borrows ==========
 CREATE POLICY "Staff see related borrows" ON borrows FOR SELECT USING (from_store_id IN (SELECT get_user_store_ids()) OR to_store_id IN (SELECT get_user_store_ids()) OR is_admin());
@@ -1097,6 +1135,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
 ALTER PUBLICATION supabase_realtime ADD TABLE deposit_requests;
 ALTER PUBLICATION supabase_realtime ADD TABLE announcements;
 ALTER PUBLICATION supabase_realtime ADD TABLE print_queue;
+ALTER PUBLICATION supabase_realtime ADD TABLE print_server_status;
 ALTER PUBLICATION supabase_realtime ADD TABLE borrows;
 ALTER PUBLICATION supabase_realtime ADD TABLE manual_counts;
 
