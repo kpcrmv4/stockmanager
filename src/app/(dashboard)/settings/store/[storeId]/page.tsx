@@ -311,26 +311,22 @@ export default function StoreDetailSettingsPage() {
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to generate config');
+        // API returns JSON error when failed, ZIP when success
+        const err = await res.json().catch(() => ({ error: 'Download failed' }));
+        throw new Error(err.error || 'Failed to generate installer');
       }
 
-      const { config } = await res.json();
-
-      // Merge working hours from local state
-      config.WORKING_HOURS = printServerWorkingHours;
-
-      // Download as JSON file
-      const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+      // Download as ZIP file
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `config.json`;
+      a.download = `print-server-${storeCode || 'store'}.zip`;
       a.click();
       URL.revokeObjectURL(url);
 
       setPrintServerHasAccount(true);
-      toast({ type: 'success', title: 'ดาวน์โหลด config.json สำเร็จ!', message: 'วางไฟล์ในโฟลเดอร์ print-server แล้วรัน SETUP.bat' });
+      toast({ type: 'success', title: 'ดาวน์โหลดตัวติดตั้งสำเร็จ!', message: 'แตก ZIP ที่ PC สาขา แล้วรัน SETUP.bat' });
     } catch (error) {
       toast({ type: 'error', title: 'ดาวน์โหลดไม่สำเร็จ', message: (error as Error).message });
     } finally {

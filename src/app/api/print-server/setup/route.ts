@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import JSZip from 'jszip';
 
 /**
  * POST /api/print-server/setup
  *
- * สร้าง service account สำหรับ print-server ของสาขา
- * แล้ว generate config.json ให้ดาวน์โหลด
+ * สร้าง service account + generate ZIP ที่มีทุกไฟล์พร้อมใช้งาน
  *
  * Body: { storeId: string, printerName?: string }
- * Returns: { config: PrintServerConfig }
+ * Returns: ZIP file (print-server.zip)
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -97,12 +99,10 @@ export async function POST(request: NextRequest) {
 
     if (authError) {
       if (authError.message.includes('already been registered')) {
-        // Account exists but not linked — find and link it
         const { data: existingUsers } = await serviceClient.auth.admin.listUsers();
         const existingUser = existingUsers?.users?.find((u) => u.email === email);
 
         if (existingUser) {
-          // Reset password and link
           await serviceClient.auth.admin.updateUserById(existingUser.id, { password });
           accountId = existingUser.id;
         } else {
@@ -169,7 +169,50 @@ export async function POST(request: NextRequest) {
     HEARTBEAT_INTERVAL: 60000,
   };
 
-  return NextResponse.json({ config, accountId: accountId! });
+  // ==========================================
+  // สร้าง ZIP ที่มีทุกไฟล์พร้อมใช้งาน
+  // ==========================================
+  const zip = new JSZip();
+  const folder = zip.folder('print-server')!;
+
+  // config.json (generated)
+  folder.file('config.json', JSON.stringify(config, null, 2));
+
+  // อ่านไฟล์จาก print-server/ directory
+  const printServerDir = path.join(process.cwd(), 'print-server');
+  const filesToInclude = [
+    'print-server.js',
+    'package.json',
+    'config.json.example',
+    'SETUP.bat',
+    'START-PrintServer.bat',
+    'RawPrint.ps1',
+    'lib/supabase-connector.js',
+    'lib/html-renderer.js',
+    'lib/job-processor.js',
+    'lib/working-hours.js',
+  ];
+
+  for (const file of filesToInclude) {
+    const filePath = path.join(printServerDir, file);
+    try {
+      const content = fs.readFileSync(filePath, 'utf8');
+      folder.file(file, content);
+    } catch {
+      // File not found on Vercel — skip silently
+      console.warn(`[print-server/setup] File not found: ${filePath}`);
+    }
+  }
+
+  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+
+  return new NextResponse(zipBuffer, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="print-server-${store.store_code}.zip"`,
+    },
+  });
 }
 
 /**

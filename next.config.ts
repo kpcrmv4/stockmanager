@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  outputFileTracingIncludes: {
+    '/api/print-server/setup': ['./print-server/**/*'],
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [320, 420, 768, 1024],
