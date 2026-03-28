@@ -29,10 +29,21 @@ if not exist "%~dp0config.json" (
 echo [OK] config.json found
 
 :: ============================================
-:: STEP 1: Copy files to C:\print-server
+:: STEP 1: Clean old + Copy files to C:\print-server
 :: ============================================
 echo.
 echo [1/6] Copying files to C:\print-server ...
+if exist "C:\print-server\node_modules" (
+    echo      Removing old installation...
+    rmdir /S /Q "C:\print-server\lib" >nul 2>&1
+    del /Q "C:\print-server\print-server.js" >nul 2>&1
+    del /Q "C:\print-server\package.json" >nul 2>&1
+    del /Q "C:\print-server\RawPrint.ps1" >nul 2>&1
+    del /Q "C:\print-server\INSTALL.bat" >nul 2>&1
+    del /Q "C:\print-server\START-PrintServer.bat" >nul 2>&1
+    del /Q "C:\print-server\config.json.example" >nul 2>&1
+    echo      Old files removed (kept config.json + node_modules)
+)
 if not exist "C:\print-server" mkdir "C:\print-server"
 if not exist "C:\print-server\lib" mkdir "C:\print-server\lib"
 if not exist "C:\print-server\temp" mkdir "C:\print-server\temp"
