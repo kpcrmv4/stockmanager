@@ -1189,11 +1189,24 @@ export default function StoreDetailSettingsPage() {
                 <div className="flex gap-3">
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold text-blue-800 dark:bg-blue-800 dark:text-blue-200">2</div>
                   <div>
-                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">วาง config.json ที่ PC สาขา</p>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">วาง config.json + รัน SETUP.bat</p>
                     <p className="text-xs text-blue-600 dark:text-blue-400">
                       Copy ไฟล์ config.json ไปวางในโฟลเดอร์ <code className="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-800/50">print-server</code> ที่ PC สาขา
                       แล้วคลิกขวา <code className="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-800/50">SETUP.bat</code> → Run as administrator (ครั้งแรกครั้งเดียว)
                     </p>
+                    <p className="mt-1 text-xs text-blue-500 dark:text-blue-500">
+                      SETUP.bat จะติดตั้งโปรแกรมที่จำเป็นให้อัตโนมัติ หรือลงเองได้ที่:
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-200 dark:bg-blue-800/50 dark:text-blue-300 dark:hover:bg-blue-800">
+                        <ExternalLink className="h-2.5 w-2.5" /> Node.js
+                      </a>
+                      <a href="https://www.sumatrapdfreader.org/download-free-pdf-viewer" target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-200 dark:bg-blue-800/50 dark:text-blue-300 dark:hover:bg-blue-800">
+                        <ExternalLink className="h-2.5 w-2.5" /> SumatraPDF (สั่งพิมพ์ PDF)
+                      </a>
+                    </div>
                   </div>
                 </div>
                 {/* Step 3 */}
