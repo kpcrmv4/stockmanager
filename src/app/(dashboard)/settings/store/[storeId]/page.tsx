@@ -157,7 +157,7 @@ export default function StoreDetailSettingsPage() {
   // Receipt settings
   const [receiptHeaderText, setReceiptHeaderText] = useState('');
   const [receiptFooterText, setReceiptFooterText] = useState('');
-  const [receiptPaperWidth, setReceiptPaperWidth] = useState<58 | 80>(80);
+  const receiptPaperWidth = 80; // Fixed: 80mm thermal printer only
   const [receiptShowLogo, setReceiptShowLogo] = useState(false);
   const [receiptShowQr, setReceiptShowQr] = useState(false);
   const [receiptCopies, setReceiptCopies] = useState('1');
@@ -233,7 +233,6 @@ export default function StoreDetailSettingsPage() {
       if (rs) {
         setReceiptHeaderText(rs.header_text || '');
         setReceiptFooterText(rs.footer_text || '');
-        setReceiptPaperWidth(rs.paper_width || 80);
         setReceiptShowLogo(rs.show_logo ?? false);
         setReceiptShowQr(rs.show_qr ?? false);
         setReceiptCopies(String(rs.receipt_copies ?? 1));
@@ -886,37 +885,6 @@ export default function StoreDetailSettingsPage() {
             <p className="text-xs text-emerald-700 dark:text-emerald-400">
               <strong>การพิมพ์:</strong> ใบฝากเหล้าและป้ายขวดจะถูกส่งไปยัง Print Server อัตโนมัติ ตั้งค่าได้ที่หัวข้อ &quot;Print Server&quot; ด้านล่าง
             </p>
-          </div>
-
-          {/* Paper width */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              ขนาดกระดาษ
-            </label>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setReceiptPaperWidth(80)}
-                className={`flex flex-1 items-center justify-center rounded-lg border-2 p-3 text-sm font-medium transition-colors ${
-                  receiptPaperWidth === 80
-                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/20 dark:text-indigo-300'
-                    : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400'
-                }`}
-              >
-                80mm
-              </button>
-              <button
-                type="button"
-                onClick={() => setReceiptPaperWidth(58)}
-                className={`flex flex-1 items-center justify-center rounded-lg border-2 p-3 text-sm font-medium transition-colors ${
-                  receiptPaperWidth === 58
-                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/20 dark:text-indigo-300'
-                    : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400'
-                }`}
-              >
-                58mm
-              </button>
-            </div>
           </div>
 
           {/* Header text */}
