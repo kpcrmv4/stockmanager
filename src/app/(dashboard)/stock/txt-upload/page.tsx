@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
@@ -456,9 +456,18 @@ export default function TxtUploadPage() {
     useState<AutoCompareResult | null>(null);
   const [comparingAuto, setComparingAuto] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState(false);
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
 
   // Business date = yesterday (bars operate past midnight)
   const businessDate = yesterdayBangkok();
+
+  // ── Check for existing POS upload on page load ──
+  useEffect(() => {
+    if (!currentStoreId) return;
+    checkExistingPOSUpload(currentStoreId, businessDate).then(({ exists }) => {
+      setDuplicateWarning(exists);
+    });
+  }, [currentStoreId, businessDate]);
 
   // ── Classify items against existing products ──
   const classifyItems = useCallback(
@@ -819,6 +828,26 @@ export default function TxtUploadPage() {
   // ── Render: Upload Step ──
   const renderUploadStep = () => (
     <>
+      {/* Duplicate upload warning — shown on page load */}
+      {duplicateWarning && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/20">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                วันนี้มีข้อมูล POS อัพโหลดแล้ว
+              </p>
+              <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
+                วันที่ {formatThaiDate(businessDate)} มีข้อมูล POS ในระบบแล้ว
+                หากอัพโหลดอีกครั้งจะ<span className="font-semibold">แทนที่ข้อมูลเดิม</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Upload Area */}
       <div
         onDragOver={handleDragOver}
@@ -1072,13 +1101,60 @@ export default function TxtUploadPage() {
               size="sm"
               icon={<CheckCircle2 className="h-4 w-4" />}
               isLoading={saving}
-              onClick={handleSave}
+              onClick={() => {
+                if (duplicateWarning) {
+                  setShowOverwriteConfirm(true);
+                } else {
+                  handleSave();
+                }
+              }}
             >
-              บันทึกข้อมูล
+              {duplicateWarning ? 'บันทึกทับข้อมูลเดิม' : 'บันทึกข้อมูล'}
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Overwrite confirmation dialog */}
+      {showOverwriteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
+                <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                ยืนยันอัพโหลดซ้ำ?
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                วันที่ {formatThaiDate(businessDate)} มีข้อมูล POS อยู่แล้ว
+                การบันทึกจะ<span className="font-semibold text-amber-600 dark:text-amber-400">แทนที่ข้อมูลเดิม</span>ทั้งหมด
+              </p>
+              <div className="mt-2 flex w-full gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setShowOverwriteConfirm(false)}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 bg-amber-600 hover:bg-amber-700"
+                  isLoading={saving}
+                  onClick={() => {
+                    setShowOverwriteConfirm(false);
+                    handleSave();
+                  }}
+                >
+                  ยืนยันแทนที่
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 
