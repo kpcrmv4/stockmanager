@@ -1,5 +1,4 @@
 @echo off
-chcp 65001 >nul
 title Print Server - One-Click Installer
 
 echo.
@@ -8,94 +7,88 @@ echo   PRINT SERVER - ONE-CLICK INSTALLER
 echo   StockManager v2.0
 echo ==========================================
 echo.
-echo   สคริปต์นี้จะทำทุกอย่างให้อัตโนมัติ:
-echo     1. คัดลอกไฟล์ไปที่ C:\print-server
-echo     2. ติดตั้ง Node.js (ถ้ายังไม่มี)
-echo     3. ติดตั้ง npm packages
-echo     4. ติดตั้ง SumatraPDF (สำหรับพิมพ์)
-echo     5. สร้าง Shortcut เปิดอัตโนมัติตอนเปิดเครื่อง
-echo     6. เริ่มต้น Print Server
+echo   This script will automatically:
+echo     1. Copy files to C:\print-server
+echo     2. Install Node.js (if needed)
+echo     3. Install npm packages
+echo     4. Install SumatraPDF (for printing)
+echo     5. Create auto-start shortcut
+echo     6. Start Print Server
 echo.
 echo ==========================================
 echo.
 
 :: ============================================
-:: CHECK: config.json ต้องอยู่ในโฟลเดอร์เดียวกัน
+:: CHECK: config.json
 :: ============================================
 if not exist "%~dp0config.json" (
-    echo [ERROR] ไม่พบ config.json!
+    echo [ERROR] config.json not found!
     echo.
-    echo   ไฟล์ config.json ต้องอยู่ในโฟลเดอร์เดียวกับ INSTALL.bat
-    echo   ดาวน์โหลดได้จากหน้า Settings ในแอป
+    echo   config.json must be in the same folder as INSTALL.bat
+    echo   Download it from Store Settings in the web app.
     echo.
     pause
     exit /b 1
 )
 
 :: ============================================
-:: CHECK: ต้องรันในฐานะ Administrator
+:: CHECK: Administrator
 :: ============================================
 net session >nul 2>&1
 if %errorLevel% neq 0 (
-    echo [!] ต้องรันในฐานะ Administrator
-    echo     กรุณาคลิกขวาที่ INSTALL.bat แล้วเลือก "Run as administrator"
+    echo [!] Administrator required!
+    echo     Right-click INSTALL.bat and select "Run as administrator"
     echo.
     pause
     exit /b 1
 )
 
-set "INSTALL_DIR=C:\print-server"
+set INSTALL_DIR=C:\print-server
 
 :: ============================================
-:: STEP 1: คัดลอกไฟล์ทั้งหมดไปที่ C:\print-server
+:: STEP 1: Copy files to C:\print-server
 :: ============================================
-echo [1/6] คัดลอกไฟล์ไปที่ %INSTALL_DIR% ...
+echo [1/6] Copying files to %INSTALL_DIR% ...
 
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 if not exist "%INSTALL_DIR%\lib" mkdir "%INSTALL_DIR%\lib"
 if not exist "%INSTALL_DIR%\temp" mkdir "%INSTALL_DIR%\temp"
 
-:: คัดลอกไฟล์หลัก
 copy /Y "%~dp0config.json" "%INSTALL_DIR%\config.json" >nul
 copy /Y "%~dp0print-server.js" "%INSTALL_DIR%\print-server.js" >nul
 copy /Y "%~dp0package.json" "%INSTALL_DIR%\package.json" >nul
 copy /Y "%~dp0RawPrint.ps1" "%INSTALL_DIR%\RawPrint.ps1" >nul 2>&1
 copy /Y "%~dp0config.json.example" "%INSTALL_DIR%\config.json.example" >nul 2>&1
-
-:: คัดลอก lib/
 copy /Y "%~dp0lib\*.js" "%INSTALL_DIR%\lib\" >nul
-
-:: คัดลอก bat files (สำหรับรันทีหลัง)
 copy /Y "%~dp0START-PrintServer.bat" "%INSTALL_DIR%\START-PrintServer.bat" >nul
 copy /Y "%~dpnx0" "%INSTALL_DIR%\INSTALL.bat" >nul
 
-echo       [OK] คัดลอกไฟล์ไปที่ %INSTALL_DIR% เรียบร้อย
+echo       [OK] Files copied to %INSTALL_DIR%
 
-:: เปลี่ยน working directory ไปที่ install dir
 cd /d "%INSTALL_DIR%"
 
 :: ============================================
-:: STEP 2: ติดตั้ง Node.js (ถ้ายังไม่มี)
+:: STEP 2: Install Node.js
 :: ============================================
 echo.
-echo [2/6] ตรวจสอบ Node.js ...
+echo [2/6] Checking Node.js ...
 where node >nul 2>&1
 if %errorLevel% neq 0 (
-    echo       Node.js ไม่พบ กำลังติดตั้ง...
+    echo       Node.js not found. Installing...
     winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
     if %errorLevel% neq 0 (
         echo.
-        echo [!] ติดตั้ง Node.js อัตโนมัติไม่สำเร็จ
-        echo     กรุณาติดตั้งเองที่ https://nodejs.org/
-        echo     แล้วรัน INSTALL.bat อีกครั้ง
+        echo [!] Failed to install Node.js automatically.
+        echo     Please install from https://nodejs.org/
+        echo     Then run INSTALL.bat again.
         echo.
         pause
         exit /b 1
     )
-    echo       Node.js ติดตั้งสำเร็จ!
+    echo       Node.js installed!
     echo.
-    echo [!] กรุณาปิดหน้าต่างนี้ แล้วรัน INSTALL.bat อีกครั้ง
-    echo     (เพื่อให้ระบบรู้จัก Node.js)
+    echo [!] Please close this window and run INSTALL.bat again.
+    echo     (So the system can find Node.js)
     pause
     exit /b 0
 ) else (
@@ -103,76 +96,68 @@ if %errorLevel% neq 0 (
 )
 
 :: ============================================
-:: STEP 3: ติดตั้ง npm packages
+:: STEP 3: Install npm packages
 :: ============================================
 echo.
-echo [3/6] ติดตั้ง npm packages ...
+echo [3/6] Installing npm packages ...
 if not exist "%INSTALL_DIR%\node_modules\@supabase" (
     cd /d "%INSTALL_DIR%"
     call npm install --production 2>nul
     if %errorLevel% neq 0 (
-        echo [!] ติดตั้ง npm packages ไม่สำเร็จ
+        echo [!] Failed to install npm packages.
         pause
         exit /b 1
     )
-    echo       [OK] npm packages ติดตั้งเรียบร้อย
+    echo       [OK] npm packages installed
 ) else (
-    echo       [OK] npm packages ติดตั้งแล้ว
+    echo       [OK] npm packages already installed
 )
 
 :: ============================================
-:: STEP 4: ติดตั้ง SumatraPDF (สำหรับสั่งพิมพ์ PDF)
+:: STEP 4: Install SumatraPDF
 :: ============================================
 echo.
-echo [4/6] ตรวจสอบ SumatraPDF ...
-set "SUMATRA_FOUND=0"
-if exist "C:\Program Files\SumatraPDF\SumatraPDF.exe" set "SUMATRA_FOUND=1"
-if exist "C:\Program Files (x86)\SumatraPDF\SumatraPDF.exe" set "SUMATRA_FOUND=1"
-if exist "%LOCALAPPDATA%\SumatraPDF\SumatraPDF.exe" set "SUMATRA_FOUND=1"
+echo [4/6] Checking SumatraPDF ...
+set SUMATRA_FOUND=0
+if exist "C:\Program Files\SumatraPDF\SumatraPDF.exe" set SUMATRA_FOUND=1
+if exist "C:\Program Files (x86)\SumatraPDF\SumatraPDF.exe" set SUMATRA_FOUND=1
+if exist "%LOCALAPPDATA%\SumatraPDF\SumatraPDF.exe" set SUMATRA_FOUND=1
 
 if "%SUMATRA_FOUND%"=="0" (
-    echo       SumatraPDF ไม่พบ กำลังติดตั้ง...
+    echo       SumatraPDF not found. Installing...
     winget install SumatraPDF.SumatraPDF --accept-package-agreements --accept-source-agreements
     if %errorLevel% neq 0 (
-        echo [!] ติดตั้ง SumatraPDF อัตโนมัติไม่สำเร็จ
-        echo     กรุณาติดตั้งเองที่ https://www.sumatrapdfreader.org/
+        echo [!] Failed to auto-install SumatraPDF.
+        echo     Please install from https://www.sumatrapdfreader.org/
     ) else (
-        echo       [OK] SumatraPDF ติดตั้งสำเร็จ
+        echo       [OK] SumatraPDF installed
     )
 ) else (
-    echo       [OK] SumatraPDF ติดตั้งแล้ว
+    echo       [OK] SumatraPDF already installed
 )
 
 :: ============================================
-:: STEP 5: สร้าง Startup Shortcut (เปิดอัตโนมัติ)
+:: STEP 5: Create Startup Shortcut
 :: ============================================
 echo.
-echo [5/6] สร้าง Startup Shortcut ...
-powershell -ExecutionPolicy Bypass -Command ^
-  "$WshShell = New-Object -ComObject WScript.Shell; ^
-   $Startup = $WshShell.SpecialFolders('Startup'); ^
-   $Shortcut = $WshShell.CreateShortcut(\"$Startup\PrintServer.lnk\"); ^
-   $Shortcut.TargetPath = 'C:\print-server\START-PrintServer.bat'; ^
-   $Shortcut.WorkingDirectory = 'C:\print-server'; ^
-   $Shortcut.WindowStyle = 7; ^
-   $Shortcut.Save(); ^
-   Write-Host '      [OK] Startup Shortcut created'"
+echo [5/6] Creating startup shortcut ...
+powershell -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut($ws.SpecialFolders('Startup') + '\PrintServer.lnk'); $s.TargetPath = 'C:\print-server\START-PrintServer.bat'; $s.WorkingDirectory = 'C:\print-server'; $s.WindowStyle = 7; $s.Save(); Write-Host '      [OK] Startup shortcut created'"
 
 :: ============================================
-:: STEP 6: เริ่มต้น Print Server
+:: STEP 6: Start Print Server
 :: ============================================
 echo.
-echo [6/6] เริ่มต้น Print Server ...
+echo [6/6] Starting Print Server ...
 echo.
 echo ==========================================
-echo   ติดตั้งเสร็จสมบูรณ์!
+echo   INSTALLATION COMPLETE!
 echo ==========================================
 echo.
-echo   ไฟล์ติดตั้งที่: %INSTALL_DIR%
-echo   Print Server จะเปิดอัตโนมัติทุกครั้งที่เปิดเครื่อง
+echo   Installed to: %INSTALL_DIR%
+echo   Auto-start:   ON (runs on Windows boot)
 echo.
-echo   กำลังเริ่ม Print Server ...
-echo   (กด Ctrl+C เพื่อหยุด)
+echo   Starting Print Server now ...
+echo   Press Ctrl+C to stop.
 echo.
 echo ==========================================
 echo.
@@ -180,10 +165,9 @@ echo.
 cd /d "%INSTALL_DIR%"
 node print-server.js
 
-:: ถ้าหยุดทำงาน
 echo.
 echo ==========================================
-echo   Print Server หยุดทำงาน
-echo   ดับเบิลคลิก C:\print-server\START-PrintServer.bat เพื่อเริ่มใหม่
+echo   Print Server stopped.
+echo   Double-click C:\print-server\START-PrintServer.bat to restart.
 echo ==========================================
 pause
