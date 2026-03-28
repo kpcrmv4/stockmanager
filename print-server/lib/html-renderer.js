@@ -52,7 +52,8 @@ class HtmlRenderer {
           (lineOaId ? `<center>LINE: ${lineOaId}</center>` : '') +
           `<hr>` +
           `<center style="font-size:10pt;">Please scan this QRcode</center>` +
-          `<center style="font-size:10pt;">Send receipt in Line</center>`
+          `<center style="font-size:10pt;">Send receipt in Line</center>` +
+          `<center style="font-size:10pt;">Type <b>${payload.deposit_code}</b> in chat</center>`
         : '') +
       `</body></html>`;
   }
