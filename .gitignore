@@ -36,6 +36,14 @@ yarn-error.log*
 # vercel
 .vercel
 
+# legacy GAS project
+/GAS/
+
+# print-server runtime files
+/print-server/node_modules/
+/print-server/temp/
+/print-server/config.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

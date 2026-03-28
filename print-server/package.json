@@ -1,0 +1,16 @@
+{
+  "name": "deposit-print-server",
+  "version": "2.0.0",
+  "description": "PC Print Server for Deposit System - Supabase Realtime Edition",
+  "main": "print-server.js",
+  "scripts": {
+    "start": "node print-server.js"
+  },
+  "keywords": ["print", "server", "thermal", "receipt", "supabase"],
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.0",
+    "puppeteer": "^24.2.0"
+  }
+}

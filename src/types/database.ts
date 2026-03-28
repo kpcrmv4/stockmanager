@@ -414,3 +414,28 @@ export interface ReceiptSettings {
   line_oa_id: string | null;
   qr_code_image_url: string | null;
 }
+
+// Print Server Status (heartbeat + printer info)
+export interface PrintServerStatus {
+  id: string;
+  store_id: string;
+  is_online: boolean;
+  last_heartbeat: string | null;
+  server_version: string | null;
+  printer_name: string;
+  printer_status: 'ready' | 'error' | 'offline' | 'unknown';
+  hostname: string | null;
+  jobs_printed_today: number;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Print Server Working Hours Config
+export interface PrintServerWorkingHours {
+  enabled: boolean;
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+}

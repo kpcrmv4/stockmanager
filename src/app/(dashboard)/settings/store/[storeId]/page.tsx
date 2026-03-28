@@ -27,9 +27,16 @@ import {
   Printer,
   ScrollText,
   ExternalLink,
+  Download,
+  RefreshCw,
+  TestTube,
+  Wifi,
+  WifiOff,
+  Clock,
+  Monitor,
 } from 'lucide-react';
 import Link from 'next/link';
-import type { ReceiptSettings } from '@/types/database';
+import type { ReceiptSettings, PrintServerStatus, PrintServerWorkingHours } from '@/types/database';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -158,6 +165,21 @@ export default function StoreDetailSettingsPage() {
   const [lineOaId, setLineOaId] = useState('');
   const [qrCodeImageUrl, setQrCodeImageUrl] = useState('');
 
+  // Print Server settings
+  const [printServerStatus, setPrintServerStatus] = useState<PrintServerStatus | null>(null);
+  const [printServerHasAccount, setPrintServerHasAccount] = useState(false);
+  const [printServerPrinterName, setPrintServerPrinterName] = useState('POS80');
+  const [printServerWorkingHours, setPrintServerWorkingHours] = useState<PrintServerWorkingHours>({
+    enabled: true,
+    startHour: 12,
+    startMinute: 0,
+    endHour: 6,
+    endMinute: 0,
+  });
+  const [isDownloadingConfig, setIsDownloadingConfig] = useState(false);
+  const [isTestingPrint, setIsTestingPrint] = useState(false);
+  const [recentPrintJobs, setRecentPrintJobs] = useState<Array<{ id: string; job_type: string; status: string; created_at: string; payload: Record<string, unknown> }>>([]);
+
   // ---------------------------------------------------------------------------
   // Data Loading
   // ---------------------------------------------------------------------------
@@ -221,12 +243,147 @@ export default function StoreDetailSettingsPage() {
       }
     }
 
+    // Load print server status + settings
+    const { data: psStatus } = await supabase
+      .from('print_server_status')
+      .select('*')
+      .eq('store_id', storeId)
+      .single();
+    setPrintServerStatus(psStatus as PrintServerStatus | null);
+
+    // Check if service account exists
+    const psAccountId = settings?.print_server_account_id;
+    setPrintServerHasAccount(!!psAccountId);
+
+    // Working hours
+    const wh = settings?.print_server_working_hours as PrintServerWorkingHours | null;
+    if (wh) setPrintServerWorkingHours(wh);
+
+    // Load recent print jobs
+    const { data: jobs } = await supabase
+      .from('print_queue')
+      .select('id, job_type, status, created_at, payload')
+      .eq('store_id', storeId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    setRecentPrintJobs((jobs as typeof recentPrintJobs) || []);
+
     setIsLoading(false);
   }, [storeId]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Realtime subscription for print server status
+  useEffect(() => {
+    if (!storeId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`ps-status-${storeId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'print_server_status',
+        filter: `store_id=eq.${storeId}`,
+      }, (payload) => {
+        setPrintServerStatus(payload.new as PrintServerStatus);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [storeId]);
+
+  // ---------------------------------------------------------------------------
+  // Print Server Actions
+  // ---------------------------------------------------------------------------
+
+  const handleDownloadConfig = async () => {
+    setIsDownloadingConfig(true);
+    try {
+      const res = await fetch('/api/print-server/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeId,
+          printerName: printServerPrinterName,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to generate config');
+      }
+
+      const { config } = await res.json();
+
+      // Merge working hours from local state
+      config.WORKING_HOURS = printServerWorkingHours;
+
+      // Download as JSON file
+      const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `config.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setPrintServerHasAccount(true);
+      toast.success('ดาวน์โหลด config.json สำเร็จ! วางไฟล์ในโฟลเดอร์ print-server แล้วรัน SETUP.bat');
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setIsDownloadingConfig(false);
+    }
+  };
+
+  const handleTestPrint = async () => {
+    setIsTestingPrint(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from('print_queue').insert({
+        store_id: storeId,
+        deposit_id: null,
+        job_type: 'receipt' as const,
+        status: 'pending' as const,
+        copies: 1,
+        payload: {
+          deposit_code: 'TEST-0000',
+          customer_name: 'ทดสอบระบบ',
+          customer_phone: null,
+          product_name: 'Test Product',
+          category: null,
+          quantity: 1,
+          remaining_qty: 1,
+          table_number: null,
+          expiry_date: null,
+          created_at: new Date().toISOString(),
+          store_name: storeName,
+          received_by_name: user?.displayName || 'Admin',
+          qr_code_image_url: null,
+          line_oa_id: null,
+        },
+        requested_by: user?.id,
+      });
+
+      if (error) throw error;
+      toast.success('ส่งงานทดสอบพิมพ์แล้ว! ตรวจสอบเครื่องพิมพ์');
+    } catch (error) {
+      toast.error('ส่งงานทดสอบไม่สำเร็จ: ' + (error as Error).message);
+    } finally {
+      setIsTestingPrint(false);
+    }
+  };
+
+  const handleSaveWorkingHours = async () => {
+    const supabase = createClient();
+    await supabase
+      .from('store_settings')
+      .update({ print_server_working_hours: printServerWorkingHours })
+      .eq('store_id', storeId);
+    toast.success('บันทึกเวลาทำงานแล้ว');
+  };
 
   // ---------------------------------------------------------------------------
   // Save
@@ -287,6 +444,7 @@ export default function StoreDetailSettingsPage() {
             line_oa_id: lineOaId.trim() || null,
             qr_code_image_url: qrCodeImageUrl.trim() || null,
           } satisfies ReceiptSettings,
+          print_server_working_hours: printServerWorkingHours,
         },
         { onConflict: 'store_id' }
       );
@@ -727,29 +885,11 @@ export default function StoreDetailSettingsPage() {
           }
         />
         <CardContent className="space-y-4">
-          {/* Links to print station & printer setup */}
-          <div className="flex gap-2">
-            <Link
-              href="/print-station"
-              target="_blank"
-              className="flex flex-1 items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-3 transition-colors hover:bg-blue-100 dark:border-blue-800/50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20"
-            >
-              <div className="flex items-center gap-2">
-                <Printer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                <span className="text-sm font-medium text-blue-700 dark:text-blue-400">เปิด Print Station</span>
-              </div>
-              <ExternalLink className="h-4 w-4 text-blue-500" />
-            </Link>
-            <Link
-              href="/print-listener/setup"
-              className="flex flex-1 items-center justify-between rounded-lg border border-cyan-200 bg-cyan-50 p-3 transition-colors hover:bg-cyan-100 dark:border-cyan-800/50 dark:bg-cyan-900/10 dark:hover:bg-cyan-900/20"
-            >
-              <div className="flex items-center gap-2">
-                <Settings className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-                <span className="text-sm font-medium text-cyan-700 dark:text-cyan-400">ตั้งค่าเครื่องปริ้น</span>
-              </div>
-              <ExternalLink className="h-4 w-4 text-cyan-500" />
-            </Link>
+          {/* Info: Print Server handles printing */}
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800/50 dark:bg-emerald-900/10">
+            <p className="text-xs text-emerald-700 dark:text-emerald-400">
+              <strong>การพิมพ์:</strong> ใบฝากเหล้าและป้ายขวดจะถูกส่งไปยัง Print Server อัตโนมัติ ตั้งค่าได้ที่หัวข้อ &quot;Print Server&quot; ด้านล่าง
+            </p>
           </div>
 
           {/* Paper width */}
@@ -882,7 +1022,206 @@ export default function StoreDetailSettingsPage() {
       </Card>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Section 6: ตั้งค่า Audit Log (Audit Log Retention)                  */}
+      {/* Section 6: Print Server (Silent Printing)                          */}
+      {/* ------------------------------------------------------------------ */}
+      <Card padding="none">
+        <CardHeader
+          title="Print Server (พิมพ์อัตโนมัติ)"
+          description="ตั้งค่าเครื่องพิมพ์สาขา — พิมพ์ใบฝากเหล้าและป้ายขวดแบบ silent (ไม่ต้องกดปุ่ม)"
+          action={
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
+              <Monitor className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+          }
+        />
+        <CardContent className="space-y-4">
+          {/* Status indicator */}
+          {printServerStatus ? (
+            <div className={`flex items-center gap-3 rounded-lg border p-3 ${
+              printServerStatus.is_online && printServerStatus.last_heartbeat &&
+              new Date().getTime() - new Date(printServerStatus.last_heartbeat).getTime() < 120000
+                ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800/50 dark:bg-emerald-900/10'
+                : 'border-amber-200 bg-amber-50 dark:border-amber-800/50 dark:bg-amber-900/10'
+            }`}>
+              {printServerStatus.is_online && printServerStatus.last_heartbeat &&
+              new Date().getTime() - new Date(printServerStatus.last_heartbeat).getTime() < 120000 ? (
+                <>
+                  <Wifi className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Online</p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-500">
+                      เครื่องพิมพ์: {printServerStatus.printer_name || '-'} |
+                      PC: {printServerStatus.hostname || '-'} |
+                      วันนี้พิมพ์: {printServerStatus.jobs_printed_today || 0} ใบ
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Offline</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-500">
+                      {printServerStatus.last_heartbeat
+                        ? `Heartbeat ล่าสุด: ${new Date(printServerStatus.last_heartbeat).toLocaleString('th-TH')}`
+                        : 'ยังไม่เคยเชื่อมต่อ'}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : printServerHasAccount ? (
+            <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
+              <WifiOff className="h-5 w-5 text-gray-400" />
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">รอเชื่อมต่อ</p>
+                <p className="text-xs text-gray-500">เปิด Print Server ที่ PC สาขาเพื่อเริ่มใช้งาน</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800/50 dark:bg-blue-900/10">
+              <Printer className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <div>
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-400">ยังไม่ได้ตั้งค่า</p>
+                <p className="text-xs text-blue-600 dark:text-blue-500">กดปุ่ม &quot;ดาวน์โหลดตัวติดตั้ง&quot; เพื่อเริ่มตั้งค่าเครื่องพิมพ์</p>
+              </div>
+            </div>
+          )}
+
+          {/* Printer name */}
+          <Input
+            label="ชื่อเครื่องพิมพ์ (Windows)"
+            value={printServerPrinterName}
+            onChange={(e) => setPrintServerPrinterName(e.target.value)}
+            placeholder="POS80"
+            hint="ชื่อเครื่องพิมพ์ตามที่ปรากฏใน Windows Settings > Printers"
+          />
+
+          {/* Working hours */}
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Clock className="mr-1 inline h-3.5 w-3.5" />
+                เวลาทำงาน
+              </label>
+              <button
+                type="button"
+                onClick={() => setPrintServerWorkingHours(prev => ({ ...prev, enabled: !prev.enabled }))}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                  printServerWorkingHours.enabled ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-600'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                  printServerWorkingHours.enabled ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+            {printServerWorkingHours.enabled && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="time"
+                  value={`${String(printServerWorkingHours.startHour).padStart(2, '0')}:${String(printServerWorkingHours.startMinute).padStart(2, '0')}`}
+                  onChange={(e) => {
+                    const [h, m] = e.target.value.split(':').map(Number);
+                    setPrintServerWorkingHours(prev => ({ ...prev, startHour: h, startMinute: m }));
+                  }}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                />
+                <span className="text-sm text-gray-500">ถึง</span>
+                <input
+                  type="time"
+                  value={`${String(printServerWorkingHours.endHour).padStart(2, '0')}:${String(printServerWorkingHours.endMinute).padStart(2, '0')}`}
+                  onChange={(e) => {
+                    const [h, m] = e.target.value.split(':').map(Number);
+                    setPrintServerWorkingHours(prev => ({ ...prev, endHour: h, endMinute: m }));
+                  }}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                />
+                <Button variant="outline" size="sm" onClick={handleSaveWorkingHours}>
+                  บันทึก
+                </Button>
+              </div>
+            )}
+            {!printServerWorkingHours.enabled && (
+              <p className="text-xs text-gray-500">ปิดการตั้งเวลา — Print Server ทำงานตลอด 24 ชม.</p>
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="primary"
+              icon={<Download className="h-4 w-4" />}
+              onClick={handleDownloadConfig}
+              isLoading={isDownloadingConfig}
+            >
+              {printServerHasAccount ? 'ดาวน์โหลด config ใหม่' : 'ดาวน์โหลดตัวติดตั้ง'}
+            </Button>
+            <Button
+              variant="outline"
+              icon={<TestTube className="h-4 w-4" />}
+              onClick={handleTestPrint}
+              isLoading={isTestingPrint}
+            >
+              ทดสอบพิมพ์
+            </Button>
+          </div>
+
+          {/* Setup guide */}
+          {!printServerHasAccount && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+              <p className="mb-2 text-sm font-medium text-blue-700 dark:text-blue-400">วิธีตั้งค่า (3 ขั้นตอน)</p>
+              <ol className="space-y-1 text-xs text-blue-600 dark:text-blue-400">
+                <li>1. กด &quot;ดาวน์โหลดตัวติดตั้ง&quot; → ได้ config.json</li>
+                <li>2. วาง config.json ในโฟลเดอร์ print-server ที่ PC สาขา → รัน SETUP.bat</li>
+                <li>3. ดับเบิลคลิก START-PrintServer.bat → สถานะจะเปลี่ยนเป็น Online</li>
+              </ol>
+            </div>
+          )}
+
+          {/* Recent print jobs */}
+          {recentPrintJobs.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">งานพิมพ์ล่าสุด</p>
+              <div className="space-y-1">
+                {recentPrintJobs.map((job) => (
+                  <div key={job.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-xs dark:bg-gray-800">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                        job.job_type === 'receipt'
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                      }`}>
+                        {job.job_type === 'receipt' ? 'ใบฝาก' : 'แปะขวด'}
+                      </span>
+                      <span className="text-gray-600 dark:text-gray-300">
+                        {(job.payload as Record<string, string>)?.deposit_code || '-'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1 text-[10px] ${
+                        job.status === 'completed' ? 'text-emerald-600' :
+                        job.status === 'failed' ? 'text-red-500' :
+                        job.status === 'printing' ? 'text-blue-500' :
+                        'text-gray-400'
+                      }`}>
+                        {job.status === 'completed' ? '✓' : job.status === 'failed' ? '✗' : job.status === 'printing' ? '⟳' : '○'}
+                        {job.status === 'completed' ? 'สำเร็จ' : job.status === 'failed' ? 'ล้มเหลว' : job.status === 'printing' ? 'กำลังพิมพ์' : 'รอ'}
+                      </span>
+                      <span className="text-gray-400">
+                        {new Date(job.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Section 7: ตั้งค่า Audit Log (Audit Log Retention)                  */}
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
