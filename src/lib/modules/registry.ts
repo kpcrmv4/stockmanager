@@ -163,6 +163,18 @@ export const modules: ModuleConfig[] = [
     group: 'วิเคราะห์',
   },
 
+  // ─── ช่วยเหลือ ───
+  {
+    id: 'guide',
+    name: 'คู่มือ',
+    description: 'คู่มือการใช้งานระบบ StockManager',
+    icon: 'book-open',
+    color: 'sky',
+    href: '/guide',
+    roles: ['owner', 'accountant', 'manager', 'bar', 'staff', 'hq'],
+    group: 'ช่วยเหลือ',
+  },
+
   // ─── ระบบ ───
   {
     id: 'announcements',

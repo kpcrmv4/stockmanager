@@ -71,6 +71,12 @@ export const moduleColorMap: Record<string, ModuleColorClasses> = {
     gradient:
       'from-teal-500 to-cyan-600 shadow-teal-200/50 dark:shadow-teal-900/40',
   },
+  sky: {
+    text: 'text-sky-600 dark:text-sky-400',
+    bg: 'bg-sky-50 dark:bg-sky-900/30',
+    gradient:
+      'from-sky-500 to-blue-600 shadow-sky-200/50 dark:shadow-sky-900/40',
+  },
   rose: {
     text: 'text-rose-600 dark:text-rose-400',
     bg: 'bg-rose-50 dark:bg-rose-900/30',

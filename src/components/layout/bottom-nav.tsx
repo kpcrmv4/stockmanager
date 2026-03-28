@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   BarChart3,
   MessageSquare,
+  BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
@@ -33,7 +34,7 @@ const desktopRoleNavItems: NavItem[] = [
   { label: 'ฝาก/เบิก', href: '/deposit', icon: Wine, color: 'emerald' },
   { label: 'ภาพรวม', href: '/overview', icon: LayoutDashboard, color: 'violet' },
   { label: 'แชท', href: '/chat', icon: MessageSquare, color: 'blue' },
-  { label: 'แจ้งเตือน', href: '/notifications', icon: Bell, color: 'rose' },
+  { label: 'คู่มือ', href: '/guide', icon: BookOpen, color: 'sky' },
 ];
 
 // เมนูสำหรับ staff — งานของฉัน ตรงกลาง (ปุ่มนูน) เป็นหน้าเริ่มต้น
@@ -42,7 +43,7 @@ const staffNavItems: NavItem[] = [
   { label: 'นับสต๊อก', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
   { label: 'แชท', href: '/chat', icon: MessageSquare, color: 'blue' },
   { label: 'ยืมสินค้า', href: '/borrow', icon: Repeat, color: 'rose' },
-  { label: 'แจ้งเตือน', href: '/notifications', icon: Bell, color: 'pink' },
+  { label: 'คู่มือ', href: '/guide', icon: BookOpen, color: 'sky' },
 ];
 
 // เมนูสำหรับ bar
@@ -51,7 +52,7 @@ const barNavItems: NavItem[] = [
   { label: 'ฝาก/เบิก', href: '/deposit', icon: Wine, color: 'emerald' },
   { label: 'แชท', href: '/chat', icon: MessageSquare, color: 'blue' },
   { label: 'นับสต๊อก', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
-  { label: 'แจ้งเตือน', href: '/notifications', icon: Bell, color: 'rose' },
+  { label: 'คู่มือ', href: '/guide', icon: BookOpen, color: 'sky' },
 ];
 
 export function BottomNav() {
