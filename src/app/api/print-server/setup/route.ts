@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
     'print-server.js',
     'package.json',
     'config.json.example',
-    'SETUP.bat',
+    'INSTALL.bat',
     'START-PrintServer.bat',
     'RawPrint.ps1',
     'lib/supabase-connector.js',

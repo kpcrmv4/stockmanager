@@ -1175,9 +1175,9 @@ export default function StoreDetailSettingsPage() {
                 <div className="flex gap-3">
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold text-blue-800 dark:bg-blue-800 dark:text-blue-200">1</div>
                   <div>
-                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">ดาวน์โหลด config.json</p>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">ดาวน์โหลดตัวติดตั้ง</p>
                     <p className="text-xs text-blue-600 dark:text-blue-400">
-                      กดปุ่ม &quot;{printServerHasAccount ? 'ดาวน์โหลด config ใหม่' : 'ดาวน์โหลดตัวติดตั้ง'}&quot; ด้านบน จะได้ไฟล์ config.json ที่มี Store ID และรหัสเข้าสู่ระบบพร้อมแล้ว
+                      กดปุ่ม &quot;{printServerHasAccount ? 'ดาวน์โหลด config ใหม่' : 'ดาวน์โหลดตัวติดตั้ง'}&quot; ด้านบน จะได้ไฟล์ ZIP ที่มีทุกอย่างพร้อมแล้ว
                     </p>
                   </div>
                 </div>
@@ -1185,13 +1185,22 @@ export default function StoreDetailSettingsPage() {
                 <div className="flex gap-3">
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold text-blue-800 dark:bg-blue-800 dark:text-blue-200">2</div>
                   <div>
-                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">วาง config.json + รัน SETUP.bat</p>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">แตก ZIP แล้วรัน INSTALL.bat</p>
                     <p className="text-xs text-blue-600 dark:text-blue-400">
-                      Copy ไฟล์ config.json ไปวางในโฟลเดอร์ <code className="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-800/50">print-server</code> ที่ PC สาขา
-                      แล้วคลิกขวา <code className="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-800/50">SETUP.bat</code> → Run as administrator (ครั้งแรกครั้งเดียว)
+                      แตก ZIP ที่ไหนก็ได้ แล้วคลิกขวา <code className="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-800/50">INSTALL.bat</code> → Run as administrator
                     </p>
-                    <p className="mt-1 text-xs text-blue-500 dark:text-blue-500">
-                      SETUP.bat จะติดตั้งโปรแกรมที่จำเป็นให้อัตโนมัติ หรือลงเองได้ที่:
+                    <p className="mt-1.5 text-xs text-blue-500 dark:text-blue-500">
+                      INSTALL.bat จะทำทุกอย่างให้อัตโนมัติ:
+                    </p>
+                    <ul className="mt-1 space-y-0.5 text-xs text-blue-500 dark:text-blue-500">
+                      <li>• คัดลอกไฟล์ไปที่ <code className="rounded bg-blue-100 px-0.5 font-mono dark:bg-blue-800/50">C:\print-server</code></li>
+                      <li>• ติดตั้ง Node.js + SumatraPDF (ถ้ายังไม่มี)</li>
+                      <li>• ติดตั้ง npm packages</li>
+                      <li>• สร้าง Shortcut เปิดอัตโนมัติตอนเปิดเครื่อง</li>
+                      <li>• เริ่มต้น Print Server ทันที</li>
+                    </ul>
+                    <p className="mt-1.5 text-xs text-blue-500 dark:text-blue-500">
+                      หรือลงโปรแกรมเองได้ที่:
                     </p>
                     <div className="mt-1 flex flex-wrap gap-2">
                       <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer"
@@ -1205,20 +1214,11 @@ export default function StoreDetailSettingsPage() {
                     </div>
                   </div>
                 </div>
-                {/* Step 3 */}
-                <div className="flex gap-3">
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold text-blue-800 dark:bg-blue-800 dark:text-blue-200">3</div>
-                  <div>
-                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">เปิด Print Server</p>
-                    <p className="text-xs text-blue-600 dark:text-blue-400">
-                      ดับเบิลคลิก <code className="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-800/50">START-PrintServer.bat</code> — สถานะด้านบนจะเปลี่ยนเป็น
-                      <span className="ml-1 inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
-                        <Wifi className="inline h-3 w-3" /> Online
-                      </span>
-                      {' '}อัตโนมัติ (Print Server จะเปิดเองทุกครั้งที่เปิดเครื่อง)
-                    </p>
-                  </div>
-                </div>
+              </div>
+              <div className="mt-3 rounded-lg bg-blue-100 p-2.5 dark:bg-blue-800/30">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  <strong>สถานะจะเปลี่ยนเป็น <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400"><Wifi className="inline h-3 w-3" /> Online</span> อัตโนมัติ</strong> เมื่อ INSTALL.bat ทำงานเสร็จ — Print Server จะเปิดเองทุกครั้งที่เปิดเครื่อง
+                </p>
               </div>
 
               {/* Troubleshooting tips */}
@@ -1227,7 +1227,7 @@ export default function StoreDetailSettingsPage() {
                 <ul className="space-y-0.5 text-xs text-blue-600 dark:text-blue-400">
                   <li>• ไม่พิมพ์ — ตรวจชื่อเครื่องพิมพ์ให้ตรงกับ Windows Settings &gt; Printers</li>
                   <li>• ภาษาไทยเพี้ยน — ตรวจว่า PC มีฟอนต์ Tahoma ติดตั้งอยู่</li>
-                  <li>• สถานะ Offline — ลองรัน START-PrintServer.bat ใหม่</li>
+                  <li>• สถานะ Offline — ดับเบิลคลิก <code className="rounded bg-blue-100 px-0.5 font-mono dark:bg-blue-800/50">C:\print-server\START-PrintServer.bat</code></li>
                 </ul>
               </div>
             </div>

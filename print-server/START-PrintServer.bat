@@ -7,46 +7,44 @@ echo   DEPOSIT PRINT SERVER v2.0
 echo ==========================================
 echo.
 
-:: Check config.json
-if not exist "%~dp0config.json" (
-    echo [ERROR] config.json not found!
-    echo         Download from Store Settings in the web app
+set "INSTALL_DIR=C:\print-server"
+
+:: ตรวจว่าติดตั้งแล้ว
+if not exist "%INSTALL_DIR%\config.json" (
+    echo [ERROR] ยังไม่ได้ติดตั้ง!
+    echo         กรุณารัน INSTALL.bat ก่อน
     pause
     exit /b 1
 )
-echo [OK] config.json: Found
 
-:: Check Node.js
+:: ตรวจ Node.js
 where node >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Node.js not found!
-    echo         Please run SETUP.bat first
+    echo [ERROR] ไม่พบ Node.js กรุณารัน INSTALL.bat ก่อน
     pause
     exit /b 1
 )
+
+:: ตรวจ npm packages
+if not exist "%INSTALL_DIR%\node_modules\@supabase" (
+    echo [*] ติดตั้ง npm packages ...
+    cd /d "%INSTALL_DIR%"
+    call npm install --production 2>nul
+)
+
+echo [OK] config.json: Found
 echo [OK] Node.js: Ready
-
-:: Check npm packages
-if not exist "%~dp0node_modules\@supabase" (
-    echo [ERROR] npm packages not installed!
-    echo         Please run SETUP.bat or: npm install
-    pause
-    exit /b 1
-)
 echo [OK] npm packages: Ready
-
 echo.
 echo ==========================================
-echo   Starting Print Server...
+echo   Starting Print Server ...
 echo   Press Ctrl+C to stop
 echo ==========================================
 echo.
 
-:: Run Print Server
-cd /d "%~dp0"
+cd /d "%INSTALL_DIR%"
 node print-server.js
 
-:: If stopped
 echo.
 echo ==========================================
 echo   Print Server stopped
