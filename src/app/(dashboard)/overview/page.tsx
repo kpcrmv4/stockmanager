@@ -33,6 +33,10 @@ import {
   Loader2,
   RefreshCw,
   Inbox,
+  CircleDot,
+  Timer,
+  FileCheck,
+  CalendarClock,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -55,6 +59,22 @@ interface OverviewData {
   withdrawalsTrend: number;
   stockChecksTrend: number;
   penaltiesTrend: number;
+}
+
+/** Per-store status for owner dashboard */
+interface StoreStatus {
+  id: string;
+  name: string;
+  code: string;
+  pendingDeposits: number;      // deposit_requests pending
+  pendingWithdrawals: number;   // deposits pending_withdrawal
+  expiringDeposits: number;     // expiring within 7 days
+  activeDeposits: number;       // deposits in_store
+  pendingExplanations: number;  // comparisons pending
+  pendingApprovals: number;     // comparisons explained
+  pendingTransfers: number;     // transfers pending
+  lastStockCheck: string | null;
+  totalIssues: number;          // sum of all pending items
 }
 
 interface AuditLogEntry {
@@ -216,6 +236,7 @@ export default function OverviewPage() {
     penaltiesTrend: 0,
   });
   const [activities, setActivities] = useState<AuditLogEntry[]>([]);
+  const [storeStatuses, setStoreStatuses] = useState<StoreStatus[]>([]);
 
   const isOwner = user?.role === 'owner';
 
@@ -455,6 +476,106 @@ export default function OverviewPage() {
       } else {
         setActivities([]);
       }
+
+      // --- Per-store statuses (owner only) ---
+      if (isOwner) {
+        const { data: allStores } = await supabase
+          .from('stores')
+          .select('id, name, code')
+          .eq('active', true)
+          .order('name');
+
+        if (allStores && allStores.length > 0) {
+          const sevenDaysFromNow = daysFromNowISO(7);
+          const todayISO = startOfTodayBangkokISO();
+
+          const storeResults = await Promise.all(
+            allStores.map(async (store) => {
+              const [
+                { count: pendingDeposits },
+                { count: pendingWithdrawals },
+                { count: expiringDeposits },
+                { count: activeDeposits },
+                { count: pendingExpl },
+                { count: pendingAppr },
+                { count: pendingTrans },
+              ] = await Promise.all([
+                supabase
+                  .from('deposit_requests')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('store_id', store.id)
+                  .eq('status', 'pending'),
+                supabase
+                  .from('deposits')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('store_id', store.id)
+                  .eq('status', 'pending_withdrawal'),
+                supabase
+                  .from('deposits')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('store_id', store.id)
+                  .eq('status', 'in_store')
+                  .lt('expiry_date', sevenDaysFromNow)
+                  .gt('expiry_date', todayISO),
+                supabase
+                  .from('deposits')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('store_id', store.id)
+                  .eq('status', 'in_store'),
+                supabase
+                  .from('comparisons')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('store_id', store.id)
+                  .eq('status', 'pending'),
+                supabase
+                  .from('comparisons')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('store_id', store.id)
+                  .eq('status', 'explained'),
+                supabase
+                  .from('transfers')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('from_store_id', store.id)
+                  .eq('status', 'pending'),
+              ]);
+
+              const lastCheckQ = await supabase
+                .from('manual_counts')
+                .select('count_date')
+                .eq('store_id', store.id)
+                .order('count_date', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              const pd = pendingDeposits || 0;
+              const pw = pendingWithdrawals || 0;
+              const ed = expiringDeposits || 0;
+              const pe = pendingExpl || 0;
+              const pa = pendingAppr || 0;
+              const pt = pendingTrans || 0;
+
+              return {
+                id: store.id,
+                name: store.name,
+                code: store.code || '',
+                pendingDeposits: pd,
+                pendingWithdrawals: pw,
+                expiringDeposits: ed,
+                activeDeposits: activeDeposits || 0,
+                pendingExplanations: pe,
+                pendingApprovals: pa,
+                pendingTransfers: pt,
+                lastStockCheck: lastCheckQ.data?.count_date || null,
+                totalIssues: pd + pw + ed + pe + pa + pt,
+              } satisfies StoreStatus;
+            })
+          );
+
+          // Sort: stores with most issues first
+          storeResults.sort((a, b) => b.totalIssues - a.totalIssues);
+          setStoreStatuses(storeResults);
+        }
+      }
     } catch (error) {
       console.error('Error fetching overview data:', error);
       toast({
@@ -650,6 +771,181 @@ export default function OverviewPage() {
           );
         })}
       </div>
+
+      {/* ---- Per-Store Status (Owner only) ---- */}
+      {isOwner && storeStatuses.length > 0 && (
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            สถานะแต่ละสาขา
+          </h2>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {storeStatuses.map((store) => {
+              const hasIssues = store.totalIssues > 0;
+              const issueItems: { label: string; count: number; icon: LucideIcon; color: string; href: string }[] = [];
+
+              if (store.pendingApprovals > 0) {
+                issueItems.push({
+                  label: 'รออนุมัติสต๊อก',
+                  count: store.pendingApprovals,
+                  icon: FileCheck,
+                  color: 'text-amber-600 dark:text-amber-400',
+                  href: '/stock/approval',
+                });
+              }
+              if (store.pendingExplanations > 0) {
+                issueItems.push({
+                  label: 'รอชี้แจงสต๊อก',
+                  count: store.pendingExplanations,
+                  icon: AlertTriangle,
+                  color: 'text-red-600 dark:text-red-400',
+                  href: '/stock/comparison',
+                });
+              }
+              if (store.pendingWithdrawals > 0) {
+                issueItems.push({
+                  label: 'รอเบิกเหล้า',
+                  count: store.pendingWithdrawals,
+                  icon: Wine,
+                  color: 'text-blue-600 dark:text-blue-400',
+                  href: '/deposit',
+                });
+              }
+              if (store.pendingDeposits > 0) {
+                issueItems.push({
+                  label: 'รอรับฝากเหล้า',
+                  count: store.pendingDeposits,
+                  icon: Package,
+                  color: 'text-indigo-600 dark:text-indigo-400',
+                  href: '/deposit',
+                });
+              }
+              if (store.expiringDeposits > 0) {
+                issueItems.push({
+                  label: 'ใกล้หมดอายุ',
+                  count: store.expiringDeposits,
+                  icon: CalendarClock,
+                  color: 'text-orange-600 dark:text-orange-400',
+                  href: '/deposit',
+                });
+              }
+              if (store.pendingTransfers > 0) {
+                issueItems.push({
+                  label: 'รอโอนสต๊อก',
+                  count: store.pendingTransfers,
+                  icon: ArrowRightLeft,
+                  color: 'text-cyan-600 dark:text-cyan-400',
+                  href: '/transfer',
+                });
+              }
+
+              return (
+                <div
+                  key={store.id}
+                  className={cn(
+                    'rounded-xl bg-white shadow-sm ring-1 dark:bg-gray-800',
+                    hasIssues
+                      ? 'ring-amber-200 dark:ring-amber-800'
+                      : 'ring-gray-200 dark:ring-gray-700'
+                  )}
+                >
+                  {/* Store header */}
+                  <div className={cn(
+                    'flex items-center justify-between rounded-t-xl px-4 py-3',
+                    hasIssues
+                      ? 'bg-amber-50/50 dark:bg-amber-900/10'
+                      : 'bg-gray-50/50 dark:bg-gray-800/50'
+                  )}>
+                    <div className="flex items-center gap-2.5">
+                      <div className={cn(
+                        'flex h-8 w-8 items-center justify-center rounded-lg',
+                        hasIssues
+                          ? 'bg-amber-100 dark:bg-amber-900/30'
+                          : 'bg-emerald-100 dark:bg-emerald-900/30'
+                      )}>
+                        <Store className={cn(
+                          'h-4 w-4',
+                          hasIssues
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-emerald-600 dark:text-emerald-400'
+                        )} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {store.name}
+                        </h3>
+                        {store.code && (
+                          <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                            {store.code}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {hasIssues ? (
+                        <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                          <CircleDot className="h-3 w-3" />
+                          {store.totalIssues} รายการค้าง
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3 w-3" />
+                          ปกติ
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Store body */}
+                  <div className="px-4 py-3">
+                    {/* Quick stats row */}
+                    <div className="mb-3 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                      <span>ฝากอยู่ <span className="font-semibold text-gray-700 dark:text-gray-300">{store.activeDeposits}</span></span>
+                      <span className="text-gray-300 dark:text-gray-600">|</span>
+                      <span className="flex items-center gap-1">
+                        <Timer className="h-3 w-3" />
+                        นับล่าสุด: {store.lastStockCheck ? formatThaiDate(store.lastStockCheck) : <span className="text-gray-400 dark:text-gray-500">ยังไม่เคย</span>}
+                      </span>
+                    </div>
+
+                    {/* Issues list */}
+                    {issueItems.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {issueItems.map((issue) => {
+                          const IssueIcon = issue.icon;
+                          return (
+                            <Link
+                              key={issue.label}
+                              href={issue.href}
+                              className="flex items-center justify-between rounded-lg px-2.5 py-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                            >
+                              <div className="flex items-center gap-2">
+                                <IssueIcon className={cn('h-4 w-4', issue.color)} />
+                                <span className="text-sm text-gray-700 dark:text-gray-300">
+                                  {issue.label}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className={cn('text-sm font-bold', issue.color)}>
+                                  {issue.count}
+                                </span>
+                                <ArrowRight className="h-3.5 w-3.5 text-gray-300 dark:text-gray-600" />
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-center text-xs text-gray-400 dark:text-gray-500 py-2">
+                        ไม่มีงานค้าง
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ---- Module Grid ---- */}
       <div>
