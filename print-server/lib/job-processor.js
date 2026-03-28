@@ -64,9 +64,15 @@ class JobProcessor {
       const absolutePath = path.resolve(htmlFile).replace(/\\/g, '/');
       await page.goto(`file:///${absolutePath}`, { waitUntil: 'networkidle0', timeout: 15000 });
 
-      const pdfOptions = jobType === 'label'
-        ? { path: pdfFile, width: '70mm', height: '40mm', printBackground: true, margin: { top: '0', bottom: '0', left: '0', right: '0' } }
-        : { path: pdfFile, width: `${this.paperWidth}mm`, height: '297mm', printBackground: true, margin: { top: '0', bottom: '0', left: '0', right: '0' } };
+      // Label + Receipt both use same paper width (80mm thermal)
+      // Height: auto for receipt (long), shorter for label
+      const pdfOptions = {
+        path: pdfFile,
+        width: `${this.paperWidth}mm`,
+        height: jobType === 'label' ? '120mm' : '297mm',
+        printBackground: true,
+        margin: { top: '0', bottom: '0', left: '0', right: '0' },
+      };
 
       await page.pdf(pdfOptions);
       await page.close();
