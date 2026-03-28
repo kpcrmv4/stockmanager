@@ -7,157 +7,146 @@ echo   PRINT SERVER - ONE-CLICK INSTALLER
 echo   StockManager v2.0
 echo ==========================================
 echo.
-echo   This script will automatically:
-echo     1. Copy files to C:\print-server
-echo     2. Install Node.js (if needed)
-echo     3. Install npm packages
-echo     4. Install SumatraPDF (for printing)
-echo     5. Create auto-start shortcut
-echo     6. Start Print Server
-echo.
-echo ==========================================
-echo.
 
-:: CHECK: config.json
-if not exist "%~dp0config.json" goto :NO_CONFIG
-
-:: CHECK: Administrator
+:: Check Admin rights
 net session >nul 2>&1
-if %errorLevel% neq 0 goto :NO_ADMIN
+if %errorLevel% neq 0 (
+    echo [!] Please right-click and select "Run as administrator"
+    echo.
+    pause
+    exit /b 1
+)
 
-set INSTALL_DIR=C:\print-server
-
-:: ============================================
-:: STEP 1: Copy files
-:: ============================================
-echo [1/6] Copying files to %INSTALL_DIR% ...
-
-if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
-if not exist "%INSTALL_DIR%\lib" mkdir "%INSTALL_DIR%\lib"
-if not exist "%INSTALL_DIR%\temp" mkdir "%INSTALL_DIR%\temp"
-
-copy /Y "%~dp0config.json" "%INSTALL_DIR%\" >nul
-copy /Y "%~dp0print-server.js" "%INSTALL_DIR%\" >nul
-copy /Y "%~dp0package.json" "%INSTALL_DIR%\" >nul
-copy /Y "%~dp0RawPrint.ps1" "%INSTALL_DIR%\" >nul 2>&1
-copy /Y "%~dp0config.json.example" "%INSTALL_DIR%\" >nul 2>&1
-copy /Y "%~dp0START-PrintServer.bat" "%INSTALL_DIR%\" >nul
-copy /Y "%~dpnx0" "%INSTALL_DIR%\INSTALL.bat" >nul
-if exist "%~dp0lib\*.js" copy /Y "%~dp0lib\*.js" "%INSTALL_DIR%\lib\" >nul
-
-echo       [OK] Files copied
+:: Check config.json
+if not exist "%~dp0config.json" (
+    echo [ERROR] config.json not found!
+    echo.
+    echo   Download from Store Settings in the web app.
+    echo.
+    pause
+    exit /b 1
+)
+echo [OK] config.json found
 
 :: ============================================
-:: STEP 2: Check Node.js
+:: STEP 1: Copy files to C:\print-server
 :: ============================================
 echo.
-echo [2/6] Checking Node.js ...
-where node >nul 2>&1
-if %errorLevel% neq 0 goto :INSTALL_NODE
+echo [1/6] Copying files to C:\print-server ...
+if not exist "C:\print-server" mkdir "C:\print-server"
+if not exist "C:\print-server\lib" mkdir "C:\print-server\lib"
+if not exist "C:\print-server\temp" mkdir "C:\print-server\temp"
+copy /Y "%~dp0config.json" "C:\print-server\" >nul
+copy /Y "%~dp0print-server.js" "C:\print-server\" >nul
+copy /Y "%~dp0package.json" "C:\print-server\" >nul
+copy /Y "%~dp0RawPrint.ps1" "C:\print-server\" >nul 2>&1
+copy /Y "%~dp0config.json.example" "C:\print-server\" >nul 2>&1
+copy /Y "%~dp0START-PrintServer.bat" "C:\print-server\" >nul
+copy /Y "%~dpnx0" "C:\print-server\INSTALL.bat" >nul
+if exist "%~dp0lib\*.js" copy /Y "%~dp0lib\*.js" "C:\print-server\lib\" >nul
+echo      [OK] Files copied
 
-for /f "tokens=*" %%i in ('node -v') do echo       Node.js %%i [OK]
+:: ============================================
+:: STEP 2: Check/Install Node.js
+:: ============================================
+echo.
+echo [2/6] Checking Node.js...
+where node >nul 2>&1
+if %errorLevel% neq 0 goto :NEED_NODE
+for /f "tokens=*" %%i in ('node -v') do echo      Found: %%i
 goto :STEP3
 
-:INSTALL_NODE
-echo       Node.js not found.
-echo.
-echo       Opening Node.js download page ...
-echo       Please install Node.js, then run INSTALL.bat again.
-echo.
-start https://nodejs.org/
+:NEED_NODE
+echo      Node.js not found. Installing...
+winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
+if %errorLevel% neq 0 (
+    echo [!] Failed to install Node.js
+    echo     Please install manually from https://nodejs.org/
+    pause
+    exit /b 1
+)
+echo      Node.js installed successfully!
+echo      [!] Please RESTART this script after Node.js installation
 pause
-exit /b 1
+exit /b 0
 
 :: ============================================
-:: STEP 3: npm packages
+:: STEP 3: Install npm packages
 :: ============================================
 :STEP3
 echo.
-echo [3/6] Installing npm packages ...
-cd /d "%INSTALL_DIR%"
-if exist "%INSTALL_DIR%\node_modules\@supabase" goto :NPM_DONE
-call npm install --production 2>nul
-if %errorLevel% neq 0 goto :NPM_FAIL
-:NPM_DONE
-echo       [OK] npm packages ready
+echo [3/6] Installing npm packages...
+cd /d "C:\print-server"
+if exist "C:\print-server\node_modules\@supabase" goto :NPM_OK
+call npm install --production
+if %errorLevel% neq 0 (
+    echo [!] Failed to install npm packages
+    pause
+    exit /b 1
+)
+echo      npm packages installed!
 goto :STEP4
 
-:NPM_FAIL
-echo [!] Failed to install npm packages.
-pause
-exit /b 1
+:NPM_OK
+echo      npm packages already installed
 
 :: ============================================
-:: STEP 4: SumatraPDF
+:: STEP 4: Check/Install SumatraPDF
 :: ============================================
 :STEP4
 echo.
-echo [4/6] Checking SumatraPDF ...
+echo [4/6] Checking SumatraPDF...
 if exist "C:\Program Files\SumatraPDF\SumatraPDF.exe" goto :SUMATRA_OK
 if exist "C:\Program Files (x86)\SumatraPDF\SumatraPDF.exe" goto :SUMATRA_OK
 if exist "%LOCALAPPDATA%\SumatraPDF\SumatraPDF.exe" goto :SUMATRA_OK
 
-echo       SumatraPDF not found.
-echo       Opening download page ...
-start https://www.sumatrapdfreader.org/download-free-pdf-viewer
-echo       Please install SumatraPDF, then press any key to continue.
-pause >nul
+echo      SumatraPDF not found. Installing...
+winget install SumatraPDF.SumatraPDF --accept-package-agreements --accept-source-agreements
+if %errorLevel% neq 0 (
+    echo [!] Failed to auto-install SumatraPDF
+    echo     Please install manually from https://www.sumatrapdfreader.org/
+) else (
+    echo      SumatraPDF installed!
+)
 goto :STEP5
 
 :SUMATRA_OK
-echo       [OK] SumatraPDF installed
-goto :STEP5
+echo      SumatraPDF already installed
 
 :: ============================================
-:: STEP 5: Startup shortcut
+:: STEP 5: Create startup shortcut
 :: ============================================
 :STEP5
 echo.
-echo [5/6] Creating startup shortcut ...
+echo [5/6] Creating startup shortcut...
 powershell -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut($ws.SpecialFolders('Startup') + '\PrintServer.lnk'); $s.TargetPath = 'C:\print-server\START-PrintServer.bat'; $s.WorkingDirectory = 'C:\print-server'; $s.WindowStyle = 7; $s.Save()"
-echo       [OK] Shortcut created (auto-start on boot)
+echo      Startup shortcut created!
 
 :: ============================================
-:: STEP 6: Start
+:: STEP 6: Start Print Server
 :: ============================================
 echo.
-echo [6/6] Starting Print Server ...
+echo [6/6] Starting Print Server...
 echo.
 echo ==========================================
 echo   INSTALLATION COMPLETE!
 echo ==========================================
 echo.
-echo   Location:   %INSTALL_DIR%
+echo   Location:   C:\print-server
 echo   Auto-start: ON (runs on Windows boot)
 echo.
-echo   Press Ctrl+C to stop Print Server.
+echo   Print Server is starting now...
+echo   Press Ctrl+C to stop.
+echo.
 echo ==========================================
 echo.
 
-cd /d "%INSTALL_DIR%"
+cd /d "C:\print-server"
 node print-server.js
 
 echo.
+echo ==========================================
 echo   Print Server stopped.
-echo   Run C:\print-server\START-PrintServer.bat to restart.
+echo   Double-click C:\print-server\START-PrintServer.bat to restart.
+echo ==========================================
 pause
-exit /b 0
-
-:: ============================================
-:: ERROR HANDLERS
-:: ============================================
-:NO_CONFIG
-echo [ERROR] config.json not found!
-echo.
-echo   config.json must be in the same folder as INSTALL.bat
-echo   Download from Store Settings in the web app.
-echo.
-pause
-exit /b 1
-
-:NO_ADMIN
-echo [!] Administrator required!
-echo     Right-click INSTALL.bat - Run as administrator
-echo.
-pause
-exit /b 1
