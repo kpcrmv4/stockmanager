@@ -159,6 +159,10 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   const [transferHqNotes, setTransferHqNotes] = useState('');
   const [transferHqPhoto, setTransferHqPhoto] = useState<string | null>(null);
 
+  // Reject deposit modal (for pending_confirm)
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
   // Extend expiry modal
   const [showExtendExpiryModal, setShowExtendExpiryModal] = useState(false);
   const [extendDays, setExtendDays] = useState('30');
@@ -483,6 +487,48 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     refreshDeposit();
   };
 
+  // Reject a pending_confirm deposit (bar/manager/owner)
+  const handleRejectDeposit = async () => {
+    if (!user || !currentStoreId || !rejectReason.trim()) return;
+    setIsSubmitting(true);
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from('deposits')
+      .update({
+        status: 'withdrawn',
+        notes: deposit.notes
+          ? `${deposit.notes}\nปฏิเสธรับฝาก: ${rejectReason}`
+          : `ปฏิเสธรับฝาก: ${rejectReason}`,
+      })
+      .eq('id', deposit.id);
+
+    if (error) {
+      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถปฏิเสธรายการได้' });
+    } else {
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.DEPOSIT_STATUS_CHANGED,
+        table_name: 'deposits',
+        record_id: deposit.id,
+        old_value: { status: 'pending_confirm' },
+        new_value: {
+          status: 'withdrawn',
+          reason: rejectReason,
+          deposit_code: deposit.deposit_code,
+          product_name: deposit.product_name,
+        },
+        changed_by: user.id,
+      });
+      toast({ type: 'success', title: 'ปฏิเสธรายการฝากเหล้าสำเร็จ' });
+    }
+
+    setShowRejectModal(false);
+    setRejectReason('');
+    setIsSubmitting(false);
+    refreshDeposit();
+  };
+
   const handleToggleVip = async () => {
     if (!user || !currentStoreId) return;
     setIsSubmitting(true);
@@ -777,9 +823,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   };
 
   const canBarConfirm = deposit.status === 'pending_confirm' && user && ['bar', 'manager', 'owner'].includes(user.role);
+  const canRejectDeposit = deposit.status === 'pending_confirm' && user && ['bar', 'manager', 'owner'].includes(user.role);
   const canWithdraw = deposit.status === 'in_store' && deposit.remaining_qty > 0;
   const canMarkExpired = (deposit.status === 'in_store' || deposit.status === 'pending_confirm') && !deposit.is_vip;
-  const canTransfer = deposit.status === 'in_store';
+  const canTransfer = deposit.status === 'expired';
+  const canTransferToHq = deposit.status === 'expired';
   const canExtendExpiry = deposit.status === 'in_store' && !deposit.is_vip;
   const canToggleVip = deposit.status === 'in_store' || deposit.status === 'pending_confirm';
 
@@ -1236,47 +1284,38 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             </CardContent>
           </Card>
 
-          {/* Bar Confirm Action */}
-          {canBarConfirm && (
+          {/* การดำเนินการ — consolidated action card */}
+          {user && user.role !== 'customer' && (canBarConfirm || canRejectDeposit || canWithdraw || canMarkExpired || canTransferToHq || canExtendExpiry || canToggleVip) && (
             <Card padding="none">
-              <CardContent>
-                <Button
-                  className="min-h-[48px] w-full justify-center bg-emerald-600 hover:bg-emerald-700"
-                  variant="primary"
-                  icon={<ShieldCheck className="h-5 w-5" />}
-                  onClick={() => {
-                    setBarConfirmQty(String(deposit.quantity));
-                    setShowBarConfirmModal(true);
-                  }}
-                >
-                  ยืนยันรับเข้าระบบ (Bar)
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Staff: only withdraw button */}
-          {user && user.role === 'staff' && canWithdraw && (
-            <Card padding="none">
-              <CardContent>
-                <Button
-                  className="min-h-[44px] w-full justify-center"
-                  variant="outline"
-                  icon={<Minus className="h-4 w-4" />}
-                  onClick={() => setShowWithdrawModal(true)}
-                >
-                  เบิกเหล้า
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Actions (non-staff) */}
-          {user && user.role !== 'staff' && (canWithdraw || canMarkExpired || canTransfer || canExtendExpiry || canToggleVip) && (
-            <Card padding="none">
-              <CardHeader title="ดำเนินการ" />
+              <CardHeader title="การดำเนินการ" />
               <CardContent>
                 <div className="space-y-2">
+                  {/* ยืนยันรับเข้าระบบ (Bar) */}
+                  {canBarConfirm && (
+                    <Button
+                      className="min-h-[48px] w-full justify-center bg-emerald-600 hover:bg-emerald-700 text-white"
+                      variant="primary"
+                      icon={<ShieldCheck className="h-5 w-5" />}
+                      onClick={() => {
+                        setBarConfirmQty(String(deposit.quantity));
+                        setShowBarConfirmModal(true);
+                      }}
+                    >
+                      ยืนยันรับเข้าระบบ
+                    </Button>
+                  )}
+                  {/* ปฏิเสธรับฝาก */}
+                  {canRejectDeposit && (
+                    <Button
+                      className="min-h-[44px] w-full justify-center"
+                      variant="outline"
+                      icon={<XCircle className="h-4 w-4 text-red-500" />}
+                      onClick={() => setShowRejectModal(true)}
+                    >
+                      ปฏิเสธรับฝาก
+                    </Button>
+                  )}
+                  {/* เบิกเหล้า */}
                   {canWithdraw && (
                     <Button
                       className="min-h-[44px] w-full justify-center"
@@ -1287,6 +1326,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       เบิกเหล้า
                     </Button>
                   )}
+                  {/* เปลี่ยนเป็น VIP */}
                   {canToggleVip && (
                     <Button
                       className="min-h-[44px] w-full justify-center"
@@ -1298,26 +1338,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       {deposit.is_vip ? 'ยกเลิก VIP' : 'เปลี่ยนเป็น VIP'}
                     </Button>
                   )}
-                  {canMarkExpired && (
-                    <Button
-                      className="min-h-[44px] w-full justify-center"
-                      variant="outline"
-                      icon={<AlertTriangle className="h-4 w-4" />}
-                      onClick={() => setShowExpiryModal(true)}
-                    >
-                      ทำเครื่องหมายหมดอายุ
-                    </Button>
-                  )}
-                  {canTransfer && (
-                    <Button
-                      className="min-h-[44px] w-full justify-center"
-                      variant="outline"
-                      icon={<ArrowRightLeft className="h-4 w-4" />}
-                      onClick={() => setShowTransferModal(true)}
-                    >
-                      โอนรายการ
-                    </Button>
-                  )}
+                  {/* ขยายวันหมดอายุ */}
                   {canExtendExpiry && (
                     <Button
                       className="min-h-[44px] w-full justify-center"
@@ -1328,27 +1349,29 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       ขยายวันหมดอายุ
                     </Button>
                   )}
+                  {/* ทำเครื่องหมายหมดอายุ */}
+                  {canMarkExpired && (
+                    <Button
+                      className="min-h-[44px] w-full justify-center"
+                      variant="outline"
+                      icon={<AlertTriangle className="h-4 w-4" />}
+                      onClick={() => setShowExpiryModal(true)}
+                    >
+                      ทำเครื่องหมายหมดอายุ
+                    </Button>
+                  )}
+                  {/* โอนคลังกลาง (เฉพาะ expired) */}
+                  {canTransferToHq && (
+                    <Button
+                      className="min-h-[48px] w-full justify-center bg-amber-600 hover:bg-amber-700 text-white"
+                      variant="primary"
+                      icon={<Warehouse className="h-5 w-5" />}
+                      onClick={() => setShowTransferHqModal(true)}
+                    >
+                      โอนคลังกลาง
+                    </Button>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Transfer to HQ action — for expired deposits */}
-          {deposit.status === 'expired' && user && user.role !== 'customer' && (
-            <Card padding="none">
-              <CardHeader title="การดำเนินการ" />
-              <CardContent>
-                <Button
-                  className="min-h-[48px] w-full justify-center bg-amber-600 hover:bg-amber-700 text-white"
-                  variant="primary"
-                  icon={<Warehouse className="h-5 w-5" />}
-                  onClick={() => setShowTransferHqModal(true)}
-                >
-                  โอนคลังกลาง
-                </Button>
-                <p className="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
-                  ส่งรายการนี้ไปคลังกลาง (HQ) พร้อมแจ้งเตือน
-                </p>
               </CardContent>
             </Card>
           )}
@@ -1636,10 +1659,10 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             </div>
           </div>
           <PhotoUpload
-            label="ถ่ายรูปสินค้า (ไม่จำเป็น)"
+            label="ถ่ายรูปสินค้า (จำเป็น)"
             value={transferHqPhoto}
             onChange={setTransferHqPhoto}
-            bucket="deposit-photos"
+            folder="transfer-photos"
           />
           <Textarea
             label="หมายเหตุ"
@@ -1663,10 +1686,63 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           <Button
             onClick={handleTransferToHq}
             isLoading={isSubmitting}
+            disabled={!transferHqPhoto}
             icon={<Warehouse className="h-4 w-4" />}
-            className="bg-amber-600 hover:bg-amber-700"
+            className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
           >
             ยืนยันโอนคลังกลาง
+          </Button>
+        </ModalFooter>
+        {!transferHqPhoto && (
+          <p className="px-6 pb-4 text-center text-xs text-red-500">
+            กรุณาถ่ายรูปสินค้าก่อนยืนยัน
+          </p>
+        )}
+      </Modal>
+
+      {/* Reject Deposit Modal */}
+      <Modal
+        isOpen={showRejectModal}
+        onClose={() => {
+          setShowRejectModal(false);
+          setRejectReason('');
+        }}
+        title="ปฏิเสธรับฝากเหล้า"
+        description={`${deposit.product_name} — ${deposit.customer_name}`}
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+            <p className="text-sm text-red-700 dark:text-red-400">
+              การปฏิเสธจะยกเลิกรายการฝากนี้ กรุณาระบุเหตุผล
+            </p>
+          </div>
+          <Textarea
+            label="เหตุผลที่ปฏิเสธ (จำเป็น)"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="เช่น สินค้าไม่ตรงกับที่แจ้ง, ขวดแตก ฯลฯ"
+            rows={3}
+          />
+        </div>
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowRejectModal(false);
+              setRejectReason('');
+            }}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            onClick={handleRejectDeposit}
+            isLoading={isSubmitting}
+            disabled={!rejectReason.trim()}
+            icon={<XCircle className="h-4 w-4" />}
+            className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
+          >
+            ยืนยันปฏิเสธ
           </Button>
         </ModalFooter>
       </Modal>

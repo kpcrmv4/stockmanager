@@ -29,10 +29,18 @@ import {
   Minus,
   Truck,
   CalendarDays,
+  Warehouse,
+  CheckSquare,
+  Square,
+  Send,
 } from 'lucide-react';
 import Link from 'next/link';
 import { DepositForm } from './_components/deposit-form';
 import { DepositDetail } from './_components/deposit-detail';
+import { notifyChatTransferBatch, notifyChatTransferSubmitted } from '@/lib/chat/transfer-bot-client';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { generateTransferCode } from '@/lib/utils/transfer-code';
+import type { TransferCardItem } from '@/types/transfer-chat';
 
 interface Deposit {
   id: string;
@@ -103,6 +111,10 @@ export default function DepositPage() {
   const [dateFilterEnabled, setDateFilterEnabled] = useState(true);
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<Deposit | null>(null);
+
+  // Batch selection for expired tab
+  const [batchSelectedIds, setBatchSelectedIds] = useState<Set<string>>(new Set());
+  const [isBatchTransferring, setIsBatchTransferring] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [stats, setStats] = useState({
     activeCount: 0,
@@ -209,6 +221,111 @@ export default function DepositPage() {
   useEffect(() => {
     loadDeposits();
   }, [loadDeposits]);
+
+  // Clear batch selection when tab changes
+  useEffect(() => {
+    setBatchSelectedIds(new Set());
+  }, [activeTab]);
+
+  // Batch transfer expired deposits to HQ
+  const handleBatchTransferToHq = async () => {
+    if (!currentStoreId || !user || batchSelectedIds.size === 0) return;
+    setIsBatchTransferring(true);
+    const supabase = createClient();
+
+    try {
+      // Find central store
+      const { data: centralStore } = await supabase
+        .from('stores')
+        .select('id')
+        .eq('is_central', true)
+        .eq('active', true)
+        .limit(1)
+        .single();
+
+      if (!centralStore) {
+        toast({ type: 'error', title: 'ไม่พบคลังกลาง', message: 'กรุณาตั้งค่าคลังกลางก่อน' });
+        return;
+      }
+
+      const { data: storeData } = await supabase
+        .from('stores')
+        .select('store_name')
+        .eq('id', currentStoreId)
+        .single();
+      const storeName = storeData?.store_name || 'สาขา';
+
+      const transferCode = await generateTransferCode(supabase);
+      const selected = deposits.filter((d) => batchSelectedIds.has(d.id));
+      const transfers = selected.map((d) => ({
+        from_store_id: currentStoreId,
+        to_store_id: centralStore.id,
+        deposit_id: d.id,
+        product_name: d.product_name,
+        quantity: d.remaining_qty || d.quantity,
+        requested_by: user.id,
+        transfer_code: transferCode,
+      }));
+
+      const { data: insertedTransfers, error } = await supabase
+        .from('transfers')
+        .insert(transfers)
+        .select('id, deposit_id, product_name, quantity');
+
+      if (error) throw error;
+
+      await supabase
+        .from('deposits')
+        .update({ status: 'transfer_pending' })
+        .in('id', [...batchSelectedIds]);
+
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.TRANSFER_CREATED,
+        table_name: 'transfers',
+        record_id: transferCode,
+        new_value: { transfer_code: transferCode, to: 'central_warehouse', deposit_count: selected.length },
+        changed_by: user.id,
+      });
+
+      const submitterName = user.displayName || user.username || 'พนักงาน';
+      notifyChatTransferSubmitted(currentStoreId, {
+        transfer_code: transferCode,
+        deposit_count: selected.length,
+        submitted_by_name: submitterName,
+      });
+
+      if (insertedTransfers) {
+        const cardItems: TransferCardItem[] = insertedTransfers.map((t, idx) => ({
+          transfer_id: t.id,
+          deposit_id: t.deposit_id,
+          deposit_code: selected[idx]?.deposit_code || null,
+          product_name: t.product_name || selected[idx]?.product_name || '',
+          customer_name: selected[idx]?.customer_name || null,
+          quantity: t.quantity || selected[idx]?.quantity || 0,
+          category: selected[idx]?.category || null,
+        }));
+        notifyChatTransferBatch(centralStore.id, {
+          transfer_code: transferCode,
+          from_store_id: currentStoreId,
+          from_store_name: storeName,
+          items: cardItems,
+          submitted_by: user.id,
+          submitted_by_name: submitterName,
+          photo_url: null,
+          notes: null,
+        });
+      }
+
+      toast({ type: 'success', title: 'ส่งโอนสำเร็จ', message: `ส่งโอน ${selected.length} รายการ (${transferCode})` });
+      setBatchSelectedIds(new Set());
+      loadDeposits();
+    } catch (err) {
+      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: err instanceof Error ? err.message : 'ไม่สามารถส่งโอนได้' });
+    } finally {
+      setIsBatchTransferring(false);
+    }
+  };
 
   // Count inactive deposits already loaded
   const loadedInactiveCount = useMemo(
@@ -444,6 +561,46 @@ export default function DepositPage() {
         />
       ) : (
         <>
+          {/* Batch action bar for expired tab */}
+          {activeTab === 'expired' && filteredDeposits.length > 0 && user && user.role !== 'customer' && (
+            <div className="flex items-center justify-between rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200 dark:bg-amber-900/10 dark:ring-amber-800">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const expiredIds = filteredDeposits.filter((d) => d.status === 'expired').map((d) => d.id);
+                    if (batchSelectedIds.size === expiredIds.length) {
+                      setBatchSelectedIds(new Set());
+                    } else {
+                      setBatchSelectedIds(new Set(expiredIds));
+                    }
+                  }}
+                  className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400"
+                >
+                  {batchSelectedIds.size === filteredDeposits.filter((d) => d.status === 'expired').length && batchSelectedIds.size > 0 ? (
+                    <CheckSquare className="h-5 w-5" />
+                  ) : (
+                    <Square className="h-5 w-5" />
+                  )}
+                  {batchSelectedIds.size > 0
+                    ? `เลือกแล้ว ${batchSelectedIds.size} รายการ`
+                    : 'เลือกทั้งหมด'}
+                </button>
+              </div>
+              {batchSelectedIds.size > 0 && (
+                <Button
+                  size="sm"
+                  icon={<Warehouse className="h-4 w-4" />}
+                  className="bg-amber-600 hover:bg-amber-700"
+                  isLoading={isBatchTransferring}
+                  onClick={handleBatchTransferToHq}
+                >
+                  โอนคลังกลาง ({batchSelectedIds.size})
+                </Button>
+              )}
+            </div>
+          )}
+
           {/* Desktop Table */}
           <div className="hidden md:block">
             <Card padding="none">
@@ -586,14 +743,37 @@ export default function DepositPage() {
               const expiryDays = deposit.expiry_date ? daysUntil(deposit.expiry_date) : null;
               const isExpiringSoon = expiryDays !== null && expiryDays <= 7 && expiryDays > 0 && deposit.status === 'in_store';
 
+              const showCheckbox = activeTab === 'expired' && deposit.status === 'expired' && user && user.role !== 'customer';
+              const isChecked = batchSelectedIds.has(deposit.id);
+
               return (
                 <Card
                   key={deposit.id}
                   padding="none"
-                  className="cursor-pointer transition-colors active:bg-gray-50 dark:active:bg-gray-700/30"
+                  className={cn(
+                    'cursor-pointer transition-colors active:bg-gray-50 dark:active:bg-gray-700/30',
+                    isChecked && 'ring-2 ring-amber-400 dark:ring-amber-600'
+                  )}
                 >
+                  <div className="flex">
+                    {showCheckbox && (
+                      <button
+                        type="button"
+                        className="flex items-center justify-center px-3 text-amber-600 dark:text-amber-400"
+                        onClick={() => {
+                          setBatchSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(deposit.id)) next.delete(deposit.id);
+                            else next.add(deposit.id);
+                            return next;
+                          });
+                        }}
+                      >
+                        {isChecked ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
+                      </button>
+                    )}
                   <button
-                    className="w-full p-4 text-left"
+                    className="w-full p-4 text-left flex-1"
                     onClick={() => setSelectedDeposit(deposit)}
                   >
                     <div className="flex items-start justify-between">
@@ -643,6 +823,7 @@ export default function DepositPage() {
                       ) : null}
                     </div>
                   </button>
+                  </div>
                 </Card>
               );
             })}
