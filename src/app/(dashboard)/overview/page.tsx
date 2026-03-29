@@ -37,6 +37,8 @@ import {
   Timer,
   FileCheck,
   CalendarClock,
+  Warehouse,
+  Truck,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -66,13 +68,15 @@ interface StoreStatus {
   id: string;
   name: string;
   code: string;
+  isCentral: boolean;
   pendingDeposits: number;      // deposit_requests pending
   pendingWithdrawals: number;   // deposits pending_withdrawal
   expiringDeposits: number;     // expiring within 7 days
   activeDeposits: number;       // deposits in_store
   pendingExplanations: number;  // comparisons pending
   pendingApprovals: number;     // comparisons explained
-  pendingTransfers: number;     // transfers pending
+  pendingTransfers: number;     // transfers pending (outgoing)
+  pendingIncomingTransfers: number; // transfers pending (incoming to HQ)
   lastStockCheck: string | null;
   totalIssues: number;          // sum of all pending items
 }
@@ -482,7 +486,7 @@ export default function OverviewPage() {
         try {
           const { data: allStores, error: storesError } = await supabase
             .from('stores')
-            .select('id, store_name, store_code')
+            .select('id, store_name, store_code, is_central')
             .eq('active', true)
             .order('store_name');
 
@@ -495,14 +499,35 @@ export default function OverviewPage() {
             const storeResults = await Promise.all(
               allStores.map(async (store) => {
                 const sid = store.id;
+                const isCentral = store.is_central === true;
 
+                if (isCentral) {
+                  // HQ store — only count incoming transfers
+                  const incomingRes = await supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending');
+                  const pendingIncoming = incomingRes.count || 0;
+
+                  const result: StoreStatus = {
+                    id: store.id,
+                    name: store.store_name,
+                    code: store.store_code || '',
+                    isCentral: true,
+                    pendingDeposits: 0,
+                    pendingWithdrawals: 0,
+                    expiringDeposits: 0,
+                    activeDeposits: 0,
+                    pendingExplanations: 0,
+                    pendingApprovals: 0,
+                    pendingTransfers: 0,
+                    pendingIncomingTransfers: pendingIncoming,
+                    lastStockCheck: null,
+                    totalIssues: pendingIncoming,
+                  };
+                  return result;
+                }
+
+                // Regular store
                 const [
-                  pwRes,
-                  edRes,
-                  adRes,
-                  peRes,
-                  paRes,
-                  ptRes,
+                  pwRes, edRes, adRes, peRes, paRes, ptRes,
                 ] = await Promise.all([
                   supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending_withdrawal'),
                   supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'in_store').lt('expiry_date', sevenDaysFromNow).gt('expiry_date', todayISO),
@@ -519,7 +544,6 @@ export default function OverviewPage() {
                 const pendingAppr = paRes.count || 0;
                 const pendingTrans = ptRes.count || 0;
 
-                // deposit_requests might not exist — try separately
                 let pendingDeposits = 0;
                 const drRes = await supabase.from('deposit_requests').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending');
                 if (!drRes.error) pendingDeposits = drRes.count || 0;
@@ -534,6 +558,7 @@ export default function OverviewPage() {
                   id: store.id,
                   name: store.store_name,
                   code: store.store_code || '',
+                  isCentral: false,
                   pendingDeposits,
                   pendingWithdrawals,
                   expiringDeposits,
@@ -541,6 +566,7 @@ export default function OverviewPage() {
                   pendingExplanations: pendingExpl,
                   pendingApprovals: pendingAppr,
                   pendingTransfers: pendingTrans,
+                  pendingIncomingTransfers: 0,
                   lastStockCheck,
                   totalIssues,
                 };
@@ -763,59 +789,73 @@ export default function OverviewPage() {
               const hasIssues = store.totalIssues > 0;
               const issueItems: { label: string; count: number; icon: LucideIcon; color: string; href: string }[] = [];
 
-              if (store.pendingApprovals > 0) {
-                issueItems.push({
-                  label: 'รออนุมัติสต๊อก',
-                  count: store.pendingApprovals,
-                  icon: FileCheck,
-                  color: 'text-amber-600 dark:text-amber-400',
-                  href: '/stock/approval',
-                });
-              }
-              if (store.pendingExplanations > 0) {
-                issueItems.push({
-                  label: 'รอชี้แจงสต๊อก',
-                  count: store.pendingExplanations,
-                  icon: AlertTriangle,
-                  color: 'text-red-600 dark:text-red-400',
-                  href: '/stock/comparison',
-                });
-              }
-              if (store.pendingWithdrawals > 0) {
-                issueItems.push({
-                  label: 'รอเบิกเหล้า',
-                  count: store.pendingWithdrawals,
-                  icon: Wine,
-                  color: 'text-blue-600 dark:text-blue-400',
-                  href: '/deposit',
-                });
-              }
-              if (store.pendingDeposits > 0) {
-                issueItems.push({
-                  label: 'รอรับฝากเหล้า',
-                  count: store.pendingDeposits,
-                  icon: Package,
-                  color: 'text-indigo-600 dark:text-indigo-400',
-                  href: '/deposit',
-                });
-              }
-              if (store.expiringDeposits > 0) {
-                issueItems.push({
-                  label: 'ใกล้หมดอายุ',
-                  count: store.expiringDeposits,
-                  icon: CalendarClock,
-                  color: 'text-orange-600 dark:text-orange-400',
-                  href: '/deposit',
-                });
-              }
-              if (store.pendingTransfers > 0) {
-                issueItems.push({
-                  label: 'รอโอนสต๊อก',
-                  count: store.pendingTransfers,
-                  icon: ArrowRightLeft,
-                  color: 'text-cyan-600 dark:text-cyan-400',
-                  href: '/transfer',
-                });
+              if (store.isCentral) {
+                // HQ store — only incoming transfers
+                if (store.pendingIncomingTransfers > 0) {
+                  issueItems.push({
+                    label: 'รอรับโอนจากสาขา',
+                    count: store.pendingIncomingTransfers,
+                    icon: Truck,
+                    color: 'text-teal-600 dark:text-teal-400',
+                    href: '/hq-warehouse',
+                  });
+                }
+              } else {
+                // Regular stores
+                if (store.pendingApprovals > 0) {
+                  issueItems.push({
+                    label: 'รออนุมัติสต๊อก',
+                    count: store.pendingApprovals,
+                    icon: FileCheck,
+                    color: 'text-amber-600 dark:text-amber-400',
+                    href: '/stock/approval',
+                  });
+                }
+                if (store.pendingExplanations > 0) {
+                  issueItems.push({
+                    label: 'รอชี้แจงสต๊อก',
+                    count: store.pendingExplanations,
+                    icon: AlertTriangle,
+                    color: 'text-red-600 dark:text-red-400',
+                    href: '/stock/comparison',
+                  });
+                }
+                if (store.pendingWithdrawals > 0) {
+                  issueItems.push({
+                    label: 'รอเบิกเหล้า',
+                    count: store.pendingWithdrawals,
+                    icon: Wine,
+                    color: 'text-blue-600 dark:text-blue-400',
+                    href: '/deposit',
+                  });
+                }
+                if (store.pendingDeposits > 0) {
+                  issueItems.push({
+                    label: 'รอรับฝากเหล้า',
+                    count: store.pendingDeposits,
+                    icon: Package,
+                    color: 'text-indigo-600 dark:text-indigo-400',
+                    href: '/deposit',
+                  });
+                }
+                if (store.expiringDeposits > 0) {
+                  issueItems.push({
+                    label: 'ใกล้หมดอายุ',
+                    count: store.expiringDeposits,
+                    icon: CalendarClock,
+                    color: 'text-orange-600 dark:text-orange-400',
+                    href: '/deposit',
+                  });
+                }
+                if (store.pendingTransfers > 0) {
+                  issueItems.push({
+                    label: 'รอโอนสต๊อก',
+                    count: store.pendingTransfers,
+                    icon: ArrowRightLeft,
+                    color: 'text-cyan-600 dark:text-cyan-400',
+                    href: '/transfer',
+                  });
+                }
               }
 
               return (
@@ -838,16 +878,29 @@ export default function OverviewPage() {
                     <div className="flex items-center gap-2.5">
                       <div className={cn(
                         'flex h-8 w-8 items-center justify-center rounded-lg',
-                        hasIssues
-                          ? 'bg-amber-100 dark:bg-amber-900/30'
-                          : 'bg-emerald-100 dark:bg-emerald-900/30'
+                        store.isCentral
+                          ? hasIssues
+                            ? 'bg-teal-100 dark:bg-teal-900/30'
+                            : 'bg-teal-100 dark:bg-teal-900/30'
+                          : hasIssues
+                            ? 'bg-amber-100 dark:bg-amber-900/30'
+                            : 'bg-emerald-100 dark:bg-emerald-900/30'
                       )}>
-                        <Store className={cn(
-                          'h-4 w-4',
-                          hasIssues
-                            ? 'text-amber-600 dark:text-amber-400'
-                            : 'text-emerald-600 dark:text-emerald-400'
-                        )} />
+                        {store.isCentral ? (
+                          <Warehouse className={cn(
+                            'h-4 w-4',
+                            hasIssues
+                              ? 'text-teal-600 dark:text-teal-400'
+                              : 'text-teal-600 dark:text-teal-400'
+                          )} />
+                        ) : (
+                          <Store className={cn(
+                            'h-4 w-4',
+                            hasIssues
+                              ? 'text-amber-600 dark:text-amber-400'
+                              : 'text-emerald-600 dark:text-emerald-400'
+                          )} />
+                        )}
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -879,12 +932,21 @@ export default function OverviewPage() {
                   <div className="px-4 py-3">
                     {/* Quick stats row */}
                     <div className="mb-3 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                      <span>ฝากอยู่ <span className="font-semibold text-gray-700 dark:text-gray-300">{store.activeDeposits}</span></span>
-                      <span className="text-gray-300 dark:text-gray-600">|</span>
-                      <span className="flex items-center gap-1">
-                        <Timer className="h-3 w-3" />
-                        นับล่าสุด: {store.lastStockCheck ? formatThaiDate(store.lastStockCheck) : <span className="text-gray-400 dark:text-gray-500">ยังไม่เคย</span>}
-                      </span>
+                      {store.isCentral ? (
+                        <span className="flex items-center gap-1">
+                          <Warehouse className="h-3 w-3" />
+                          คลังกลาง — รับโอนรายการหมดอายุจากสาขา
+                        </span>
+                      ) : (
+                        <>
+                          <span>ฝากอยู่ <span className="font-semibold text-gray-700 dark:text-gray-300">{store.activeDeposits}</span></span>
+                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                          <span className="flex items-center gap-1">
+                            <Timer className="h-3 w-3" />
+                            นับล่าสุด: {store.lastStockCheck ? formatThaiDate(store.lastStockCheck) : <span className="text-gray-400 dark:text-gray-500">ยังไม่เคย</span>}
+                          </span>
+                        </>
+                      )}
                     </div>
 
                     {/* Issues list */}
