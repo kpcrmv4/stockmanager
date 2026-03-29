@@ -358,6 +358,13 @@ export default function DepositPage() {
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.expiredCount + stats.transferPendingCount}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">หมดอายุ</p>
+              {(stats.expiredCount > 0 || stats.transferPendingCount > 0) && (
+                <p className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500">
+                  {stats.expiredCount > 0 && <span>รอดำเนินการ {stats.expiredCount}</span>}
+                  {stats.expiredCount > 0 && stats.transferPendingCount > 0 && <span> · </span>}
+                  {stats.transferPendingCount > 0 && <span>รอนำส่ง HQ {stats.transferPendingCount}</span>}
+                </p>
+              )}
             </div>
           </div>
         </Card>
