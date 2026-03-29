@@ -45,12 +45,17 @@ import {
   Crown,
   Truck,
   ShieldCheck,
+  Warehouse,
+  Send,
 } from 'lucide-react';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyChatWithdrawalCompleted, notifyChatWithdrawalRequest, sendChatBotMessage, syncChatActionCardStatus } from '@/lib/chat/bot-client';
+import { notifyChatTransferBatch, notifyChatTransferSubmitted } from '@/lib/chat/transfer-bot-client';
 import { notifyStaff } from '@/lib/notifications/client';
 import { extendExpiryISO } from '@/lib/utils/date';
+import { generateTransferCode } from '@/lib/utils/transfer-code';
 import type { ReceiptSettings } from '@/types/database';
+import type { TransferCardItem } from '@/types/transfer-chat';
 
 interface Deposit {
   id: string;
@@ -113,12 +118,19 @@ const withdrawalVariantMap: Record<string, 'default' | 'success' | 'warning' | '
   rejected: 'danger',
 };
 
-// Status timeline order
+// Status timeline order — main deposit lifecycle
 const statusTimeline = [
   { key: 'pending_confirm', label: 'รอยืนยัน', icon: Clock },
   { key: 'in_store', label: 'อยู่ในร้าน', icon: Wine },
   { key: 'pending_withdrawal', label: 'รอเบิก', icon: Package },
   { key: 'withdrawn', label: 'เบิกแล้ว', icon: CheckCircle2 },
+];
+
+// Expired → transfer lifecycle (separate branch from main timeline)
+const expiredTimeline = [
+  { key: 'expired', label: 'หมดอายุ', icon: XCircle },
+  { key: 'transfer_pending', label: 'รอนำส่ง HQ', icon: Truck },
+  { key: 'transferred_out', label: 'โอนคลังกลางแล้ว', icon: Warehouse },
 ];
 
 export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' }: DepositDetailProps) {
@@ -141,6 +153,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   // Transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferNotes, setTransferNotes] = useState('');
+
+  // Transfer to HQ modal (for expired deposits)
+  const [showTransferHqModal, setShowTransferHqModal] = useState(false);
+  const [transferHqNotes, setTransferHqNotes] = useState('');
+  const [transferHqPhoto, setTransferHqPhoto] = useState<string | null>(null);
 
   // Extend expiry modal
   const [showExtendExpiryModal, setShowExtendExpiryModal] = useState(false);
@@ -541,6 +558,123 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     setTransferNotes('');
     setIsSubmitting(false);
     refreshDeposit();
+  };
+
+  // Transfer expired deposit to central warehouse (HQ)
+  const handleTransferToHq = async () => {
+    if (!user || !currentStoreId) return;
+    setIsSubmitting(true);
+    const supabase = createClient();
+
+    try {
+      // Find central store
+      const { data: centralStore } = await supabase
+        .from('stores')
+        .select('id')
+        .eq('is_central', true)
+        .eq('active', true)
+        .limit(1)
+        .single();
+
+      if (!centralStore) {
+        toast({ type: 'error', title: 'ไม่พบคลังกลาง', message: 'กรุณาตั้งค่าคลังกลางก่อน' });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Get current store name
+      const { data: storeData } = await supabase
+        .from('stores')
+        .select('store_name')
+        .eq('id', currentStoreId)
+        .single();
+      const storeName = storeData?.store_name || 'สาขา';
+
+      // Generate transfer code
+      const transferCode = await generateTransferCode(supabase);
+
+      // Create transfer record
+      const { data: insertedTransfer, error } = await supabase
+        .from('transfers')
+        .insert({
+          from_store_id: currentStoreId,
+          to_store_id: centralStore.id,
+          deposit_id: deposit.id,
+          product_name: deposit.product_name,
+          quantity: deposit.remaining_qty || deposit.quantity,
+          notes: transferHqNotes || null,
+          photo_url: transferHqPhoto,
+          requested_by: user.id,
+          transfer_code: transferCode,
+        })
+        .select('id, deposit_id, product_name, quantity')
+        .single();
+
+      if (error) throw error;
+
+      // Update deposit status to transfer_pending
+      await supabase
+        .from('deposits')
+        .update({ status: 'transfer_pending' })
+        .eq('id', deposit.id);
+
+      // Audit log
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.TRANSFER_CREATED,
+        table_name: 'transfers',
+        record_id: transferCode,
+        new_value: {
+          transfer_code: transferCode,
+          to: 'central_warehouse',
+          deposit_count: 1,
+          deposit_codes: [deposit.deposit_code],
+        },
+        changed_by: user.id,
+      });
+
+      // Notify store chat
+      const submitterName = user.displayName || user.username || 'พนักงาน';
+      notifyChatTransferSubmitted(currentStoreId, {
+        transfer_code: transferCode,
+        deposit_count: 1,
+        submitted_by_name: submitterName,
+      });
+
+      // Send transfer action card to HQ chat
+      if (insertedTransfer) {
+        const cardItems: TransferCardItem[] = [{
+          transfer_id: insertedTransfer.id,
+          deposit_id: insertedTransfer.deposit_id,
+          deposit_code: deposit.deposit_code || null,
+          product_name: insertedTransfer.product_name || deposit.product_name || '',
+          customer_name: deposit.customer_name || null,
+          quantity: insertedTransfer.quantity || deposit.quantity || 0,
+          category: deposit.category || null,
+        }];
+
+        notifyChatTransferBatch(centralStore.id, {
+          transfer_code: transferCode,
+          from_store_id: currentStoreId,
+          from_store_name: storeName,
+          items: cardItems,
+          submitted_by: user.id,
+          submitted_by_name: submitterName,
+          photo_url: transferHqPhoto,
+          notes: transferHqNotes || null,
+        });
+      }
+
+      toast({ type: 'success', title: 'ส่งโอนคลังกลางสำเร็จ', message: `รหัสโอน: ${transferCode}` });
+      setShowTransferHqModal(false);
+      setTransferHqNotes('');
+      setTransferHqPhoto(null);
+      refreshDeposit();
+    } catch (err) {
+      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: err instanceof Error ? err.message : 'ไม่สามารถส่งโอนได้' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleExtendExpiry = async () => {
@@ -1012,39 +1146,90 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   );
                 })}
 
-                {/* Special status badges for expired/transfer_pending/transferred */}
+                {/* Expired branch timeline */}
                 {(deposit.status === 'expired' || deposit.status === 'transfer_pending' || deposit.status === 'transferred_out') && (
-                  <div className="mt-2 flex items-center gap-3">
-                    <div
-                      className={cn(
-                        'flex h-8 w-8 items-center justify-center rounded-full',
-                        deposit.status === 'expired'
-                          ? 'bg-red-100 ring-2 ring-red-500 dark:bg-red-900/30'
-                          : deposit.status === 'transfer_pending'
-                            ? 'bg-amber-100 ring-2 ring-amber-500 dark:bg-amber-900/30'
-                            : 'bg-blue-100 ring-2 ring-blue-500 dark:bg-blue-900/30'
-                      )}
-                    >
-                      {deposit.status === 'expired' ? (
-                        <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                      ) : deposit.status === 'transfer_pending' ? (
-                        <Truck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                      ) : (
-                        <ArrowRightLeft className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                      )}
-                    </div>
-                    <p
-                      className={cn(
-                        'text-sm font-medium',
-                        deposit.status === 'expired'
-                          ? 'text-red-600 dark:text-red-400'
-                          : deposit.status === 'transfer_pending'
-                            ? 'text-amber-600 dark:text-amber-400'
-                            : 'text-blue-600 dark:text-blue-400'
-                      )}
-                    >
-                      {DEPOSIT_STATUS_LABELS[deposit.status] || deposit.status}
-                    </p>
+                  <div className="mt-1">
+                    {expiredTimeline.map((step, index) => {
+                      const StepIcon = step.icon;
+                      const expiredIndex = expiredTimeline.findIndex((s) => s.key === deposit.status);
+                      const isPast = index < expiredIndex;
+                      const isCurrent = index === expiredIndex;
+
+                      const colorMap: Record<string, { ring: string; bg: string; text: string; line: string }> = {
+                        expired: {
+                          ring: 'ring-red-500',
+                          bg: 'bg-red-100 dark:bg-red-900/30',
+                          text: 'text-red-600 dark:text-red-400',
+                          line: 'bg-red-300 dark:bg-red-700',
+                        },
+                        transfer_pending: {
+                          ring: 'ring-amber-500',
+                          bg: 'bg-amber-100 dark:bg-amber-900/30',
+                          text: 'text-amber-600 dark:text-amber-400',
+                          line: 'bg-amber-300 dark:bg-amber-700',
+                        },
+                        transferred_out: {
+                          ring: 'ring-blue-500',
+                          bg: 'bg-blue-100 dark:bg-blue-900/30',
+                          text: 'text-blue-600 dark:text-blue-400',
+                          line: 'bg-blue-300 dark:bg-blue-700',
+                        },
+                      };
+                      const colors = colorMap[step.key] || colorMap.expired;
+
+                      return (
+                        <div key={step.key} className="flex gap-3">
+                          <div className="flex flex-col items-center">
+                            <div
+                              className={cn(
+                                'flex h-8 w-8 items-center justify-center rounded-full',
+                                isCurrent
+                                  ? cn(colors.bg, 'ring-2', colors.ring)
+                                  : isPast
+                                    ? colors.bg
+                                    : 'bg-gray-100 dark:bg-gray-700'
+                              )}
+                            >
+                              <StepIcon
+                                className={cn(
+                                  'h-4 w-4',
+                                  isCurrent || isPast
+                                    ? colors.text
+                                    : 'text-gray-400 dark:text-gray-500'
+                                )}
+                              />
+                            </div>
+                            {index < expiredTimeline.length - 1 && (
+                              <div
+                                className={cn(
+                                  'h-8 w-0.5',
+                                  isPast
+                                    ? colors.line
+                                    : 'bg-gray-200 dark:bg-gray-700'
+                                )}
+                              />
+                            )}
+                          </div>
+                          <div className="pb-8">
+                            <p
+                              className={cn(
+                                'text-sm font-medium',
+                                isCurrent || isPast
+                                  ? colors.text
+                                  : 'text-gray-400 dark:text-gray-500'
+                              )}
+                            >
+                              {step.label}
+                            </p>
+                            {isCurrent && (
+                              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                สถานะปัจจุบัน
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1144,6 +1329,26 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                     </Button>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Transfer to HQ action — for expired deposits */}
+          {deposit.status === 'expired' && user && user.role !== 'customer' && (
+            <Card padding="none">
+              <CardHeader title="การดำเนินการ" />
+              <CardContent>
+                <Button
+                  className="min-h-[48px] w-full justify-center bg-amber-600 hover:bg-amber-700 text-white"
+                  variant="primary"
+                  icon={<Warehouse className="h-5 w-5" />}
+                  onClick={() => setShowTransferHqModal(true)}
+                >
+                  โอนคลังกลาง
+                </Button>
+                <p className="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
+                  ส่งรายการนี้ไปคลังกลาง (HQ) พร้อมแจ้งเตือน
+                </p>
               </CardContent>
             </Card>
           )}
@@ -1391,6 +1596,77 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             icon={<ArrowRightLeft className="h-4 w-4" />}
           >
             ยืนยันโอน
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Transfer to HQ Modal */}
+      <Modal
+        isOpen={showTransferHqModal}
+        onClose={() => {
+          setShowTransferHqModal(false);
+          setTransferHqNotes('');
+          setTransferHqPhoto(null);
+        }}
+        title="โอนคลังกลาง"
+        description="ส่งรายการหมดอายุไปคลังกลาง (HQ)"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500 dark:text-gray-400">สินค้า</span>
+                <span className="font-medium text-gray-900 dark:text-white">{deposit.product_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 dark:text-gray-400">ลูกค้า</span>
+                <span className="font-medium text-gray-900 dark:text-white">{deposit.customer_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 dark:text-gray-400">คงเหลือ</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {formatNumber(deposit.remaining_qty)} หน่วย
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 dark:text-gray-400">รหัสฝาก</span>
+                <span className="font-mono text-xs text-gray-700 dark:text-gray-300">{deposit.deposit_code}</span>
+              </div>
+            </div>
+          </div>
+          <PhotoUpload
+            label="ถ่ายรูปสินค้า (ไม่จำเป็น)"
+            value={transferHqPhoto}
+            onChange={setTransferHqPhoto}
+            bucket="deposit-photos"
+          />
+          <Textarea
+            label="หมายเหตุ"
+            value={transferHqNotes}
+            onChange={(e) => setTransferHqNotes(e.target.value)}
+            placeholder="ระบุหมายเหตุ (ถ้ามี)"
+            rows={2}
+          />
+        </div>
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowTransferHqModal(false);
+              setTransferHqNotes('');
+              setTransferHqPhoto(null);
+            }}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            onClick={handleTransferToHq}
+            isLoading={isSubmitting}
+            icon={<Warehouse className="h-4 w-4" />}
+            className="bg-amber-600 hover:bg-amber-700"
+          >
+            ยืนยันโอนคลังกลาง
           </Button>
         </ModalFooter>
       </Modal>
