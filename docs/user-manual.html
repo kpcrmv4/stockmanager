@@ -872,7 +872,11 @@
         <div class="bnp-item"><div class="bnp-icon" style="color:var(--accent-emerald)">&#127863;</div>ฝาก/เบิก</div>
         <div class="bnp-item center"><div class="bnp-icon bg-violet">&#128202;</div>ภาพรวม</div>
         <div class="bnp-item"><div class="bnp-icon" style="color:var(--accent-blue)">&#128172;</div>แชท</div>
-        <div class="bnp-item"><div class="bnp-icon" style="color:var(--accent-rose)">&#128276;</div>แจ้งเตือน</div>
+        <div class="bnp-item"><div class="bnp-icon" style="color:var(--accent-cyan)">&#128214;</div>คู่มือ</div>
+      </div>
+
+      <div class="tip-box">
+        <strong>&#128161; หมายเหตุ:</strong> แจ้งเตือนเข้าถึงได้จาก Top Bar (ไอคอนกระดิ่ง) &mdash; ปุ่ม "คู่มือ" ถูกเพิ่มใน Bottom Nav แทน
       </div>
 
       <div class="img-placeholder">
@@ -886,8 +890,9 @@
       <h3>&#128202; หน้า Overview (หน้าแรก Owner)</h3>
       <p>Dashboard ภาพรวมแสดง:</p>
       <ul>
-        <li><strong>Summary Cards</strong> &mdash; จำนวนสาขา, ยอดฝากรวม, งานรออนุมัติ, แจ้งเตือนสต๊อก</li>
-        <li><strong>Trend Analysis</strong> &mdash; เปรียบเทียบ 30 วันล่าสุด vs 30 วันก่อนหน้า พร้อม % เปลี่ยนแปลง</li>
+        <li><strong>Summary Cards</strong> &mdash; จำนวนสาขา, ยอดฝากรวม, งานรออนุมัติ, แจ้งเตือนสต๊อก พร้อม Trend %</li>
+        <li><strong>สถานะแต่ละสาขา</strong> &mdash; การ์ดแยกแต่ละสาขาแสดงงานค้าง/ปัญหา (รออนุมัติสต๊อก, รอชี้แจง, รอเบิก, ใกล้หมดอายุ, รอโอน) พร้อมลิงก์ไปหน้าที่เกี่ยวข้อง เรียงสาขาที่มีปัญหามากสุดไว้บนสุด</li>
+        <li><strong>การ์ด HQ (คลังกลาง)</strong> &mdash; แสดงไอคอน Warehouse แทน Store, แสดงเฉพาะ "รอรับโอนจากสาขา" (ไม่แสดงข้อมูลฝาก/สต๊อกที่ไม่เกี่ยวข้อง)</li>
         <li><strong>Module Cards</strong> &mdash; ทางลัดไปยังระบบหลัก (สต๊อก, ฝาก, โอน, ยืม, รายงาน, ตั้งค่า)</li>
         <li><strong>Recent Activity</strong> &mdash; กิจกรรมล่าสุดของระบบ</li>
       </ul>
@@ -1087,7 +1092,7 @@
         <div class="bnp-item"><div class="bnp-icon" style="color:var(--accent-emerald)">&#127863;</div>ฝาก/เบิก</div>
         <div class="bnp-item center"><div class="bnp-icon bg-blue">&#128172;</div>แชท</div>
         <div class="bnp-item"><div class="bnp-icon" style="color:var(--accent-indigo)">&#128203;</div>นับสต๊อก</div>
-        <div class="bnp-item"><div class="bnp-icon" style="color:var(--accent-rose)">&#128276;</div>แจ้งเตือน</div>
+        <div class="bnp-item"><div class="bnp-icon" style="color:var(--accent-cyan)">&#128214;</div>คู่มือ</div>
       </div>
 
       <div class="img-placeholder">
@@ -1156,7 +1161,7 @@
         <div class="bnp-item"><div class="bnp-icon" style="color:var(--accent-indigo)">&#128203;</div>นับสต๊อก</div>
         <div class="bnp-item center"><div class="bnp-icon bg-blue">&#128172;</div>แชท</div>
         <div class="bnp-item"><div class="bnp-icon" style="color:var(--accent-rose)">&#128260;</div>ยืมสินค้า</div>
-        <div class="bnp-item"><div class="bnp-icon" style="color:var(--accent-pink)">&#128276;</div>แจ้งเตือน</div>
+        <div class="bnp-item"><div class="bnp-icon" style="color:var(--accent-cyan)">&#128214;</div>คู่มือ</div>
       </div>
 
       <div class="img-placeholder">
@@ -1449,8 +1454,9 @@
       <h3>หน้าหลักฝาก/เบิก</h3>
       <p>หน้าจอหลักแสดง:</p>
       <ul>
-        <li><strong>Summary Cards</strong> &mdash; จำนวนฝากในร้าน, รอยืนยัน, ใกล้หมดอายุ, รอเบิก</li>
-        <li><strong>Tabs</strong> &mdash; ทั้งหมด | ในร้าน | รอยืนยัน | หมดอายุ | VIP</li>
+        <li><strong>Summary Cards</strong> &mdash; ฝากอยู่ในร้าน, รอยืนยัน, หมดอายุ, คำขอเบิก</li>
+        <li><strong>Tabs</strong> &mdash; ทั้งหมด | ในร้าน | รอยืนยัน | หมดอายุ | <strong>รอนำส่ง HQ</strong> | VIP (แต่ละแท็บมี badge ตัวเลข)</li>
+        <li><strong>Batch Transfer</strong> &mdash; ในแท็บ "หมดอายุ" มี checkbox เลือกหลายรายการ/เลือกทั้งหมด + ปุ่ม "โอนคลังกลาง (N)" สำหรับส่งรายการหมดอายุไป HQ แบบ batch</li>
         <li><strong>ค้นหา</strong> &mdash; ค้นหาด้วยรหัส/ชื่อลูกค้า/ชื่อสินค้า</li>
         <li><strong>ตัวกรองวันที่</strong> &mdash; เลือกช่วงวันที่ (default: เมื่อวาน-วันนี้)</li>
       </ul>
@@ -1459,6 +1465,71 @@
         <div class="img-icon">&#127863;</div>
         <div class="img-name">img-26-deposit-main.png</div>
         <div class="img-desc">หน้าหลักฝาก/เบิก แสดง Summary + Tab Filter + Table/Cards</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>&#128203; รายละเอียดรายการฝาก (Deposit Detail)</h3>
+      <p>กดที่รายการฝากเพื่อเข้าดูรายละเอียด จะเห็น:</p>
+
+      <h4>สถานะการฝาก (Timeline)</h4>
+      <p>แสดง 2 เส้นทางหลัก:</p>
+      <ul>
+        <li><strong>เส้นทางปกติ:</strong> รอยืนยัน &rarr; อยู่ในร้าน &rarr; รอเบิก &rarr; เบิกแล้ว</li>
+        <li><strong>เส้นทางหมดอายุ:</strong> <span style="color:var(--accent-rose)">หมดอายุ</span> &rarr; <span style="color:var(--accent-amber)">รอนำส่ง HQ</span> &rarr; <span style="color:var(--accent-blue)">โอนคลังกลางแล้ว</span></li>
+      </ul>
+
+      <h4>การ์ด "การดำเนินการ" (ปุ่มแสดงตามสถานะ)</h4>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>สถานะ</th><th>ปุ่มที่แสดง</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="role-tag" style="background:var(--accent-amber)">รอยืนยัน</span></td>
+              <td>ยืนยันรับเข้าระบบ, <strong>ปฏิเสธรับฝาก</strong> (ต้องระบุเหตุผล), เปลี่ยน VIP, ทำเครื่องหมายหมดอายุ</td>
+            </tr>
+            <tr>
+              <td><span class="role-tag" style="background:var(--accent-emerald)">อยู่ในร้าน</span></td>
+              <td>เบิกเหล้า, เปลี่ยน VIP, ขยายวันหมดอายุ, ทำเครื่องหมายหมดอายุ</td>
+            </tr>
+            <tr>
+              <td><span class="role-tag" style="background:var(--accent-rose)">หมดอายุ</span></td>
+              <td><strong>โอนคลังกลาง</strong> (บังคับถ่ายรูป, ส่ง Action Card ไป HQ chat)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Flow โอนคลังกลาง (จากรายละเอียดรายการ)</h4>
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>กด "โอนคลังกลาง"</h4>
+          <p>เปิด Modal แสดงข้อมูลสินค้า (ชื่อ, ลูกค้า, คงเหลือ, รหัสฝาก)</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>ถ่ายรูปสินค้า (บังคับ)</h4>
+          <p>ต้องถ่ายรูปก่อนจึงจะกดยืนยันได้ + ใส่หมายเหตุ (ไม่บังคับ)</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>กด "ยืนยันโอนคลังกลาง"</h4>
+          <p>ระบบสร้าง Transfer record, เปลี่ยนสถานะเป็น "รอนำส่ง HQ", ส่งข้อความแจ้งเตือนในแชทสาขา + ส่ง Transfer Action Card ไปแชท HQ</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h4>HQ ยืนยันรับ หรือ ปฏิเสธ</h4>
+          <p>เมื่อ HQ รับ &rarr; สถานะเปลี่ยนเป็น "โอนคลังกลางแล้ว" &mdash; ถ้า HQ ปฏิเสธ &rarr; กลับเป็น "หมดอายุ"</p>
+        </div>
       </div>
     </div>
 
@@ -1559,6 +1630,10 @@
         <div class="step-content">
           <h4>อัปโหลดข้อมูล POS</h4>
           <p><span class="role-tag manager">Manager</span> อัปโหลดไฟล์ .txt จากระบบ POS</p>
+          <ul>
+            <li><strong>แจ้งเตือนซ้ำ:</strong> ถ้าวันนี้อัปโหลดแล้ว จะแสดง warning ตั้งแต่เข้าหน้า + ต้องยืนยันก่อนบันทึกทับ</li>
+            <li><strong>Preview จัดกลุ่ม:</strong> หลังอัปโหลดจะแสดงรายการแบ่งกลุ่ม (สินค้าใหม่ / ตรงกับระบบ / จำนวน=0) แต่ละกลุ่มย่อ-ขยายได้ พร้อม badge จำนวนรายการ</li>
+          </ul>
         </div>
       </div>
       <div class="step">
@@ -2124,6 +2199,7 @@
             <tr><td>อนุมัติ (Bar)</td><td style="text-align:center">&mdash;</td><td style="text-align:center">&mdash;</td><td style="text-align:center">&mdash;</td><td style="text-align:center">&mdash;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&mdash;</td></tr>
             <tr><td>งานของฉัน</td><td style="text-align:center">&mdash;</td><td style="text-align:center">&mdash;</td><td style="text-align:center">&mdash;</td><td style="text-align:center">&mdash;</td><td style="text-align:center">&mdash;</td><td style="text-align:center">&#9989;</td></tr>
             <tr><td>แจ้งเตือน</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td></tr>
+            <tr><td><strong>คู่มือ</strong></td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td></tr>
             <tr><td>โปรไฟล์</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td><td style="text-align:center">&#9989;</td></tr>
           </tbody>
         </table>
