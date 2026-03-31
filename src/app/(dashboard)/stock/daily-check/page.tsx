@@ -784,6 +784,74 @@ export default function DailyCheckPage() {
         </span>
       </div>
 
+      {/* ── Supplementary Count Section (ด้านบนสุด — ต้องนับเพิ่ม) ── */}
+      {supplementaryItems.length > 0 && (
+        <Card>
+          <CardHeader
+            title={`รายการที่ต้องนับเพิ่ม (${supplementaryItems.length})`}
+          />
+          <CardContent>
+            <div className="mb-3 flex items-start gap-2 rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+              <p className="text-xs text-red-700 dark:text-red-400">
+                พบ {supplementaryItems.length} รายการจาก POS
+                ที่ยังไม่ได้นับมือ — กรุณากรอกจำนวนแล้วกดบันทึก
+              </p>
+            </div>
+            <div className="space-y-2">
+              {supplementaryItems.map((item) => (
+                <div
+                  key={item.product_code}
+                  className="flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-700/50"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {item.product_name}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {item.product_code}
+                    </p>
+                  </div>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    placeholder="0"
+                    value={
+                      supplementaryCounts[item.product_code]?.count_quantity ??
+                      ''
+                    }
+                    onChange={(e) =>
+                      setSupplementaryCounts((prev) => ({
+                        ...prev,
+                        [item.product_code]: {
+                          ...prev[item.product_code],
+                          count_quantity:
+                            e.target.value === ''
+                              ? ''
+                              : Number(e.target.value),
+                        },
+                      }))
+                    }
+                    className="w-20 rounded-lg border border-gray-300 bg-white px-3 py-2 text-center text-sm font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button
+                size="sm"
+                icon={<Save className="h-4 w-4" />}
+                isLoading={savingSupplementary}
+                onClick={handleSaveSupplementary}
+              >
+                บันทึกรายการเพิ่มเติม
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Auto-compare in progress */}
       {comparing && (
         <div className="flex items-center gap-2 rounded-xl bg-indigo-50 p-4 dark:bg-indigo-900/20">
@@ -984,74 +1052,6 @@ export default function DailyCheckPage() {
             );
           })}
         </div>
-      )}
-
-      {/* ── Supplementary Count Section ── */}
-      {supplementaryItems.length > 0 && (
-        <Card>
-          <CardHeader
-            title={`รายการเพิ่มเติมจาก POS (${supplementaryItems.length})`}
-          />
-          <CardContent>
-            <div className="mb-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-              <p className="text-xs text-amber-700 dark:text-amber-400">
-                พบรายการสินค้าจาก POS ที่ยังไม่ได้นับ
-                กรุณากรอกจำนวนนับเพิ่มเติม
-              </p>
-            </div>
-            <div className="space-y-2">
-              {supplementaryItems.map((item) => (
-                <div
-                  key={item.product_code}
-                  className="flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-700/50"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {item.product_name}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {item.product_code}
-                    </p>
-                  </div>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min="0"
-                    placeholder="0"
-                    value={
-                      supplementaryCounts[item.product_code]?.count_quantity ??
-                      ''
-                    }
-                    onChange={(e) =>
-                      setSupplementaryCounts((prev) => ({
-                        ...prev,
-                        [item.product_code]: {
-                          ...prev[item.product_code],
-                          count_quantity:
-                            e.target.value === ''
-                              ? ''
-                              : Number(e.target.value),
-                        },
-                      }))
-                    }
-                    className="w-20 rounded-lg border border-gray-300 bg-white px-3 py-2 text-center text-sm font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 flex justify-end">
-              <Button
-                size="sm"
-                icon={<Save className="h-4 w-4" />}
-                isLoading={savingSupplementary}
-                onClick={handleSaveSupplementary}
-              >
-                บันทึกรายการเพิ่มเติม
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       )}
 
       {/* Bottom Action Bar */}
