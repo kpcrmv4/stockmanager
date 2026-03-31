@@ -816,7 +816,7 @@ export default function ComparisonPage() {
                 <YAxis tick={{ fontSize: 11 }} width={30} />
                 <Tooltip
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                  formatter={(value: number, name: string) => {
+                  formatter={(value: any, name: any) => {
                     const labels: Record<string, string> = {
                       match: 'ตรง',
                       withinTolerance: 'ในเกณฑ์',
@@ -824,13 +824,13 @@ export default function ComparisonPage() {
                     };
                     return [value, labels[name] || name];
                   }}
-                  labelFormatter={(label, payload) => {
+                  labelFormatter={(label: any, payload: any) => {
                     const item = payload?.[0]?.payload;
                     return item?.date ? formatThaiDate(item.date) : label;
                   }}
                 />
                 <Legend
-                  formatter={(value: string) => {
+                  formatter={(value: any) => {
                     const labels: Record<string, string> = {
                       match: 'ตรง',
                       withinTolerance: 'ในเกณฑ์',
@@ -985,12 +985,12 @@ export default function ComparisonPage() {
                     <YAxis tick={{ fontSize: 10 }} width={30} />
                     <Tooltip
                       contentStyle={{ fontSize: 11, borderRadius: 8 }}
-                      formatter={(value: number, name: string) => {
+                      formatter={(value: any, name: any) => {
                         const labels: Record<string, string> = { difference: 'ส่วนต่าง', pos: 'POS', manual: 'นับจริง' };
                         return [value, labels[name] || name];
                       }}
                     />
-                    <Legend formatter={(value: string) => {
+                    <Legend formatter={(value: any) => {
                       const labels: Record<string, string> = { difference: 'ส่วนต่าง', pos: 'POS', manual: 'นับจริง' };
                       return <span className="text-[10px]">{labels[value] || value}</span>;
                     }} />
