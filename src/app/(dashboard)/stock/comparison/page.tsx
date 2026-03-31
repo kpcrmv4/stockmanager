@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { Button, Input, Badge, Card, CardHeader, Tabs, EmptyState, toast, Modal } from '@/components/ui';
 import { nowBangkok } from '@/lib/utils/date';
-import { formatThaiDate, formatNumber, formatPercent } from '@/lib/utils/format';
+import { formatThaiDate, formatThaiShortDate, formatNumber, formatPercent } from '@/lib/utils/format';
 import type { Comparison, ComparisonStatus } from '@/types/database';
 import {
   ArrowLeft,
@@ -29,6 +29,18 @@ import {
   ChevronRight,
   Eye,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from 'recharts';
 
 type FilterStatus = 'all' | ComparisonStatus;
 
@@ -113,6 +125,9 @@ export default function ComparisonPage() {
   });
   const [detailDate, setDetailDate] = useState<string | null>(null);
   const [posFileUrl, setPosFileUrl] = useState<string | null>(null);
+  const [trendRange, setTrendRange] = useState<'week' | 'month'>('week');
+  const [productViewSearch, setProductViewSearch] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
   const fetchComparisons = useCallback(async () => {
     if (!currentStoreId) return;
@@ -316,6 +331,147 @@ export default function ComparisonPage() {
     result.sort((a, b) => a.date.localeCompare(b.date));
     return result;
   }, [comparisons, selectedMonth]);
+
+  // ── Trend chart data (week / month) ──
+  const trendChartData = useMemo(() => {
+    const now = nowBangkok();
+    let startDate: string;
+
+    if (trendRange === 'week') {
+      // Current week: Monday to Sunday
+      const day = now.getDay();
+      const diff = day === 0 ? 6 : day - 1; // Monday = 0
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - diff);
+      startDate = monday.toISOString().slice(0, 10);
+    } else {
+      // Current month
+      startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    }
+
+    const endDate = now.toISOString().slice(0, 10);
+
+    const dateGroups = new Map<string, Comparison[]>();
+    for (const c of comparisons) {
+      if (c.comp_date >= startDate && c.comp_date <= endDate) {
+        const group = dateGroups.get(c.comp_date) || [];
+        group.push(c);
+        dateGroups.set(c.comp_date, group);
+      }
+    }
+
+    const result: Array<{
+      date: string;
+      label: string;
+      total: number;
+      match: number;
+      withinTolerance: number;
+      overTolerance: number;
+    }> = [];
+
+    for (const [date, items] of dateGroups) {
+      const dayOfWeek = new Date(date).toLocaleDateString('th-TH', { weekday: 'short', timeZone: 'Asia/Bangkok' });
+      result.push({
+        date,
+        label: trendRange === 'week' ? dayOfWeek : date.slice(8, 10),
+        total: items.length,
+        match: items.filter((i) => i.difference === 0 || i.difference === null).length,
+        withinTolerance: items.filter(
+          (i) => i.difference !== 0 && i.difference !== null && Math.abs(i.diff_percent || 0) <= 5,
+        ).length,
+        overTolerance: items.filter(
+          (i) => i.difference !== 0 && i.difference !== null && Math.abs(i.diff_percent || 0) > 5,
+        ).length,
+      });
+    }
+
+    result.sort((a, b) => a.date.localeCompare(b.date));
+    return result;
+  }, [comparisons, trendRange]);
+
+  // ── Per-product cross-day view ──
+  const productCrossDayData = useMemo(() => {
+    // Use same date range as trend
+    const now = nowBangkok();
+    let startDate: string;
+
+    if (trendRange === 'week') {
+      const day = now.getDay();
+      const diff = day === 0 ? 6 : day - 1;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - diff);
+      startDate = monday.toISOString().slice(0, 10);
+    } else {
+      startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    }
+
+    const endDate = now.toISOString().slice(0, 10);
+    const rangeComps = comparisons.filter((c) => c.comp_date >= startDate && c.comp_date <= endDate);
+
+    // Group by product
+    const productMap = new Map<
+      string,
+      {
+        product_code: string;
+        product_name: string;
+        days: Map<string, { difference: number | null; pos_qty: number | null; manual_qty: number | null; status: string }>;
+        totalOverTolerance: number;
+        avgDiff: number;
+      }
+    >();
+
+    const allDates = [...new Set(rangeComps.map((c) => c.comp_date))].sort();
+
+    for (const c of rangeComps) {
+      if (!productMap.has(c.product_code)) {
+        productMap.set(c.product_code, {
+          product_code: c.product_code,
+          product_name: c.product_name || c.product_code,
+          days: new Map(),
+          totalOverTolerance: 0,
+          avgDiff: 0,
+        });
+      }
+      const p = productMap.get(c.product_code)!;
+      p.days.set(c.comp_date, {
+        difference: c.difference,
+        pos_qty: c.pos_quantity,
+        manual_qty: c.manual_quantity,
+        status: c.status,
+      });
+      if (c.difference !== null && c.difference !== 0 && Math.abs(c.diff_percent || 0) > 5) {
+        p.totalOverTolerance++;
+      }
+    }
+
+    // Calculate avgDiff
+    for (const p of productMap.values()) {
+      const diffs = [...p.days.values()].filter((d) => d.difference !== null).map((d) => d.difference!);
+      p.avgDiff = diffs.length > 0 ? diffs.reduce((a, b) => a + b, 0) / diffs.length : 0;
+    }
+
+    // Sort: most problematic first
+    let products = [...productMap.values()].sort((a, b) => b.totalOverTolerance - a.totalOverTolerance || Math.abs(b.avgDiff) - Math.abs(a.avgDiff));
+
+    // Filter by search
+    if (productViewSearch.trim()) {
+      const q = productViewSearch.toLowerCase();
+      products = products.filter(
+        (p) => p.product_name.toLowerCase().includes(q) || p.product_code.toLowerCase().includes(q),
+      );
+    }
+
+    return { products: products.slice(0, 50), allDates };
+  }, [comparisons, trendRange, productViewSearch]);
+
+  // ── Selected product history (for modal) ──
+  const selectedProductHistory = useMemo(() => {
+    if (!selectedProduct) return [];
+    return comparisons
+      .filter((c) => c.product_code === selectedProduct)
+      .sort((a, b) => a.comp_date.localeCompare(b.comp_date))
+      .slice(-30); // last 30 entries
+  }, [comparisons, selectedProduct]);
 
   const monthLabel = useMemo(() => {
     const [y, m] = selectedMonth.split('-').map(Number);
@@ -615,6 +771,284 @@ export default function ComparisonPage() {
           </>
         )}
       </Card>
+
+      {/* ── Trend Chart ── */}
+      <Card padding="none">
+        <CardHeader
+          title="แนวโน้มผลเปรียบเทียบ"
+          action={
+            <div className="flex rounded-lg bg-gray-100 p-0.5 dark:bg-gray-700">
+              <button
+                onClick={() => setTrendRange('week')}
+                className={cn(
+                  'rounded-md px-3 py-1 text-xs font-medium transition-colors',
+                  trendRange === 'week'
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-600 dark:text-white'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400',
+                )}
+              >
+                สัปดาห์นี้
+              </button>
+              <button
+                onClick={() => setTrendRange('month')}
+                className={cn(
+                  'rounded-md px-3 py-1 text-xs font-medium transition-colors',
+                  trendRange === 'month'
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-600 dark:text-white'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400',
+                )}
+              >
+                เดือนนี้
+              </button>
+            </div>
+          }
+        />
+        {trendChartData.length === 0 ? (
+          <div className="px-4 pb-4 text-center text-xs text-gray-400">
+            ไม่มีข้อมูลช่วงนี้
+          </div>
+        ) : (
+          <div className="px-2 pb-4">
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={trendChartData} barCategoryGap="20%">
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} width={30} />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  formatter={(value: number, name: string) => {
+                    const labels: Record<string, string> = {
+                      match: 'ตรง',
+                      withinTolerance: 'ในเกณฑ์',
+                      overTolerance: 'เกินเกณฑ์',
+                    };
+                    return [value, labels[name] || name];
+                  }}
+                  labelFormatter={(label, payload) => {
+                    const item = payload?.[0]?.payload;
+                    return item?.date ? formatThaiDate(item.date) : label;
+                  }}
+                />
+                <Legend
+                  formatter={(value: string) => {
+                    const labels: Record<string, string> = {
+                      match: 'ตรง',
+                      withinTolerance: 'ในเกณฑ์',
+                      overTolerance: 'เกินเกณฑ์',
+                    };
+                    return <span className="text-[10px]">{labels[value] || value}</span>;
+                  }}
+                />
+                <Bar dataKey="match" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="withinTolerance" stackId="a" fill="#f59e0b" />
+                <Bar dataKey="overTolerance" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Card>
+
+      {/* ── Per-Product Cross-Day View ── */}
+      <Card padding="none">
+        <CardHeader
+          title="มุมมองรายสินค้า"
+          subtitle={`ช่วง${trendRange === 'week' ? 'สัปดาห์' : 'เดือน'}นี้ — สินค้าที่มีปัญหาบ่อยแสดงก่อน`}
+        />
+        <div className="px-4 pb-2">
+          <Input
+            placeholder="ค้นหาสินค้า..."
+            leftIcon={<Search className="h-4 w-4" />}
+            value={productViewSearch}
+            onChange={(e) => setProductViewSearch(e.target.value)}
+          />
+        </div>
+
+        {productCrossDayData.products.length === 0 ? (
+          <div className="px-4 pb-4 text-center text-xs text-gray-400">
+            ไม่มีข้อมูลช่วงนี้
+          </div>
+        ) : (
+          <>
+            {/* Date header row */}
+            <div className="overflow-x-auto px-4">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-100 dark:border-gray-700">
+                    <th className="sticky left-0 bg-white py-2 pr-2 text-left font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400" style={{ minWidth: 140 }}>
+                      สินค้า
+                    </th>
+                    {productCrossDayData.allDates.map((date) => {
+                      const d = new Date(date);
+                      const dayName = d.toLocaleDateString('th-TH', { weekday: 'short', timeZone: 'Asia/Bangkok' });
+                      const dayNum = date.slice(8, 10);
+                      return (
+                        <th key={date} className="px-2 py-2 text-center font-medium text-gray-500 dark:text-gray-400" style={{ minWidth: 56 }}>
+                          <div>{dayName}</div>
+                          <div className="text-[10px] text-gray-400">{dayNum}</div>
+                        </th>
+                      );
+                    })}
+                    <th className="px-2 py-2 text-center font-medium text-gray-500 dark:text-gray-400" style={{ minWidth: 50 }}>
+                      ครั้ง
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                  {productCrossDayData.products.map((product) => (
+                    <tr
+                      key={product.product_code}
+                      onClick={() => setSelectedProduct(product.product_code)}
+                      className="cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                    >
+                      <td className="sticky left-0 bg-white py-2 pr-2 dark:bg-gray-800" style={{ minWidth: 140 }}>
+                        <p className="truncate text-xs font-medium text-gray-900 dark:text-white">
+                          {product.product_name}
+                        </p>
+                        <p className="truncate text-[10px] text-gray-400">{product.product_code}</p>
+                      </td>
+                      {productCrossDayData.allDates.map((date) => {
+                        const day = product.days.get(date);
+                        if (!day) {
+                          return (
+                            <td key={date} className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">
+                              —
+                            </td>
+                          );
+                        }
+                        const diff = day.difference;
+                        let cellBg = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
+                        if (diff !== null && diff !== 0) {
+                          const absDiff = Math.abs(diff);
+                          if (absDiff > 5) {
+                            cellBg = 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400';
+                          } else {
+                            cellBg = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400';
+                          }
+                        }
+                        return (
+                          <td key={date} className="px-2 py-2 text-center">
+                            <span className={cn('inline-block min-w-[32px] rounded-md px-1.5 py-0.5 text-[11px] font-bold', cellBg)}>
+                              {diff === null ? '✓' : diff === 0 ? '✓' : (diff > 0 ? '+' : '') + diff}
+                            </span>
+                          </td>
+                        );
+                      })}
+                      <td className="px-2 py-2 text-center">
+                        {product.totalOverTolerance > 0 ? (
+                          <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:bg-red-900/40 dark:text-red-400">
+                            {product.totalOverTolerance}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 dark:text-gray-600">0</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-4 pb-3 pt-1 text-right text-[10px] text-gray-400">
+              แสดง {productCrossDayData.products.length} สินค้า · กดที่แถวเพื่อดูประวัติ
+            </div>
+          </>
+        )}
+      </Card>
+
+      {/* ── Product History Modal ── */}
+      <Modal
+        isOpen={!!selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+        title={
+          selectedProduct
+            ? `ประวัติ ${comparisons.find((c) => c.product_code === selectedProduct)?.product_name || selectedProduct}`
+            : ''
+        }
+        size="full"
+      >
+        <div className="max-h-[60vh] overflow-y-auto">
+          {selectedProductHistory.length === 0 ? (
+            <p className="py-8 text-center text-sm text-gray-400">ไม่มีข้อมูล</p>
+          ) : (
+            <>
+              {/* Mini line chart */}
+              <div className="mb-4">
+                <ResponsiveContainer width="100%" height={160}>
+                  <LineChart data={selectedProductHistory.map((h) => ({
+                    date: h.comp_date,
+                    label: formatThaiShortDate(h.comp_date),
+                    difference: h.difference ?? 0,
+                    pos: h.pos_quantity ?? 0,
+                    manual: h.manual_quantity ?? 0,
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} width={30} />
+                    <Tooltip
+                      contentStyle={{ fontSize: 11, borderRadius: 8 }}
+                      formatter={(value: number, name: string) => {
+                        const labels: Record<string, string> = { difference: 'ส่วนต่าง', pos: 'POS', manual: 'นับจริง' };
+                        return [value, labels[name] || name];
+                      }}
+                    />
+                    <Legend formatter={(value: string) => {
+                      const labels: Record<string, string> = { difference: 'ส่วนต่าง', pos: 'POS', manual: 'นับจริง' };
+                      return <span className="text-[10px]">{labels[value] || value}</span>;
+                    }} />
+                    <Line type="monotone" dataKey="pos" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="manual" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="difference" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="5 5" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* History table */}
+              <div className="space-y-2">
+                {selectedProductHistory.map((item) => {
+                  const diffColor = getDiffColor(item.difference, item.diff_percent);
+                  const statusConfig = getStatusConfig(item.status);
+                  return (
+                    <div key={item.id} className={cn('rounded-lg border p-3', diffColor.ring)}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-gray-900 dark:text-white">
+                          {formatThaiDate(item.comp_date)}
+                        </span>
+                        <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
+                      </div>
+                      <div className="mt-2 grid grid-cols-4 gap-2 text-xs">
+                        <div>
+                          <span className="text-gray-400">POS: </span>
+                          <span className="font-medium">{item.pos_quantity !== null ? formatNumber(item.pos_quantity) : '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">นับ: </span>
+                          <span className="font-medium">{item.manual_quantity !== null ? formatNumber(item.manual_quantity) : '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">ต่าง: </span>
+                          <span className={cn('font-bold', diffColor.text)}>
+                            {item.difference !== null ? (item.difference > 0 ? '+' : '') + formatNumber(item.difference) : '-'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold', diffColor.bg, diffColor.text)}>
+                            {diffColor.label}
+                          </span>
+                        </div>
+                      </div>
+                      {item.explanation && (
+                        <div className="mt-2 rounded-lg bg-blue-50 p-2 dark:bg-blue-900/20">
+                          <p className="text-[10px] font-medium text-blue-600 dark:text-blue-400">คำชี้แจง:</p>
+                          <p className="text-xs text-blue-700 dark:text-blue-300">{item.explanation}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
 
       {/* Search */}
       <Input
