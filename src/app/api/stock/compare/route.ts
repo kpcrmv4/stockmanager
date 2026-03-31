@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { notifyStoreOwners } from '@/lib/notifications/service';
+import { notifyStoreOwners, notifyStoreStaff } from '@/lib/notifications/service';
 import { sendBotMessage, buildStockExplainActionCard } from '@/lib/chat/bot';
 
 export async function POST(request: NextRequest) {
@@ -159,12 +159,23 @@ export async function POST(request: NextRequest) {
         if (posQty !== 0) {
           diffPercent = (difference / posQty) * 100;
         }
+      } else if (isPosOnly && posQty !== null) {
+        // POS has qty but manual count is missing → treat as shortage
+        difference = 0 - posQty;
+        diffPercent = -100;
       }
 
       // Determine status
       let status: string;
-      if (difference === null) {
-        // One side is missing -- auto-approve (null difference)
+      if (isPosOnly) {
+        // POS มีแต่ยังไม่ได้นับมือ → ค้างเป็น pending ให้ไปนับเพิ่ม
+        status = 'pending';
+        overToleranceCount++;
+      } else if (isManualOnly) {
+        // นับมือมีแต่ POS ไม่มี → auto-approve (อาจเป็นสินค้าที่ POS ยังไม่ลง)
+        status = 'approved';
+      } else if (difference === null) {
+        // Both sides missing (shouldn't happen) → auto-approve
         status = 'approved';
       } else if (difference === 0) {
         // Exact match
@@ -284,7 +295,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 10. Return response with summary
+    // 10. Notify staff to count supplementary items (POS มีแต่ยังไม่ได้นับมือ)
+    if (posOnlyCount > 0) {
+      const posOnlyItems = comparisonRows
+        .filter((r) => r.manual_quantity === null && r.pos_quantity !== null);
+      const posOnlyNames = posOnlyItems
+        .slice(0, 5)
+        .map((r) => r.product_name || r.product_code)
+        .join(', ');
+      const preview = posOnlyNames + (posOnlyCount > 5 ? ` +${posOnlyCount - 5} อื่นๆ` : '');
+
+      // Push notification แจ้งพนักงาน
+      try {
+        await notifyStoreStaff({
+          storeId: store_id,
+          type: 'stock_alert',
+          title: 'มีรายการที่ต้องนับเพิ่ม',
+          body: `พบ ${posOnlyCount} รายการจาก POS ที่ยังไม่ได้นับมือ: ${preview}`,
+          data: {
+            date: comp_date,
+            pos_only_count: posOnlyCount,
+            url: '/stock/daily-check',
+          },
+        });
+      } catch (notifyErr) {
+        console.error('[Compare] Failed to notify staff for supplementary count:', notifyErr);
+      }
+
+      // Bot message แจ้งในแชทสาขา
+      try {
+        await sendBotMessage({
+          storeId: store_id,
+          type: 'system',
+          content: `⚠️ พบ ${posOnlyCount} รายการจาก POS ที่ยังไม่ได้นับมือ (${comp_date})\n${preview}\n\nกรุณาเข้าหน้านับสต๊อกเพื่อนับรายการเพิ่มเติม`,
+        });
+      } catch (chatErr) {
+        console.error('[Compare] Failed to send supplementary count bot message:', chatErr);
+      }
+    }
+
+    // 11. Return response with summary
     return NextResponse.json({
       success: true,
       comp_date,
