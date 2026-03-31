@@ -852,7 +852,7 @@ export default function ComparisonPage() {
       <Card padding="none">
         <CardHeader
           title="มุมมองรายสินค้า"
-          subtitle={`ช่วง${trendRange === 'week' ? 'สัปดาห์' : 'เดือน'}นี้ — สินค้าที่มีปัญหาบ่อยแสดงก่อน`}
+          description={`ช่วง${trendRange === 'week' ? 'สัปดาห์' : 'เดือน'}นี้ — สินค้าที่มีปัญหาบ่อยแสดงก่อน`}
         />
         <div className="px-4 pb-2">
           <Input
