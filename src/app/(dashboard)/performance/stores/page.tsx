@@ -51,6 +51,9 @@ interface StoreKPI {
   avgCompletionMin: number;
   completionRate: number;
   expiringSoon: number;
+  stockAccuracy: number;
+  pendingItems: number;
+  lastCheckDate: string | null;
 }
 
 interface RadarDataPoint {
@@ -151,6 +154,10 @@ export default function StoreComparisonPage() {
             { count: discrepancies },
             { count: staffCount },
             { count: expiringSoon },
+            { count: compTotal },
+            { count: compMatch },
+            { count: pendingItems },
+            { data: latestCountData },
           ] = await Promise.all([
             supabase
               .from('deposits')
@@ -187,6 +194,34 @@ export default function StoreComparisonPage() {
               .eq('store_id', store.id)
               .eq('status', 'in_store')
               .lte('expiry_date', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()),
+            // Total comparisons in date range
+            supabase
+              .from('comparisons')
+              .select('*', { count: 'exact', head: true })
+              .eq('store_id', store.id)
+              .gte('comp_date', startDate)
+              .lte('comp_date', endDate),
+            // Comparisons where items match (difference = 0 or null)
+            supabase
+              .from('comparisons')
+              .select('*', { count: 'exact', head: true })
+              .eq('store_id', store.id)
+              .gte('comp_date', startDate)
+              .lte('comp_date', endDate)
+              .or('difference.eq.0,difference.is.null'),
+            // Pending comparisons
+            supabase
+              .from('comparisons')
+              .select('*', { count: 'exact', head: true })
+              .eq('store_id', store.id)
+              .eq('status', 'pending'),
+            // Latest count date
+            supabase
+              .from('manual_counts')
+              .select('count_date')
+              .eq('store_id', store.id)
+              .order('count_date', { ascending: false })
+              .limit(1),
           ]);
 
           // Get action card performance for the store
@@ -231,6 +266,14 @@ export default function StoreComparisonPage() {
               ? completionTimes.reduce((a, b) => a + b, 0) / completionTimes.length
               : 0;
 
+          const totalComp = compTotal ?? 0;
+          const matchComp = compMatch ?? 0;
+          const stockAccuracy = totalComp > 0 ? (matchComp / totalComp) * 100 : 0;
+          const lastCheckDate =
+            latestCountData && latestCountData.length > 0
+              ? latestCountData[0].count_date
+              : null;
+
           return {
             storeId: store.id,
             storeName: store.store_name,
@@ -243,6 +286,9 @@ export default function StoreComparisonPage() {
             avgCompletionMin: avgMin,
             completionRate: totalClaimed > 0 ? (tasksCompleted / totalClaimed) * 100 : 0,
             expiringSoon: expiringSoon ?? 0,
+            stockAccuracy,
+            pendingItems: pendingItems ?? 0,
+            lastCheckDate,
           } as StoreKPI;
         })
       );
@@ -297,6 +343,7 @@ export default function StoreComparisonPage() {
       { key: 'stockChecks', label: 'เช็คสต๊อก', max: maxStock },
       { key: 'tasksCompleted', label: 'งานสำเร็จ', max: maxTasks },
       { key: 'completionRate', label: 'Completion %', max: maxRate },
+      { key: 'stockAccuracy', label: 'ความแม่นยำสต๊อก', max: 100 },
     ];
 
     return metrics.map((m) => {
@@ -436,6 +483,7 @@ export default function StoreComparisonPage() {
                     { key: 'stockChecks' as const, label: 'สต๊อก' },
                     { key: 'tasksCompleted' as const, label: 'งานสำเร็จ' },
                     { key: 'completionRate' as const, label: 'Rate' },
+                    { key: 'stockAccuracy' as const, label: 'แม่นยำ' },
                   ].map((opt) => (
                     <Button
                       key={opt.key}
@@ -461,6 +509,8 @@ export default function StoreComparisonPage() {
                       <th className="px-4 py-3 text-center">เบิก</th>
                       <th className="px-4 py-3 text-center">เช็คสต๊อก</th>
                       <th className="px-4 py-3 text-center">ผลต่าง</th>
+                      <th className="px-4 py-3 text-center">ความแม่นยำ</th>
+                      <th className="px-4 py-3 text-center">ค้างชี้แจง</th>
                       <th className="px-4 py-3 text-center">งานสำเร็จ</th>
                       <th className="px-4 py-3 text-center">เวลาเฉลี่ย</th>
                       <th className="px-4 py-3 text-center">Rate</th>
@@ -515,6 +565,29 @@ export default function StoreComparisonPage() {
                         <td className="px-4 py-3 text-center">
                           {store.discrepancies > 0 ? (
                             <span className="text-red-500">{formatNumber(store.discrepancies)}</span>
+                          ) : (
+                            <span className="text-gray-300 dark:text-gray-600">0</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span
+                            className={cn(
+                              'text-sm font-medium',
+                              store.stockAccuracy >= 90
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : store.stockAccuracy >= 70
+                                  ? 'text-amber-600 dark:text-amber-400'
+                                  : 'text-red-600 dark:text-red-400'
+                            )}
+                          >
+                            {store.stockAccuracy.toFixed(0)}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {store.pendingItems > 0 ? (
+                            <span className="font-medium text-red-600 dark:text-red-400">
+                              {formatNumber(store.pendingItems)}
+                            </span>
                           ) : (
                             <span className="text-gray-300 dark:text-gray-600">0</span>
                           )}
