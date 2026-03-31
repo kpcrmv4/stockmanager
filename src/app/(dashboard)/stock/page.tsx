@@ -24,7 +24,19 @@ import {
   RefreshCw,
   Inbox,
   Upload,
+  Store,
 } from 'lucide-react';
+
+interface CrossStoreItem {
+  storeId: string;
+  storeName: string;
+  manualCounted: boolean;
+  posUploaded: boolean;
+  compared: boolean;
+  matchCount: number;
+  totalCount: number;
+  pendingCount: number;
+}
 
 interface StockSummary {
   totalProducts: number;
@@ -53,6 +65,7 @@ export default function StockOverviewPage() {
     pendingApprovals: 0,
   });
   const [recentChecks, setRecentChecks] = useState<RecentCheck[]>([]);
+  const [crossStoreData, setCrossStoreData] = useState<CrossStoreItem[]>([]);
 
   // Today's business date status card
   const businessDate = yesterdayBangkok();
@@ -208,6 +221,77 @@ export default function StockOverviewPage() {
 
         setRecentChecks(checks);
       }
+
+      // ── Cross-store comparison (owner/manager only) ──
+      const _isStaffOrBar = user?.role === 'staff' || user?.role === 'bar';
+      if (!_isStaffOrBar && user?.storeIds && user.storeIds.length > 1) {
+        const { data: stores } = await supabase
+          .from('stores')
+          .select('id, store_name')
+          .in('id', user.storeIds)
+          .eq('active', true)
+          .order('store_name');
+
+        if (stores && stores.length > 0) {
+          const storeIds = stores.map((s) => s.id);
+
+          // Fetch manual counts for today across all stores
+          const { data: manualCounts } = await supabase
+            .from('manual_counts')
+            .select('store_id')
+            .in('store_id', storeIds)
+            .eq('count_date', businessDate);
+
+          // Fetch OCR logs for today across all stores
+          const { data: ocrLogs } = await supabase
+            .from('ocr_logs')
+            .select('store_id')
+            .in('store_id', storeIds)
+            .eq('upload_date', businessDate);
+
+          // Fetch comparisons for today across all stores
+          const { data: comparisons } = await supabase
+            .from('comparisons')
+            .select('store_id, difference, status')
+            .in('store_id', storeIds)
+            .eq('comp_date', businessDate);
+
+          const manualSet = new Set(manualCounts?.map((m) => m.store_id) || []);
+          const ocrSet = new Set(ocrLogs?.map((o) => o.store_id) || []);
+
+          const compByStore = (comparisons || []).reduce<
+            Record<string, { total: number; match: number; pending: number }>
+          >((acc, c) => {
+            if (!acc[c.store_id]) {
+              acc[c.store_id] = { total: 0, match: 0, pending: 0 };
+            }
+            acc[c.store_id].total++;
+            if (c.difference === 0 || c.difference === null) {
+              acc[c.store_id].match++;
+            }
+            if (c.status === 'pending') {
+              acc[c.store_id].pending++;
+            }
+            return acc;
+          }, {});
+
+          const crossData: CrossStoreItem[] = stores.map((s) => {
+            const comp = compByStore[s.id] || { total: 0, match: 0, pending: 0 };
+            return {
+              storeId: s.id,
+              storeName: s.store_name,
+              manualCounted: manualSet.has(s.id),
+              posUploaded: ocrSet.has(s.id),
+              compared: comp.total > 0,
+              matchCount: comp.match,
+              totalCount: comp.total,
+              pendingCount: comp.pending,
+            };
+          });
+
+          setCrossStoreData(crossData);
+        }
+      }
     } catch (error) {
       console.error('Error fetching stock overview:', error);
       toast({
@@ -218,7 +302,7 @@ export default function StockOverviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentStoreId]);
+  }, [currentStoreId, user?.role, user?.storeIds]);
 
   useEffect(() => {
     fetchData();
@@ -743,6 +827,107 @@ export default function StockOverviewPage() {
           </div>
         )}
       </Card>
+
+      {/* Cross-Store Stock Comparison (owner/manager only) */}
+      {!isStaffOrBar && crossStoreData.length > 0 && (
+        <Card>
+          <CardHeader
+            title="เปรียบเทียบสาขา — สต๊อก"
+            action={
+              <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <Store className="h-3.5 w-3.5" />
+                {crossStoreData.length} สาขา
+              </div>
+            }
+          />
+          <CardContent>
+            <div className="space-y-3">
+              {crossStoreData.map((store) => (
+                <div
+                  key={store.storeId}
+                  className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 dark:border-gray-700 dark:bg-gray-800/50"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      {store.storeName}
+                    </h3>
+                    {store.compared && (
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                        ตรง{' '}
+                        <span className="text-emerald-600 dark:text-emerald-400">
+                          {store.matchCount}
+                        </span>
+                        /{store.totalCount}
+                        {store.pendingCount > 0 && (
+                          <>
+                            {' · '}
+                            <span className="text-red-600 dark:text-red-400">
+                              รอชี้แจง {store.pendingCount}
+                            </span>
+                          </>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium',
+                        store.manualCounted
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
+                      )}
+                    >
+                      {store.manualCounted ? (
+                        <CheckCircle2 className="h-3 w-3" />
+                      ) : (
+                        <Clock className="h-3 w-3" />
+                      )}
+                      นับ Manual
+                    </span>
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium',
+                        store.posUploaded
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
+                      )}
+                    >
+                      {store.posUploaded ? (
+                        <CheckCircle2 className="h-3 w-3" />
+                      ) : (
+                        <Clock className="h-3 w-3" />
+                      )}
+                      POS
+                    </span>
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium',
+                        store.compared
+                          ? store.pendingCount > 0
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
+                      )}
+                    >
+                      {store.compared ? (
+                        store.pendingCount > 0 ? (
+                          <AlertTriangle className="h-3 w-3" />
+                        ) : (
+                          <CheckCircle2 className="h-3 w-3" />
+                        )
+                      ) : (
+                        <Clock className="h-3 w-3" />
+                      )}
+                      เปรียบเทียบ
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
