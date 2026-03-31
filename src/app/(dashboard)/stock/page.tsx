@@ -224,13 +224,13 @@ export default function StockOverviewPage() {
 
       // ── Cross-store comparison (owner/manager only) ──
       const _isStaffOrBar = user?.role === 'staff' || user?.role === 'bar';
-      if (!_isStaffOrBar && user?.tenant_id) {
+      if (!_isStaffOrBar && user?.storeIds && user.storeIds.length > 1) {
         const { data: stores } = await supabase
           .from('stores')
-          .select('id, name')
-          .eq('tenant_id', user.tenant_id)
-          .eq('is_active', true)
-          .order('name');
+          .select('id, store_name')
+          .in('id', user.storeIds)
+          .eq('active', true)
+          .order('store_name');
 
         if (stores && stores.length > 0) {
           const storeIds = stores.map((s) => s.id);
@@ -279,7 +279,7 @@ export default function StockOverviewPage() {
             const comp = compByStore[s.id] || { total: 0, match: 0, pending: 0 };
             return {
               storeId: s.id,
-              storeName: s.name,
+              storeName: s.store_name,
               manualCounted: manualSet.has(s.id),
               posUploaded: ocrSet.has(s.id),
               compared: comp.total > 0,
@@ -302,7 +302,7 @@ export default function StockOverviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentStoreId, user?.role, user?.tenant_id]);
+  }, [currentStoreId, user?.role, user?.storeIds]);
 
   useEffect(() => {
     fetchData();
