@@ -17,6 +17,7 @@ export function SectionOwner() {
         <MenuItem icon="↔" iconBg="bg-blue-500" name="โอนสต๊อก" desc="โอนสินค้าระหว่างสาขา/คลังกลาง" path="/transfer" />
         <MenuItem icon="🔄" iconBg="bg-rose-500" name="ยืมสินค้า" desc="ยืมสินค้าระหว่างสาขา" path="/borrow" />
         <MenuItem icon="🏢" iconBg="bg-teal-500" name="คลังกลาง" desc="จัดการคลังสินค้ากลาง" path="/hq-warehouse" />
+        <MenuItem icon="💰" iconBg="bg-amber-500" name="ค่าคอมมิชชั่น" desc="AE Commission & Bottle Commission — บันทึก สรุป ทำจ่าย" path="/commission" />
 
         <CardSubtitle>📈 หมวด &quot;รายงาน&quot;</CardSubtitle>
         <MenuItem icon="📊" iconBg="bg-amber-500" name="รายงาน" desc="รายงานสรุปข้อมูลฝาก/เบิก/สต๊อก" path="/reports" />
