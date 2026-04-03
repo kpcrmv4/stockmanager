@@ -19,6 +19,7 @@ export type ManualSectionId =
   | 'notifications'
   | 'settings'
   | 'print'
+  | 'commission'
   | 'profile'
   | 'theme'
   | 'summary'
@@ -218,6 +219,16 @@ export const manualSections: ManualSection[] = [
     icon: '🖨',
     iconBg: 'bg-cyan-500',
     roles: 'all',
+    tocGroup: 'ฟีเจอร์หลัก',
+  },
+  {
+    id: 'commission',
+    number: 19,
+    title: 'ระบบค่าคอมมิชชั่น',
+    desc: 'AE Commission & Bottle Commission — บันทึก สรุป ทำจ่าย',
+    icon: '💰',
+    iconBg: 'bg-amber-500',
+    roles: ['owner', 'accountant', 'manager', 'staff'],
     tocGroup: 'ฟีเจอร์หลัก',
   },
   {

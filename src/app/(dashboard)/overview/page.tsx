@@ -82,6 +82,10 @@ interface StoreStatus {
   pendingIncomingTransfers: number; // transfers pending (incoming to HQ)
   lastStockCheck: string | null;
   totalIssues: number;          // sum of all pending items
+  // enhanced data
+  pendingBorrows: number;       // borrows pending approval
+  commissionThisMonth: number;  // commission net total this month
+  commissionEntries: number;    // commission entry count this month
 }
 
 interface AuditLogEntry {
@@ -215,6 +219,12 @@ const COLOR_MAP: Record<
     text: 'text-gray-600 dark:text-gray-400',
     border: 'border-l-gray-400',
     iconBg: 'bg-gray-100 dark:bg-gray-700/40',
+  },
+  rose: {
+    lightBg: 'bg-rose-50 dark:bg-rose-900/20',
+    text: 'text-rose-600 dark:text-rose-400',
+    border: 'border-l-rose-500',
+    iconBg: 'bg-rose-100 dark:bg-rose-900/30',
   },
 };
 
@@ -544,13 +554,20 @@ export default function OverviewPage() {
                     pendingIncomingTransfers: pendingIncoming,
                     lastStockCheck: null,
                     totalIssues: pendingIncoming,
+                    pendingBorrows: 0,
+                    commissionThisMonth: 0,
+                    commissionEntries: 0,
                   };
                   return result;
                 }
 
-                // Regular store
+                // Regular store — compute commission month range
+                const nowDate = new Date();
+                const cmStart = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-01`;
+                const cmEnd = new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 0).toISOString().split('T')[0];
+
                 const [
-                  pwRes, edRes, adRes, peRes, paRes, ptRes,
+                  pwRes, edRes, adRes, peRes, paRes, ptRes, brRes, cmRes,
                 ] = await Promise.all([
                   supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending_withdrawal'),
                   supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'in_store').lt('expiry_date', sevenDaysFromNow).gt('expiry_date', todayISO),
@@ -558,6 +575,8 @@ export default function OverviewPage() {
                   supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending'),
                   supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'explained'),
                   supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('from_store_id', sid).eq('status', 'pending'),
+                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending'),
+                  supabase.from('commission_entries').select('net_amount').eq('store_id', sid).gte('bill_date', cmStart).lte('bill_date', cmEnd),
                 ]);
 
                 const pendingWithdrawals = pwRes.count || 0;
@@ -566,6 +585,10 @@ export default function OverviewPage() {
                 const pendingExpl = peRes.count || 0;
                 const pendingAppr = paRes.count || 0;
                 const pendingTrans = ptRes.count || 0;
+                const pendingBorrows = brRes.count || 0;
+                const storeCommRows = cmRes.data || [];
+                const storeCommTotal = storeCommRows.reduce((s: number, r: { net_amount: number | string | null }) => s + (Number(r.net_amount) || 0), 0);
+                const storeCommEntries = storeCommRows.length;
 
                 let pendingDeposits = 0;
                 const drRes = await supabase.from('deposit_requests').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending');
@@ -575,7 +598,7 @@ export default function OverviewPage() {
                 const lcRes = await supabase.from('manual_counts').select('count_date').eq('store_id', sid).order('count_date', { ascending: false }).limit(1).maybeSingle();
                 if (lcRes.data) lastStockCheck = lcRes.data.count_date || null;
 
-                const totalIssues = pendingDeposits + pendingWithdrawals + expiringDeposits + pendingExpl + pendingAppr + pendingTrans;
+                const totalIssues = pendingDeposits + pendingWithdrawals + expiringDeposits + pendingExpl + pendingAppr + pendingTrans + pendingBorrows;
 
                 const result: StoreStatus = {
                   id: store.id,
@@ -592,6 +615,9 @@ export default function OverviewPage() {
                   pendingIncomingTransfers: 0,
                   lastStockCheck,
                   totalIssues,
+                  pendingBorrows,
+                  commissionThisMonth: Math.round(storeCommTotal * 100) / 100,
+                  commissionEntries: storeCommEntries,
                 };
                 return result;
               })
@@ -711,7 +737,7 @@ export default function OverviewPage() {
       name: 'คอมมิชชั่น',
       icon: HandCoins,
       href: '/commission',
-      color: 'amber',
+      color: 'rose',
       metrics: [
         `เดือนนี้: ${formatNumber(data.commissionThisMonth, 2)} บาท`,
         `${formatNumber(data.commissionEntries)} รายการ`,
@@ -890,6 +916,15 @@ export default function OverviewPage() {
                     href: '/transfer',
                   });
                 }
+                if (store.pendingBorrows > 0) {
+                  issueItems.push({
+                    label: 'ยืม/รออนุมัติ',
+                    count: store.pendingBorrows,
+                    icon: Repeat,
+                    color: 'text-purple-600 dark:text-purple-400',
+                    href: '/borrow',
+                  });
+                }
               }
 
               return (
@@ -964,24 +999,33 @@ export default function OverviewPage() {
 
                   {/* Store body */}
                   <div className="px-4 py-3">
-                    {/* Quick stats row */}
-                    <div className="mb-3 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                      {store.isCentral ? (
+                    {/* Quick stats */}
+                    {store.isCentral ? (
+                      <div className="mb-3 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                         <span className="flex items-center gap-1">
                           <Warehouse className="h-3 w-3" />
                           คลังกลาง — รับโอนรายการหมดอายุจากสาขา
                         </span>
-                      ) : (
-                        <>
-                          <span>ฝากอยู่ <span className="font-semibold text-gray-700 dark:text-gray-300">{store.activeDeposits}</span></span>
-                          <span className="text-gray-300 dark:text-gray-600">|</span>
-                          <span className="flex items-center gap-1">
-                            <Timer className="h-3 w-3" />
-                            นับล่าสุด: {store.lastStockCheck ? formatThaiDate(store.lastStockCheck) : <span className="text-gray-400 dark:text-gray-500">ยังไม่เคย</span>}
+                      </div>
+                    ) : (
+                      <div className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-gray-500 dark:text-gray-400">
+                        <span className="flex items-center gap-1.5">
+                          <Wine className="h-3 w-3 text-emerald-500" />
+                          ฝากอยู่ <span className="font-semibold text-gray-700 dark:text-gray-300">{store.activeDeposits}</span>
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <Timer className="h-3 w-3 text-indigo-500" />
+                          นับล่าสุด: {store.lastStockCheck ? formatThaiDate(store.lastStockCheck) : <span className="text-gray-400">ยังไม่เคย</span>}
+                        </span>
+                        {store.commissionThisMonth > 0 && (
+                          <span className="flex items-center gap-1.5 col-span-2">
+                            <HandCoins className="h-3 w-3 text-rose-500" />
+                            คอมเดือนนี้ <span className="font-semibold text-gray-700 dark:text-gray-300">{formatNumber(store.commissionThisMonth, 2)}</span> บาท
+                            <span className="text-gray-400">({store.commissionEntries} รายการ)</span>
                           </span>
-                        </>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Issues list */}
                     {issueItems.length > 0 ? (

@@ -9,6 +9,9 @@ export function SectionAccountant() {
       <MenuItem icon="📊" iconBg="bg-violet-500" name="ภาพรวม" desc="Dashboard สรุปข้อมูลทุกสาขา" path="/overview" />
       <MenuItem icon="💬" iconBg="bg-blue-500" name="แชท" desc="แชทภายใน" path="/chat" />
 
+      <CardSubtitle>📦 หมวด &quot;คลังสินค้า&quot;</CardSubtitle>
+      <MenuItem icon="💰" iconBg="bg-amber-500" name="ค่าคอมมิชชั่น" desc="ดูสรุปยอด ทำจ่าย จัดการ AE" path="/commission" />
+
       <CardSubtitle>📈 หมวด &quot;รายงาน&quot;</CardSubtitle>
       <MenuItem icon="📊" iconBg="bg-amber-500" name="รายงาน" desc="รายงานสรุปข้อมูลฝาก/เบิก/สต๊อก ทุกสาขา" path="/reports" />
 

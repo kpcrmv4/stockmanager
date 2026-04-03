@@ -25,6 +25,7 @@ import { SectionReports } from './sections/section-reports';
 import { SectionNotifications } from './sections/section-notifications';
 import { SectionSettings } from './sections/section-settings';
 import { SectionPrint } from './sections/section-print';
+import { SectionCommission } from './sections/section-commission';
 import { SectionProfile, SectionTheme, SectionSummary } from './sections/section-extras';
 
 const sectionComponents: Record<ManualSectionId, () => React.JSX.Element> = {
@@ -46,6 +47,7 @@ const sectionComponents: Record<ManualSectionId, () => React.JSX.Element> = {
   notifications: SectionNotifications,
   settings: SectionSettings,
   print: SectionPrint,
+  commission: SectionCommission,
   profile: SectionProfile,
   theme: SectionTheme,
   summary: SectionSummary,
