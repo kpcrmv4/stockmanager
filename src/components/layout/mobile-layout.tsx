@@ -24,6 +24,7 @@ import {
   PieChart,
   ShieldCheck,
   BookOpen,
+  HandCoins,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { getModuleColors } from '@/lib/utils/module-colors';
@@ -56,6 +57,7 @@ const iconMap: Record<string, LucideIcon> = {
   zap: Zap,
   'pie-chart': PieChart,
   'book-open': BookOpen,
+  'hand-coins': HandCoins,
 };
 
 interface MobileLayoutProps {
