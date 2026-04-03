@@ -39,6 +39,7 @@ import {
   CalendarClock,
   Warehouse,
   Truck,
+  HandCoins,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -61,6 +62,8 @@ interface OverviewData {
   withdrawalsTrend: number;
   stockChecksTrend: number;
   penaltiesTrend: number;
+  commissionThisMonth: number;
+  commissionEntries: number;
 }
 
 /** Per-store status for owner dashboard */
@@ -238,6 +241,8 @@ export default function OverviewPage() {
     withdrawalsTrend: 0,
     stockChecksTrend: 0,
     penaltiesTrend: 0,
+    commissionThisMonth: 0,
+    commissionEntries: 0,
   });
   const [activities, setActivities] = useState<AuditLogEntry[]>([]);
   const [storeStatuses, setStoreStatuses] = useState<StoreStatus[]>([]);
@@ -426,6 +431,22 @@ export default function OverviewPage() {
       const stockChecksTrend = calcTrend(curStockChecksCount || 0, prevStockChecksCount || 0);
       const penaltiesTrend = calcTrend(curPenaltiesCount || 0, prevPenaltiesCount || 0);
 
+      // --- Commission this month ---
+      const now = new Date();
+      const commissionMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const commissionMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+      const commissionQuery = supabase
+        .from('commission_entries')
+        .select('net_amount')
+        .gte('bill_date', commissionMonthStart)
+        .lte('bill_date', commissionMonthEnd);
+      if (storeFilter) commissionQuery.eq('store_id', storeFilter);
+      const { data: commissionRows } = await commissionQuery;
+
+      const commissionThisMonth = (commissionRows || []).reduce((sum, r) => sum + (Number(r.net_amount) || 0), 0);
+      const commissionEntries = (commissionRows || []).length;
+
       setData({
         storeCount: storeCount || 0,
         totalDepositsInStore: totalDepositsInStore || 0,
@@ -441,6 +462,8 @@ export default function OverviewPage() {
         withdrawalsTrend,
         stockChecksTrend,
         penaltiesTrend,
+        commissionThisMonth,
+        commissionEntries,
       });
 
       // --- Recent audit logs (latest 8) ---
@@ -682,6 +705,17 @@ export default function OverviewPage() {
       color: 'violet',
       metrics: [],
       description: 'ดูรายงานสรุปภาพรวม',
+    },
+    {
+      id: 'commission',
+      name: 'คอมมิชชั่น',
+      icon: HandCoins,
+      href: '/commission',
+      color: 'amber',
+      metrics: [
+        `เดือนนี้: ${formatNumber(data.commissionThisMonth, 2)} บาท`,
+        `${formatNumber(data.commissionEntries)} รายการ`,
+      ],
     },
     {
       id: 'borrow',
