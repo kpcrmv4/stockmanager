@@ -5,7 +5,7 @@ export function SectionCommission() {
     <>
       {/* ── ภาพรวม ── */}
       <Card>
-        <RolesBar roles={['owner', 'accountant', 'manager', 'staff']} />
+        <RolesBar roles={['owner', 'accountant', 'manager']} />
         <CardTitle icon="💰">ภาพรวมระบบค่าคอมมิชชั่น</CardTitle>
         <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
           ระบบบันทึกและจัดการค่าคอมมิชชั่น 2 ประเภท:
@@ -49,7 +49,6 @@ export function SectionCommission() {
             <tr><Td><RoleTag role="owner" /></Td><Td>ทั้งหมด 6 แท็บ</Td><Td>ลบรายการ, ทำจ่าย, จัดการ AE</Td></tr>
             <tr><Td><RoleTag role="accountant" /></Td><Td>ทั้งหมด 6 แท็บ</Td><Td>ลบรายการ, ทำจ่าย, จัดการ AE</Td></tr>
             <tr><Td><RoleTag role="manager" /></Td><Td>ทั้งหมด 6 แท็บ</Td><Td>ทำจ่าย, จัดการ AE</Td></tr>
-            <tr><Td><RoleTag role="staff" /></Td><Td>เฉพาะ &quot;บันทึก&quot; + &quot;รายการ&quot;</Td><Td>บันทึกค่าคอมเท่านั้น</Td></tr>
           </tbody>
         </TableWrap>
       </Card>
@@ -72,7 +71,7 @@ export function SectionCommission() {
       {/* ── แท็บ 2: บันทึก ── */}
       <Card>
         <CardTitle icon="📝">แท็บ &quot;บันทึก&quot; (Create Entry)</CardTitle>
-        <RolesBar roles={['owner', 'accountant', 'manager', 'staff']} />
+        <RolesBar roles={['owner', 'accountant', 'manager']} />
 
         <CardSubtitle>บันทึก AE Commission</CardSubtitle>
         <Step num={1} title="เลือกประเภท &rarr; AE Commission">
@@ -125,7 +124,7 @@ export function SectionCommission() {
       {/* ── แท็บ 3: รายการ ── */}
       <Card>
         <CardTitle icon="📋">แท็บ &quot;รายการ&quot; (Entry List)</CardTitle>
-        <RolesBar roles={['owner', 'accountant', 'manager', 'staff']} />
+        <RolesBar roles={['owner', 'accountant', 'manager']} />
         <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">แสดงรายการค่าคอมทั้งหมดของเดือนที่เลือก:</p>
         <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
           <li><strong>กรองได้</strong> — เดือน + ประเภท (AE / Bottle / ทั้งหมด)</li>
@@ -221,8 +220,8 @@ export function SectionCommission() {
             <tr><Th>ขั้นตอน</Th><Th>ผู้ดำเนินการ</Th><Th>รายละเอียด</Th></tr>
           </thead>
           <tbody>
-            <tr><Td>1. ถ่ายรูปบิล</Td><Td><RoleTag role="staff" /> / <RoleTag role="manager" /></Td><Td>ถ่ายรูปบิลจากกล้อง หรือเลือกรูปจากแกลเลอรี่</Td></tr>
-            <tr><Td>2. บันทึกค่าคอม</Td><Td><RoleTag role="staff" /> / <RoleTag role="manager" /></Td><Td>เลือก AE, กรอกยอดบิล, ระบบคำนวณอัตโนมัติ</Td></tr>
+            <tr><Td>1. ถ่ายรูปบิล</Td><Td><RoleTag role="manager" /> / <RoleTag role="accountant" /></Td><Td>ถ่ายรูปบิลจากกล้อง หรือเลือกรูปจากแกลเลอรี่</Td></tr>
+            <tr><Td>2. บันทึกค่าคอม</Td><Td><RoleTag role="manager" /> / <RoleTag role="accountant" /></Td><Td>เลือก AE, กรอกยอดบิล, ระบบคำนวณอัตโนมัติ</Td></tr>
             <tr><Td>3. ตรวจสอบรายการ</Td><Td><RoleTag role="accountant" /> / <RoleTag role="owner" /></Td><Td>ดูสรุปยอดรายเดือน + ตรวจรายการทั้งหมด</Td></tr>
             <tr><Td>4. ทำจ่าย</Td><Td><RoleTag role="accountant" /> / <RoleTag role="owner" /></Td><Td>กด &quot;จ่าย&quot; + แนบสลิปโอนเงิน</Td></tr>
             <tr><Td>5. สถานะเปลี่ยน</Td><Td>ระบบ</Td><Td>รายการทั้งหมดเปลี่ยนเป็น &quot;จ่ายแล้ว&quot;</Td></tr>

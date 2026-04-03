@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Tabs } from '@/components/ui';
-import { useAuthStore } from '@/stores/auth-store';
 import { LayoutDashboard, FilePlus, List, Users, Banknote, History } from 'lucide-react';
 import { CommissionDashboard } from './_components/commission-dashboard';
 import { CommissionEntryForm } from './_components/commission-entry-form';
@@ -21,13 +20,7 @@ const allTabs = [
 ];
 
 export default function CommissionPage() {
-  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('dashboard');
-
-  const isStaffOnly = user?.role === 'staff';
-  const tabs = isStaffOnly
-    ? allTabs.filter((t) => t.id === 'create' || t.id === 'list')
-    : allTabs;
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
@@ -40,7 +33,7 @@ export default function CommissionPage() {
         </p>
       </div>
 
-      <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+      <Tabs tabs={allTabs} activeTab={activeTab} onChange={setActiveTab} />
 
       {activeTab === 'dashboard' && <CommissionDashboard />}
       {activeTab === 'create' && <CommissionEntryForm onSuccess={() => setActiveTab('list')} />}
