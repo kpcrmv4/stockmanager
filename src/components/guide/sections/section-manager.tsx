@@ -14,6 +14,7 @@ export function SectionManager() {
         <MenuItem icon="📋" iconBg="bg-indigo-500" name="เช็คสต๊อก" desc="นับสต๊อก, อัปโหลด POS, เปรียบเทียบ" path="/stock" />
         <MenuItem icon="↔" iconBg="bg-blue-500" name="โอนสต๊อก" desc="โอนสินค้าระหว่างสาขา" path="/transfer" />
         <MenuItem icon="🔄" iconBg="bg-rose-500" name="ยืมสินค้า" desc="ยืมสินค้าระหว่างสาขา" path="/borrow" />
+        <MenuItem icon="💰" iconBg="bg-amber-500" name="ค่าคอมมิชชั่น" desc="AE Commission & Bottle Commission — บันทึก สรุป ทำจ่าย" path="/commission" />
 
         <CardSubtitle>📈 หมวด &quot;รายงาน&quot;</CardSubtitle>
         <MenuItem icon="📊" iconBg="bg-amber-500" name="รายงาน" desc="รายงานสรุปข้อมูลสาขา" path="/reports" />

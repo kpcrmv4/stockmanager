@@ -228,7 +228,7 @@ export const manualSections: ManualSection[] = [
     desc: 'AE Commission & Bottle Commission — บันทึก สรุป ทำจ่าย',
     icon: '💰',
     iconBg: 'bg-amber-500',
-    roles: ['owner', 'accountant', 'manager', 'staff'],
+    roles: ['owner', 'accountant', 'manager'],
     tocGroup: 'ฟีเจอร์หลัก',
   },
   {
