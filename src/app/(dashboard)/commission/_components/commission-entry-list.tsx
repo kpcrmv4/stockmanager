@@ -52,10 +52,10 @@ export function CommissionEntryList() {
     if (!confirm('ยืนยันลบรายการนี้?')) return;
     const res = await fetch(`/api/commission/${id}`, { method: 'DELETE' });
     if (res.ok) {
-      toast({ type: 'success', message: 'ลบสำเร็จ' });
+      toast({ type: 'success', title: 'ลบสำเร็จ' });
       fetchEntries();
     } else {
-      toast({ type: 'error', message: 'ลบไม่สำเร็จ' });
+      toast({ type: 'error', title: 'ลบไม่สำเร็จ' });
     }
   }
 

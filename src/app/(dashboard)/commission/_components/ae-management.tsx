@@ -166,7 +166,7 @@ function AEFormModal({ ae, onClose, onSaved }: AEFormModalProps) {
 
   async function handleSave() {
     if (!name.trim()) {
-      toast({ type: 'error', message: 'กรุณากรอกชื่อ AE' });
+      toast({ type: 'error', title: 'กรุณากรอกชื่อ AE' });
       return;
     }
 
@@ -183,11 +183,11 @@ function AEFormModal({ ae, onClose, onSaved }: AEFormModalProps) {
       });
 
       if (res.ok) {
-        toast({ type: 'success', message: isNew ? 'เพิ่ม AE สำเร็จ' : 'แก้ไข AE สำเร็จ' });
+        toast({ type: 'success', title: isNew ? 'เพิ่ม AE สำเร็จ' : 'แก้ไข AE สำเร็จ' });
         onSaved();
       } else {
         const err = await res.json();
-        toast({ type: 'error', message: err.error || 'เกิดข้อผิดพลาด' });
+        toast({ type: 'error', title: err.error || 'เกิดข้อผิดพลาด' });
       }
     } finally {
       setSaving(false);

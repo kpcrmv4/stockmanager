@@ -126,11 +126,11 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
         setShowQuickAdd(false);
         setQuickAEName('');
         setQuickAEPhone('');
-        toast({ type: 'success', message: `เพิ่ม AE "${newAE.name}" สำเร็จ` });
+        toast({ type: 'success', title: `เพิ่ม AE "${newAE.name}" สำเร็จ` });
         searchAE('');
       } else {
         const err = await res.json();
-        toast({ type: 'error', message: err.error || 'เกิดข้อผิดพลาด' });
+        toast({ type: 'error', title: err.error || 'เกิดข้อผิดพลาด' });
       }
     } finally {
       setAddingAE(false);
@@ -139,17 +139,17 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
 
   async function handleSubmit() {
     if (!selectedStoreId) {
-      toast({ type: 'error', message: 'กรุณาเลือกสาขา' });
+      toast({ type: 'error', title: 'กรุณาเลือกสาขา' });
       return;
     }
 
     if (type === 'ae_commission' && !selectedAE) {
-      toast({ type: 'error', message: 'กรุณาเลือก AE' });
+      toast({ type: 'error', title: 'กรุณาเลือก AE' });
       return;
     }
 
     if (type === 'ae_commission' && subtotal <= 0) {
-      toast({ type: 'error', message: 'กรุณากรอกยอดรวม' });
+      toast({ type: 'error', title: 'กรุณากรอกยอดรวม' });
       return;
     }
 
@@ -183,7 +183,7 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
       });
 
       if (res.ok) {
-        toast({ type: 'success', message: 'บันทึกคอมมิชชั่นสำเร็จ' });
+        toast({ type: 'success', title: 'บันทึกคอมมิชชั่นสำเร็จ' });
         // Reset form
         setReceiptNo('');
         setReceiptPhoto(null);
@@ -197,7 +197,7 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
         onSuccess();
       } else {
         const err = await res.json();
-        toast({ type: 'error', message: err.error || 'เกิดข้อผิดพลาด' });
+        toast({ type: 'error', title: err.error || 'เกิดข้อผิดพลาด' });
       }
     } finally {
       setSaving(false);
