@@ -22,6 +22,8 @@ import {
   User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { useAuthStore } from '@/stores/auth-store';
 import type { AEProfile } from '@/types/commission';
 
 export function AEManagement() {
@@ -153,6 +155,7 @@ interface AEFormModalProps {
 }
 
 function AEFormModal({ ae, onClose, onSaved }: AEFormModalProps) {
+  const { user } = useAuthStore();
   const isNew = !ae;
   const [name, setName] = useState(ae?.name || '');
   const [nickname, setNickname] = useState(ae?.nickname || '');
@@ -183,7 +186,9 @@ function AEFormModal({ ae, onClose, onSaved }: AEFormModalProps) {
       });
 
       if (res.ok) {
+        const saved = await res.json();
         toast({ type: 'success', title: isNew ? 'เพิ่ม AE สำเร็จ' : 'แก้ไข AE สำเร็จ' });
+        logAudit({ action_type: isNew ? AUDIT_ACTIONS.AE_PROFILE_CREATED : AUDIT_ACTIONS.AE_PROFILE_UPDATED, table_name: 'ae_profiles', record_id: saved.id, new_value: payload as Record<string, unknown>, changed_by: user?.id });
         onSaved();
       } else {
         const err = await res.json();
