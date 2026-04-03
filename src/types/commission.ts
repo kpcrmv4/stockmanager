@@ -37,10 +37,37 @@ export interface CommissionEntry {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  payment_id: string | null;
   // joined fields
   ae_profile?: AEProfile;
   staff_profile?: { id: string; display_name: string | null; username: string };
   store?: { id: string; store_name: string; store_code: string };
+}
+
+export type PaymentStatus = 'paid' | 'cancelled';
+
+export interface CommissionPayment {
+  id: string;
+  store_id: string;
+  ae_id: string | null;
+  staff_id: string | null;
+  type: CommissionType;
+  month: string;
+  total_entries: number;
+  total_amount: number;
+  slip_photo_url: string | null;
+  notes: string | null;
+  status: PaymentStatus;
+  paid_by: string | null;
+  paid_at: string;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+  created_at: string;
+  // joined
+  ae_profile?: AEProfile;
+  staff_profile?: { id: string; display_name: string | null; username: string };
+  paid_by_profile?: { id: string; display_name: string | null; username: string };
 }
 
 export interface CommissionSummary {

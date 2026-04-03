@@ -82,6 +82,15 @@ export const AUDIT_ACTIONS = {
 
   // === Audit Log Cleanup ===
   AUDIT_LOG_CLEANUP: 'AUDIT_LOG_CLEANUP',
+
+  // === Commission Module ===
+  COMMISSION_ENTRY_CREATED: 'COMMISSION_ENTRY_CREATED',
+  COMMISSION_ENTRY_UPDATED: 'COMMISSION_ENTRY_UPDATED',
+  COMMISSION_ENTRY_DELETED: 'COMMISSION_ENTRY_DELETED',
+  COMMISSION_PAYMENT_CREATED: 'COMMISSION_PAYMENT_CREATED',
+  COMMISSION_PAYMENT_CANCELLED: 'COMMISSION_PAYMENT_CANCELLED',
+  AE_PROFILE_CREATED: 'AE_PROFILE_CREATED',
+  AE_PROFILE_UPDATED: 'AE_PROFILE_UPDATED',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -206,4 +215,13 @@ export const AUDIT_ACTION_LABELS: Record<
 
   // Audit Log Cleanup
   AUDIT_LOG_CLEANUP: { label: 'เคลียร์ Audit Log', color: 'red', icon: 'trash' },
+
+  // Commission
+  COMMISSION_ENTRY_CREATED: { label: 'บันทึกคอมมิชชั่น', color: 'amber', icon: 'hand-coins' },
+  COMMISSION_ENTRY_UPDATED: { label: 'แก้ไขคอมมิชชั่น', color: 'amber', icon: 'edit' },
+  COMMISSION_ENTRY_DELETED: { label: 'ลบคอมมิชชั่น', color: 'red', icon: 'trash' },
+  COMMISSION_PAYMENT_CREATED: { label: 'จ่ายค่าคอมมิชชั่น', color: 'emerald', icon: 'banknote' },
+  COMMISSION_PAYMENT_CANCELLED: { label: 'ยกเลิกจ่ายค่าคอม', color: 'red', icon: 'x-circle' },
+  AE_PROFILE_CREATED: { label: 'เพิ่ม AE ใหม่', color: 'blue', icon: 'user-plus' },
+  AE_PROFILE_UPDATED: { label: 'แก้ไขข้อมูล AE', color: 'amber', icon: 'user' },
 };
