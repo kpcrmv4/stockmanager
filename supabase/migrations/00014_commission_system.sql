@@ -85,28 +85,28 @@ CREATE POLICY "ae_profiles_update" ON ae_profiles
 CREATE POLICY "commission_entries_select" ON commission_entries
   FOR SELECT TO authenticated
   USING (
-    store_id = ANY(get_user_store_ids())
-    OR get_user_role() IN ('owner', 'accountant')
+    store_id IN (SELECT get_user_store_ids())
+    OR is_admin()
   );
 
 CREATE POLICY "commission_entries_insert" ON commission_entries
   FOR INSERT TO authenticated
   WITH CHECK (
-    store_id = ANY(get_user_store_ids())
-    OR get_user_role() IN ('owner', 'accountant')
+    store_id IN (SELECT get_user_store_ids())
+    OR is_admin()
   );
 
 CREATE POLICY "commission_entries_update" ON commission_entries
   FOR UPDATE TO authenticated
   USING (
-    store_id = ANY(get_user_store_ids())
-    OR get_user_role() IN ('owner', 'accountant')
+    store_id IN (SELECT get_user_store_ids())
+    OR is_admin()
   );
 
 CREATE POLICY "commission_entries_delete" ON commission_entries
   FOR DELETE TO authenticated
   USING (
-    get_user_role() IN ('owner', 'accountant')
+    is_admin()
   );
 
 -- ─── Updated_at trigger ───
