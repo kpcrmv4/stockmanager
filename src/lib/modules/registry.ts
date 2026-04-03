@@ -93,6 +93,19 @@ export const modules: ModuleConfig[] = [
     group: 'คลังสินค้า',
   },
 
+  // ─── คอมมิชชั่น ───
+  {
+    id: 'commission',
+    name: 'คอมมิชชั่น',
+    description: 'AE Commission & Bottle Commission',
+    icon: 'hand-coins',
+    color: 'amber',
+    href: '/commission',
+    roles: ['owner', 'accountant', 'manager'],
+    permission: 'can_manage_commission',
+    group: 'คลังสินค้า',
+  },
+
   // ─── รายงาน ───
   {
     id: 'reports',

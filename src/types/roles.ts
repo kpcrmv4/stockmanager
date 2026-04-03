@@ -11,12 +11,13 @@ export type Permission =
   | 'can_transfer'
   | 'can_view_own_deposits'
   | 'can_request_withdrawal'
-  | 'can_borrow';
+  | 'can_borrow'
+  | 'can_manage_commission';
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[] | ['*']> = {
   owner: ['*'],
-  accountant: ['can_view_reports'],
-  manager: ['can_count_stock', 'can_transfer', 'can_view_reports', 'can_borrow'],
+  accountant: ['can_view_reports', 'can_manage_commission'],
+  manager: ['can_count_stock', 'can_transfer', 'can_view_reports', 'can_borrow', 'can_manage_commission'],
   bar: ['can_count_stock', 'can_manage_deposit', 'can_approve_deposit'],
   staff: ['can_count_stock', 'can_manage_deposit', 'can_borrow'],
   customer: ['can_view_own_deposits', 'can_request_withdrawal'],

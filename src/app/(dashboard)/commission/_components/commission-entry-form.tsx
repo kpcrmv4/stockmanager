@@ -1,0 +1,519 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import {
+  Button,
+  Card,
+  CardHeader,
+  CardContent,
+  Input,
+  Select,
+  Textarea,
+  toast,
+  PhotoUpload,
+} from '@/components/ui';
+import { useAppStore } from '@/stores/app-store';
+import { useAuthStore } from '@/stores/auth-store';
+import { Save, Loader2, Plus, Search, UserPlus } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
+import type { AEProfile } from '@/types/commission';
+
+interface CommissionEntryFormProps {
+  onSuccess: () => void;
+}
+
+function formatCurrency(n: number) {
+  return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
+  const { selectedStoreId } = useAppStore();
+  const { user } = useAuthStore();
+
+  // Form state
+  const [type, setType] = useState<'ae_commission' | 'bottle_commission'>('ae_commission');
+  const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
+  const [receiptNo, setReceiptNo] = useState('');
+  const [receiptPhoto, setReceiptPhoto] = useState<string | null>(null);
+  const [tableNo, setTableNo] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // AE fields
+  const [aeSearch, setAeSearch] = useState('');
+  const [aeList, setAeList] = useState<AEProfile[]>([]);
+  const [selectedAE, setSelectedAE] = useState<AEProfile | null>(null);
+  const [showAeDropdown, setShowAeDropdown] = useState(false);
+  const [subtotalAmount, setSubtotalAmount] = useState('');
+  const [commissionRate, setCommissionRate] = useState('10');
+  const [taxRate, setTaxRate] = useState('3');
+
+  // Bottle fields
+  const [bottleCount, setBottleCount] = useState('1');
+  const [bottleRate, setBottleRate] = useState('500');
+
+  // Staff list for bottle commission
+  const [staffList, setStaffList] = useState<Array<{ id: string; display_name: string | null; username: string }>>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState('');
+
+  // Quick-add AE modal state
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAEName, setQuickAEName] = useState('');
+  const [quickAEPhone, setQuickAEPhone] = useState('');
+  const [addingAE, setAddingAE] = useState(false);
+
+  // Search AE
+  const searchAE = useCallback(async (q: string) => {
+    const res = await fetch(`/api/ae?search=${encodeURIComponent(q)}`);
+    if (res.ok) setAeList(await res.json());
+  }, []);
+
+  useEffect(() => {
+    searchAE('');
+  }, [searchAE]);
+
+  useEffect(() => {
+    if (aeSearch.length > 0) {
+      const timer = setTimeout(() => searchAE(aeSearch), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [aeSearch, searchAE]);
+
+  // Load staff for bottle commission
+  useEffect(() => {
+    if (type === 'bottle_commission' && staffList.length === 0) {
+      import('@/lib/supabase/client').then(({ createClient }) => {
+        const supabase = createClient();
+        supabase
+          .from('profiles')
+          .select('id, display_name, username')
+          .in('role', ['staff', 'bar', 'manager'])
+          .eq('active', true)
+          .order('display_name')
+          .then(({ data }) => {
+            if (data) setStaffList(data);
+          });
+      });
+    }
+  }, [type, staffList.length]);
+
+  // AE commission calculation
+  const subtotal = parseFloat(subtotalAmount) || 0;
+  const cRate = parseFloat(commissionRate) / 100 || 0.10;
+  const tRate = parseFloat(taxRate) / 100 || 0.03;
+  const commissionAmt = subtotal * cRate;
+  const taxAmt = commissionAmt * tRate;
+  const netAE = commissionAmt - taxAmt;
+
+  // Bottle calculation
+  const bCount = parseInt(bottleCount) || 1;
+  const bRate = parseFloat(bottleRate) || 500;
+  const netBottle = bCount * bRate;
+
+  async function handleQuickAddAE() {
+    if (!quickAEName.trim()) return;
+    setAddingAE(true);
+    try {
+      const res = await fetch('/api/ae', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: quickAEName.trim(), phone: quickAEPhone.trim() || null }),
+      });
+      if (res.ok) {
+        const newAE = await res.json();
+        setSelectedAE(newAE);
+        setAeSearch(newAE.name);
+        setShowQuickAdd(false);
+        setQuickAEName('');
+        setQuickAEPhone('');
+        toast({ type: 'success', message: `เพิ่ม AE "${newAE.name}" สำเร็จ` });
+        searchAE('');
+      } else {
+        const err = await res.json();
+        toast({ type: 'error', message: err.error || 'เกิดข้อผิดพลาด' });
+      }
+    } finally {
+      setAddingAE(false);
+    }
+  }
+
+  async function handleSubmit() {
+    if (!selectedStoreId) {
+      toast({ type: 'error', message: 'กรุณาเลือกสาขา' });
+      return;
+    }
+
+    if (type === 'ae_commission' && !selectedAE) {
+      toast({ type: 'error', message: 'กรุณาเลือก AE' });
+      return;
+    }
+
+    if (type === 'ae_commission' && subtotal <= 0) {
+      toast({ type: 'error', message: 'กรุณากรอกยอดรวม' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        store_id: selectedStoreId,
+        type,
+        bill_date: billDate,
+        receipt_no: receiptNo,
+        receipt_photo_url: receiptPhoto,
+        table_no: tableNo,
+        notes,
+      };
+
+      if (type === 'ae_commission') {
+        payload.ae_id = selectedAE!.id;
+        payload.subtotal_amount = subtotal;
+        payload.commission_rate = cRate;
+        payload.tax_rate = tRate;
+      } else {
+        payload.staff_id = selectedStaffId || null;
+        payload.bottle_count = bCount;
+        payload.bottle_rate = bRate;
+      }
+
+      const res = await fetch('/api/commission', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        toast({ type: 'success', message: 'บันทึกคอมมิชชั่นสำเร็จ' });
+        // Reset form
+        setReceiptNo('');
+        setReceiptPhoto(null);
+        setTableNo('');
+        setNotes('');
+        setSubtotalAmount('');
+        setSelectedAE(null);
+        setAeSearch('');
+        setBottleCount('1');
+        setSelectedStaffId('');
+        onSuccess();
+      } else {
+        const err = await res.json();
+        toast({ type: 'error', message: err.error || 'เกิดข้อผิดพลาด' });
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Type selector */}
+      <Card>
+        <CardContent className="p-4">
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            ประเภทคอมมิชชั่น
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setType('ae_commission')}
+              className={cn(
+                'rounded-lg border-2 p-3 text-center text-sm font-medium transition-colors',
+                type === 'ae_commission'
+                  ? 'border-amber-500 bg-amber-50 text-amber-700 dark:border-amber-400 dark:bg-amber-900/20 dark:text-amber-400'
+                  : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400'
+              )}
+            >
+              AE Commission
+            </button>
+            <button
+              onClick={() => setType('bottle_commission')}
+              className={cn(
+                'rounded-lg border-2 p-3 text-center text-sm font-medium transition-colors',
+                type === 'bottle_commission'
+                  ? 'border-rose-500 bg-rose-50 text-rose-700 dark:border-rose-400 dark:bg-rose-900/20 dark:text-rose-400'
+                  : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400'
+              )}
+            >
+              Bottle Commission
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* AE Selection (for AE commission) */}
+      {type === 'ae_commission' && (
+        <Card>
+          <CardHeader title="เลือก AE" />
+          <CardContent className="space-y-3 p-4">
+            <div className="relative">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={aeSearch}
+                    onChange={(e) => {
+                      setAeSearch(e.target.value);
+                      setShowAeDropdown(true);
+                      if (selectedAE) setSelectedAE(null);
+                    }}
+                    onFocus={() => setShowAeDropdown(true)}
+                    placeholder="ค้นหาชื่อ AE..."
+                    className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowQuickAdd(true)}
+                >
+                  <UserPlus className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* AE Dropdown */}
+              {showAeDropdown && !selectedAE && (
+                <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+                  {aeList.length === 0 ? (
+                    <p className="p-3 text-center text-sm text-gray-400">ไม่พบ AE</p>
+                  ) : (
+                    aeList.map((ae) => (
+                      <button
+                        key={ae.id}
+                        onClick={() => {
+                          setSelectedAE(ae);
+                          setAeSearch(ae.name);
+                          setShowAeDropdown(false);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+                      >
+                        <span className="font-medium text-gray-900 dark:text-white">{ae.name}</span>
+                        {ae.nickname && <span className="text-gray-400">({ae.nickname})</span>}
+                        {ae.phone && <span className="ml-auto text-xs text-gray-400">{ae.phone}</span>}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {selectedAE && (
+              <div className="flex items-center gap-2 rounded-lg bg-amber-50 p-2 text-sm dark:bg-amber-900/20">
+                <span className="font-medium text-amber-700 dark:text-amber-400">
+                  {selectedAE.name}
+                </span>
+                {selectedAE.phone && (
+                  <span className="text-amber-600/70 dark:text-amber-400/70">| {selectedAE.phone}</span>
+                )}
+                <button
+                  onClick={() => {
+                    setSelectedAE(null);
+                    setAeSearch('');
+                  }}
+                  className="ml-auto text-amber-500 hover:text-amber-700"
+                >
+                  &times;
+                </button>
+              </div>
+            )}
+
+            {/* Quick Add AE */}
+            {showQuickAdd && (
+              <div className="rounded-lg border border-dashed border-gray-300 p-3 dark:border-gray-600">
+                <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">เพิ่ม AE ใหม่</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    label="ชื่อ AE"
+                    value={quickAEName}
+                    onChange={(e) => setQuickAEName(e.target.value)}
+                    required
+                  />
+                  <Input
+                    label="เบอร์โทร"
+                    value={quickAEPhone}
+                    onChange={(e) => setQuickAEPhone(e.target.value)}
+                  />
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" onClick={handleQuickAddAE} disabled={addingAE || !quickAEName.trim()}>
+                    {addingAE ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    บันทึก
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowQuickAdd(false)}>
+                    ยกเลิก
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Staff selection (for bottle commission) */}
+      {type === 'bottle_commission' && (
+        <Card>
+          <CardHeader title="พนักงาน" />
+          <CardContent className="p-4">
+            <Select
+              label="เลือกพนักงาน"
+              value={selectedStaffId}
+              onChange={(e) => setSelectedStaffId(e.target.value)}
+              options={[
+                { value: '', label: 'เลือกพนักงาน (ถ้ามี)' },
+                ...staffList.map((s) => ({
+                  value: s.id,
+                  label: s.display_name || s.username,
+                })),
+              ]}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Bill info */}
+      <Card>
+        <CardHeader title="ข้อมูลบิล" />
+        <CardContent className="space-y-3 p-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="วันที่บิล"
+              type="date"
+              value={billDate}
+              onChange={(e) => setBillDate(e.target.value)}
+              required
+            />
+            <Input
+              label="เลขที่ใบเสร็จ"
+              value={receiptNo}
+              onChange={(e) => setReceiptNo(e.target.value)}
+              placeholder="RC..."
+            />
+          </div>
+          <Input
+            label="เบอร์โต๊ะ"
+            value={tableNo}
+            onChange={(e) => setTableNo(e.target.value)}
+            placeholder="V7"
+          />
+          <PhotoUpload
+            value={receiptPhoto}
+            onChange={setReceiptPhoto}
+            folder="commission"
+            label="รูปถ่ายบิล"
+            placeholder="แตะเพื่อถ่ายรูปบิล"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Amount calculation */}
+      {type === 'ae_commission' ? (
+        <Card>
+          <CardHeader title="คำนวณค่าคอมมิชชั่น" />
+          <CardContent className="space-y-3 p-4">
+            <Input
+              label="ยอดรวม (ก่อน VAT/SVC)"
+              type="number"
+              value={subtotalAmount}
+              onChange={(e) => setSubtotalAmount(e.target.value)}
+              placeholder="17,050"
+              required
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Cashback %"
+                type="number"
+                value={commissionRate}
+                onChange={(e) => setCommissionRate(e.target.value)}
+              />
+              <Input
+                label="หักภาษี %"
+                type="number"
+                value={taxRate}
+                onChange={(e) => setTaxRate(e.target.value)}
+              />
+            </div>
+
+            {/* Calculation preview */}
+            {subtotal > 0 && (
+              <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                    <span>ยอดรวม</span>
+                    <span>{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                    <span>Cashback {commissionRate}%</span>
+                    <span>{formatCurrency(commissionAmt)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                    <span>หักภาษี {taxRate}%</span>
+                    <span>-{formatCurrency(taxAmt)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-200 pt-1 font-semibold text-amber-600 dark:border-gray-700 dark:text-amber-400">
+                    <span>ยอดสุทธิ</span>
+                    <span>{formatCurrency(netAE)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader title="Bottle Commission" />
+          <CardContent className="space-y-3 p-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="จำนวนขวด"
+                type="number"
+                value={bottleCount}
+                onChange={(e) => setBottleCount(e.target.value)}
+                required
+              />
+              <Input
+                label="ราคาต่อขวด (บาท)"
+                type="number"
+                value={bottleRate}
+                onChange={(e) => setBottleRate(e.target.value)}
+              />
+            </div>
+            <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+              <div className="flex justify-between text-sm font-semibold text-rose-600 dark:text-rose-400">
+                <span>ยอดสุทธิ</span>
+                <span>{formatCurrency(netBottle)}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Notes */}
+      <Card>
+        <CardContent className="p-4">
+          <Textarea
+            label="หมายเหตุ"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            placeholder="หมายเหตุเพิ่มเติม..."
+          />
+        </CardContent>
+      </Card>
+
+      {/* Submit */}
+      <Button
+        variant="primary"
+        size="lg"
+        className="w-full"
+        onClick={handleSubmit}
+        disabled={saving}
+      >
+        {saving ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <Save className="h-5 w-5" />
+        )}
+        บันทึกคอมมิชชั่น
+      </Button>
+    </div>
+  );
+}
