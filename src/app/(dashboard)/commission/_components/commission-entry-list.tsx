@@ -18,7 +18,7 @@ function getCurrentMonth() {
 }
 
 export function CommissionEntryList() {
-  const { selectedStoreId } = useAppStore();
+  const { currentStoreId } = useAppStore();
   const { user } = useAuthStore();
   const [entries, setEntries] = useState<CommissionEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,7 +33,7 @@ export function CommissionEntryList() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ month });
-      if (selectedStoreId) params.set('store_id', selectedStoreId);
+      if (currentStoreId) params.set('store_id', currentStoreId);
       if (typeFilter) params.set('type', typeFilter);
       const res = await fetch(`/api/commission?${params}`);
       if (res.ok) {
@@ -44,7 +44,7 @@ export function CommissionEntryList() {
     } finally {
       setLoading(false);
     }
-  }, [month, selectedStoreId, typeFilter]);
+  }, [month, currentStoreId, typeFilter]);
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 

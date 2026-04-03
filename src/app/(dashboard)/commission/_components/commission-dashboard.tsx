@@ -53,7 +53,7 @@ function getCurrentMonth() {
 }
 
 export function CommissionDashboard() {
-  const { selectedStoreId } = useAppStore();
+  const { currentStoreId } = useAppStore();
   const [month, setMonth] = useState(getCurrentMonth());
   const [data, setData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -64,7 +64,7 @@ export function CommissionDashboard() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ month });
-      if (selectedStoreId) params.set('store_id', selectedStoreId);
+      if (currentStoreId) params.set('store_id', currentStoreId);
       const res = await fetch(`/api/commission/summary?${params}`);
       if (res.ok) {
         setData(await res.json());
@@ -72,7 +72,7 @@ export function CommissionDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [month, selectedStoreId]);
+  }, [month, currentStoreId]);
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
 

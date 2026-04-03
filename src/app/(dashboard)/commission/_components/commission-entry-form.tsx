@@ -27,7 +27,7 @@ function formatCurrency(n: number) {
 }
 
 export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
-  const { selectedStoreId } = useAppStore();
+  const { currentStoreId } = useAppStore();
   const { user } = useAuthStore();
 
   // Form state
@@ -138,7 +138,7 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
   }
 
   async function handleSubmit() {
-    if (!selectedStoreId) {
+    if (!currentStoreId) {
       toast({ type: 'error', title: 'กรุณาเลือกสาขา' });
       return;
     }
@@ -156,7 +156,7 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
-        store_id: selectedStoreId,
+        store_id: currentStoreId,
         type,
         bill_date: billDate,
         receipt_no: receiptNo,
