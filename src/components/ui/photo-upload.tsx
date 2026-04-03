@@ -7,7 +7,6 @@ import {
   ImagePlus,
   X,
   Loader2,
-  RotateCcw,
   AlertCircle,
 } from 'lucide-react';
 
@@ -49,7 +48,8 @@ export function PhotoUpload({
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = useCallback(
     async (file: File) => {
@@ -159,15 +159,26 @@ export function PhotoUpload({
                 กำลังอัพโหลด...
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={disabled}
-                className="flex items-center gap-1.5 rounded-lg bg-white/20 px-3 py-1.5 text-sm text-white backdrop-blur-sm transition-colors hover:bg-white/30 active:bg-white/40"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                เปลี่ยนรูป
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  disabled={disabled}
+                  className="flex items-center gap-1.5 rounded-lg bg-white/20 px-3 py-1.5 text-sm text-white backdrop-blur-sm transition-colors hover:bg-white/30 active:bg-white/40"
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                  ถ่ายใหม่
+                </button>
+                <button
+                  type="button"
+                  onClick={() => galleryInputRef.current?.click()}
+                  disabled={disabled}
+                  className="flex items-center gap-1.5 rounded-lg bg-white/20 px-3 py-1.5 text-sm text-white backdrop-blur-sm transition-colors hover:bg-white/30 active:bg-white/40"
+                >
+                  <ImagePlus className="h-3.5 w-3.5" />
+                  เลือกรูป
+                </button>
+              </div>
             )}
             {!isUploading && (
               <button
@@ -182,16 +193,12 @@ export function PhotoUpload({
           </div>
         </div>
       ) : (
-        /* Upload Area */
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || isUploading}
+        /* Upload Area — 2 separate buttons: Camera + Gallery */
+        <div
           className={cn(
-            'flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-colors',
-            'border-gray-300 bg-gray-50 hover:border-indigo-400 hover:bg-indigo-50/50 active:bg-indigo-50',
-            'dark:border-gray-600 dark:bg-gray-800/50 dark:hover:border-indigo-500 dark:hover:bg-indigo-900/10',
-            'disabled:cursor-not-allowed disabled:opacity-50',
+            'flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed',
+            'border-gray-300 bg-gray-50',
+            'dark:border-gray-600 dark:bg-gray-800/50',
             compact ? 'min-h-[100px] p-4' : 'min-h-[140px] p-6'
           )}
         >
@@ -204,23 +211,42 @@ export function PhotoUpload({
             </>
           ) : (
             <>
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/30">
-                  <Camera className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-700">
-                  <ImagePlus className="h-6 w-6 text-gray-500 dark:text-gray-400" />
-                </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  disabled={disabled}
+                  className={cn(
+                    'flex flex-col items-center gap-1.5 rounded-xl px-5 py-3 transition-colors',
+                    'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 active:bg-indigo-300',
+                    'dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50',
+                    'disabled:cursor-not-allowed disabled:opacity-50'
+                  )}
+                >
+                  <Camera className="h-6 w-6" />
+                  <span className="text-xs font-medium">ถ่ายรูป</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => galleryInputRef.current?.click()}
+                  disabled={disabled}
+                  className={cn(
+                    'flex flex-col items-center gap-1.5 rounded-xl px-5 py-3 transition-colors',
+                    'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300',
+                    'dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600',
+                    'disabled:cursor-not-allowed disabled:opacity-50'
+                  )}
+                >
+                  <ImagePlus className="h-6 w-6" />
+                  <span className="text-xs font-medium">เลือกรูป</span>
+                </button>
               </div>
-              <p className="mt-3 text-sm font-medium text-gray-600 dark:text-gray-300">
-                {placeholder}
-              </p>
-              <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+              <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
                 JPEG, PNG, WebP (สูงสุด {maxSizeMB}MB)
               </p>
             </>
           )}
-        </button>
+        </div>
       )}
 
       {/* Error message */}
@@ -231,9 +257,19 @@ export function PhotoUpload({
         </div>
       )}
 
-      {/* Hidden file input — no capture attr so user can pick camera OR gallery */}
+      {/* Hidden file input — camera (capture=environment opens rear camera) */}
       <input
-        ref={fileInputRef}
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleInputChange}
+        className="hidden"
+        disabled={disabled || isUploading}
+      />
+      {/* Hidden file input — gallery (no capture attr, opens file picker) */}
+      <input
+        ref={galleryInputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/heic"
         onChange={handleInputChange}
