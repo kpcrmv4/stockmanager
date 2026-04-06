@@ -21,7 +21,7 @@ import { notifyChatTransferBatch, notifyChatTransferSubmitted } from '@/lib/chat
 import type { TransferCardItem } from '@/types/transfer-chat';
 import { cn } from '@/lib/utils/cn';
 import { generateTransferCode } from '@/lib/utils/transfer-code';
-import { TransferReceipt, printTransferReceipt } from './_components/transfer-receipt';
+import type { TransferPrintPayload } from '@/types/database';
 import {
   Truck,
   AlertTriangle,
@@ -163,14 +163,25 @@ export default function TransferPage() {
   // Photo viewer
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
 
-  // Print receipt data
-  const [printData, setPrintData] = useState<{
-    transferCode: string;
-    items: Array<{ product_name: string; customer_name: string | null; deposit_code: string | null; quantity: number; category: string | null }>;
-    submittedByName: string;
-    createdAt: string;
-    notes: string | null;
-  } | null>(null);
+  // Print transfer receipt via print_queue
+  const printTransferReceipt = useCallback(async (payload: TransferPrintPayload) => {
+    if (!currentStoreId || !user) return;
+    const supabase = createClient();
+    const { error } = await supabase.from('print_queue').insert({
+      store_id: currentStoreId,
+      deposit_id: null,
+      job_type: 'transfer',
+      status: 'pending',
+      copies: 1,
+      payload,
+      requested_by: user.id,
+    });
+    if (error) {
+      toast({ type: 'error', title: 'ไม่สามารถส่งคำสั่งพิมพ์ได้', message: error.message });
+    } else {
+      toast({ type: 'success', title: 'ส่งพิมพ์ใบนำส่งแล้ว', message: 'รอเครื่องพิมพ์ดำเนินการ' });
+    }
+  }, [currentStoreId, user]);
 
   // Central store
   const [centralStoreId, setCentralStoreId] = useState<string | null>(null);
@@ -397,10 +408,15 @@ export default function TransferPage() {
 
       toast({ type: 'success', title: 'ส่งโอนสำเร็จ', message: `ส่งโอน ${selectedDeposits.length} รายการ (${transferCode})` });
 
-      // Save print data for receipt
       const submitterName = user.displayName || user.username || 'พนักงาน';
-      setPrintData({
-        transferCode,
+
+      // Auto-print transfer receipt via print queue
+      printTransferReceipt({
+        transfer_code: transferCode,
+        store_name: currentStoreName || 'สาขา',
+        created_at: new Date().toISOString(),
+        submitted_by_name: submitterName,
+        notes: transferNote || null,
         items: selectedDeposits.map((d) => ({
           product_name: d.product_name,
           customer_name: d.customer_name,
@@ -408,13 +424,7 @@ export default function TransferPage() {
           quantity: d.remaining_qty || d.quantity,
           category: d.category,
         })),
-        submittedByName: submitterName,
-        createdAt: new Date().toISOString(),
-        notes: transferNote || null,
       });
-
-      // Auto-print after a short delay for render
-      setTimeout(() => printTransferReceipt(), 500);
 
       // ส่ง system message เข้าห้องแชทสาขา
       notifyChatTransferSubmitted(currentStoreId, {
@@ -803,9 +813,12 @@ export default function TransferPage() {
                           icon={<Printer className="h-3.5 w-3.5" />}
                           onClick={(e) => {
                             e.stopPropagation();
-                            // Set print data from batch items
-                            setPrintData({
-                              transferCode: batch.transfer_code,
+                            printTransferReceipt({
+                              transfer_code: batch.transfer_code,
+                              store_name: currentStoreName || 'สาขา',
+                              created_at: batch.created_at,
+                              submitted_by_name: user?.displayName || user?.username || 'พนักงาน',
+                              notes: batch.items[0]?.notes || null,
                               items: batch.items.map((t) => ({
                                 product_name: t.product_name || '',
                                 customer_name: t.customer_name,
@@ -813,11 +826,7 @@ export default function TransferPage() {
                                 quantity: t.quantity || 0,
                                 category: null,
                               })),
-                              submittedByName: user?.displayName || user?.username || 'พนักงาน',
-                              createdAt: batch.created_at,
-                              notes: batch.items[0]?.notes || null,
                             });
-                            setTimeout(() => printTransferReceipt(), 300);
                           }}
                         >
                           พิมพ์
@@ -1199,18 +1208,6 @@ export default function TransferPage() {
           </Button>
         </ModalFooter>
       </Modal>
-
-      {/* ── Transfer Receipt (hidden, only for print) ──── */}
-      {printData && (
-        <TransferReceipt
-          transferCode={printData.transferCode}
-          storeName={currentStoreName}
-          items={printData.items}
-          submittedByName={printData.submittedByName}
-          createdAt={printData.createdAt}
-          notes={printData.notes}
-        />
-      )}
 
       {/* ── Photo Viewer Modal ─────────────────────────── */}
       {viewingPhoto && (
