@@ -459,6 +459,103 @@ function getActivityDetail(activity: AuditLogEntry): string | null {
   return null;
 }
 
+/** Map action_type to navigable URL */
+function getActivityHref(actionType: string, tableName: string | null): string | null {
+  // Deposit
+  if (actionType === 'DEPOSIT_CREATED' || actionType === 'DEPOSIT_REQUEST_APPROVED' ||
+      actionType === 'DEPOSIT_REQUEST_REJECTED' || actionType === 'DEPOSIT_STATUS_CHANGED' ||
+      actionType === 'DEPOSIT_BAR_CONFIRMED' || actionType === 'DEPOSIT_BAR_REJECTED' ||
+      actionType === 'DEPOSIT_NO_DEPOSIT_CREATED' ||
+      (actionType === 'INSERT' && tableName === 'deposits')) {
+    return '/deposit';
+  }
+  if (actionType === 'DEPOSIT_REQUEST_APPROVED' || actionType === 'DEPOSIT_REQUEST_REJECTED') {
+    return '/deposit/requests';
+  }
+
+  // Withdrawal
+  if (actionType === 'WITHDRAWAL_COMPLETED' || actionType === 'WITHDRAWAL_REJECTED' ||
+      actionType === 'WITHDRAWAL_REQUESTED' ||
+      (actionType === 'INSERT' && tableName === 'withdrawals')) {
+    return '/deposit/withdrawals';
+  }
+
+  // Bar approval
+  if (actionType === 'DEPOSIT_BAR_CONFIRMED' || actionType === 'DEPOSIT_BAR_REJECTED') {
+    return '/bar-approval';
+  }
+
+  // Stock
+  if (actionType === 'STOCK_COUNT_SAVED' || actionType === 'STOCK_COUNT_RESET') {
+    return '/stock/daily-check';
+  }
+  if (actionType === 'STOCK_COMPARISON_GENERATED' || actionType === 'STOCK_TXT_UPLOADED' ||
+      (actionType === 'UPDATE' && tableName === 'comparisons')) {
+    return '/stock/comparison';
+  }
+  if (actionType === 'STOCK_EXPLANATION_SUBMITTED' || actionType === 'STOCK_EXPLANATION_BATCH') {
+    return '/stock/explanation';
+  }
+  if (actionType === 'STOCK_APPROVED' || actionType === 'STOCK_REJECTED' ||
+      actionType === 'STOCK_BATCH_APPROVED' || actionType === 'STOCK_BATCH_REJECTED') {
+    return '/stock/approval';
+  }
+
+  // Product
+  if (actionType === 'PRODUCT_CREATED' || actionType === 'PRODUCT_UPDATED' ||
+      actionType === 'PRODUCT_DELETED' || actionType === 'PRODUCT_TOGGLED' ||
+      actionType === 'AUTO_ADD_PRODUCT' || actionType === 'AUTO_DEACTIVATE' ||
+      actionType === 'AUTO_REACTIVATE') {
+    return '/stock/products';
+  }
+
+  // Transfer
+  if (actionType === 'TRANSFER_CREATED' || actionType === 'TRANSFER_CONFIRMED' ||
+      actionType === 'TRANSFER_REJECTED') {
+    return '/transfer';
+  }
+
+  // Borrow
+  if (actionType === 'BORROW_REQUESTED' || actionType === 'BORROW_APPROVED' ||
+      actionType === 'BORROW_REJECTED' || actionType === 'BORROW_POS_CONFIRMED' ||
+      actionType === 'BORROW_COMPLETED') {
+    return '/borrow';
+  }
+
+  // Commission
+  if (actionType === 'COMMISSION_ENTRY_CREATED' || actionType === 'COMMISSION_ENTRY_UPDATED' ||
+      actionType === 'COMMISSION_ENTRY_DELETED' || actionType === 'COMMISSION_PAYMENT_CREATED' ||
+      actionType === 'COMMISSION_PAYMENT_CANCELLED' || actionType === 'AE_PROFILE_CREATED' ||
+      actionType === 'AE_PROFILE_UPDATED') {
+    return '/commission';
+  }
+
+  // Chat / Action Cards
+  if (actionType === 'ACTION_CARD_CLAIMED' || actionType === 'ACTION_CARD_COMPLETED' ||
+      actionType === 'ACTION_CARD_RELEASED' || actionType === 'ACTION_CARD_REJECTED') {
+    return '/chat';
+  }
+
+  // Users
+  if (actionType === 'USER_CREATED' || actionType === 'USER_UPDATED' ||
+      actionType === 'USER_DEACTIVATED') {
+    return '/users';
+  }
+
+  // Settings
+  if (actionType === 'SETTINGS_UPDATED' || actionType === 'STORE_CREATED' ||
+      actionType === 'STORE_UPDATED') {
+    return '/settings';
+  }
+
+  // Activity log
+  if (actionType === 'AUDIT_LOG_CLEANUP') {
+    return '/activity';
+  }
+
+  return null;
+}
+
 /** Calculate percentage trend between two periods */
 function calcTrend(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : 0;
@@ -1470,12 +1567,11 @@ export default function OverviewPage() {
               const mapped = mapActivity(activity.action_type, activity.table_name);
               const ActivityIcon = mapped.icon;
               const detail = getActivityDetail(activity);
-              return (
-                <div
-                  key={activity.id}
-                  className="flex items-start gap-3 px-5 py-3.5"
-                >
-                  <div className={cn('mt-0.5', mapped.colorClass)}>
+              const href = getActivityHref(activity.action_type, activity.table_name);
+
+              const content = (
+                <>
+                  <div className={cn('mt-0.5 shrink-0', mapped.colorClass)}>
                     <ActivityIcon className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1494,6 +1590,30 @@ export default function OverviewPage() {
                       {relativeTime(activity.created_at)}
                     </p>
                   </div>
+                  {href && (
+                    <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-gray-300 dark:text-gray-600" />
+                  )}
+                </>
+              );
+
+              if (href) {
+                return (
+                  <Link
+                    key={activity.id}
+                    href={href}
+                    className="flex items-start gap-3 px-5 py-3.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-750"
+                  >
+                    {content}
+                  </Link>
+                );
+              }
+
+              return (
+                <div
+                  key={activity.id}
+                  className="flex items-start gap-3 px-5 py-3.5"
+                >
+                  {content}
                 </div>
               );
             })}
