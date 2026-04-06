@@ -1,6 +1,6 @@
 -- ==========================================
 -- StockManager — Consolidated Schema (Fresh Install)
--- Merged from migrations 00001 through 00016
+-- Merged from migrations 00001 through 00017
 -- Generated: 2026-03-28
 --
 -- This single file creates the entire schema from scratch.
