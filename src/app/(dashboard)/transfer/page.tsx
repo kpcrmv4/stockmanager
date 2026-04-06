@@ -41,6 +41,7 @@ import {
   Image as ImageIcon,
   X,
   Printer,
+  Eye,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -157,8 +158,12 @@ export default function TransferPage() {
   const [cancellingBatch, setCancellingBatch] = useState<TransferBatch | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  // Expanded batches
+  // Expanded batches (detail view)
   const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
+
+  // Print confirm
+  const [showPrintConfirm, setShowPrintConfirm] = useState(false);
+  const [printingBatch, setPrintingBatch] = useState<TransferBatch | null>(null);
 
   // Photo viewer
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
@@ -781,62 +786,42 @@ export default function TransferPage() {
                 const isExpanded = expandedBatches.has(batch.transfer_code);
                 return (
                   <Card key={batch.transfer_code} padding="none">
-                    {/* Batch header */}
-                    <button
-                      type="button"
-                      onClick={() => toggleBatch(batch.transfer_code)}
-                      className="flex w-full items-center justify-between p-4 text-left"
-                    >
-                      <div className="flex items-center gap-3">
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4 text-gray-400" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-gray-400" />
-                        )}
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm font-semibold text-amber-600 dark:text-amber-400">
-                              {batch.transfer_code}
-                            </span>
-                            <Badge variant="warning" size="sm">รอรับ</Badge>
-                            <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
-                          </div>
-                          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                            ส่งเมื่อ: {formatThaiDateTime(batch.created_at)}
-                          </p>
-                        </div>
+                    <div className="p-4 space-y-2.5">
+                      {/* Row 1: Transfer code / Status / Count */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-sm font-semibold text-amber-600 dark:text-amber-400">
+                          {batch.transfer_code}
+                        </span>
+                        <Badge variant="warning" size="sm">รอรับ</Badge>
+                        <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
                       </div>
-                      <div className="flex gap-1.5">
+
+                      {/* Row 2: Buttons — Print / Detail / Cancel */}
+                      <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
                           icon={<Printer className="h-3.5 w-3.5" />}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            printTransferReceipt({
-                              transfer_code: batch.transfer_code,
-                              store_name: currentStoreName || 'สาขา',
-                              created_at: batch.created_at,
-                              submitted_by_name: user?.displayName || user?.username || 'พนักงาน',
-                              notes: batch.items[0]?.notes || null,
-                              items: batch.items.map((t) => ({
-                                product_name: t.product_name || '',
-                                customer_name: t.customer_name,
-                                deposit_code: t.deposit_code,
-                                quantity: t.quantity || 0,
-                                category: null,
-                              })),
-                            });
+                          onClick={() => {
+                            setPrintingBatch(batch);
+                            setShowPrintConfirm(true);
                           }}
                         >
                           พิมพ์
                         </Button>
                         <Button
+                          variant="outline"
+                          size="sm"
+                          icon={isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          onClick={() => toggleBatch(batch.transfer_code)}
+                        >
+                          {isExpanded ? 'ซ่อน' : 'รายละเอียด'}
+                        </Button>
+                        <Button
                           variant="danger"
                           size="sm"
                           icon={<XCircle className="h-3.5 w-3.5" />}
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          onClick={() => {
                             setCancellingBatch(batch);
                             setShowCancelModal(true);
                           }}
@@ -844,9 +829,15 @@ export default function TransferPage() {
                           ยกเลิก
                         </Button>
                       </div>
-                    </button>
 
-                    {/* Batch items */}
+                      {/* Row 3: Date/time */}
+                      <p className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                        <Calendar className="h-3 w-3" />
+                        ส่งเมื่อ: {formatThaiDateTime(batch.created_at)}
+                      </p>
+                    </div>
+
+                    {/* Expanded items detail */}
                     {isExpanded && (
                       <div className="border-t border-gray-100 dark:border-gray-700">
                         {batch.items.map((transfer) => (
@@ -854,9 +845,16 @@ export default function TransferPage() {
                             key={transfer.id}
                             className="border-b border-gray-50 px-4 py-3 last:border-b-0 dark:border-gray-800"
                           >
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {transfer.product_name || 'ไม่ระบุ'}
-                            </p>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-medium text-gray-900 dark:text-white">
+                                {transfer.product_name || 'ไม่ระบุ'}
+                              </p>
+                              {transfer.quantity && (
+                                <span className="shrink-0 text-xs font-medium text-gray-600 dark:text-gray-300">
+                                  x{transfer.quantity}
+                                </span>
+                              )}
+                            </div>
                             <div className="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
                               {transfer.customer_name && (
                                 <p className="flex items-center gap-1">
@@ -865,12 +863,6 @@ export default function TransferPage() {
                                   {transfer.deposit_code && (
                                     <span className="ml-1 font-mono text-gray-400">{transfer.deposit_code}</span>
                                   )}
-                                </p>
-                              )}
-                              {transfer.quantity && (
-                                <p className="flex items-center gap-1">
-                                  <Wine className="h-3 w-3" />
-                                  จำนวน: {transfer.quantity}
                                 </p>
                               )}
                               {transfer.notes && <p>หมายเหตุ: {transfer.notes}</p>}
@@ -910,29 +902,34 @@ export default function TransferPage() {
                 const isExpanded = expandedBatches.has(batch.transfer_code);
                 return (
                   <Card key={batch.transfer_code} padding="none">
-                    <button
-                      type="button"
-                      onClick={() => toggleBatch(batch.transfer_code)}
-                      className="flex w-full items-center gap-3 p-4 text-left"
-                    >
-                      {isExpanded ? (
-                        <ChevronDown className="h-4 w-4 text-gray-400" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-gray-400" />
-                      )}
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                            {batch.transfer_code}
-                          </span>
-                          <Badge variant="success" size="sm">รับแล้ว</Badge>
-                          <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
-                        </div>
-                        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                          ส่งเมื่อ: {formatThaiDateTime(batch.created_at)}
-                        </p>
+                    <div className="p-4 space-y-2.5">
+                      {/* Row 1: Transfer code / Status / Count */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                          {batch.transfer_code}
+                        </span>
+                        <Badge variant="success" size="sm">รับแล้ว</Badge>
+                        <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
                       </div>
-                    </button>
+
+                      {/* Row 2: Detail button */}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          onClick={() => toggleBatch(batch.transfer_code)}
+                        >
+                          {isExpanded ? 'ซ่อน' : 'รายละเอียด'}
+                        </Button>
+                      </div>
+
+                      {/* Row 3: Date/time */}
+                      <p className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                        <Calendar className="h-3 w-3" />
+                        ส่งเมื่อ: {formatThaiDateTime(batch.created_at)}
+                      </p>
+                    </div>
 
                     {isExpanded && (
                       <div className="border-t border-gray-100 dark:border-gray-700">
@@ -941,9 +938,16 @@ export default function TransferPage() {
                             key={transfer.id}
                             className="border-b border-gray-50 px-4 py-3 last:border-b-0 dark:border-gray-800"
                           >
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {transfer.product_name || 'ไม่ระบุ'}
-                            </p>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-medium text-gray-900 dark:text-white">
+                                {transfer.product_name || 'ไม่ระบุ'}
+                              </p>
+                              {transfer.quantity && (
+                                <span className="shrink-0 text-xs font-medium text-gray-600 dark:text-gray-300">
+                                  x{transfer.quantity}
+                                </span>
+                              )}
+                            </div>
                             <div className="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
                               {transfer.customer_name && (
                                 <p className="flex items-center gap-1">
@@ -952,12 +956,6 @@ export default function TransferPage() {
                                   {transfer.deposit_code && (
                                     <span className="ml-1 font-mono text-gray-400">{transfer.deposit_code}</span>
                                   )}
-                                </p>
-                              )}
-                              {transfer.quantity && (
-                                <p className="flex items-center gap-1">
-                                  <Wine className="h-3 w-3" />
-                                  จำนวน: {transfer.quantity}
                                 </p>
                               )}
                               {transfer.notes && <p>หมายเหตุ: {transfer.notes}</p>}
@@ -1010,34 +1008,41 @@ export default function TransferPage() {
                 const rejectionReason = batch.items.find((t) => t.rejection_reason)?.rejection_reason;
                 return (
                   <Card key={batch.transfer_code} padding="none">
-                    <button
-                      type="button"
-                      onClick={() => toggleBatch(batch.transfer_code)}
-                      className="flex w-full items-start gap-3 p-4 text-left"
-                    >
-                      {isExpanded ? (
-                        <ChevronDown className="mt-0.5 h-4 w-4 text-gray-400" />
-                      ) : (
-                        <ChevronRight className="mt-0.5 h-4 w-4 text-gray-400" />
-                      )}
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm font-semibold text-gray-500 dark:text-gray-400">
-                            {batch.transfer_code}
-                          </span>
-                          <Badge variant="danger" size="sm">ปฏิเสธ</Badge>
-                          <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
-                        </div>
-                        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    <div className="p-4 space-y-2.5">
+                      {/* Row 1: Transfer code / Status / Count */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-sm font-semibold text-gray-500 dark:text-gray-400">
+                          {batch.transfer_code}
+                        </span>
+                        <Badge variant="danger" size="sm">ปฏิเสธ</Badge>
+                        <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
+                      </div>
+
+                      {/* Row 2: Detail button */}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          onClick={() => toggleBatch(batch.transfer_code)}
+                        >
+                          {isExpanded ? 'ซ่อน' : 'รายละเอียด'}
+                        </Button>
+                      </div>
+
+                      {/* Row 3: Date/time + rejection reason */}
+                      <div className="space-y-0.5">
+                        <p className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                          <Calendar className="h-3 w-3" />
                           ส่งเมื่อ: {formatThaiDateTime(batch.created_at)}
                         </p>
                         {rejectionReason && (
-                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                          <p className="text-xs text-red-600 dark:text-red-400">
                             เหตุผล: {rejectionReason}
                           </p>
                         )}
                       </div>
-                    </button>
+                    </div>
 
                     {isExpanded && (
                       <div className="border-t border-gray-100 dark:border-gray-700">
@@ -1046,9 +1051,16 @@ export default function TransferPage() {
                             key={transfer.id}
                             className="border-b border-gray-50 px-4 py-3 last:border-b-0 dark:border-gray-800"
                           >
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {transfer.product_name || 'ไม่ระบุ'}
-                            </p>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-medium text-gray-900 dark:text-white">
+                                {transfer.product_name || 'ไม่ระบุ'}
+                              </p>
+                              {transfer.quantity && (
+                                <span className="shrink-0 text-xs font-medium text-gray-600 dark:text-gray-300">
+                                  x{transfer.quantity}
+                                </span>
+                              )}
+                            </div>
                             <div className="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
                               {transfer.customer_name && (
                                 <p className="flex items-center gap-1">
@@ -1057,12 +1069,6 @@ export default function TransferPage() {
                                   {transfer.deposit_code && (
                                     <span className="ml-1 font-mono text-gray-400">{transfer.deposit_code}</span>
                                   )}
-                                </p>
-                              )}
-                              {transfer.quantity && (
-                                <p className="flex items-center gap-1">
-                                  <Wine className="h-3 w-3" />
-                                  จำนวน: {transfer.quantity}
                                 </p>
                               )}
                               {transfer.rejection_reason && (
@@ -1205,6 +1211,58 @@ export default function TransferPage() {
             icon={<XCircle className="h-4 w-4" />}
           >
             ยืนยันยกเลิก
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* ── Print Confirmation Modal ──────────────────── */}
+      <Modal
+        isOpen={showPrintConfirm}
+        onClose={() => {
+          setShowPrintConfirm(false);
+          setPrintingBatch(null);
+        }}
+        title="ยืนยันพิมพ์ใบนำส่ง"
+        description={printingBatch ? `พิมพ์ใบนำส่ง ${printingBatch.transfer_code}` : ''}
+        size="sm"
+      >
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          ต้องการพิมพ์ใบนำส่งสำหรับชุด <strong>{printingBatch?.transfer_code}</strong> ({printingBatch?.items.length} รายการ) หรือไม่?
+        </p>
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowPrintConfirm(false);
+              setPrintingBatch(null);
+            }}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            icon={<Printer className="h-4 w-4" />}
+            onClick={() => {
+              if (printingBatch) {
+                printTransferReceipt({
+                  transfer_code: printingBatch.transfer_code,
+                  store_name: currentStoreName || 'สาขา',
+                  created_at: printingBatch.created_at,
+                  submitted_by_name: user?.displayName || user?.username || 'พนักงาน',
+                  notes: printingBatch.items[0]?.notes || null,
+                  items: printingBatch.items.map((t) => ({
+                    product_name: t.product_name || '',
+                    customer_name: t.customer_name,
+                    deposit_code: t.deposit_code,
+                    quantity: t.quantity || 0,
+                    category: null,
+                  })),
+                });
+              }
+              setShowPrintConfirm(false);
+              setPrintingBatch(null);
+            }}
+          >
+            ยืนยันพิมพ์
           </Button>
         </ModalFooter>
       </Modal>
