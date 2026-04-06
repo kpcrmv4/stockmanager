@@ -516,16 +516,22 @@ export default function PrintListenerPage() {
                       {JOB_TYPE_LABELS[job.job_type] ?? job.job_type}
                     </span>
 
-                    {/* Deposit code + customer */}
+                    {/* Job summary */}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                        {job.payload.deposit_code}
+                        {job.job_type === 'transfer'
+                          ? (job.payload as TransferPrintPayload).transfer_code
+                          : (job.payload as PrintPayload).deposit_code}
                         <span className="ml-2 font-normal text-gray-500 dark:text-gray-400">
-                          {job.payload.customer_name}
+                          {job.job_type === 'transfer'
+                            ? `${(job.payload as TransferPrintPayload).items?.length || 0} รายการ`
+                            : (job.payload as PrintPayload).customer_name}
                         </span>
                       </p>
                       <p className="truncate text-xs text-gray-400 dark:text-gray-500">
-                        {job.payload.product_name}
+                        {job.job_type === 'transfer'
+                          ? 'ใบนำส่งคลังกลาง'
+                          : (job.payload as PrintPayload).product_name}
                       </p>
                     </div>
 
