@@ -126,7 +126,7 @@ export function Sidebar({ stores }: SidebarProps) {
       </div>
 
       {/* เมนูนำทาง — แบ่งหมวดหมู่ */}
-      <nav className="flex-1 overflow-y-auto p-3">
+      <nav className="flex-1 overflow-y-auto scrollbar-thin p-3">
         {groupedModules.map((group, gi) => (
           <div key={group.name} className={cn(gi > 0 && 'mt-4')}>
             {/* ชื่อหมวดหมู่ */}
