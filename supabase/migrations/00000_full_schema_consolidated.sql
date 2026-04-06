@@ -1,6 +1,6 @@
 -- ==========================================
 -- StockManager — Consolidated Schema (Fresh Install)
--- Merged from migrations 00001 through 00013
+-- Merged from migrations 00001 through 00016
 -- Generated: 2026-03-28
 --
 -- This single file creates the entire schema from scratch.
@@ -204,6 +204,7 @@ CREATE TABLE withdrawals (
   processed_by UUID REFERENCES profiles(id),
   notes TEXT,
   photo_url TEXT,
+  withdrawal_type TEXT DEFAULT 'in_store',
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -350,7 +351,10 @@ CREATE TABLE store_settings (
   chat_bot_daily_summary_enabled BOOLEAN NOT NULL DEFAULT true,
   /** Print Server (00013) */
   print_server_account_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
-  print_server_working_hours JSONB DEFAULT '{"enabled": true, "startHour": 12, "startMinute": 0, "endHour": 6, "endMinute": 0}'::jsonb
+  print_server_working_hours JSONB DEFAULT '{"enabled": true, "startHour": 12, "startMinute": 0, "endHour": 6, "endMinute": 0}'::jsonb,
+  /** Withdrawal blocked days (00016) */
+  withdrawal_blocked_days TEXT[] DEFAULT '{Fri,Sat}',
+  business_day_cutoff_hour INTEGER DEFAULT 6
 );
 
 CREATE TABLE app_settings (
