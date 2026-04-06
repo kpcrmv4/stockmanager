@@ -183,20 +183,19 @@ export default function WithdrawalsPage() {
       const supabase = createClient();
       const { data: settings } = await supabase
         .from('store_settings')
-        .select('withdrawal_blocked_days, business_day_cutoff_hour')
+        .select('withdrawal_blocked_days')
         .eq('store_id', currentStoreId)
         .single();
 
       const blockedDays = (settings?.withdrawal_blocked_days as string[] | null) ?? ['Fri', 'Sat'];
-      const cutoffHour = (settings?.business_day_cutoff_hour as number | null) ?? 6;
 
+      // Use actual calendar day in Bangkok — no cutoff
       const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
-      if (now.getHours() < cutoffHour) now.setDate(now.getDate() - 1);
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const businessDay = dayNames[now.getDay()];
-      const blocked = blockedDays.includes(businessDay);
+      const calendarDay = dayNames[now.getDay()];
+      const blocked = blockedDays.includes(calendarDay);
 
-      setBlockedDayInfo({ blocked, businessDay });
+      setBlockedDayInfo({ blocked, businessDay: calendarDay });
       if (blocked) setManualWithdrawalType('take_home');
     };
     checkBlockedDays();

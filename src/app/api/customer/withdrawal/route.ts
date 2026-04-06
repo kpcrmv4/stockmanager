@@ -79,17 +79,16 @@ export async function POST(request: NextRequest) {
   if (wType !== 'take_home') {
     const { data: storeSetting } = await supabase
       .from('store_settings')
-      .select('withdrawal_blocked_days, business_day_cutoff_hour')
+      .select('withdrawal_blocked_days')
       .eq('store_id', deposit.store_id)
       .single();
 
     const blockedDays = storeSetting?.withdrawal_blocked_days ?? ['Fri', 'Sat'];
-    const cutoffHour = storeSetting?.business_day_cutoff_hour ?? 6;
-    const check = isWithdrawalBlocked(blockedDays, cutoffHour);
+    const check = isWithdrawalBlocked(blockedDays);
 
     if (check.blocked) {
       return NextResponse.json(
-        { error: check.reason, blocked: true, businessDay: check.businessDay },
+        { error: check.reason, blocked: true, calendarDay: check.calendarDay },
         { status: 400 },
       );
     }

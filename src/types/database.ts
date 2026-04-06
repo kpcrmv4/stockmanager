@@ -294,8 +294,6 @@ export interface StoreSettings {
   audit_log_retention_days: number | null;
   /** วันที่ห้ามเบิกเหล้าในร้าน (default: ['Fri','Sat']) */
   withdrawal_blocked_days: string[] | null;
-  /** ชั่วโมงตัดวันทำการ เช่น 6 = ก่อนตี 6 ยังถือเป็นวันก่อน (default: 6) */
-  business_day_cutoff_hour: number | null;
 }
 
 export interface Notification {

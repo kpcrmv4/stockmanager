@@ -353,8 +353,7 @@ CREATE TABLE store_settings (
   print_server_account_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
   print_server_working_hours JSONB DEFAULT '{"enabled": true, "startHour": 12, "startMinute": 0, "endHour": 6, "endMinute": 0}'::jsonb,
   /** Withdrawal blocked days (00016) */
-  withdrawal_blocked_days TEXT[] DEFAULT '{Fri,Sat}',
-  business_day_cutoff_hour INTEGER DEFAULT 6
+  withdrawal_blocked_days TEXT[] DEFAULT '{Fri,Sat}'
 );
 
 CREATE TABLE app_settings (

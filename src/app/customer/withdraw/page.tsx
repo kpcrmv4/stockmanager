@@ -18,9 +18,8 @@ interface DepositInfo {
 
 interface BlockedDayInfo {
   blocked: boolean;
-  businessDay: string;
+  calendarDay: string;
   blockedDays: string[];
-  cutoffHour: number;
 }
 
 function WithdrawContent() {
@@ -56,24 +55,22 @@ function WithdrawContent() {
 
     if (data) {
       setDeposit(data as unknown as DepositInfo);
-      // Check if withdrawal is blocked today
+      // Check if withdrawal is blocked today (ใช้วันปฏิทินจริง)
       const { data: settings } = await supabase
         .from('store_settings')
-        .select('withdrawal_blocked_days, business_day_cutoff_hour')
+        .select('withdrawal_blocked_days')
         .eq('store_id', data.store_id)
         .single();
 
       const blockedDays = (settings?.withdrawal_blocked_days as string[] | null) ?? ['Fri', 'Sat'];
-      const cutoffHour = (settings?.business_day_cutoff_hour as number | null) ?? 6;
 
-      // Calculate business day on client side
+      // Use actual calendar day in Bangkok — no cutoff
       const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
-      if (now.getHours() < cutoffHour) now.setDate(now.getDate() - 1);
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const businessDay = dayNames[now.getDay()];
-      const blocked = blockedDays.includes(businessDay);
+      const calendarDay = dayNames[now.getDay()];
+      const blocked = blockedDays.includes(calendarDay);
 
-      setBlockedInfo({ blocked, businessDay, blockedDays, cutoffHour });
+      setBlockedInfo({ blocked, calendarDay, blockedDays });
       if (blocked) setWithdrawalType('take_home');
     }
     setIsLoading(false);

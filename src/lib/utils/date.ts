@@ -217,42 +217,19 @@ export function formatTimeBangkok(date: string | Date): string {
 }
 
 // ---------------------------------------------------------------------------
-// Business day helpers (for late-night bar operations)
+// Withdrawal day helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Get the "business day" in Bangkok timezone, accounting for late-night operations.
- * Before the cutoff hour (e.g. 6 AM), the business day is still the previous calendar day.
- *
- * Example: At 2 AM Sunday with cutoffHour=6 → returns Saturday's date info.
- */
-export function businessDayBangkok(cutoffHour: number = 6): Date {
-  const now = nowBangkok();
-  if (now.getHours() < cutoffHour) {
-    now.setDate(now.getDate() - 1);
-  }
-  return now;
-}
-
-/**
- * Get the business day-of-week abbreviation, accounting for late-night cutoff.
- * Before cutoff hour, returns previous day's name.
- */
-export function businessDayOfWeekBangkok(
-  cutoffHour: number = 6,
-): (typeof DAY_NAMES)[number] {
-  return DAY_NAMES[businessDayBangkok(cutoffHour).getDay()];
-}
-
-/**
  * Check if in-store withdrawal is currently blocked based on store settings.
- * Returns { blocked, reason, businessDay } for UI messaging.
+ * ใช้วันปฏิทินจริง (ไม่มี cutoff) — ตี 1 วันอาทิตย์ = อาทิตย์ = เบิกได้
+ *
+ * Returns { blocked, calendarDay, reason } for UI messaging.
  */
 export function isWithdrawalBlocked(
   blockedDays: string[] = ['Fri', 'Sat'],
-  cutoffHour: number = 6,
-): { blocked: boolean; businessDay: string; reason?: string } {
-  const dayName = businessDayOfWeekBangkok(cutoffHour);
+): { blocked: boolean; calendarDay: string; reason?: string } {
+  const dayName = dayOfWeekBangkok();
   const blocked = blockedDays.includes(dayName);
   const dayNamesTH: Record<string, string> = {
     Sun: 'อาทิตย์', Mon: 'จันทร์', Tue: 'อังคาร', Wed: 'พุธ',
@@ -260,7 +237,7 @@ export function isWithdrawalBlocked(
   };
   return {
     blocked,
-    businessDay: dayName,
+    calendarDay: dayName,
     reason: blocked
       ? `วัน${dayNamesTH[dayName]}ไม่สามารถเบิกเหล้าใช้ในร้านได้ (เบิกกลับบ้านได้)`
       : undefined,
@@ -268,17 +245,19 @@ export function isWithdrawalBlocked(
 }
 
 /**
- * Calculate the "effective" expiry date, accounting for blocked withdrawal days.
- * If the expiry falls on a blocked day, extends to the end of the next non-blocked day.
+ * Calculate the "effective" expiry date, accounting for:
+ * 1. Blocked withdrawal days — ถ้าหมดอายุตรงวันห้ามเบิก ขยายไปวันถัดไปที่เบิกได้
+ * 2. Store working hours — ขยายถึงเวลาปิดร้าน (เช่น ตี 6) ของวันที่เบิกได้
  *
- * This ensures customers whose deposits expire on blocked days can still withdraw.
+ * storeEndHour = ชั่วโมงปิดร้าน (จาก print_server_working_hours.endHour, default 6)
  *
- * Example: expiry=Saturday, blockedDays=[Fri,Sat] → effective expiry = Sunday 23:59:59
+ * Example: expiry=Saturday 23:59, blockedDays=[Fri,Sat], endHour=6
+ *          → effective expiry = Monday 06:00 (วันอาทิตย์ + grace ถึงตี 6 วันจันทร์)
  */
 export function effectiveExpiryISO(
   expiryDate: string,
   blockedDays: string[] = ['Fri', 'Sat'],
-  cutoffHour: number = 6,
+  storeEndHour: number = 6,
 ): string {
   const expiry = new Date(expiryDate);
 
@@ -297,17 +276,18 @@ export function effectiveExpiryISO(
   }
 
   if (daysAdded === 0) {
-    // Expiry is not on a blocked day — no extension needed
-    return expiryDate;
+    // Expiry is not on a blocked day — just add store closing grace
+    const graced = new Date(expiry.getTime());
+    graced.setTime(graced.getTime() + storeEndHour * 60 * 60 * 1000);
+    return graced.toISOString();
   }
 
-  // Extend expiry by daysAdded, set to end of that day Bangkok time (23:59:59)
-  // Also add cutoff hours to account for late-night operations
+  // Extend expiry by daysAdded to the next non-blocked day
   const extended = new Date(expiry.getTime());
   extended.setTime(extended.getTime() + daysAdded * 24 * 60 * 60 * 1000);
 
-  // Add cutoff hours grace (e.g. until 6 AM of the next day)
-  extended.setTime(extended.getTime() + cutoffHour * 60 * 60 * 1000);
+  // Add store closing grace (e.g. until 6 AM of the following day)
+  extended.setTime(extended.getTime() + storeEndHour * 60 * 60 * 1000);
 
   return extended.toISOString();
 }

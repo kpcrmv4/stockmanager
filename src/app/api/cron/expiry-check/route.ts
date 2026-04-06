@@ -121,17 +121,18 @@ export async function GET(request: NextRequest) {
   }
 
   // Mark expired deposits (exclude VIP — VIP never expires)
-  // Fetch all store settings for blocked days grace period
+  // Fetch all store settings for blocked days + working hours (for grace period)
   const { data: allStoreSettings } = await supabase
     .from('store_settings')
-    .select('store_id, withdrawal_blocked_days, business_day_cutoff_hour');
+    .select('store_id, withdrawal_blocked_days, print_server_working_hours');
 
-  const storeBlockedMap = new Map<string, { blockedDays: string[]; cutoffHour: number }>();
+  const storeSettingsMap = new Map<string, { blockedDays: string[]; endHour: number }>();
   if (allStoreSettings) {
     for (const s of allStoreSettings) {
-      storeBlockedMap.set(s.store_id, {
+      const wh = s.print_server_working_hours as { endHour?: number } | null;
+      storeSettingsMap.set(s.store_id, {
         blockedDays: (s.withdrawal_blocked_days as string[] | null) ?? ['Fri', 'Sat'],
-        cutoffHour: (s.business_day_cutoff_hour as number | null) ?? 6,
+        endHour: wh?.endHour ?? 6,
       });
     }
   }
@@ -150,11 +151,11 @@ export async function GET(request: NextRequest) {
     const now = new Date().toISOString();
 
     for (const deposit of expiryCandidates) {
-      // Check effective expiry (extended past blocked days)
-      const settings = storeBlockedMap.get(deposit.store_id);
+      // Check effective expiry (extended past blocked days + store closing grace)
+      const settings = storeSettingsMap.get(deposit.store_id);
       const blockedDays = settings?.blockedDays ?? ['Fri', 'Sat'];
-      const cutoffHour = settings?.cutoffHour ?? 6;
-      const effExpiry = effectiveExpiryISO(deposit.expiry_date, blockedDays, cutoffHour);
+      const storeEndHour = settings?.endHour ?? 6;
+      const effExpiry = effectiveExpiryISO(deposit.expiry_date, blockedDays, storeEndHour);
 
       if (effExpiry <= now) {
         // Truly expired — mark it
@@ -175,7 +176,7 @@ export async function GET(request: NextRequest) {
           changed_by: null,
         });
       }
-      // else: effective expiry hasn't passed yet (grace period for blocked days)
+      // else: effective expiry hasn't passed yet (grace period for blocked days / store hours)
     }
   }
 

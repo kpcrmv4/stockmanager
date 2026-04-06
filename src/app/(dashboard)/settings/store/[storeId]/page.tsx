@@ -145,7 +145,6 @@ export default function StoreDetailSettingsPage() {
 
   // Withdrawal blocked days
   const [withdrawalBlockedDays, setWithdrawalBlockedDays] = useState<string[]>(['Fri', 'Sat']);
-  const [businessDayCutoffHour, setBusinessDayCutoffHour] = useState(6);
 
   // Audit log retention
   const [auditLogRetentionDays, setAuditLogRetentionDays] = useState<number | null>(null);
@@ -232,7 +231,6 @@ export default function StoreDetailSettingsPage() {
       setFollowUpEnabled(settings.follow_up_enabled ?? true);
       setAuditLogRetentionDays(settings.audit_log_retention_days ?? null);
       setWithdrawalBlockedDays((settings.withdrawal_blocked_days as string[] | null) ?? ['Fri', 'Sat']);
-      setBusinessDayCutoffHour((settings.business_day_cutoff_hour as number | null) ?? 6);
 
       // Load receipt settings from JSONB
       const rs = settings.receipt_settings as ReceiptSettings | null;
@@ -434,7 +432,6 @@ export default function StoreDetailSettingsPage() {
           follow_up_enabled: followUpEnabled,
           audit_log_retention_days: auditLogRetentionDays,
           withdrawal_blocked_days: withdrawalBlockedDays,
-          business_day_cutoff_hour: businessDayCutoffHour,
           receipt_settings: {
             logo_url: null,
             header_text: receiptHeaderText,
@@ -819,31 +816,12 @@ export default function StoreDetailSettingsPage() {
               </p>
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                เวลาตัดวันทำการ
-              </label>
-              <div className="flex items-center gap-3">
-                <select
-                  value={businessDayCutoffHour}
-                  onChange={(e) => setBusinessDayCutoffHour(parseInt(e.target.value))}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                >
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((h) => (
-                    <option key={h} value={h}>
-                      {h === 0 ? 'เที่ยงคืน (00:00)' : `ตี ${h} (0${h}:00)`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                ก่อนเวลานี้ ระบบจะถือว่ายังเป็นวันทำการของวันก่อน เช่น ตี 2 ของวันอาทิตย์ = ยังเป็นวันเสาร์
-              </p>
-            </div>
-
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
               <p className="text-xs text-blue-700 dark:text-blue-300">
-                <strong>หมดอายุตรงวันห้ามเบิก:</strong> ถ้าเหล้าหมดอายุตรงวันห้ามเบิก ระบบจะขยายวันหมดอายุไปวันถัดไปที่เบิกได้โดยอัตโนมัติ เพื่อให้ลูกค้ามีโอกาสเบิกก่อนหมดอายุ
+                <strong>วันห้ามเบิก:</strong> ใช้วันปฏิทินจริง เช่น ตี 1 วันอาทิตย์ = วันอาทิตย์ (เบิกได้)
+              </p>
+              <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
+                <strong>หมดอายุตรงวันห้ามเบิก:</strong> ระบบจะขยายวันหมดอายุไปวันถัดไปที่เบิกได้ + เวลาปิดร้าน (จากเวลาทำงานใน Print Server) โดยอัตโนมัติ
               </p>
             </div>
           </div>
