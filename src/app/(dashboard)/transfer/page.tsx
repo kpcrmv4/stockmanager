@@ -21,6 +21,7 @@ import { notifyChatTransferBatch, notifyChatTransferSubmitted } from '@/lib/chat
 import type { TransferCardItem } from '@/types/transfer-chat';
 import { cn } from '@/lib/utils/cn';
 import { generateTransferCode } from '@/lib/utils/transfer-code';
+import { TransferReceipt, printTransferReceipt } from './_components/transfer-receipt';
 import {
   Truck,
   AlertTriangle,
@@ -39,6 +40,7 @@ import {
   Ban,
   Image as ImageIcon,
   X,
+  Printer,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -160,6 +162,15 @@ export default function TransferPage() {
 
   // Photo viewer
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+
+  // Print receipt data
+  const [printData, setPrintData] = useState<{
+    transferCode: string;
+    items: Array<{ product_name: string; customer_name: string | null; deposit_code: string | null; quantity: number; category: string | null }>;
+    submittedByName: string;
+    createdAt: string;
+    notes: string | null;
+  } | null>(null);
 
   // Central store
   const [centralStoreId, setCentralStoreId] = useState<string | null>(null);
@@ -386,8 +397,26 @@ export default function TransferPage() {
 
       toast({ type: 'success', title: 'ส่งโอนสำเร็จ', message: `ส่งโอน ${selectedDeposits.length} รายการ (${transferCode})` });
 
-      // ส่ง system message เข้าห้องแชทสาขา
+      // Save print data for receipt
       const submitterName = user.displayName || user.username || 'พนักงาน';
+      setPrintData({
+        transferCode,
+        items: selectedDeposits.map((d) => ({
+          product_name: d.product_name,
+          customer_name: d.customer_name,
+          deposit_code: d.deposit_code,
+          quantity: d.remaining_qty || d.quantity,
+          category: d.category,
+        })),
+        submittedByName: submitterName,
+        createdAt: new Date().toISOString(),
+        notes: transferNote || null,
+      });
+
+      // Auto-print after a short delay for render
+      setTimeout(() => printTransferReceipt(), 500);
+
+      // ส่ง system message เข้าห้องแชทสาขา
       notifyChatTransferSubmitted(currentStoreId, {
         transfer_code: transferCode,
         deposit_count: selectedDeposits.length,
@@ -711,9 +740,10 @@ export default function TransferPage() {
 
               {/* Floating action bar */}
               {selectedIds.size > 0 && (
-                <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                <div className="fixed inset-x-0 bottom-[72px] z-40 border-t border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900">
                   <Button
                     className="w-full"
+                    variant="primary"
                     icon={<Send className="h-4 w-4" />}
                     onClick={() => setShowTransferModal(true)}
                   >
@@ -766,18 +796,45 @@ export default function TransferPage() {
                           </p>
                         </div>
                       </div>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        icon={<XCircle className="h-3.5 w-3.5" />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCancellingBatch(batch);
-                          setShowCancelModal(true);
-                        }}
-                      >
-                        ยกเลิก
-                      </Button>
+                      <div className="flex gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={<Printer className="h-3.5 w-3.5" />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Set print data from batch items
+                            setPrintData({
+                              transferCode: batch.transfer_code,
+                              items: batch.items.map((t) => ({
+                                product_name: t.product_name || '',
+                                customer_name: t.customer_name,
+                                deposit_code: t.deposit_code,
+                                quantity: t.quantity || 0,
+                                category: null,
+                              })),
+                              submittedByName: user?.displayName || user?.username || 'พนักงาน',
+                              createdAt: batch.created_at,
+                              notes: batch.items[0]?.notes || null,
+                            });
+                            setTimeout(() => printTransferReceipt(), 300);
+                          }}
+                        >
+                          พิมพ์
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          icon={<XCircle className="h-3.5 w-3.5" />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCancellingBatch(batch);
+                            setShowCancelModal(true);
+                          }}
+                        >
+                          ยกเลิก
+                        </Button>
+                      </div>
                     </button>
 
                     {/* Batch items */}
@@ -1142,6 +1199,18 @@ export default function TransferPage() {
           </Button>
         </ModalFooter>
       </Modal>
+
+      {/* ── Transfer Receipt (hidden, only for print) ──── */}
+      {printData && (
+        <TransferReceipt
+          transferCode={printData.transferCode}
+          storeName={currentStoreName}
+          items={printData.items}
+          submittedByName={printData.submittedByName}
+          createdAt={printData.createdAt}
+          notes={printData.notes}
+        />
+      )}
 
       {/* ── Photo Viewer Modal ─────────────────────────── */}
       {viewingPhoto && (
