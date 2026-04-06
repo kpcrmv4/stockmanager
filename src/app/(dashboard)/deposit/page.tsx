@@ -610,7 +610,7 @@ export default function DepositPage() {
             )}
           >
             <CalendarDays className="h-3.5 w-3.5" />
-            {dateFilterEnabled ? 'กรองวันที่' : 'กรองวันที่ (ปิด)'}
+            {dateFilterEnabled ? 'กรองวันที่' : 'กรองวันที่ · แตะเพื่อกรองตามวัน'}
           </button>
           {dateFilterEnabled && (
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
