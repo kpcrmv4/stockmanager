@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
+import { currentShiftRange } from '@/lib/utils/date';
 import {
   Button,
   Badge,
@@ -101,13 +102,9 @@ export default function DepositPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Date range filter (default: yesterday → today)
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().slice(0, 10);
-  });
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  // Date range filter (default: กะทำงานปัจจุบัน based on working hours 12:00-06:00)
+  const [dateFrom, setDateFrom] = useState(() => currentShiftRange().from);
+  const [dateTo, setDateTo] = useState(() => currentShiftRange().to);
   const [dateFilterEnabled, setDateFilterEnabled] = useState(true);
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<Deposit | null>(null);
@@ -134,6 +131,26 @@ export default function DepositPage() {
       setActiveTab('in_store');
     }
   }, [searchParams]);
+
+  // Update date range when store's working hours are loaded
+  useEffect(() => {
+    if (!currentStoreId) return;
+    const loadWorkingHours = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('store_settings')
+        .select('print_server_working_hours')
+        .eq('store_id', currentStoreId)
+        .single();
+      const wh = data?.print_server_working_hours as { startHour?: number; endHour?: number } | null;
+      if (wh?.startHour != null && wh?.endHour != null) {
+        const shift = currentShiftRange(wh.startHour, wh.endHour);
+        setDateFrom(shift.from);
+        setDateTo(shift.to);
+      }
+    };
+    loadWorkingHours();
+  }, [currentStoreId]);
 
   // Load stats counts separately (lightweight queries)
   const loadStats = useCallback(async (supabase: ReturnType<typeof createClient>, storeId: string) => {

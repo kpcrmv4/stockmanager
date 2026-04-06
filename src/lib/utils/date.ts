@@ -221,6 +221,67 @@ export function formatTimeBangkok(date: string | Date): string {
 // ---------------------------------------------------------------------------
 
 /**
+ * คำนวณช่วง "กะทำงาน" ปัจจุบันของร้านตามเวลาเปิด-ปิด
+ *
+ * ร้านเปิด 12:00 ปิด 06:00 (ข้ามวัน):
+ * - เวลา 20:33 วันที่ 6 → กะ 6/4 12:00 ถึง 7/4 06:00 → return { from: '2026-04-06', to: '2026-04-07' }
+ * - เวลา 03:00 วันที่ 7 → ยังอยู่ในกะวันที่ 6 → return { from: '2026-04-06', to: '2026-04-07' }
+ * - เวลา 10:00 วันที่ 7 → ก่อนเปิดร้าน ยังไม่มีกะใหม่ → แสดงกะเมื่อวาน
+ *
+ * @param startHour ชั่วโมงเปิดร้าน (default 12)
+ * @param endHour ชั่วโมงปิดร้าน (default 6, ข้ามวัน)
+ */
+export function currentShiftRange(
+  startHour: number = 12,
+  endHour: number = 6,
+): { from: string; to: string } {
+  const now = nowBangkok();
+  const hour = now.getHours();
+
+  // กรณีข้ามวัน: startHour > endHour (เช่น 12:00 - 06:00)
+  const isOvernight = startHour > endHour;
+
+  let shiftDate: Date;
+
+  if (isOvernight) {
+    if (hour >= startHour) {
+      // หลังเปิดร้าน เช่น 20:33 → กะของวันนี้
+      shiftDate = new Date(now);
+    } else if (hour < endHour) {
+      // หลังเที่ยงคืน แต่ร้านยังไม่ปิด เช่น 03:00 → กะของเมื่อวาน
+      shiftDate = new Date(now);
+      shiftDate.setDate(shiftDate.getDate() - 1);
+    } else {
+      // ระหว่างปิดร้านถึงเปิดร้าน เช่น 10:00 → แสดงกะล่าสุด (เมื่อวาน)
+      shiftDate = new Date(now);
+      shiftDate.setDate(shiftDate.getDate() - 1);
+    }
+  } else {
+    // กรณีไม่ข้ามวัน (เช่น 09:00 - 17:00)
+    if (hour >= startHour) {
+      shiftDate = new Date(now);
+    } else {
+      shiftDate = new Date(now);
+      shiftDate.setDate(shiftDate.getDate() - 1);
+    }
+  }
+
+  const fmt = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const from = fmt(shiftDate);
+  const toDate = new Date(shiftDate);
+  toDate.setDate(toDate.getDate() + 1);
+  const to = fmt(toDate);
+
+  return { from, to };
+}
+
+/**
  * Check if in-store withdrawal is currently blocked based on store settings.
  * ใช้วันปฏิทินจริง (ไม่มี cutoff) — ตี 1 วันอาทิตย์ = อาทิตย์ = เบิกได้
  *
