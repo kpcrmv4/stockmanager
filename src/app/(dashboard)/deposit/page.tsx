@@ -13,6 +13,10 @@ import {
   Card,
   Tabs,
   EmptyState,
+  Modal,
+  ModalFooter,
+  Textarea,
+  PhotoUpload,
   toast,
 } from '@/components/ui';
 import { formatThaiDate, formatNumber, daysUntil } from '@/lib/utils/format';
@@ -42,6 +46,7 @@ import { notifyChatTransferBatch, notifyChatTransferSubmitted } from '@/lib/chat
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { generateTransferCode } from '@/lib/utils/transfer-code';
 import type { TransferCardItem } from '@/types/transfer-chat';
+import type { TransferPrintPayload } from '@/types/database';
 
 interface Deposit {
   id: string;
@@ -112,6 +117,9 @@ export default function DepositPage() {
   // Batch selection for expired tab
   const [batchSelectedIds, setBatchSelectedIds] = useState<Set<string>>(new Set());
   const [isBatchTransferring, setIsBatchTransferring] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferNote, setTransferNote] = useState('');
+  const [transferPhoto, setTransferPhoto] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [stats, setStats] = useState({
     activeCount: 0,
@@ -131,6 +139,26 @@ export default function DepositPage() {
       setActiveTab('in_store');
     }
   }, [searchParams]);
+
+  // Print transfer receipt via print_queue
+  const printTransferReceipt = useCallback(async (payload: TransferPrintPayload) => {
+    if (!currentStoreId || !user) return;
+    const supabase = createClient();
+    const { error } = await supabase.from('print_queue').insert({
+      store_id: currentStoreId,
+      deposit_id: null,
+      job_type: 'transfer',
+      status: 'pending',
+      copies: 1,
+      payload,
+      requested_by: user.id,
+    });
+    if (error) {
+      toast({ type: 'error', title: 'ไม่สามารถส่งคำสั่งพิมพ์ได้', message: error.message });
+    } else {
+      toast({ type: 'success', title: 'ส่งพิมพ์ใบนำส่งแล้ว', message: 'รอเครื่องพิมพ์ดำเนินการ' });
+    }
+  }, [currentStoreId, user]);
 
   // Update date range when store's working hours are loaded
   useEffect(() => {
@@ -264,7 +292,7 @@ export default function DepositPage() {
     setBatchSelectedIds(new Set());
   }, [activeTab]);
 
-  // Batch transfer expired deposits to HQ
+  // Batch transfer expired deposits to HQ (called from modal confirmation)
   const handleBatchTransferToHq = async () => {
     if (!currentStoreId || !user || batchSelectedIds.size === 0) return;
     setIsBatchTransferring(true);
@@ -300,6 +328,8 @@ export default function DepositPage() {
         deposit_id: d.id,
         product_name: d.product_name,
         quantity: d.remaining_qty || d.quantity,
+        notes: transferNote || null,
+        photo_url: transferPhoto,
         requested_by: user.id,
         transfer_code: transferCode,
       }));
@@ -321,11 +351,33 @@ export default function DepositPage() {
         action_type: AUDIT_ACTIONS.TRANSFER_CREATED,
         table_name: 'transfers',
         record_id: transferCode,
-        new_value: { transfer_code: transferCode, to: 'central_warehouse', deposit_count: selected.length },
+        new_value: {
+          transfer_code: transferCode,
+          to: 'central_warehouse',
+          deposit_count: selected.length,
+          deposit_codes: selected.map((d) => d.deposit_code),
+        },
         changed_by: user.id,
       });
 
       const submitterName = user.displayName || user.username || 'พนักงาน';
+
+      // Auto-print transfer receipt
+      printTransferReceipt({
+        transfer_code: transferCode,
+        store_name: storeName,
+        created_at: new Date().toISOString(),
+        submitted_by_name: submitterName,
+        notes: transferNote || null,
+        items: selected.map((d) => ({
+          product_name: d.product_name,
+          customer_name: d.customer_name,
+          deposit_code: d.deposit_code,
+          quantity: d.remaining_qty || d.quantity,
+          category: d.category,
+        })),
+      });
+
       notifyChatTransferSubmitted(currentStoreId, {
         transfer_code: transferCode,
         deposit_count: selected.length,
@@ -349,13 +401,16 @@ export default function DepositPage() {
           items: cardItems,
           submitted_by: user.id,
           submitted_by_name: submitterName,
-          photo_url: null,
-          notes: null,
+          photo_url: transferPhoto,
+          notes: transferNote || null,
         });
       }
 
       toast({ type: 'success', title: 'ส่งโอนสำเร็จ', message: `ส่งโอน ${selected.length} รายการ (${transferCode})` });
+      setShowTransferModal(false);
       setBatchSelectedIds(new Set());
+      setTransferNote('');
+      setTransferPhoto(null);
       loadDeposits();
     } catch (err) {
       toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: err instanceof Error ? err.message : 'ไม่สามารถส่งโอนได้' });
@@ -630,7 +685,7 @@ export default function DepositPage() {
                   icon={<Warehouse className="h-4 w-4" />}
                   className="bg-amber-600 hover:bg-amber-700"
                   isLoading={isBatchTransferring}
-                  onClick={handleBatchTransferToHq}
+                  onClick={() => setShowTransferModal(true)}
                 >
                   โอนคลังกลาง ({batchSelectedIds.size})
                 </Button>
@@ -881,6 +936,78 @@ export default function DepositPage() {
           )}
         </>
       )}
+
+      {/* Transfer to HQ Modal */}
+      <Modal
+        isOpen={showTransferModal}
+        onClose={() => {
+          if (!isBatchTransferring) {
+            setShowTransferModal(false);
+            setTransferNote('');
+            setTransferPhoto(null);
+          }
+        }}
+        title="ส่งโอนไปคลังกลาง"
+        description={`${batchSelectedIds.size} รายการที่เลือก`}
+        size="lg"
+      >
+        <div className="space-y-4">
+          {/* Selected items summary */}
+          <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+            {deposits
+              .filter((d) => batchSelectedIds.has(d.id))
+              .map((d) => (
+                <div key={d.id} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-700 dark:text-gray-300">
+                    {d.product_name}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {d.customer_name} · {d.deposit_code}
+                  </span>
+                </div>
+              ))}
+          </div>
+
+          {/* Photo */}
+          <PhotoUpload
+            label="แนบรูปภาพ (ถ้ามี)"
+            value={transferPhoto}
+            onChange={setTransferPhoto}
+            folder="transfers"
+            compact
+          />
+
+          {/* Notes */}
+          <Textarea
+            label="หมายเหตุ"
+            value={transferNote}
+            onChange={(e) => setTransferNote(e.target.value)}
+            placeholder="ระบุหมายเหตุเพิ่มเติม (ถ้ามี)"
+            rows={3}
+          />
+        </div>
+
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowTransferModal(false);
+              setTransferNote('');
+              setTransferPhoto(null);
+            }}
+            disabled={isBatchTransferring}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            onClick={handleBatchTransferToHq}
+            isLoading={isBatchTransferring}
+            icon={<Truck className="h-4 w-4" />}
+          >
+            ยืนยันส่งโอน
+          </Button>
+        </ModalFooter>
+      </Modal>
     </div>
   );
 }
