@@ -216,6 +216,106 @@ export function formatTimeBangkok(date: string | Date): string {
   }).format(d);
 }
 
+// ---------------------------------------------------------------------------
+// Business day helpers (for late-night bar operations)
+// ---------------------------------------------------------------------------
+
+/**
+ * Get the "business day" in Bangkok timezone, accounting for late-night operations.
+ * Before the cutoff hour (e.g. 6 AM), the business day is still the previous calendar day.
+ *
+ * Example: At 2 AM Sunday with cutoffHour=6 → returns Saturday's date info.
+ */
+export function businessDayBangkok(cutoffHour: number = 6): Date {
+  const now = nowBangkok();
+  if (now.getHours() < cutoffHour) {
+    now.setDate(now.getDate() - 1);
+  }
+  return now;
+}
+
+/**
+ * Get the business day-of-week abbreviation, accounting for late-night cutoff.
+ * Before cutoff hour, returns previous day's name.
+ */
+export function businessDayOfWeekBangkok(
+  cutoffHour: number = 6,
+): (typeof DAY_NAMES)[number] {
+  return DAY_NAMES[businessDayBangkok(cutoffHour).getDay()];
+}
+
+/**
+ * Check if in-store withdrawal is currently blocked based on store settings.
+ * Returns { blocked, reason, businessDay } for UI messaging.
+ */
+export function isWithdrawalBlocked(
+  blockedDays: string[] = ['Fri', 'Sat'],
+  cutoffHour: number = 6,
+): { blocked: boolean; businessDay: string; reason?: string } {
+  const dayName = businessDayOfWeekBangkok(cutoffHour);
+  const blocked = blockedDays.includes(dayName);
+  const dayNamesTH: Record<string, string> = {
+    Sun: 'อาทิตย์', Mon: 'จันทร์', Tue: 'อังคาร', Wed: 'พุธ',
+    Thu: 'พฤหัสบดี', Fri: 'ศุกร์', Sat: 'เสาร์',
+  };
+  return {
+    blocked,
+    businessDay: dayName,
+    reason: blocked
+      ? `วัน${dayNamesTH[dayName]}ไม่สามารถเบิกเหล้าใช้ในร้านได้ (เบิกกลับบ้านได้)`
+      : undefined,
+  };
+}
+
+/**
+ * Calculate the "effective" expiry date, accounting for blocked withdrawal days.
+ * If the expiry falls on a blocked day, extends to the end of the next non-blocked day.
+ *
+ * This ensures customers whose deposits expire on blocked days can still withdraw.
+ *
+ * Example: expiry=Saturday, blockedDays=[Fri,Sat] → effective expiry = Sunday 23:59:59
+ */
+export function effectiveExpiryISO(
+  expiryDate: string,
+  blockedDays: string[] = ['Fri', 'Sat'],
+  cutoffHour: number = 6,
+): string {
+  const expiry = new Date(expiryDate);
+
+  // Get the Bangkok day-of-week for the expiry date
+  const expiryBangkok = new Date(
+    expiry.getTime() + 7 * 60 * 60 * 1000, // Convert to Bangkok wall-clock
+  );
+
+  let dayIndex = expiryBangkok.getDay();
+  let daysAdded = 0;
+
+  // If expiry falls on a blocked day, keep adding days until we find a non-blocked day
+  while (blockedDays.includes(DAY_NAMES[dayIndex]) && daysAdded < 7) {
+    daysAdded++;
+    dayIndex = (dayIndex + 1) % 7;
+  }
+
+  if (daysAdded === 0) {
+    // Expiry is not on a blocked day — no extension needed
+    return expiryDate;
+  }
+
+  // Extend expiry by daysAdded, set to end of that day Bangkok time (23:59:59)
+  // Also add cutoff hours to account for late-night operations
+  const extended = new Date(expiry.getTime());
+  extended.setTime(extended.getTime() + daysAdded * 24 * 60 * 60 * 1000);
+
+  // Add cutoff hours grace (e.g. until 6 AM of the next day)
+  extended.setTime(extended.getTime() + cutoffHour * 60 * 60 * 1000);
+
+  return extended.toISOString();
+}
+
+// ---------------------------------------------------------------------------
+// Misc helpers
+// ---------------------------------------------------------------------------
+
 /**
  * Get month/date components from Bangkok timezone for code generation etc.
  */

@@ -143,6 +143,10 @@ export default function StoreDetailSettingsPage() {
   const [dailyReminderEnabled, setDailyReminderEnabled] = useState(true);
   const [followUpEnabled, setFollowUpEnabled] = useState(true);
 
+  // Withdrawal blocked days
+  const [withdrawalBlockedDays, setWithdrawalBlockedDays] = useState<string[]>(['Fri', 'Sat']);
+  const [businessDayCutoffHour, setBusinessDayCutoffHour] = useState(6);
+
   // Audit log retention
   const [auditLogRetentionDays, setAuditLogRetentionDays] = useState<number | null>(null);
 
@@ -227,6 +231,8 @@ export default function StoreDetailSettingsPage() {
       setDailyReminderEnabled(settings.daily_reminder_enabled ?? true);
       setFollowUpEnabled(settings.follow_up_enabled ?? true);
       setAuditLogRetentionDays(settings.audit_log_retention_days ?? null);
+      setWithdrawalBlockedDays((settings.withdrawal_blocked_days as string[] | null) ?? ['Fri', 'Sat']);
+      setBusinessDayCutoffHour((settings.business_day_cutoff_hour as number | null) ?? 6);
 
       // Load receipt settings from JSONB
       const rs = settings.receipt_settings as ReceiptSettings | null;
@@ -427,6 +433,8 @@ export default function StoreDetailSettingsPage() {
           daily_reminder_enabled: dailyReminderEnabled,
           follow_up_enabled: followUpEnabled,
           audit_log_retention_days: auditLogRetentionDays,
+          withdrawal_blocked_days: withdrawalBlockedDays,
+          business_day_cutoff_hour: businessDayCutoffHour,
           receipt_settings: {
             logo_url: null,
             header_text: receiptHeaderText,
@@ -482,6 +490,12 @@ export default function StoreDetailSettingsPage() {
 
   const toggleDay = (day: string) => {
     setNotifyDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
+  };
+
+  const toggleWithdrawalBlockedDay = (day: string) => {
+    setWithdrawalBlockedDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
   };
@@ -767,6 +781,72 @@ export default function StoreDetailSettingsPage() {
             placeholder="เช่น STORE-REG-2024"
             hint="พนักงานใช้รหัสนี้ในการลงทะเบียนด้วยตัวเอง"
           />
+        </CardContent>
+      </Card>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Section 3.5: ตั้งค่าวันห้ามเบิกเหล้า (Withdrawal Blocked Days)     */}
+      {/* ------------------------------------------------------------------ */}
+      <Card padding="none">
+        <CardHeader
+          title="ตั้งค่าวันห้ามเบิกเหล้า"
+          description="กำหนดวันที่ไม่สามารถเบิกเหล้าใช้ในร้านได้ (เบิกกลับบ้านได้)"
+        />
+        <CardContent>
+          <div className="space-y-6">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                วันที่ห้ามเบิกเหล้าในร้าน
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(dayLabels).map(([day, label]) => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleWithdrawalBlockedDay(day)}
+                    className={`flex h-10 w-10 items-center justify-center rounded-full text-xs font-medium transition-colors ${
+                      withdrawalBlockedDays.includes(day)
+                        ? 'bg-red-600 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                วันที่เลือก (แดง) = ห้ามเบิกใช้ในร้าน แต่ลูกค้ายังเบิกกลับบ้านได้
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                เวลาตัดวันทำการ
+              </label>
+              <div className="flex items-center gap-3">
+                <select
+                  value={businessDayCutoffHour}
+                  onChange={(e) => setBusinessDayCutoffHour(parseInt(e.target.value))}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                >
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((h) => (
+                    <option key={h} value={h}>
+                      {h === 0 ? 'เที่ยงคืน (00:00)' : `ตี ${h} (0${h}:00)`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                ก่อนเวลานี้ ระบบจะถือว่ายังเป็นวันทำการของวันก่อน เช่น ตี 2 ของวันอาทิตย์ = ยังเป็นวันเสาร์
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                <strong>หมดอายุตรงวันห้ามเบิก:</strong> ถ้าเหล้าหมดอายุตรงวันห้ามเบิก ระบบจะขยายวันหมดอายุไปวันถัดไปที่เบิกได้โดยอัตโนมัติ เพื่อให้ลูกค้ามีโอกาสเบิกก่อนหมดอายุ
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

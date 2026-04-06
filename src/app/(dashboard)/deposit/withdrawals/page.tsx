@@ -37,6 +37,8 @@ import {
   X,
   ShoppingCart,
   ChevronDown,
+  Home,
+  AlertCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
@@ -58,6 +60,7 @@ interface Withdrawal {
   processed_by_name: string | null;
   notes: string | null;
   photo_url: string | null;
+  withdrawal_type: 'in_store' | 'take_home' | null;
   created_at: string;
 }
 
@@ -129,6 +132,10 @@ export default function WithdrawalsPage() {
   const [manualPhotoUrl, setManualPhotoUrl] = useState<string | null>(null);
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
 
+  // Withdrawal blocked days
+  const [blockedDayInfo, setBlockedDayInfo] = useState<{ blocked: boolean; businessDay: string } | null>(null);
+  const [manualWithdrawalType, setManualWithdrawalType] = useState<'in_store' | 'take_home'>('in_store');
+
   const loadWithdrawals = useCallback(async () => {
     if (!currentStoreId) return;
     setIsLoading(true);
@@ -168,6 +175,32 @@ export default function WithdrawalsPage() {
   useEffect(() => {
     loadWithdrawals();
   }, [loadWithdrawals]);
+
+  // Check withdrawal blocked days
+  useEffect(() => {
+    if (!currentStoreId) return;
+    const checkBlockedDays = async () => {
+      const supabase = createClient();
+      const { data: settings } = await supabase
+        .from('store_settings')
+        .select('withdrawal_blocked_days, business_day_cutoff_hour')
+        .eq('store_id', currentStoreId)
+        .single();
+
+      const blockedDays = (settings?.withdrawal_blocked_days as string[] | null) ?? ['Fri', 'Sat'];
+      const cutoffHour = (settings?.business_day_cutoff_hour as number | null) ?? 6;
+
+      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+      if (now.getHours() < cutoffHour) now.setDate(now.getDate() - 1);
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const businessDay = dayNames[now.getDay()];
+      const blocked = blockedDays.includes(businessDay);
+
+      setBlockedDayInfo({ blocked, businessDay });
+      if (blocked) setManualWithdrawalType('take_home');
+    };
+    checkBlockedDays();
+  }, [currentStoreId]);
 
   // Search deposits for manual withdrawal
   const searchDeposits = useCallback(async (query: string) => {
@@ -232,6 +265,7 @@ export default function WithdrawalsPage() {
     setWithdrawItems([]);
     setManualNotes('');
     setManualPhotoUrl(null);
+    setManualWithdrawalType(blockedDayInfo?.blocked ? 'take_home' : 'in_store');
   };
 
   const toggleDeposit = (deposit: DepositForWithdraw) => {
@@ -259,6 +293,12 @@ export default function WithdrawalsPage() {
 
   const handleManualWithdrawal = async () => {
     if (validItems.length === 0 || !user || !currentStoreId) return;
+
+    // Block in-store withdrawal on blocked days
+    if (blockedDayInfo?.blocked && manualWithdrawalType !== 'take_home') {
+      toast({ type: 'error', title: 'วันนี้ไม่สามารถเบิกเหล้าใช้ในร้านได้', message: 'กรุณาเลือก "เบิกกลับบ้าน"' });
+      return;
+    }
 
     // Validate all items
     for (const item of withdrawItems) {
@@ -289,6 +329,7 @@ export default function WithdrawalsPage() {
         product_name: dep.product_name,
         requested_qty: qty,
         actual_qty: qty,
+        withdrawal_type: manualWithdrawalType,
         status: 'completed',
         processed_by: user.id,
         notes: manualNotes.trim() || null,
@@ -573,6 +614,23 @@ export default function WithdrawalsPage() {
         </div>
       </div>
 
+      {/* Blocked day warning banner */}
+      {blockedDayInfo?.blocked && (
+        <Card padding="md" className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div>
+              <p className="font-semibold text-amber-800 dark:text-amber-200">
+                วันนี้ไม่สามารถเบิกเหล้าใช้ในร้านได้
+              </p>
+              <p className="mt-0.5 text-sm text-amber-700 dark:text-amber-300">
+                อนุญาตเฉพาะการเบิกกลับบ้านเท่านั้น
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         <Card padding="md">
@@ -662,6 +720,11 @@ export default function WithdrawalsPage() {
                     </div>
                     <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                       {withdrawal.customer_name} · x{formatNumber(withdrawal.requested_qty)} · {formatThaiDateTime(withdrawal.created_at)}
+                      {withdrawal.withdrawal_type === 'take_home' && (
+                        <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                          <Home className="h-2.5 w-2.5" /> กลับบ้าน
+                        </span>
+                      )}
                     </p>
                   </div>
                   {!isPending && (
@@ -1032,6 +1095,46 @@ export default function WithdrawalsPage() {
                 ยังไม่ได้เลือกรายการ
               </div>
             )}
+
+            {/* Withdrawal type selector */}
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">ประเภทการเบิก</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => !blockedDayInfo?.blocked && setManualWithdrawalType('in_store')}
+                  disabled={blockedDayInfo?.blocked}
+                  className={cn(
+                    'flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-2.5 text-sm font-medium transition-colors',
+                    manualWithdrawalType === 'in_store'
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-300'
+                      : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400',
+                    blockedDayInfo?.blocked && 'cursor-not-allowed opacity-40',
+                  )}
+                >
+                  <Wine className="h-4 w-4" />
+                  เบิกใช้ในร้าน
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setManualWithdrawalType('take_home')}
+                  className={cn(
+                    'flex items-center justify-center gap-2 rounded-lg border-2 px-3 py-2.5 text-sm font-medium transition-colors',
+                    manualWithdrawalType === 'take_home'
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-300'
+                      : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400',
+                  )}
+                >
+                  <Home className="h-4 w-4" />
+                  เบิกกลับบ้าน
+                </button>
+              </div>
+              {blockedDayInfo?.blocked && (
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  วันนี้อนุญาตเฉพาะเบิกกลับบ้านเท่านั้น
+                </p>
+              )}
+            </div>
 
             <PhotoUpload
               value={manualPhotoUrl}
