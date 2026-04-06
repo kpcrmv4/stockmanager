@@ -121,7 +121,7 @@ export function InstallPrompt() {
 
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                 {platform === 'android'
-                  ? 'ติดตั้ง StockManager เป็นแอปบนหน้าจอหลัก เข้าถึงได้เร็วขึ้น ใช้งานได้เหมือนแอปจริง'
+                  ? 'ติดตั้ง StockManager เป็นแอปบนหน้าจอหลัก เพื่อรับการแจ้งเตือน และใช้งานได้สะดวกยิ่งขึ้น'
                   : 'เพิ่ม StockManager ลงหน้าจอหลัก เพื่อเข้าถึงได้เร็วขึ้น'}
               </p>
 
