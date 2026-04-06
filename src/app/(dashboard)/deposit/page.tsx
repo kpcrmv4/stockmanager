@@ -90,7 +90,7 @@ const depositTabs = [
 ];
 
 const PAGE_SIZE = 50;
-const ACTIVE_STATUSES = ['in_store', 'pending_confirm', 'pending_withdrawal', 'transfer_pending'];
+const ACTIVE_STATUSES = ['in_store', 'pending_confirm', 'pending_withdrawal', 'transfer_pending', 'expired'];
 
 export default function DepositPage() {
   const { user } = useAuthStore();
@@ -153,7 +153,20 @@ export default function DepositPage() {
   }, [currentStoreId]);
 
   // Load stats counts separately (lightweight queries)
-  const loadStats = useCallback(async (supabase: ReturnType<typeof createClient>, storeId: string) => {
+  // When date filter is enabled, counts reflect only the filtered date range
+  const loadStats = useCallback(async (supabase: ReturnType<typeof createClient>, storeId: string, filterEnabled?: boolean, fromDate?: string, toDate?: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const withDateFilter = (query: any) => {
+      if (filterEnabled && fromDate && toDate) {
+        const from = new Date(fromDate);
+        from.setHours(0, 0, 0, 0);
+        const to = new Date(toDate);
+        to.setHours(23, 59, 59, 999);
+        return query.gte('created_at', from.toISOString()).lte('created_at', to.toISOString());
+      }
+      return query;
+    };
+
     const [
       { count: activeCount },
       { count: pendingCount },
@@ -162,12 +175,12 @@ export default function DepositPage() {
       { count: transferPendingCount },
       { count: pendingWithdrawalCount },
     ] = await Promise.all([
-      supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'in_store'),
-      supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'pending_confirm'),
-      supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'expired'),
-      supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('is_vip', true),
-      supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'transfer_pending'),
-      supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('store_id', storeId).in('status', ['pending', 'approved']),
+      withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'in_store')),
+      withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'pending_confirm')),
+      withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'expired')),
+      withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('is_vip', true)),
+      withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'transfer_pending')),
+      withDateFilter(supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('store_id', storeId).in('status', ['pending', 'approved'])),
     ]);
 
     setStats({
@@ -200,12 +213,12 @@ export default function DepositPage() {
       setDeposits(data as Deposit[]);
     }
 
-    // Load stats in parallel
-    await loadStats(supabase, currentStoreId);
+    // Load stats in parallel (respecting date filter)
+    await loadStats(supabase, currentStoreId, dateFilterEnabled, dateFrom, dateTo);
 
     setIsLoading(false);
     setHasMore(true);
-  }, [currentStoreId, loadStats]);
+  }, [currentStoreId, loadStats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load inactive deposits (withdrawn, expired) with pagination
   const loadInactiveDeposits = useCallback(async (offset: number) => {
@@ -213,7 +226,7 @@ export default function DepositPage() {
     setIsLoadingMore(true);
     const supabase = createClient();
 
-    const inactiveStatuses = ['withdrawn', 'expired', 'transferred_out'];
+    const inactiveStatuses = ['withdrawn', 'transferred_out'];
     const { data, error } = await supabase
       .from('deposits')
       .select('*')
@@ -238,6 +251,13 @@ export default function DepositPage() {
   useEffect(() => {
     loadDeposits();
   }, [loadDeposits]);
+
+  // Refresh stats when date filter changes
+  useEffect(() => {
+    if (!currentStoreId) return;
+    const supabase = createClient();
+    loadStats(supabase, currentStoreId, dateFilterEnabled, dateFrom, dateTo);
+  }, [currentStoreId, dateFilterEnabled, dateFrom, dateTo, loadStats]);
 
   // Clear batch selection when tab changes
   useEffect(() => {
@@ -350,9 +370,9 @@ export default function DepositPage() {
     [deposits]
   );
 
-  // When switching to "all" or "expired" tab, ensure inactive deposits are loaded
+  // When switching to "all" tab, ensure inactive deposits (withdrawn, transferred_out) are loaded
   useEffect(() => {
-    if ((activeTab === 'all' || activeTab === 'expired') && hasMore && loadedInactiveCount === 0 && !isLoadingMore) {
+    if (activeTab === 'all' && hasMore && loadedInactiveCount === 0 && !isLoadingMore) {
       loadInactiveDeposits(0);
     }
   }, [activeTab, hasMore, loadedInactiveCount, isLoadingMore, loadInactiveDeposits]);
@@ -847,7 +867,7 @@ export default function DepositPage() {
           </div>
 
           {/* Load More */}
-          {hasMore && !searchQuery && (activeTab === 'all' || activeTab === 'expired') && (
+          {hasMore && !searchQuery && activeTab === 'all' && (
             <div className="flex justify-center pt-2">
               <Button
                 variant="outline"
