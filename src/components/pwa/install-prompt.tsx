@@ -92,9 +92,9 @@ export function InstallPrompt() {
   if (!isOpen || !isMobile) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div
-        className="relative w-full max-w-sm animate-in fade-in slide-in-from-bottom-4 rounded-2xl bg-white shadow-2xl dark:bg-gray-800"
+        className="relative w-full max-w-sm animate-in fade-in zoom-in-95 rounded-2xl bg-white shadow-2xl dark:bg-gray-800"
         role="dialog"
         aria-modal="true"
       >
