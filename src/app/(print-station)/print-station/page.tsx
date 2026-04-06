@@ -654,9 +654,9 @@ export default function PrintStationPage() {
       >
         {activePrintJob && activePrintJob.job_type === 'receipt' && (
           // Receipt: print copies = number of bottles (quantity)
-          Array.from({ length: activePrintJob.payload.quantity || 1 }).map((_, i) => (
+          Array.from({ length: (activePrintJob.payload as PrintPayload).quantity || 1 }).map((_, i) => (
             <div key={i} className="print-copy-separator">
-              <ReceiptContent payload={activePrintJob.payload} settings={receiptSettings} storeName={storeName} copyNumber={i + 1} totalCopies={activePrintJob.payload.quantity || 1} />
+              <ReceiptContent payload={activePrintJob.payload as PrintPayload} settings={receiptSettings} storeName={storeName} copyNumber={i + 1} totalCopies={(activePrintJob.payload as PrintPayload).quantity || 1} />
             </div>
           ))
         )}
