@@ -126,7 +126,61 @@ class HtmlRenderer {
       return html;
     }
 
+    if (job.job_type === 'transfer') {
+      return this.renderTransfer(payload);
+    }
+
     return this.renderReceipt(payload);
+  }
+
+  /**
+   * ใบนำส่งเหล้าคลังกลาง (Transfer Receipt)
+   */
+  renderTransfer(payload) {
+    const items = payload.items || [];
+    const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    const dashed = '--------------------------------';
+
+    let itemsHtml = '';
+    items.forEach((item, idx) => {
+      itemsHtml += `<div style="margin-bottom:3px;padding-bottom:3px;${idx < items.length - 1 ? 'border-bottom:1px dotted #ccc;' : ''}">` +
+        `<div style="font-weight:bold;">${idx + 1}. ${item.product_name || '-'}</div>` +
+        `<div style="display:flex;justify-content:space-between;font-size:10pt;">` +
+        `<span>${item.customer_name || '-'}</span>` +
+        `<span>${item.deposit_code || ''}</span>` +
+        `</div>` +
+        `<div style="display:flex;justify-content:space-between;font-size:10pt;">` +
+        `<span>จำนวน: ${item.quantity || '-'}</span>` +
+        (item.category ? `<span>(${item.category})</span>` : '') +
+        `</div>` +
+        `</div>`;
+    });
+
+    return `<html><head><meta charset="UTF-8"></head>` +
+      `<body style="font-family:Tahoma,sans-serif;font-size:11pt;width:70mm;margin:0 auto;padding:3mm;">` +
+      `<center style="font-size:10pt;">${this.storeName}</center>` +
+      `<center><b style="font-size:12pt;">ใบนำส่งเหล้าคลังกลาง</b></center>` +
+      `<center><b style="font-size:16pt;">${payload.transfer_code || '-'}</b></center>` +
+      `<hr>` +
+      `<table style="width:100%;font-size:11pt;">` +
+      `<tr><td>วันที่:</td><td>${this._formatDateShort(payload.created_at)}</td></tr>` +
+      `<tr><td>สาขา:</td><td><b>${this.storeName}</b></td></tr>` +
+      `<tr><td>จำนวนรวม:</td><td><b>${totalQty} รายการ (${items.length} ขวด)</b></td></tr>` +
+      `</table>` +
+      `<hr>` +
+      itemsHtml +
+      `<hr>` +
+      (payload.notes ? `<div style="font-size:10pt;">หมายเหตุ: ${payload.notes}</div><hr>` : '') +
+      `<table style="width:100%;font-size:11pt;margin-top:8px;">` +
+      `<tr><td>ผู้นำส่ง:</td><td><b>${payload.submitted_by_name || '-'}</b></td></tr>` +
+      `<tr><td>ลงชื่อ:</td><td style="border-bottom:1px solid #000;width:50%;">&nbsp;</td></tr>` +
+      `<tr><td colspan="2">&nbsp;</td></tr>` +
+      `<tr><td>ผู้รับ (HQ):</td><td>_______________</td></tr>` +
+      `<tr><td>ลงชื่อ:</td><td style="border-bottom:1px solid #000;width:50%;">&nbsp;</td></tr>` +
+      `</table>` +
+      `<hr>` +
+      `<center style="font-size:9pt;">เอกสารนี้ใช้เป็นหลักฐานการนำส่งเหล้า</center>` +
+      `</body></html>`;
   }
 
   // --- Helpers ---

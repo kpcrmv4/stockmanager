@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { cn } from '@/lib/utils/cn';
 import { formatThaiDateTime, formatThaiDate, formatNumber } from '@/lib/utils/format';
-import type { PrintJob, PrintPayload, ReceiptSettings } from '@/types/database';
+import type { PrintJob, PrintPayload, TransferPrintPayload, ReceiptSettings } from '@/types/database';
 import {
   Printer,
   Wifi,
@@ -342,15 +342,22 @@ export default function PrintListenerPage() {
       >
         {activePrintJob && (
           <>
-            {activePrintJob.job_type === 'receipt' ? (
+            {activePrintJob.job_type === 'receipt' && (
               <ReceiptContent
-                payload={activePrintJob.payload}
+                payload={activePrintJob.payload as PrintPayload}
                 settings={receiptSettings}
                 storeName={storeName}
               />
-            ) : (
+            )}
+            {activePrintJob.job_type === 'label' && (
               <LabelContent
-                payload={activePrintJob.payload}
+                payload={activePrintJob.payload as PrintPayload}
+                storeName={storeName}
+              />
+            )}
+            {activePrintJob.job_type === 'transfer' && (
+              <TransferReceiptContent
+                payload={activePrintJob.payload as TransferPrintPayload}
                 storeName={storeName}
               />
             )}
@@ -509,16 +516,22 @@ export default function PrintListenerPage() {
                       {JOB_TYPE_LABELS[job.job_type] ?? job.job_type}
                     </span>
 
-                    {/* Deposit code + customer */}
+                    {/* Job summary */}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                        {job.payload.deposit_code}
+                        {job.job_type === 'transfer'
+                          ? (job.payload as TransferPrintPayload).transfer_code
+                          : (job.payload as PrintPayload).deposit_code}
                         <span className="ml-2 font-normal text-gray-500 dark:text-gray-400">
-                          {job.payload.customer_name}
+                          {job.job_type === 'transfer'
+                            ? `${(job.payload as TransferPrintPayload).items?.length || 0} รายการ`
+                            : (job.payload as PrintPayload).customer_name}
                         </span>
                       </p>
                       <p className="truncate text-xs text-gray-400 dark:text-gray-500">
-                        {job.payload.product_name}
+                        {job.job_type === 'transfer'
+                          ? 'ใบนำส่งคลังกลาง'
+                          : (job.payload as PrintPayload).product_name}
                       </p>
                     </div>
 
@@ -808,6 +821,75 @@ function LabelRow({ label, value }: { label: string; value: string }) {
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+function TransferReceiptContent({
+  payload,
+  storeName,
+}: {
+  payload: TransferPrintPayload;
+  storeName: string;
+}) {
+  const items = payload.items || [];
+  const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+
+  return (
+    <div>
+      <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>
+        {storeName}
+      </div>
+      <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
+      <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '14px', margin: '4px 0' }}>
+        ใบนำส่งเหล้าคลังกลาง
+      </div>
+      <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '18px', margin: '4px 0', letterSpacing: '1px' }}>
+        {payload.transfer_code}
+      </div>
+      <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
+      <div style={{ margin: '6px 0' }}>
+        <ReceiptRow label="วันที่:" value={formatThaiDateTime(payload.created_at)} />
+        <ReceiptRow label="สาขา:" value={payload.store_name} bold />
+        <ReceiptRow label="จำนวนรวม:" value={`${formatNumber(totalQty)} (${items.length} รายการ)`} bold />
+      </div>
+      <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
+      <div style={{ margin: '6px 0' }}>
+        <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>รายการ:</div>
+        {items.map((item, idx) => (
+          <div key={idx} style={{ marginBottom: '4px', paddingBottom: '4px', borderBottom: idx < items.length - 1 ? '1px dotted #ccc' : 'none' }}>
+            <div style={{ fontWeight: 'bold' }}>{idx + 1}. {item.product_name}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+              <span>{item.customer_name || '-'}</span>
+              <span>{item.deposit_code || ''}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+              <span>จำนวน: {formatNumber(item.quantity)}</span>
+              {item.category && <span>({item.category})</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
+      {payload.notes && (
+        <div style={{ margin: '6px 0', fontSize: '11px' }}>หมายเหตุ: {payload.notes}</div>
+      )}
+      <div style={{ margin: '16px 0 6px' }}>
+        <ReceiptRow label="ผู้นำส่ง:" value={payload.submitted_by_name} bold />
+        <div style={{ margin: '4px 0 16px' }}>
+          <span>ลงชื่อ: </span>
+          <span style={{ borderBottom: '1px solid #000', display: 'inline-block', width: '180px' }}>&nbsp;</span>
+        </div>
+        <ReceiptRow label="ผู้รับ (HQ):" value="_______________" />
+        <div style={{ margin: '4px 0' }}>
+          <span>ลงชื่อ: </span>
+          <span style={{ borderBottom: '1px solid #000', display: 'inline-block', width: '180px' }}>&nbsp;</span>
+        </div>
+      </div>
+      <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
+      <div style={{ textAlign: 'center', fontSize: '11px', margin: '4px 0' }}>
+        เอกสารนี้ใช้เป็นหลักฐานการนำส่งเหล้า
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 -- ==========================================
 -- StockManager — Consolidated Schema (Fresh Install)
--- Merged from migrations 00001 through 00016
+-- Merged from migrations 00001 through 00017
 -- Generated: 2026-03-28
 --
 -- This single file creates the entire schema from scratch.
@@ -22,7 +22,7 @@ CREATE TYPE comparison_status AS ENUM ('pending', 'explained', 'approved', 'reje
 CREATE TYPE withdrawal_status AS ENUM ('pending', 'approved', 'completed', 'rejected');
 CREATE TYPE transfer_status AS ENUM ('pending', 'confirmed', 'rejected');
 CREATE TYPE print_job_status AS ENUM ('pending', 'printing', 'completed', 'failed');
-CREATE TYPE print_job_type AS ENUM ('receipt', 'label');
+CREATE TYPE print_job_type AS ENUM ('receipt', 'label', 'transfer');
 CREATE TYPE hq_deposit_status AS ENUM ('awaiting_withdrawal', 'withdrawn');
 CREATE TYPE borrow_status AS ENUM ('pending_approval', 'approved', 'pos_adjusting', 'completed', 'rejected', 'cancelled');
 CREATE TYPE chat_room_type AS ENUM ('store', 'direct', 'cross_store');

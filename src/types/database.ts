@@ -373,7 +373,7 @@ export interface PushSubscription {
 }
 
 export type PrintJobStatus = 'pending' | 'printing' | 'completed' | 'failed';
-export type PrintJobType = 'receipt' | 'label';
+export type PrintJobType = 'receipt' | 'label' | 'transfer';
 
 export interface PrintJob {
   id: string;
@@ -382,7 +382,7 @@ export interface PrintJob {
   job_type: PrintJobType;
   status: PrintJobStatus;
   copies: number;
-  payload: PrintPayload;
+  payload: PrintPayload | TransferPrintPayload;
   requested_by: string | null;
   printed_at: string | null;
   error_message: string | null;
@@ -404,6 +404,21 @@ export interface PrintPayload {
   received_by_name: string | null;
   qr_code_image_url: string | null;
   line_oa_id: string | null;
+}
+
+export interface TransferPrintPayload {
+  transfer_code: string;
+  store_name: string;
+  created_at: string;
+  submitted_by_name: string;
+  notes: string | null;
+  items: Array<{
+    product_name: string;
+    customer_name: string | null;
+    deposit_code: string | null;
+    quantity: number;
+    category: string | null;
+  }>;
 }
 
 export interface ReceiptSettings {

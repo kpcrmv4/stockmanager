@@ -21,6 +21,7 @@ import { notifyChatTransferBatch, notifyChatTransferSubmitted } from '@/lib/chat
 import type { TransferCardItem } from '@/types/transfer-chat';
 import { cn } from '@/lib/utils/cn';
 import { generateTransferCode } from '@/lib/utils/transfer-code';
+import type { TransferPrintPayload } from '@/types/database';
 import {
   Truck,
   AlertTriangle,
@@ -39,6 +40,7 @@ import {
   Ban,
   Image as ImageIcon,
   X,
+  Printer,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -160,6 +162,26 @@ export default function TransferPage() {
 
   // Photo viewer
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+
+  // Print transfer receipt via print_queue
+  const printTransferReceipt = useCallback(async (payload: TransferPrintPayload) => {
+    if (!currentStoreId || !user) return;
+    const supabase = createClient();
+    const { error } = await supabase.from('print_queue').insert({
+      store_id: currentStoreId,
+      deposit_id: null,
+      job_type: 'transfer',
+      status: 'pending',
+      copies: 1,
+      payload,
+      requested_by: user.id,
+    });
+    if (error) {
+      toast({ type: 'error', title: 'ไม่สามารถส่งคำสั่งพิมพ์ได้', message: error.message });
+    } else {
+      toast({ type: 'success', title: 'ส่งพิมพ์ใบนำส่งแล้ว', message: 'รอเครื่องพิมพ์ดำเนินการ' });
+    }
+  }, [currentStoreId, user]);
 
   // Central store
   const [centralStoreId, setCentralStoreId] = useState<string | null>(null);
@@ -386,8 +408,25 @@ export default function TransferPage() {
 
       toast({ type: 'success', title: 'ส่งโอนสำเร็จ', message: `ส่งโอน ${selectedDeposits.length} รายการ (${transferCode})` });
 
-      // ส่ง system message เข้าห้องแชทสาขา
       const submitterName = user.displayName || user.username || 'พนักงาน';
+
+      // Auto-print transfer receipt via print queue
+      printTransferReceipt({
+        transfer_code: transferCode,
+        store_name: currentStoreName || 'สาขา',
+        created_at: new Date().toISOString(),
+        submitted_by_name: submitterName,
+        notes: transferNote || null,
+        items: selectedDeposits.map((d) => ({
+          product_name: d.product_name,
+          customer_name: d.customer_name,
+          deposit_code: d.deposit_code,
+          quantity: d.remaining_qty || d.quantity,
+          category: d.category,
+        })),
+      });
+
+      // ส่ง system message เข้าห้องแชทสาขา
       notifyChatTransferSubmitted(currentStoreId, {
         transfer_code: transferCode,
         deposit_count: selectedDeposits.length,
@@ -711,9 +750,10 @@ export default function TransferPage() {
 
               {/* Floating action bar */}
               {selectedIds.size > 0 && (
-                <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                <div className="fixed inset-x-0 bottom-[72px] z-40 border-t border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900">
                   <Button
                     className="w-full"
+                    variant="primary"
                     icon={<Send className="h-4 w-4" />}
                     onClick={() => setShowTransferModal(true)}
                   >
@@ -766,18 +806,44 @@ export default function TransferPage() {
                           </p>
                         </div>
                       </div>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        icon={<XCircle className="h-3.5 w-3.5" />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCancellingBatch(batch);
-                          setShowCancelModal(true);
-                        }}
-                      >
-                        ยกเลิก
-                      </Button>
+                      <div className="flex gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={<Printer className="h-3.5 w-3.5" />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            printTransferReceipt({
+                              transfer_code: batch.transfer_code,
+                              store_name: currentStoreName || 'สาขา',
+                              created_at: batch.created_at,
+                              submitted_by_name: user?.displayName || user?.username || 'พนักงาน',
+                              notes: batch.items[0]?.notes || null,
+                              items: batch.items.map((t) => ({
+                                product_name: t.product_name || '',
+                                customer_name: t.customer_name,
+                                deposit_code: t.deposit_code,
+                                quantity: t.quantity || 0,
+                                category: null,
+                              })),
+                            });
+                          }}
+                        >
+                          พิมพ์
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          icon={<XCircle className="h-3.5 w-3.5" />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCancellingBatch(batch);
+                            setShowCancelModal(true);
+                          }}
+                        >
+                          ยกเลิก
+                        </Button>
+                      </div>
                     </button>
 
                     {/* Batch items */}
