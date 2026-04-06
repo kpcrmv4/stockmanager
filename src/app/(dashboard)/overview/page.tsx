@@ -40,6 +40,21 @@ import {
   Warehouse,
   Truck,
   HandCoins,
+  PlusCircle,
+  Upload,
+  Plus,
+  Pencil,
+  ToggleRight,
+  Trash2,
+  MessageSquare,
+  MessageCircle,
+  Bell,
+  UserPlus,
+  UserX,
+  User,
+  LogIn,
+  Hand,
+  Banknote,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -94,6 +109,8 @@ interface AuditLogEntry {
   table_name: string | null;
   created_at: string;
   changed_by_name: string | null;
+  record_id: string | null;
+  new_value: Record<string, unknown> | null;
 }
 
 interface ModuleCardConfig {
@@ -126,28 +143,417 @@ function relativeTime(isoDate: string): string {
   return formatThaiDate(isoDate);
 }
 
+/** Full action → icon mapping */
+const ACTION_ICON_MAP: Record<string, LucideIcon> = {
+  STOCK_COUNT_SAVED: ClipboardCheck,
+  STOCK_COUNT_RESET: RefreshCw,
+  STOCK_EXPLANATION_SUBMITTED: MessageSquare,
+  STOCK_EXPLANATION_BATCH: MessageSquare,
+  STOCK_APPROVED: CheckCircle2,
+  STOCK_REJECTED: XCircle,
+  STOCK_BATCH_APPROVED: CheckCircle2,
+  STOCK_BATCH_REJECTED: XCircle,
+  STOCK_COMPARISON_GENERATED: BarChart3,
+  STOCK_TXT_UPLOADED: Upload,
+  AUTO_ADD_PRODUCT: PlusCircle,
+  AUTO_DEACTIVATE: XCircle,
+  AUTO_REACTIVATE: CheckCircle2,
+  PRODUCT_CREATED: Plus,
+  PRODUCT_UPDATED: Pencil,
+  PRODUCT_TOGGLED: ToggleRight,
+  PRODUCT_DELETED: Trash2,
+  DEPOSIT_CREATED: Wine,
+  DEPOSIT_REQUEST_APPROVED: CheckCircle2,
+  DEPOSIT_REQUEST_REJECTED: XCircle,
+  DEPOSIT_STATUS_CHANGED: RefreshCw,
+  DEPOSIT_BAR_CONFIRMED: CheckCircle2,
+  DEPOSIT_BAR_REJECTED: XCircle,
+  WITHDRAWAL_COMPLETED: Package,
+  WITHDRAWAL_REJECTED: XCircle,
+  WITHDRAWAL_REQUESTED: Package,
+  DEPOSIT_NO_DEPOSIT_CREATED: Truck,
+  TRANSFER_CREATED: Truck,
+  TRANSFER_CONFIRMED: CheckCircle2,
+  TRANSFER_REJECTED: XCircle,
+  CUSTOMER_DEPOSIT_REQUEST: Wine,
+  CUSTOMER_WITHDRAWAL_REQUEST: Package,
+  CUSTOMER_INQUIRY: MessageCircle,
+  CRON_DAILY_REMINDER_SENT: Bell,
+  CRON_EXPIRY_CHECK: Clock,
+  CRON_DEPOSIT_EXPIRED: AlertTriangle,
+  CRON_FOLLOW_UP_SENT: Bell,
+  USER_CREATED: UserPlus,
+  USER_UPDATED: User,
+  USER_DEACTIVATED: UserX,
+  USER_LOGIN: LogIn,
+  BORROW_REQUESTED: Repeat,
+  BORROW_APPROVED: CheckCircle2,
+  BORROW_REJECTED: XCircle,
+  BORROW_POS_CONFIRMED: CheckCircle2,
+  BORROW_COMPLETED: CheckCircle2,
+  ACTION_CARD_CLAIMED: Hand,
+  ACTION_CARD_RELEASED: XCircle,
+  ACTION_CARD_COMPLETED: CheckCircle2,
+  ACTION_CARD_REJECTED: XCircle,
+  SETTINGS_UPDATED: Settings,
+  STORE_CREATED: Store,
+  STORE_UPDATED: Store,
+  AUDIT_LOG_CLEANUP: Trash2,
+  COMMISSION_ENTRY_CREATED: HandCoins,
+  COMMISSION_ENTRY_UPDATED: Pencil,
+  COMMISSION_ENTRY_DELETED: Trash2,
+  COMMISSION_PAYMENT_CREATED: Banknote,
+  COMMISSION_PAYMENT_CANCELLED: XCircle,
+  AE_PROFILE_CREATED: UserPlus,
+  AE_PROFILE_UPDATED: User,
+};
+
+/** Full action → color mapping */
+const ACTION_COLOR_MAP: Record<string, string> = {
+  STOCK_COUNT_SAVED: 'text-indigo-500',
+  STOCK_COUNT_RESET: 'text-gray-500',
+  STOCK_EXPLANATION_SUBMITTED: 'text-amber-500',
+  STOCK_EXPLANATION_BATCH: 'text-amber-500',
+  STOCK_APPROVED: 'text-emerald-500',
+  STOCK_REJECTED: 'text-red-500',
+  STOCK_BATCH_APPROVED: 'text-emerald-500',
+  STOCK_BATCH_REJECTED: 'text-red-500',
+  STOCK_COMPARISON_GENERATED: 'text-blue-500',
+  STOCK_TXT_UPLOADED: 'text-violet-500',
+  AUTO_ADD_PRODUCT: 'text-blue-500',
+  AUTO_DEACTIVATE: 'text-red-500',
+  AUTO_REACTIVATE: 'text-emerald-500',
+  PRODUCT_CREATED: 'text-blue-500',
+  PRODUCT_UPDATED: 'text-amber-500',
+  PRODUCT_TOGGLED: 'text-gray-500',
+  PRODUCT_DELETED: 'text-red-500',
+  DEPOSIT_CREATED: 'text-emerald-500',
+  DEPOSIT_REQUEST_APPROVED: 'text-emerald-500',
+  DEPOSIT_REQUEST_REJECTED: 'text-red-500',
+  DEPOSIT_STATUS_CHANGED: 'text-blue-500',
+  DEPOSIT_BAR_CONFIRMED: 'text-emerald-500',
+  DEPOSIT_BAR_REJECTED: 'text-red-500',
+  WITHDRAWAL_COMPLETED: 'text-emerald-500',
+  WITHDRAWAL_REJECTED: 'text-red-500',
+  WITHDRAWAL_REQUESTED: 'text-blue-500',
+  DEPOSIT_NO_DEPOSIT_CREATED: 'text-orange-500',
+  TRANSFER_CREATED: 'text-blue-500',
+  TRANSFER_CONFIRMED: 'text-emerald-500',
+  TRANSFER_REJECTED: 'text-red-500',
+  CUSTOMER_DEPOSIT_REQUEST: 'text-green-500',
+  CUSTOMER_WITHDRAWAL_REQUEST: 'text-green-500',
+  CUSTOMER_INQUIRY: 'text-green-500',
+  CRON_DAILY_REMINDER_SENT: 'text-gray-400',
+  CRON_EXPIRY_CHECK: 'text-gray-400',
+  CRON_DEPOSIT_EXPIRED: 'text-red-500',
+  CRON_FOLLOW_UP_SENT: 'text-gray-400',
+  USER_CREATED: 'text-blue-500',
+  USER_UPDATED: 'text-amber-500',
+  USER_DEACTIVATED: 'text-red-500',
+  USER_LOGIN: 'text-gray-400',
+  BORROW_REQUESTED: 'text-teal-500',
+  BORROW_APPROVED: 'text-emerald-500',
+  BORROW_REJECTED: 'text-red-500',
+  BORROW_POS_CONFIRMED: 'text-violet-500',
+  BORROW_COMPLETED: 'text-emerald-500',
+  ACTION_CARD_CLAIMED: 'text-blue-500',
+  ACTION_CARD_RELEASED: 'text-amber-500',
+  ACTION_CARD_COMPLETED: 'text-emerald-500',
+  ACTION_CARD_REJECTED: 'text-red-500',
+  SETTINGS_UPDATED: 'text-gray-500',
+  STORE_CREATED: 'text-blue-500',
+  STORE_UPDATED: 'text-amber-500',
+  AUDIT_LOG_CLEANUP: 'text-red-500',
+  COMMISSION_ENTRY_CREATED: 'text-amber-500',
+  COMMISSION_ENTRY_UPDATED: 'text-amber-500',
+  COMMISSION_ENTRY_DELETED: 'text-red-500',
+  COMMISSION_PAYMENT_CREATED: 'text-emerald-500',
+  COMMISSION_PAYMENT_CANCELLED: 'text-red-500',
+  AE_PROFILE_CREATED: 'text-blue-500',
+  AE_PROFILE_UPDATED: 'text-amber-500',
+};
+
+/** Full action → Thai label mapping */
+const ACTION_LABEL_MAP: Record<string, string> = {
+  STOCK_COUNT_SAVED: 'บันทึกนับสต๊อก',
+  STOCK_COUNT_RESET: 'รีเซ็ตนับสต๊อก',
+  STOCK_EXPLANATION_SUBMITTED: 'ส่งคำชี้แจงสต๊อก',
+  STOCK_EXPLANATION_BATCH: 'ส่งคำชี้แจง (หลายรายการ)',
+  STOCK_APPROVED: 'อนุมัติผลสต๊อก',
+  STOCK_REJECTED: 'ปฏิเสธผลสต๊อก',
+  STOCK_BATCH_APPROVED: 'อนุมัติผลสต๊อก (หลายรายการ)',
+  STOCK_BATCH_REJECTED: 'ปฏิเสธผลสต๊อก (หลายรายการ)',
+  STOCK_COMPARISON_GENERATED: 'สร้างผลเปรียบเทียบสต๊อก',
+  STOCK_TXT_UPLOADED: 'อัพโหลดข้อมูล POS',
+  AUTO_ADD_PRODUCT: 'เพิ่มสินค้าอัตโนมัติ',
+  AUTO_DEACTIVATE: 'ปิดสินค้าอัตโนมัติ',
+  AUTO_REACTIVATE: 'เปิดสินค้าอัตโนมัติ',
+  PRODUCT_CREATED: 'เพิ่มสินค้าใหม่',
+  PRODUCT_UPDATED: 'แก้ไขสินค้า',
+  PRODUCT_TOGGLED: 'เปิด/ปิดสินค้า',
+  PRODUCT_DELETED: 'ลบสินค้า',
+  DEPOSIT_CREATED: 'สร้างรายการรับฝาก',
+  DEPOSIT_REQUEST_APPROVED: 'อนุมัติคำขอฝากเหล้า',
+  DEPOSIT_REQUEST_REJECTED: 'ปฏิเสธคำขอฝากเหล้า',
+  DEPOSIT_STATUS_CHANGED: 'เปลี่ยนสถานะรับฝาก',
+  DEPOSIT_BAR_CONFIRMED: 'บาร์ยืนยันรับฝาก',
+  DEPOSIT_BAR_REJECTED: 'บาร์ปฏิเสธรับฝาก',
+  WITHDRAWAL_COMPLETED: 'เบิกเหล้าสำเร็จ',
+  WITHDRAWAL_REJECTED: 'ปฏิเสธการเบิกเหล้า',
+  WITHDRAWAL_REQUESTED: 'ขอเบิกเหล้า',
+  DEPOSIT_NO_DEPOSIT_CREATED: 'สร้างรายการไม่ฝาก (รอโอน)',
+  TRANSFER_CREATED: 'สร้างรายการโอนสินค้า',
+  TRANSFER_CONFIRMED: 'ยืนยันรับโอนสินค้า',
+  TRANSFER_REJECTED: 'ปฏิเสธการโอนสินค้า',
+  CUSTOMER_DEPOSIT_REQUEST: 'ลูกค้าขอฝากเหล้า (LINE)',
+  CUSTOMER_WITHDRAWAL_REQUEST: 'ลูกค้าขอเบิกเหล้า (LINE)',
+  CUSTOMER_INQUIRY: 'ลูกค้าสอบถาม (LINE)',
+  CRON_DAILY_REMINDER_SENT: 'ส่งแจ้งเตือนนับสต๊อก',
+  CRON_EXPIRY_CHECK: 'ตรวจสอบเหล้าหมดอายุ',
+  CRON_DEPOSIT_EXPIRED: 'เหล้าหมดอายุอัตโนมัติ',
+  CRON_FOLLOW_UP_SENT: 'ส่งติดตามงาน',
+  USER_CREATED: 'สร้างผู้ใช้ใหม่',
+  USER_UPDATED: 'แก้ไขข้อมูลผู้ใช้',
+  USER_DEACTIVATED: 'ปิดการใช้งานผู้ใช้',
+  USER_LOGIN: 'เข้าสู่ระบบ',
+  BORROW_REQUESTED: 'สร้างคำขอยืมสินค้า',
+  BORROW_APPROVED: 'อนุมัติคำขอยืม',
+  BORROW_REJECTED: 'ปฏิเสธคำขอยืม',
+  BORROW_POS_CONFIRMED: 'ยืนยันตัดสต๊อก POS (ยืม)',
+  BORROW_COMPLETED: 'ยืมสินค้าเสร็จสิ้น',
+  ACTION_CARD_CLAIMED: 'รับงานในแชท',
+  ACTION_CARD_RELEASED: 'ยกเลิกรับงานในแชท',
+  ACTION_CARD_COMPLETED: 'ทำงานในแชทเสร็จ',
+  ACTION_CARD_REJECTED: 'ปฏิเสธรายการในแชท',
+  SETTINGS_UPDATED: 'อัพเดตการตั้งค่า',
+  STORE_CREATED: 'สร้างสาขาใหม่',
+  STORE_UPDATED: 'แก้ไขข้อมูลสาขา',
+  AUDIT_LOG_CLEANUP: 'เคลียร์ Audit Log',
+  COMMISSION_ENTRY_CREATED: 'บันทึกคอมมิชชั่น',
+  COMMISSION_ENTRY_UPDATED: 'แก้ไขคอมมิชชั่น',
+  COMMISSION_ENTRY_DELETED: 'ลบคอมมิชชั่น',
+  COMMISSION_PAYMENT_CREATED: 'จ่ายค่าคอมมิชชั่น',
+  COMMISSION_PAYMENT_CANCELLED: 'ยกเลิกจ่ายค่าคอม',
+  AE_PROFILE_CREATED: 'เพิ่ม AE ใหม่',
+  AE_PROFILE_UPDATED: 'แก้ไขข้อมูล AE',
+  // Legacy generic actions
+  INSERT: 'เพิ่มข้อมูล',
+  UPDATE: 'อัพเดตข้อมูล',
+  DELETE: 'ลบข้อมูล',
+};
+
 /** Map audit_logs action to Thai label + icon + color */
 function mapActivity(actionType: string, tableName: string | null): {
   label: string;
   icon: LucideIcon;
   colorClass: string;
 } {
-  if (actionType === 'INSERT' && tableName === 'deposits') {
-    return { label: 'ฝากเหล้าใหม่', icon: Wine, colorClass: 'text-emerald-500' };
+  // Handle legacy generic INSERT/UPDATE/DELETE with table context
+  if ((actionType === 'INSERT' || actionType === 'UPDATE' || actionType === 'DELETE') && tableName) {
+    if (actionType === 'INSERT' && tableName === 'deposits') {
+      return { label: 'สร้างรายการรับฝาก', icon: Wine, colorClass: 'text-emerald-500' };
+    }
+    if (actionType === 'INSERT' && tableName === 'withdrawals') {
+      return { label: 'เบิกเหล้า', icon: Package, colorClass: 'text-blue-500' };
+    }
+    if (actionType === 'UPDATE' && tableName === 'comparisons') {
+      return { label: 'อัพเดตผลเปรียบเทียบ', icon: BarChart3, colorClass: 'text-amber-500' };
+    }
+    return { label: `${ACTION_LABEL_MAP[actionType] || actionType}`, icon: Clock, colorClass: 'text-gray-400' };
   }
-  if (actionType === 'INSERT' && tableName === 'withdrawals') {
-    return { label: 'เบิกเหล้า', icon: Package, colorClass: 'text-blue-500' };
+
+  const label = ACTION_LABEL_MAP[actionType];
+  if (label) {
+    return {
+      label,
+      icon: ACTION_ICON_MAP[actionType] || Clock,
+      colorClass: ACTION_COLOR_MAP[actionType] || 'text-gray-400',
+    };
   }
-  if (actionType === 'UPDATE' && tableName === 'comparisons') {
-    return { label: 'อัพเดตผลเปรียบเทียบ', icon: BarChart3, colorClass: 'text-amber-500' };
-  }
-  if (actionType === 'AUTO_DEACTIVATE') {
-    return { label: 'ปิดสินค้าอัตโนมัติ', icon: XCircle, colorClass: 'text-red-500' };
-  }
-  if (actionType === 'AUTO_REACTIVATE') {
-    return { label: 'เปิดสินค้าอัตโนมัติ', icon: CheckCircle2, colorClass: 'text-emerald-500' };
-  }
+
   return { label: actionType || 'กิจกรรม', icon: Clock, colorClass: 'text-gray-400' };
+}
+
+/** Build detail string from audit log entry */
+function getActivityDetail(activity: AuditLogEntry): string | null {
+  const { action_type, record_id, new_value } = activity;
+
+  // Show record_id as reference number for relevant actions
+  if (record_id) {
+    // Extract useful details from new_value if available
+    const nv = new_value as Record<string, unknown> | null;
+
+    if (action_type === 'DEPOSIT_CREATED' || action_type === 'DEPOSIT_REQUEST_APPROVED' ||
+        action_type === 'DEPOSIT_REQUEST_REJECTED' || action_type === 'DEPOSIT_STATUS_CHANGED' ||
+        action_type === 'DEPOSIT_BAR_CONFIRMED' || action_type === 'DEPOSIT_BAR_REJECTED') {
+      const code = nv?.deposit_code || nv?.deposit_number || record_id.slice(0, 8);
+      const customer = nv?.customer_name as string | undefined;
+      return customer ? `#${code} — ${customer}` : `#${code}`;
+    }
+
+    if (action_type === 'WITHDRAWAL_COMPLETED' || action_type === 'WITHDRAWAL_REJECTED' ||
+        action_type === 'WITHDRAWAL_REQUESTED') {
+      const code = nv?.deposit_code || nv?.deposit_number || record_id.slice(0, 8);
+      const customer = nv?.customer_name as string | undefined;
+      return customer ? `#${code} — ${customer}` : `#${code}`;
+    }
+
+    if (action_type === 'PRODUCT_CREATED' || action_type === 'PRODUCT_UPDATED' ||
+        action_type === 'PRODUCT_DELETED' || action_type === 'PRODUCT_TOGGLED') {
+      const name = nv?.product_name || nv?.name;
+      return name ? `${name}` : `#${record_id.slice(0, 8)}`;
+    }
+
+    if (action_type === 'AUTO_ADD_PRODUCT') {
+      const name = nv?.product_name || nv?.name;
+      return name ? `${name}` : null;
+    }
+
+    if (action_type === 'AUTO_DEACTIVATE' || action_type === 'AUTO_REACTIVATE') {
+      const name = nv?.product_name || nv?.name;
+      return name ? `${name}` : null;
+    }
+
+    if (action_type === 'TRANSFER_CREATED' || action_type === 'TRANSFER_CONFIRMED' ||
+        action_type === 'TRANSFER_REJECTED') {
+      return `#${record_id.slice(0, 8)}`;
+    }
+
+    if (action_type === 'BORROW_REQUESTED' || action_type === 'BORROW_APPROVED' ||
+        action_type === 'BORROW_REJECTED' || action_type === 'BORROW_COMPLETED' ||
+        action_type === 'BORROW_POS_CONFIRMED') {
+      return `#${record_id.slice(0, 8)}`;
+    }
+
+    if (action_type === 'COMMISSION_PAYMENT_CREATED' || action_type === 'COMMISSION_PAYMENT_CANCELLED') {
+      const amount = nv?.total_amount || nv?.amount;
+      return amount ? `฿${formatNumber(Number(amount))}` : `#${record_id.slice(0, 8)}`;
+    }
+
+    if (action_type === 'COMMISSION_ENTRY_CREATED' || action_type === 'COMMISSION_ENTRY_UPDATED') {
+      const aeName = nv?.ae_name as string | undefined;
+      return aeName ? `${aeName}` : `#${record_id.slice(0, 8)}`;
+    }
+
+    if (action_type === 'STOCK_TXT_UPLOADED' || action_type === 'STOCK_COMPARISON_GENERATED') {
+      const storeName = nv?.store_name as string | undefined;
+      return storeName || null;
+    }
+
+    if (action_type === 'STOCK_EXPLANATION_SUBMITTED' || action_type === 'STOCK_APPROVED' ||
+        action_type === 'STOCK_REJECTED') {
+      const productName = nv?.product_name as string | undefined;
+      return productName || null;
+    }
+
+    if (action_type === 'ACTION_CARD_CLAIMED' || action_type === 'ACTION_CARD_COMPLETED' ||
+        action_type === 'ACTION_CARD_RELEASED' || action_type === 'ACTION_CARD_REJECTED') {
+      const refId = nv?.reference_id as string | undefined;
+      const actionTypeCard = nv?.action_type as string | undefined;
+      if (refId) return `#${refId}`;
+      if (actionTypeCard) return actionTypeCard;
+      return `#${record_id.slice(0, 8)}`;
+    }
+  }
+
+  return null;
+}
+
+/** Map action_type to navigable URL */
+function getActivityHref(actionType: string, tableName: string | null): string | null {
+  // Deposit
+  if (actionType === 'DEPOSIT_CREATED' || actionType === 'DEPOSIT_REQUEST_APPROVED' ||
+      actionType === 'DEPOSIT_REQUEST_REJECTED' || actionType === 'DEPOSIT_STATUS_CHANGED' ||
+      actionType === 'DEPOSIT_BAR_CONFIRMED' || actionType === 'DEPOSIT_BAR_REJECTED' ||
+      actionType === 'DEPOSIT_NO_DEPOSIT_CREATED' ||
+      (actionType === 'INSERT' && tableName === 'deposits')) {
+    return '/deposit';
+  }
+  if (actionType === 'DEPOSIT_REQUEST_APPROVED' || actionType === 'DEPOSIT_REQUEST_REJECTED') {
+    return '/deposit/requests';
+  }
+
+  // Withdrawal
+  if (actionType === 'WITHDRAWAL_COMPLETED' || actionType === 'WITHDRAWAL_REJECTED' ||
+      actionType === 'WITHDRAWAL_REQUESTED' ||
+      (actionType === 'INSERT' && tableName === 'withdrawals')) {
+    return '/deposit/withdrawals';
+  }
+
+  // Bar approval
+  if (actionType === 'DEPOSIT_BAR_CONFIRMED' || actionType === 'DEPOSIT_BAR_REJECTED') {
+    return '/bar-approval';
+  }
+
+  // Stock
+  if (actionType === 'STOCK_COUNT_SAVED' || actionType === 'STOCK_COUNT_RESET') {
+    return '/stock/daily-check';
+  }
+  if (actionType === 'STOCK_COMPARISON_GENERATED' || actionType === 'STOCK_TXT_UPLOADED' ||
+      (actionType === 'UPDATE' && tableName === 'comparisons')) {
+    return '/stock/comparison';
+  }
+  if (actionType === 'STOCK_EXPLANATION_SUBMITTED' || actionType === 'STOCK_EXPLANATION_BATCH') {
+    return '/stock/explanation';
+  }
+  if (actionType === 'STOCK_APPROVED' || actionType === 'STOCK_REJECTED' ||
+      actionType === 'STOCK_BATCH_APPROVED' || actionType === 'STOCK_BATCH_REJECTED') {
+    return '/stock/approval';
+  }
+
+  // Product
+  if (actionType === 'PRODUCT_CREATED' || actionType === 'PRODUCT_UPDATED' ||
+      actionType === 'PRODUCT_DELETED' || actionType === 'PRODUCT_TOGGLED' ||
+      actionType === 'AUTO_ADD_PRODUCT' || actionType === 'AUTO_DEACTIVATE' ||
+      actionType === 'AUTO_REACTIVATE') {
+    return '/stock/products';
+  }
+
+  // Transfer
+  if (actionType === 'TRANSFER_CREATED' || actionType === 'TRANSFER_CONFIRMED' ||
+      actionType === 'TRANSFER_REJECTED') {
+    return '/transfer';
+  }
+
+  // Borrow
+  if (actionType === 'BORROW_REQUESTED' || actionType === 'BORROW_APPROVED' ||
+      actionType === 'BORROW_REJECTED' || actionType === 'BORROW_POS_CONFIRMED' ||
+      actionType === 'BORROW_COMPLETED') {
+    return '/borrow';
+  }
+
+  // Commission
+  if (actionType === 'COMMISSION_ENTRY_CREATED' || actionType === 'COMMISSION_ENTRY_UPDATED' ||
+      actionType === 'COMMISSION_ENTRY_DELETED' || actionType === 'COMMISSION_PAYMENT_CREATED' ||
+      actionType === 'COMMISSION_PAYMENT_CANCELLED' || actionType === 'AE_PROFILE_CREATED' ||
+      actionType === 'AE_PROFILE_UPDATED') {
+    return '/commission';
+  }
+
+  // Chat / Action Cards
+  if (actionType === 'ACTION_CARD_CLAIMED' || actionType === 'ACTION_CARD_COMPLETED' ||
+      actionType === 'ACTION_CARD_RELEASED' || actionType === 'ACTION_CARD_REJECTED') {
+    return '/chat';
+  }
+
+  // Users
+  if (actionType === 'USER_CREATED' || actionType === 'USER_UPDATED' ||
+      actionType === 'USER_DEACTIVATED') {
+    return '/users';
+  }
+
+  // Settings
+  if (actionType === 'SETTINGS_UPDATED' || actionType === 'STORE_CREATED' ||
+      actionType === 'STORE_UPDATED') {
+    return '/settings';
+  }
+
+  // Activity log
+  if (actionType === 'AUDIT_LOG_CLEANUP') {
+    return '/activity';
+  }
+
+  return null;
 }
 
 /** Calculate percentage trend between two periods */
@@ -479,7 +885,7 @@ export default function OverviewPage() {
       // --- Recent audit logs (latest 8) ---
       const logsQuery = supabase
         .from('audit_logs')
-        .select('id, action_type, table_name, created_at, changed_by')
+        .select('id, action_type, table_name, record_id, new_value, created_at, changed_by')
         .order('created_at', { ascending: false })
         .limit(8);
       if (storeFilter) logsQuery.eq('store_id', storeFilter);
@@ -506,6 +912,8 @@ export default function OverviewPage() {
             id: l.id,
             action_type: l.action_type,
             table_name: l.table_name,
+            record_id: l.record_id || null,
+            new_value: (l.new_value as Record<string, unknown>) || null,
             created_at: l.created_at,
             changed_by_name: l.changed_by ? nameMap[l.changed_by] || null : null,
           }))
@@ -1158,27 +1566,54 @@ export default function OverviewPage() {
             {activities.map((activity) => {
               const mapped = mapActivity(activity.action_type, activity.table_name);
               const ActivityIcon = mapped.icon;
-              return (
-                <div
-                  key={activity.id}
-                  className="flex items-start gap-3 px-5 py-3.5"
-                >
-                  <div className={cn('mt-0.5', mapped.colorClass)}>
+              const detail = getActivityDetail(activity);
+              const href = getActivityHref(activity.action_type, activity.table_name);
+
+              const content = (
+                <>
+                  <div className={cn('mt-0.5 shrink-0', mapped.colorClass)}>
                     <ActivityIcon className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-700 dark:text-gray-300">
                       {mapped.label}
-                      {activity.changed_by_name && (
-                        <span className="ml-1 text-gray-400 dark:text-gray-500">
-                          &mdash; {activity.changed_by_name}
+                      {detail && (
+                        <span className="ml-1 font-medium text-gray-600 dark:text-gray-400">
+                          {detail}
                         </span>
                       )}
                     </p>
                     <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                      {activity.changed_by_name && (
+                        <span className="mr-1.5">{activity.changed_by_name}</span>
+                      )}
                       {relativeTime(activity.created_at)}
                     </p>
                   </div>
+                  {href && (
+                    <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-gray-300 dark:text-gray-600" />
+                  )}
+                </>
+              );
+
+              if (href) {
+                return (
+                  <Link
+                    key={activity.id}
+                    href={href}
+                    className="flex items-start gap-3 px-5 py-3.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-750"
+                  >
+                    {content}
+                  </Link>
+                );
+              }
+
+              return (
+                <div
+                  key={activity.id}
+                  className="flex items-start gap-3 px-5 py-3.5"
+                >
+                  {content}
                 </div>
               );
             })}
