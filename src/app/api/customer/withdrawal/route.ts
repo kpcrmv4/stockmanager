@@ -5,6 +5,7 @@ import { pushToStaffGroup, createFlexMessage } from '@/lib/line/messaging';
 import { approvalRequestTemplate } from '@/lib/line/flex-templates';
 import { notifyStoreStaff } from '@/lib/notifications/service';
 import { sendBotMessage, buildWithdrawalActionCard } from '@/lib/chat/bot';
+import { isWithdrawalBlocked } from '@/lib/utils/date';
 
 /**
  * POST /api/customer/withdrawal
@@ -14,11 +15,12 @@ import { sendBotMessage, buildWithdrawalActionCard } from '@/lib/chat/bot';
  */
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { depositId, customerName, token, accessToken } = body as {
+  const { depositId, customerName, token, accessToken, withdrawalType } = body as {
     depositId: string;
     customerName: string;
     token?: string;
     accessToken?: string;
+    withdrawalType?: 'in_store' | 'take_home';
   };
 
   if (!depositId) {
@@ -70,6 +72,29 @@ export async function POST(request: NextRequest) {
   }
 
   // -----------------------------------------------------------------------
+  // Check withdrawal blocked days
+  // -----------------------------------------------------------------------
+  const wType = withdrawalType || 'in_store';
+
+  if (wType !== 'take_home') {
+    const { data: storeSetting } = await supabase
+      .from('store_settings')
+      .select('withdrawal_blocked_days')
+      .eq('store_id', deposit.store_id)
+      .single();
+
+    const blockedDays = storeSetting?.withdrawal_blocked_days ?? ['Fri', 'Sat'];
+    const check = isWithdrawalBlocked(blockedDays);
+
+    if (check.blocked) {
+      return NextResponse.json(
+        { error: check.reason, blocked: true, calendarDay: check.calendarDay },
+        { status: 400 },
+      );
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Create withdrawal request
   // -----------------------------------------------------------------------
   const { error: insertError } = await supabase.from('withdrawals').insert({
@@ -79,6 +104,7 @@ export async function POST(request: NextRequest) {
     customer_name: customerName || deposit.customer_name || 'ลูกค้า',
     product_name: deposit.product_name,
     requested_qty: deposit.remaining_qty,
+    withdrawal_type: wType,
     status: 'pending',
   });
 

@@ -216,6 +216,86 @@ export function formatTimeBangkok(date: string | Date): string {
   }).format(d);
 }
 
+// ---------------------------------------------------------------------------
+// Withdrawal day helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if in-store withdrawal is currently blocked based on store settings.
+ * ใช้วันปฏิทินจริง (ไม่มี cutoff) — ตี 1 วันอาทิตย์ = อาทิตย์ = เบิกได้
+ *
+ * Returns { blocked, calendarDay, reason } for UI messaging.
+ */
+export function isWithdrawalBlocked(
+  blockedDays: string[] = ['Fri', 'Sat'],
+): { blocked: boolean; calendarDay: string; reason?: string } {
+  const dayName = dayOfWeekBangkok();
+  const blocked = blockedDays.includes(dayName);
+  const dayNamesTH: Record<string, string> = {
+    Sun: 'อาทิตย์', Mon: 'จันทร์', Tue: 'อังคาร', Wed: 'พุธ',
+    Thu: 'พฤหัสบดี', Fri: 'ศุกร์', Sat: 'เสาร์',
+  };
+  return {
+    blocked,
+    calendarDay: dayName,
+    reason: blocked
+      ? `วัน${dayNamesTH[dayName]}ไม่สามารถเบิกเหล้าใช้ในร้านได้ (เบิกกลับบ้านได้)`
+      : undefined,
+  };
+}
+
+/**
+ * Calculate the "effective" expiry date, accounting for:
+ * 1. Blocked withdrawal days — ถ้าหมดอายุตรงวันห้ามเบิก ขยายไปวันถัดไปที่เบิกได้
+ * 2. Store working hours — ขยายถึงเวลาปิดร้าน (เช่น ตี 6) ของวันที่เบิกได้
+ *
+ * storeEndHour = ชั่วโมงปิดร้าน (จาก print_server_working_hours.endHour, default 6)
+ *
+ * Example: expiry=Saturday 23:59, blockedDays=[Fri,Sat], endHour=6
+ *          → effective expiry = Monday 06:00 (วันอาทิตย์ + grace ถึงตี 6 วันจันทร์)
+ */
+export function effectiveExpiryISO(
+  expiryDate: string,
+  blockedDays: string[] = ['Fri', 'Sat'],
+  storeEndHour: number = 6,
+): string {
+  const expiry = new Date(expiryDate);
+
+  // Get the Bangkok day-of-week for the expiry date
+  const expiryBangkok = new Date(
+    expiry.getTime() + 7 * 60 * 60 * 1000, // Convert to Bangkok wall-clock
+  );
+
+  let dayIndex = expiryBangkok.getDay();
+  let daysAdded = 0;
+
+  // If expiry falls on a blocked day, keep adding days until we find a non-blocked day
+  while (blockedDays.includes(DAY_NAMES[dayIndex]) && daysAdded < 7) {
+    daysAdded++;
+    dayIndex = (dayIndex + 1) % 7;
+  }
+
+  if (daysAdded === 0) {
+    // Expiry is not on a blocked day — just add store closing grace
+    const graced = new Date(expiry.getTime());
+    graced.setTime(graced.getTime() + storeEndHour * 60 * 60 * 1000);
+    return graced.toISOString();
+  }
+
+  // Extend expiry by daysAdded to the next non-blocked day
+  const extended = new Date(expiry.getTime());
+  extended.setTime(extended.getTime() + daysAdded * 24 * 60 * 60 * 1000);
+
+  // Add store closing grace (e.g. until 6 AM of the following day)
+  extended.setTime(extended.getTime() + storeEndHour * 60 * 60 * 1000);
+
+  return extended.toISOString();
+}
+
+// ---------------------------------------------------------------------------
+// Misc helpers
+// ---------------------------------------------------------------------------
+
 /**
  * Get month/date components from Bangkok timezone for code generation etc.
  */

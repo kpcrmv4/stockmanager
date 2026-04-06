@@ -4,7 +4,8 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { formatNumber } from '@/lib/utils/format';
-import { ArrowLeft, Package, Loader2, AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
+import { ArrowLeft, Package, Loader2, AlertCircle, Home, Wine } from 'lucide-react';
 
 interface DepositInfo {
   id: string;
@@ -13,6 +14,12 @@ interface DepositInfo {
   remaining_qty: number;
   store_id: string;
   store?: { store_name: string };
+}
+
+interface BlockedDayInfo {
+  blocked: boolean;
+  calendarDay: string;
+  blockedDays: string[];
 }
 
 function WithdrawContent() {
@@ -28,6 +35,8 @@ function WithdrawContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [blockedInfo, setBlockedInfo] = useState<BlockedDayInfo | null>(null);
+  const [withdrawalType, setWithdrawalType] = useState<'in_store' | 'take_home'>('in_store');
 
   useEffect(() => {
     if (depositId) loadDeposit(depositId);
@@ -44,7 +53,26 @@ function WithdrawContent() {
       .eq('status', 'in_store')
       .single();
 
-    if (data) setDeposit(data as unknown as DepositInfo);
+    if (data) {
+      setDeposit(data as unknown as DepositInfo);
+      // Check if withdrawal is blocked today (ใช้วันปฏิทินจริง)
+      const { data: settings } = await supabase
+        .from('store_settings')
+        .select('withdrawal_blocked_days')
+        .eq('store_id', data.store_id)
+        .single();
+
+      const blockedDays = (settings?.withdrawal_blocked_days as string[] | null) ?? ['Fri', 'Sat'];
+
+      // Use actual calendar day in Bangkok — no cutoff
+      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const calendarDay = dayNames[now.getDay()];
+      const blocked = blockedDays.includes(calendarDay);
+
+      setBlockedInfo({ blocked, calendarDay, blockedDays });
+      if (blocked) setWithdrawalType('take_home');
+    }
     setIsLoading(false);
   };
 
@@ -78,6 +106,13 @@ function WithdrawContent() {
       .eq('id', user.id)
       .single();
 
+    // On blocked days, only take_home is allowed
+    if (blockedInfo?.blocked && withdrawalType !== 'take_home') {
+      setError('วันนี้ไม่สามารถเบิกเหล้าใช้ในร้านได้ กรุณาเลือก "เบิกกลับบ้าน"');
+      setIsSubmitting(false);
+      return;
+    }
+
     const { error: insertError } = await supabase.from('withdrawals').insert({
       deposit_id: deposit.id,
       store_id: deposit.store_id,
@@ -87,6 +122,7 @@ function WithdrawContent() {
       requested_qty: qty,
       table_number: tableNumber || null,
       notes: notes || null,
+      withdrawal_type: withdrawalType,
       status: 'pending',
     });
 
@@ -173,8 +209,60 @@ function WithdrawContent() {
         </div>
       )}
 
+      {/* Blocked day warning */}
+      {blockedInfo?.blocked && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">
+                วันนี้ไม่สามารถเบิกเหล้าใช้ในร้านได้
+              </p>
+              <p className="mt-1 text-xs text-amber-700">
+                สามารถเบิกกลับบ้านได้เท่านั้น
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Form */}
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        {/* Withdrawal type selector */}
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700">ประเภทการเบิก</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => !blockedInfo?.blocked && setWithdrawalType('in_store')}
+              disabled={blockedInfo?.blocked}
+              className={cn(
+                'flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-sm font-medium transition-colors',
+                withdrawalType === 'in_store'
+                  ? 'border-[#06C755] bg-green-50 text-[#06C755]'
+                  : 'border-gray-200 text-gray-500',
+                blockedInfo?.blocked && 'cursor-not-allowed opacity-40',
+              )}
+            >
+              <Wine className="h-4 w-4" />
+              เบิกใช้ในร้าน
+            </button>
+            <button
+              type="button"
+              onClick={() => setWithdrawalType('take_home')}
+              className={cn(
+                'flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-sm font-medium transition-colors',
+                withdrawalType === 'take_home'
+                  ? 'border-[#06C755] bg-green-50 text-[#06C755]'
+                  : 'border-gray-200 text-gray-500',
+              )}
+            >
+              <Home className="h-4 w-4" />
+              เบิกกลับบ้าน
+            </button>
+          </div>
+        </div>
+
         <div>
           <label className="mb-1.5 block text-sm font-medium text-gray-700">จำนวนที่ต้องการเบิก</label>
           <input

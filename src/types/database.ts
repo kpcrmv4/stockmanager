@@ -170,6 +170,8 @@ export interface Withdrawal {
   processed_by: string | null;
   notes: string | null;
   photo_url: string | null;
+  /** ประเภทการเบิก: in_store (ใช้ในร้าน) หรือ take_home (เบิกกลับบ้าน) */
+  withdrawal_type: 'in_store' | 'take_home';
   created_at: string;
 }
 
@@ -290,6 +292,8 @@ export interface StoreSettings {
   follow_up_enabled: boolean;
   /** จำนวนวันเก็บ audit log (null = เก็บตลอด) */
   audit_log_retention_days: number | null;
+  /** วันที่ห้ามเบิกเหล้าในร้าน (default: ['Fri','Sat']) */
+  withdrawal_blocked_days: string[] | null;
 }
 
 export interface Notification {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { pushMessage } from '@/lib/line/messaging';
 import { expiryWarningTemplate } from '@/lib/line/flex-templates';
-import { daysFromNowISO } from '@/lib/utils/date';
+import { daysFromNowISO, effectiveExpiryISO } from '@/lib/utils/date';
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -121,25 +121,62 @@ export async function GET(request: NextRequest) {
   }
 
   // Mark expired deposits (exclude VIP — VIP never expires)
-  const { data: expired } = await supabase
+  // Fetch all store settings for blocked days + working hours (for grace period)
+  const { data: allStoreSettings } = await supabase
+    .from('store_settings')
+    .select('store_id, withdrawal_blocked_days, print_server_working_hours');
+
+  const storeSettingsMap = new Map<string, { blockedDays: string[]; endHour: number }>();
+  if (allStoreSettings) {
+    for (const s of allStoreSettings) {
+      const wh = s.print_server_working_hours as { endHour?: number } | null;
+      storeSettingsMap.set(s.store_id, {
+        blockedDays: (s.withdrawal_blocked_days as string[] | null) ?? ['Fri', 'Sat'],
+        endHour: wh?.endHour ?? 6,
+      });
+    }
+  }
+
+  // Fetch candidates for expiry (past their nominal expiry date)
+  const { data: expiryCandidates } = await supabase
     .from('deposits')
-    .update({ status: 'expired' })
+    .select('id, deposit_code, store_id, expiry_date')
     .eq('status', 'in_store')
     .eq('is_vip', false)
-    .lte('expiry_date', new Date().toISOString())
-    .select('id, deposit_code, store_id, status');
+    .lte('expiry_date', new Date().toISOString());
 
-  if (expired) {
-    for (const deposit of expired) {
-      await supabase.from('audit_logs').insert({
-        store_id: deposit.store_id,
-        action_type: 'CRON_DEPOSIT_EXPIRED',
-        table_name: 'deposits',
-        record_id: deposit.id,
-        old_value: { status: 'in_store' },
-        new_value: { status: 'expired', deposit_code: deposit.deposit_code },
-        changed_by: null,
-      });
+  const expired: Array<{ id: string; deposit_code: string; store_id: string }> = [];
+
+  if (expiryCandidates) {
+    const now = new Date().toISOString();
+
+    for (const deposit of expiryCandidates) {
+      // Check effective expiry (extended past blocked days + store closing grace)
+      const settings = storeSettingsMap.get(deposit.store_id);
+      const blockedDays = settings?.blockedDays ?? ['Fri', 'Sat'];
+      const storeEndHour = settings?.endHour ?? 6;
+      const effExpiry = effectiveExpiryISO(deposit.expiry_date, blockedDays, storeEndHour);
+
+      if (effExpiry <= now) {
+        // Truly expired — mark it
+        await supabase
+          .from('deposits')
+          .update({ status: 'expired' })
+          .eq('id', deposit.id);
+
+        expired.push(deposit);
+
+        await supabase.from('audit_logs').insert({
+          store_id: deposit.store_id,
+          action_type: 'CRON_DEPOSIT_EXPIRED',
+          table_name: 'deposits',
+          record_id: deposit.id,
+          old_value: { status: 'in_store' },
+          new_value: { status: 'expired', deposit_code: deposit.deposit_code },
+          changed_by: null,
+        });
+      }
+      // else: effective expiry hasn't passed yet (grace period for blocked days / store hours)
     }
   }
 
