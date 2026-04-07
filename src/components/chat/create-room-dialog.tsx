@@ -31,25 +31,37 @@ interface StoreInfo {
 
 type CreatableRoomType = 'dm' | 'direct' | 'cross_store';
 
-const ROOM_TYPE_OPTIONS: { value: CreatableRoomType; label: string; description: string; icon: typeof MessageCircle; ownerOnly?: boolean }[] = [
+// Role hierarchy: higher number = higher privilege
+const ROLE_LEVEL: Record<string, number> = {
+  staff: 1,
+  bar: 2,
+  accountant: 3,
+  manager: 4,
+  owner: 5,
+  admin: 5,
+};
+
+const ROOM_TYPE_OPTIONS: { value: CreatableRoomType; label: string; description: string; icon: typeof MessageCircle; minRole: number }[] = [
   {
     value: 'dm',
     label: '1:1',
     description: 'แชทตัวต่อตัว',
     icon: User,
+    minRole: 1, // ทุก role
   },
   {
     value: 'direct',
     label: 'กลุ่ม',
     description: 'สร้างกลุ่มแชทในสาขา',
     icon: MessageCircle,
+    minRole: 2, // bar ขึ้นไป
   },
   {
     value: 'cross_store',
     label: 'ข้ามสาขา',
     description: 'แชทประสานงานระหว่างสาขา',
     icon: Building2,
-    ownerOnly: true,
+    minRole: 5, // owner/admin เท่านั้น
   },
 ];
 
@@ -69,7 +81,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('all');
 
-  const isOwnerOrManager = user?.role === 'owner' || user?.role === 'manager';
+  const userRoleLevel = ROLE_LEVEL[user?.role || ''] || 0;
 
   // Load store users for direct/dm chat
   useEffect(() => {
@@ -88,7 +100,8 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
           const users = data
             .map((d) => d.profiles as unknown as StoreUser)
             .filter(Boolean)
-            .filter((u) => u.id !== user.id);
+            .filter((u) => u.id !== user.id)
+            .filter((u) => !u.username?.startsWith('printer'));
           setStoreUsers(users);
         }
       });
@@ -116,7 +129,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
         .order('store_id');
 
       if (userStoreData) {
-        const users: StoreUser[] = userStoreData
+        const users = userStoreData
           .map((d) => {
             const profile = d.profiles as unknown as StoreUser;
             const store = d.stores as unknown as { name: string } | null;
@@ -125,9 +138,9 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
               ...profile,
               store_id: d.store_id,
               store_name: store?.name || '',
-            };
+            } as StoreUser;
           })
-          .filter((u): u is StoreUser => u !== null && u.id !== user.id);
+          .filter((u): u is StoreUser => u !== null && u.id !== user.id && !u.username?.startsWith('printer'));
 
         setAllStoreUsers(users);
       }
@@ -148,29 +161,17 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
     }
   }, [isOpen]);
 
-  // Auto-select owners when switching to group direct mode
+  // Reset selections when switching room type
   useEffect(() => {
-    const ownerIds = new Set<string>();
-    if (roomType === 'direct') {
-      storeUsers.forEach((u) => {
-        if (u.role === 'owner') ownerIds.add(u.id);
-      });
-    }
-    setSelectedIds(ownerIds);
+    setSelectedIds(new Set());
     setDmSelectedId(null);
-  }, [roomType, storeUsers]);
+  }, [roomType]);
 
   const toggleUser = (userId: string) => {
     if (roomType === 'dm') {
       // DM: select only one person
       setDmSelectedId((prev) => (prev === userId ? null : userId));
       return;
-    }
-
-    // Don't allow deselecting owner in direct mode
-    if (roomType === 'direct') {
-      const userObj = storeUsers.find((u) => u.id === userId);
-      if (userObj?.role === 'owner') return;
     }
 
     setSelectedIds((prev) => {
@@ -369,7 +370,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
           </label>
           <div className="grid grid-cols-3 gap-2">
             {ROOM_TYPE_OPTIONS.filter(
-              (opt) => !opt.ownerOnly || isOwnerOrManager
+              (opt) => userRoleLevel >= opt.minRole
             ).map((opt) => {
               const Icon = opt.icon;
               const isActive = roomType === opt.value;
@@ -378,7 +379,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
                   key={opt.value}
                   onClick={() => setRoomType(opt.value)}
                   className={cn(
-                    'flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-2.5 text-center transition-all',
+                    'flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 text-center transition-all',
                     isActive
                       ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-900/20'
                       : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500'
@@ -506,7 +507,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
                   user={su}
                   isSelected={roomType === 'dm' ? dmSelectedId === su.id : selectedIds.has(su.id)}
                   isOwner={su.role === 'owner'}
-                  canDeselect={roomType === 'dm' || su.role !== 'owner'}
+                  canDeselect={true}
                   isDm={roomType === 'dm'}
                   onToggle={() => toggleUser(su.id)}
                 />
