@@ -1,22 +1,23 @@
 # Translation Status — EN/TH Language Support
 
 ## Architecture
-- **Library**: `next-intl` (cookie-based, no URL prefix)
+- **Library**: `next-intl` v4.9 (cookie-based, no URL prefix)
 - **Default locale**: `th`
 - **Persistence**: Cookie `NEXT_LOCALE` + Zustand `app-store`
-- **Translation files**: `src/messages/th.json`, `src/messages/en.json`
+- **Translation files**: `src/messages/th.json` (~1600 lines), `src/messages/en.json` (~1600 lines)
 - **LanguageSwitcher**: `src/components/layout/language-switcher.tsx`
+- **Config**: `src/i18n/config.ts`, `src/i18n/request.ts`
 
-## Phase A: Foundation ✅
-- [x] Install `next-intl`
-- [x] Create `src/i18n/config.ts` + `src/i18n/request.ts`
-- [x] Create `src/messages/th.json` + `src/messages/en.json`
-- [x] Modify `src/app/layout.tsx` — NextIntlClientProvider + dynamic lang
-- [x] Modify `next.config.ts` — withNextIntl plugin
-- [x] Add `locale` to `src/stores/app-store.ts`
-- [x] Create `src/components/layout/language-switcher.tsx`
+## Completed ✅
 
-## Phase B: Navigation & Layout ✅
+### Foundation
+- [x] `next-intl` installed + configured
+- [x] `next.config.ts` — withNextIntl plugin
+- [x] `src/app/layout.tsx` — NextIntlClientProvider + dynamic `<html lang>`
+- [x] `src/stores/app-store.ts` — locale field
+- [x] `src/components/layout/language-switcher.tsx`
+
+### Navigation & Layout (all hardcoded Thai replaced)
 - [x] `src/lib/modules/registry.ts` — nameKey, descriptionKey, groupKey
 - [x] `src/types/roles.ts` — ROLE_LABEL_KEYS
 - [x] `src/components/layout/sidebar.tsx`
@@ -27,20 +28,18 @@
 - [x] `src/components/layout/notification-center.tsx`
 - [x] `src/app/(dashboard)/layout-client.tsx`
 
-## Phase C: Auth ✅
+### Auth (all strings converted)
 - [x] `src/app/(auth)/layout.tsx`
 - [x] `src/app/(auth)/login/page.tsx`
 - [x] `src/app/(auth)/register/page.tsx`
 
-## Phase D: Common UI & PWA ✅
+### Common UI & PWA
 - [x] `src/components/pwa/install-prompt.tsx`
 - [x] `src/components/data/data-table.tsx`
 - [x] `src/components/notification/push-prompt.tsx`
 - [x] `src/components/notification/notification-bell.tsx`
 
-## Phase E: Dashboard Pages (excluding chat)
-
-### Completed ✅
+### Dashboard Pages (fully converted)
 - [x] `src/app/(dashboard)/overview/page.tsx` — 200+ keys
 - [x] `src/app/(dashboard)/deposit/page.tsx` — 209 keys
 - [x] `src/app/(dashboard)/deposit/requests/page.tsx`
@@ -59,67 +58,81 @@
 - [x] `src/app/(dashboard)/guide/page.tsx`
 - [x] `src/app/(dashboard)/print-listener/page.tsx`
 - [x] `src/app/(dashboard)/print-listener/setup/page.tsx`
+- [x] `src/app/(dashboard)/settings/page.tsx`
+- [x] `src/app/(dashboard)/notifications/page.tsx`
+- [x] `src/app/(dashboard)/commission/page.tsx`
+- [x] `src/app/(dashboard)/users/page.tsx` — 35 keys
+- [x] `src/app/(dashboard)/stock/page.tsx` — partial
 
-### Remaining (translation keys exist in JSON, page files need t() calls)
-- [ ] `src/app/(dashboard)/stock/page.tsx` + 6 sub-pages
-- [ ] `src/app/(dashboard)/commission/page.tsx` + 6 _components
-- [ ] `src/app/(dashboard)/reports/page.tsx`
-- [ ] `src/app/(dashboard)/activity/page.tsx`
-- [ ] `src/app/(dashboard)/my-tasks/page.tsx`
-- [ ] `src/app/(dashboard)/store-overview/page.tsx`
-- [ ] `src/app/(dashboard)/settings/page.tsx` + 4 sub-pages
-- [ ] `src/app/(dashboard)/profile/page.tsx`
-- [ ] `src/app/(dashboard)/notifications/page.tsx`
-- [ ] `src/app/(dashboard)/users/page.tsx`
-
-### Dashboard Components
+### Dashboard Components (fully converted)
 - [x] `src/components/deposit/expired-deposits-banner.tsx`
 - [x] `src/components/deposit/table-card-grid.tsx`
 - [x] `src/components/deposit/request-detail-modal.tsx`
-- [ ] `src/app/(dashboard)/deposit/_components/deposit-detail.tsx`
-- [ ] `src/app/(dashboard)/deposit/_components/deposit-form.tsx`
 - [x] `src/components/guide/user-manual.tsx`
 - [x] `src/components/guide/manual-data.ts`
 
-## Phase F: Customer Portal ✅
-- [x] All 8 files converted
+### Customer Portal (all strings converted)
+- [x] `src/app/customer/layout.tsx`
+- [x] `src/app/customer/page.tsx`
+- [x] `src/app/customer/deposit/page.tsx`
+- [x] `src/app/customer/withdraw/page.tsx`
+- [x] `src/app/customer/history/page.tsx`
+- [x] `src/app/customer/promotions/page.tsx`
+- [x] `src/app/customer/settings/page.tsx`
+- [x] `src/app/customer/_components/customer-provider.tsx`
 
-## Phase G: Print Station ✅
+### Print Station (fully converted)
 - [x] `src/app/(print-station)/print-station/page.tsx`
+
+## Remaining (import added, string conversion needed)
+
+These files have `useTranslations` imported but still have hardcoded Thai strings that need to be replaced with `t()` calls. Translation keys for their namespaces (title/subtitle) exist in th.json/en.json.
+
+### Stock sub-pages
+- [ ] `src/app/(dashboard)/stock/daily-check/page.tsx` — 71 strings
+- [ ] `src/app/(dashboard)/stock/comparison/page.tsx` — 89 strings
+- [ ] `src/app/(dashboard)/stock/explanation/page.tsx` — 44 strings
+- [ ] `src/app/(dashboard)/stock/approval/page.tsx` — 75 strings
+- [ ] `src/app/(dashboard)/stock/products/page.tsx` — 83 strings
+- [ ] `src/app/(dashboard)/stock/txt-upload/page.tsx` — 133 strings
+
+### Settings sub-pages
+- [ ] `src/app/(dashboard)/settings/notifications/page.tsx` — 21 strings
+- [ ] `src/app/(dashboard)/settings/stores/new/page.tsx` — 43 strings
+- [ ] `src/app/(dashboard)/settings/store/[storeId]/page.tsx` — 162 strings
+- [ ] `src/app/(dashboard)/settings/import-deposits/page.tsx` — 178 strings
+
+### Other pages
+- [ ] `src/app/(dashboard)/profile/page.tsx` — 42 strings
+- [ ] `src/app/(dashboard)/reports/page.tsx` — 99 strings
+- [ ] `src/app/(dashboard)/activity/page.tsx` — 84 strings
+- [ ] `src/app/(dashboard)/my-tasks/page.tsx` — 59 strings
+- [ ] `src/app/(dashboard)/store-overview/page.tsx` — 42 strings
+
+### Components not yet converted
+- [ ] `src/app/(dashboard)/deposit/_components/deposit-detail.tsx` — 190 strings
+- [ ] `src/app/(dashboard)/deposit/_components/deposit-form.tsx` — 76 strings
+- [ ] `src/app/(dashboard)/commission/_components/*.tsx` — 6 files
+- [ ] `src/app/(dashboard)/stock/products/import-csv-modal.tsx` — 46 strings
+- [ ] `src/components/stock/stock-count-banner.tsx`
+- [ ] `src/components/guide/sections/*.tsx` — long-form content
 
 ## EXCLUDED (Chat System)
 - `src/app/(dashboard)/chat/**`
 - `src/components/chat/**`
-- `src/stores/chat-store.ts`
-- `src/lib/chat/**`
-- `src/hooks/use-chat-*.ts`
 
 ## Translation Key Stats
-- **th.json**: 900+ keys across 20+ namespaces
-- **en.json**: 900+ keys (matching)
-- **Namespaces**: common, meta, auth, roles, nav, modules, moduleGroups, notifications, noStore, pwa, language, overview, customer, printStation, performance, guide, dataTable, pushPrompt, notificationBell, printListener, printSetup, announcements, deposit, transfer, borrow, barApproval, hqWarehouse
+- **1000+ keys** across **30+ namespaces**
+- **Namespaces**: common, meta, auth, roles, nav, modules, moduleGroups, notifications, noStore, pwa, language, overview, customer, printStation, performance (staff/stores/operations/customers), guide, dataTable, pushPrompt, notificationBell, printListener, printSetup, announcements, deposit, transfer, borrow, barApproval, hqWarehouse, settings, profile, users, reports, activity, myTasks, storeOverview, notificationsPage, commission, stock
 
-## How to add translations for remaining pages
-Each remaining page follows the same pattern:
+## How to convert remaining pages
 ```tsx
-// 1. Add import
-import { useTranslations } from 'next-intl';
-
-// 2. Add at top of component
+// 1. Import already added — just add t() at top of component
 const t = useTranslations('namespace');
 
-// 3. Replace Thai strings
+// 2. Replace Thai strings
 // Before: 'ข้อความไทย'
 // After:  t('keyName')
 
-// 4. Add keys to src/messages/th.json and src/messages/en.json
+// 3. Add keys to src/messages/th.json and src/messages/en.json
 ```
-
-## Notes
-- Chat system strings are NOT translated (excluded from scope)
-- Bot messages remain in Thai
-- Database content (product names, customer names, store names) NOT translated
-- API route error messages kept as-is (server-side)
-- Guide section body content (`sections/*.tsx`) kept in Thai (very long paragraphs)
-- `src/lib/utils/constants.ts` has status labels in Thai — can be converted later
-- `src/lib/audit.ts` has audit action descriptions in Thai — overview page handles via translation keys
