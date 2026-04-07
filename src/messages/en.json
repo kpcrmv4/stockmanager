@@ -411,5 +411,160 @@
       "receiverHQ": "Receiver (HQ):",
       "documentNote": "This document serves as proof of bottle transfer"
     }
+  },
+  "overview": {
+    "title": "Overview",
+    "greeting": "Hello, {name}",
+    "defaultRole": "Owner",
+    "refresh": "Refresh",
+    "errorTitle": "Error",
+    "errorLoadData": "Unable to load overview data",
+    "relativeTime": {
+      "justNow": "Just now",
+      "minutesAgo": "{count} min ago",
+      "hoursAgo": "{count} hr ago",
+      "daysAgo": "{count} days ago"
+    },
+    "summaryCards": {
+      "storeCount": "Stores",
+      "totalDeposits": "Total Deposits",
+      "pendingApprovals": "Pending Approvals",
+      "stockAlerts": "Stock Alerts"
+    },
+    "storeStatus": {
+      "heading": "Store Status",
+      "pendingItems": "{count} pending items",
+      "normal": "Normal",
+      "hqDescription": "HQ Warehouse — receives expired transfers from branches",
+      "depositsInStore": "In store",
+      "lastCount": "Last count:",
+      "neverCounted": "Never",
+      "commissionThisMonth": "Commission this month",
+      "baht": "THB",
+      "entries": "{count} entries",
+      "noPendingWork": "No pending work",
+      "issues": {
+        "pendingIncomingTransfers": "Pending incoming transfers",
+        "pendingApprovals": "Pending stock approval",
+        "pendingExplanations": "Pending stock explanation",
+        "pendingWithdrawals": "Pending withdrawal",
+        "pendingDeposits": "Pending deposit intake",
+        "expiringDeposits": "Expiring soon",
+        "pendingTransfers": "Pending stock transfer",
+        "pendingBorrows": "Borrow / pending approval"
+      }
+    },
+    "modules": {
+      "heading": "Modules",
+      "stock": {
+        "name": "Stock Count",
+        "products": "{count} products",
+        "lastCount": "Last count: {date}",
+        "neverCounted": "Last count: Never",
+        "pendingExplanations": "Pending explanation: {count}"
+      },
+      "deposit": {
+        "name": "Bottle Deposit",
+        "depositsInStore": "{count} deposits in store",
+        "pendingWithdrawals": "Pending withdrawal: {count}",
+        "expiringSoon": "Expiring soon: {count}"
+      },
+      "transfer": {
+        "name": "Stock Transfer",
+        "pendingConfirmation": "Pending confirmation: {count}"
+      },
+      "reports": {
+        "name": "Reports",
+        "description": "View summary reports"
+      },
+      "commission": {
+        "name": "Commission",
+        "thisMonth": "This month: {amount} THB",
+        "entries": "{count} entries"
+      },
+      "borrow": {
+        "name": "Borrow Items",
+        "description": "Borrow items between branches"
+      },
+      "settings": {
+        "name": "Store Settings",
+        "description": "Manage branches and settings"
+      }
+    },
+    "activity": {
+      "heading": "Recent Activity",
+      "noActivityTitle": "No activity yet",
+      "noActivityDescription": "System activities will appear here",
+      "fallbackLabel": "Activity"
+    },
+    "actions": {
+      "STOCK_COUNT_SAVED": "Stock count saved",
+      "STOCK_COUNT_RESET": "Stock count reset",
+      "STOCK_EXPLANATION_SUBMITTED": "Stock explanation submitted",
+      "STOCK_EXPLANATION_BATCH": "Stock explanation (batch)",
+      "STOCK_APPROVED": "Stock approved",
+      "STOCK_REJECTED": "Stock rejected",
+      "STOCK_BATCH_APPROVED": "Stock approved (batch)",
+      "STOCK_BATCH_REJECTED": "Stock rejected (batch)",
+      "STOCK_COMPARISON_GENERATED": "Stock comparison generated",
+      "STOCK_TXT_UPLOADED": "POS data uploaded",
+      "AUTO_ADD_PRODUCT": "Product auto-added",
+      "AUTO_DEACTIVATE": "Product auto-deactivated",
+      "AUTO_REACTIVATE": "Product auto-reactivated",
+      "PRODUCT_CREATED": "New product added",
+      "PRODUCT_UPDATED": "Product updated",
+      "PRODUCT_TOGGLED": "Product toggled",
+      "PRODUCT_DELETED": "Product deleted",
+      "DEPOSIT_CREATED": "Deposit created",
+      "DEPOSIT_REQUEST_APPROVED": "Deposit request approved",
+      "DEPOSIT_REQUEST_REJECTED": "Deposit request rejected",
+      "DEPOSIT_STATUS_CHANGED": "Deposit status changed",
+      "DEPOSIT_BAR_CONFIRMED": "Bar confirmed deposit",
+      "DEPOSIT_BAR_REJECTED": "Bar rejected deposit",
+      "WITHDRAWAL_COMPLETED": "Withdrawal completed",
+      "WITHDRAWAL_REJECTED": "Withdrawal rejected",
+      "WITHDRAWAL_REQUESTED": "Withdrawal requested",
+      "DEPOSIT_NO_DEPOSIT_CREATED": "No-deposit item created (pending transfer)",
+      "TRANSFER_CREATED": "Transfer created",
+      "TRANSFER_CONFIRMED": "Transfer confirmed",
+      "TRANSFER_REJECTED": "Transfer rejected",
+      "CUSTOMER_DEPOSIT_REQUEST": "Customer deposit request (LINE)",
+      "CUSTOMER_WITHDRAWAL_REQUEST": "Customer withdrawal request (LINE)",
+      "CUSTOMER_INQUIRY": "Customer inquiry (LINE)",
+      "CRON_DAILY_REMINDER_SENT": "Stock count reminder sent",
+      "CRON_EXPIRY_CHECK": "Expiry check",
+      "CRON_DEPOSIT_EXPIRED": "Deposit auto-expired",
+      "CRON_FOLLOW_UP_SENT": "Follow-up sent",
+      "USER_CREATED": "User created",
+      "USER_UPDATED": "User updated",
+      "USER_DEACTIVATED": "User deactivated",
+      "USER_LOGIN": "User login",
+      "BORROW_REQUESTED": "Borrow request created",
+      "BORROW_APPROVED": "Borrow approved",
+      "BORROW_REJECTED": "Borrow rejected",
+      "BORROW_POS_CONFIRMED": "POS stock confirmed (borrow)",
+      "BORROW_COMPLETED": "Borrow completed",
+      "ACTION_CARD_CLAIMED": "Chat task claimed",
+      "ACTION_CARD_RELEASED": "Chat task released",
+      "ACTION_CARD_COMPLETED": "Chat task completed",
+      "ACTION_CARD_REJECTED": "Chat task rejected",
+      "SETTINGS_UPDATED": "Settings updated",
+      "STORE_CREATED": "New branch created",
+      "STORE_UPDATED": "Branch updated",
+      "AUDIT_LOG_CLEANUP": "Audit log cleanup",
+      "COMMISSION_ENTRY_CREATED": "Commission recorded",
+      "COMMISSION_ENTRY_UPDATED": "Commission updated",
+      "COMMISSION_ENTRY_DELETED": "Commission deleted",
+      "COMMISSION_PAYMENT_CREATED": "Commission paid",
+      "COMMISSION_PAYMENT_CANCELLED": "Commission payment cancelled",
+      "AE_PROFILE_CREATED": "New AE added",
+      "AE_PROFILE_UPDATED": "AE updated",
+      "INSERT": "Data inserted",
+      "UPDATE": "Data updated",
+      "DELETE": "Data deleted",
+      "legacyInsertDeposit": "Deposit created",
+      "legacyInsertWithdrawal": "Withdrawal",
+      "legacyUpdateComparison": "Comparison updated"
+    }
   }
 }

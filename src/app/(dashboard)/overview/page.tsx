@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
@@ -127,19 +128,19 @@ interface ModuleCardConfig {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Thai relative-time string from an ISO timestamp */
-function relativeTime(isoDate: string): string {
+/** Relative-time string from an ISO timestamp */
+function relativeTime(isoDate: string, t: (key: string, values?: Record<string, unknown>) => string): string {
   const now = Date.now();
   const then = new Date(isoDate).getTime();
   const diffSec = Math.floor((now - then) / 1000);
 
-  if (diffSec < 60) return 'เมื่อสักครู่';
+  if (diffSec < 60) return t('relativeTime.justNow');
   const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`;
+  if (diffMin < 60) return t('relativeTime.minutesAgo', { count: diffMin });
   const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour} ชั่วโมงที่แล้ว`;
+  if (diffHour < 24) return t('relativeTime.hoursAgo', { count: diffHour });
   const diffDay = Math.floor(diffHour / 24);
-  if (diffDay < 7) return `${diffDay} วันที่แล้ว`;
+  if (diffDay < 7) return t('relativeTime.daysAgo', { count: diffDay });
   return formatThaiDate(isoDate);
 }
 
@@ -273,77 +274,32 @@ const ACTION_COLOR_MAP: Record<string, string> = {
   AE_PROFILE_UPDATED: 'text-amber-500',
 };
 
-/** Full action → Thai label mapping */
-const ACTION_LABEL_MAP: Record<string, string> = {
-  STOCK_COUNT_SAVED: 'บันทึกนับสต๊อก',
-  STOCK_COUNT_RESET: 'รีเซ็ตนับสต๊อก',
-  STOCK_EXPLANATION_SUBMITTED: 'ส่งคำชี้แจงสต๊อก',
-  STOCK_EXPLANATION_BATCH: 'ส่งคำชี้แจง (หลายรายการ)',
-  STOCK_APPROVED: 'อนุมัติผลสต๊อก',
-  STOCK_REJECTED: 'ปฏิเสธผลสต๊อก',
-  STOCK_BATCH_APPROVED: 'อนุมัติผลสต๊อก (หลายรายการ)',
-  STOCK_BATCH_REJECTED: 'ปฏิเสธผลสต๊อก (หลายรายการ)',
-  STOCK_COMPARISON_GENERATED: 'สร้างผลเปรียบเทียบสต๊อก',
-  STOCK_TXT_UPLOADED: 'อัพโหลดข้อมูล POS',
-  AUTO_ADD_PRODUCT: 'เพิ่มสินค้าอัตโนมัติ',
-  AUTO_DEACTIVATE: 'ปิดสินค้าอัตโนมัติ',
-  AUTO_REACTIVATE: 'เปิดสินค้าอัตโนมัติ',
-  PRODUCT_CREATED: 'เพิ่มสินค้าใหม่',
-  PRODUCT_UPDATED: 'แก้ไขสินค้า',
-  PRODUCT_TOGGLED: 'เปิด/ปิดสินค้า',
-  PRODUCT_DELETED: 'ลบสินค้า',
-  DEPOSIT_CREATED: 'สร้างรายการรับฝาก',
-  DEPOSIT_REQUEST_APPROVED: 'อนุมัติคำขอฝากเหล้า',
-  DEPOSIT_REQUEST_REJECTED: 'ปฏิเสธคำขอฝากเหล้า',
-  DEPOSIT_STATUS_CHANGED: 'เปลี่ยนสถานะรับฝาก',
-  DEPOSIT_BAR_CONFIRMED: 'บาร์ยืนยันรับฝาก',
-  DEPOSIT_BAR_REJECTED: 'บาร์ปฏิเสธรับฝาก',
-  WITHDRAWAL_COMPLETED: 'เบิกเหล้าสำเร็จ',
-  WITHDRAWAL_REJECTED: 'ปฏิเสธการเบิกเหล้า',
-  WITHDRAWAL_REQUESTED: 'ขอเบิกเหล้า',
-  DEPOSIT_NO_DEPOSIT_CREATED: 'สร้างรายการไม่ฝาก (รอโอน)',
-  TRANSFER_CREATED: 'สร้างรายการโอนสินค้า',
-  TRANSFER_CONFIRMED: 'ยืนยันรับโอนสินค้า',
-  TRANSFER_REJECTED: 'ปฏิเสธการโอนสินค้า',
-  CUSTOMER_DEPOSIT_REQUEST: 'ลูกค้าขอฝากเหล้า (LINE)',
-  CUSTOMER_WITHDRAWAL_REQUEST: 'ลูกค้าขอเบิกเหล้า (LINE)',
-  CUSTOMER_INQUIRY: 'ลูกค้าสอบถาม (LINE)',
-  CRON_DAILY_REMINDER_SENT: 'ส่งแจ้งเตือนนับสต๊อก',
-  CRON_EXPIRY_CHECK: 'ตรวจสอบเหล้าหมดอายุ',
-  CRON_DEPOSIT_EXPIRED: 'เหล้าหมดอายุอัตโนมัติ',
-  CRON_FOLLOW_UP_SENT: 'ส่งติดตามงาน',
-  USER_CREATED: 'สร้างผู้ใช้ใหม่',
-  USER_UPDATED: 'แก้ไขข้อมูลผู้ใช้',
-  USER_DEACTIVATED: 'ปิดการใช้งานผู้ใช้',
-  USER_LOGIN: 'เข้าสู่ระบบ',
-  BORROW_REQUESTED: 'สร้างคำขอยืมสินค้า',
-  BORROW_APPROVED: 'อนุมัติคำขอยืม',
-  BORROW_REJECTED: 'ปฏิเสธคำขอยืม',
-  BORROW_POS_CONFIRMED: 'ยืนยันตัดสต๊อก POS (ยืม)',
-  BORROW_COMPLETED: 'ยืมสินค้าเสร็จสิ้น',
-  ACTION_CARD_CLAIMED: 'รับงานในแชท',
-  ACTION_CARD_RELEASED: 'ยกเลิกรับงานในแชท',
-  ACTION_CARD_COMPLETED: 'ทำงานในแชทเสร็จ',
-  ACTION_CARD_REJECTED: 'ปฏิเสธรายการในแชท',
-  SETTINGS_UPDATED: 'อัพเดตการตั้งค่า',
-  STORE_CREATED: 'สร้างสาขาใหม่',
-  STORE_UPDATED: 'แก้ไขข้อมูลสาขา',
-  AUDIT_LOG_CLEANUP: 'เคลียร์ Audit Log',
-  COMMISSION_ENTRY_CREATED: 'บันทึกคอมมิชชั่น',
-  COMMISSION_ENTRY_UPDATED: 'แก้ไขคอมมิชชั่น',
-  COMMISSION_ENTRY_DELETED: 'ลบคอมมิชชั่น',
-  COMMISSION_PAYMENT_CREATED: 'จ่ายค่าคอมมิชชั่น',
-  COMMISSION_PAYMENT_CANCELLED: 'ยกเลิกจ่ายค่าคอม',
-  AE_PROFILE_CREATED: 'เพิ่ม AE ใหม่',
-  AE_PROFILE_UPDATED: 'แก้ไขข้อมูล AE',
-  // Legacy generic actions
-  INSERT: 'เพิ่มข้อมูล',
-  UPDATE: 'อัพเดตข้อมูล',
-  DELETE: 'ลบข้อมูล',
-};
+/** Known action types for i18n lookup */
+const KNOWN_ACTION_TYPES = new Set([
+  'STOCK_COUNT_SAVED', 'STOCK_COUNT_RESET', 'STOCK_EXPLANATION_SUBMITTED',
+  'STOCK_EXPLANATION_BATCH', 'STOCK_APPROVED', 'STOCK_REJECTED',
+  'STOCK_BATCH_APPROVED', 'STOCK_BATCH_REJECTED', 'STOCK_COMPARISON_GENERATED',
+  'STOCK_TXT_UPLOADED', 'AUTO_ADD_PRODUCT', 'AUTO_DEACTIVATE', 'AUTO_REACTIVATE',
+  'PRODUCT_CREATED', 'PRODUCT_UPDATED', 'PRODUCT_TOGGLED', 'PRODUCT_DELETED',
+  'DEPOSIT_CREATED', 'DEPOSIT_REQUEST_APPROVED', 'DEPOSIT_REQUEST_REJECTED',
+  'DEPOSIT_STATUS_CHANGED', 'DEPOSIT_BAR_CONFIRMED', 'DEPOSIT_BAR_REJECTED',
+  'WITHDRAWAL_COMPLETED', 'WITHDRAWAL_REJECTED', 'WITHDRAWAL_REQUESTED',
+  'DEPOSIT_NO_DEPOSIT_CREATED', 'TRANSFER_CREATED', 'TRANSFER_CONFIRMED',
+  'TRANSFER_REJECTED', 'CUSTOMER_DEPOSIT_REQUEST', 'CUSTOMER_WITHDRAWAL_REQUEST',
+  'CUSTOMER_INQUIRY', 'CRON_DAILY_REMINDER_SENT', 'CRON_EXPIRY_CHECK',
+  'CRON_DEPOSIT_EXPIRED', 'CRON_FOLLOW_UP_SENT', 'USER_CREATED', 'USER_UPDATED',
+  'USER_DEACTIVATED', 'USER_LOGIN', 'BORROW_REQUESTED', 'BORROW_APPROVED',
+  'BORROW_REJECTED', 'BORROW_POS_CONFIRMED', 'BORROW_COMPLETED',
+  'ACTION_CARD_CLAIMED', 'ACTION_CARD_RELEASED', 'ACTION_CARD_COMPLETED',
+  'ACTION_CARD_REJECTED', 'SETTINGS_UPDATED', 'STORE_CREATED', 'STORE_UPDATED',
+  'AUDIT_LOG_CLEANUP', 'COMMISSION_ENTRY_CREATED', 'COMMISSION_ENTRY_UPDATED',
+  'COMMISSION_ENTRY_DELETED', 'COMMISSION_PAYMENT_CREATED',
+  'COMMISSION_PAYMENT_CANCELLED', 'AE_PROFILE_CREATED', 'AE_PROFILE_UPDATED',
+  'INSERT', 'UPDATE', 'DELETE',
+]);
 
-/** Map audit_logs action to Thai label + icon + color */
-function mapActivity(actionType: string, tableName: string | null): {
+/** Map audit_logs action to label + icon + color */
+function mapActivity(actionType: string, tableName: string | null, t: (key: string) => string): {
   label: string;
   icon: LucideIcon;
   colorClass: string;
@@ -351,27 +307,27 @@ function mapActivity(actionType: string, tableName: string | null): {
   // Handle legacy generic INSERT/UPDATE/DELETE with table context
   if ((actionType === 'INSERT' || actionType === 'UPDATE' || actionType === 'DELETE') && tableName) {
     if (actionType === 'INSERT' && tableName === 'deposits') {
-      return { label: 'สร้างรายการรับฝาก', icon: Wine, colorClass: 'text-emerald-500' };
+      return { label: t('actions.legacyInsertDeposit'), icon: Wine, colorClass: 'text-emerald-500' };
     }
     if (actionType === 'INSERT' && tableName === 'withdrawals') {
-      return { label: 'เบิกเหล้า', icon: Package, colorClass: 'text-blue-500' };
+      return { label: t('actions.legacyInsertWithdrawal'), icon: Package, colorClass: 'text-blue-500' };
     }
     if (actionType === 'UPDATE' && tableName === 'comparisons') {
-      return { label: 'อัพเดตผลเปรียบเทียบ', icon: BarChart3, colorClass: 'text-amber-500' };
+      return { label: t('actions.legacyUpdateComparison'), icon: BarChart3, colorClass: 'text-amber-500' };
     }
-    return { label: `${ACTION_LABEL_MAP[actionType] || actionType}`, icon: Clock, colorClass: 'text-gray-400' };
+    const fallbackLabel = KNOWN_ACTION_TYPES.has(actionType) ? t(`actions.${actionType}`) : actionType;
+    return { label: fallbackLabel, icon: Clock, colorClass: 'text-gray-400' };
   }
 
-  const label = ACTION_LABEL_MAP[actionType];
-  if (label) {
+  if (KNOWN_ACTION_TYPES.has(actionType)) {
     return {
-      label,
+      label: t(`actions.${actionType}`),
       icon: ACTION_ICON_MAP[actionType] || Clock,
       colorClass: ACTION_COLOR_MAP[actionType] || 'text-gray-400',
     };
   }
 
-  return { label: actionType || 'กิจกรรม', icon: Clock, colorClass: 'text-gray-400' };
+  return { label: actionType || t('activity.fallbackLabel'), icon: Clock, colorClass: 'text-gray-400' };
 }
 
 /** Build detail string from audit log entry */
@@ -639,6 +595,7 @@ const COLOR_MAP: Record<
 // ---------------------------------------------------------------------------
 
 export default function OverviewPage() {
+  const t = useTranslations('overview');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const [loading, setLoading] = useState(true);
@@ -1043,8 +1000,8 @@ export default function OverviewPage() {
       console.error('Error fetching overview data:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถโหลดข้อมูลภาพรวมได้',
+        title: t('errorTitle'),
+        message: t('errorLoadData'),
       });
     } finally {
       setLoading(false);
@@ -1061,7 +1018,7 @@ export default function OverviewPage() {
 
   const summaryCards = [
     {
-      label: 'จำนวนร้าน',
+      label: t('summaryCards.storeCount'),
       value: formatNumber(data.storeCount),
       icon: Store,
       lightBg: 'bg-blue-50 dark:bg-blue-900/20',
@@ -1069,7 +1026,7 @@ export default function OverviewPage() {
       trend: data.depositsTrend,
     },
     {
-      label: 'ฝากเหล้าทั้งหมด',
+      label: t('summaryCards.totalDeposits'),
       value: formatNumber(data.totalDepositsInStore),
       icon: Wine,
       lightBg: 'bg-emerald-50 dark:bg-emerald-900/20',
@@ -1077,7 +1034,7 @@ export default function OverviewPage() {
       trend: data.withdrawalsTrend,
     },
     {
-      label: 'รออนุมัติ',
+      label: t('summaryCards.pendingApprovals'),
       value: formatNumber(data.pendingApprovals),
       icon: ClipboardCheck,
       lightBg: 'bg-amber-50 dark:bg-amber-900/20',
@@ -1085,7 +1042,7 @@ export default function OverviewPage() {
       trend: data.stockChecksTrend,
     },
     {
-      label: 'แจ้งเตือนสต๊อก',
+      label: t('summaryCards.stockAlerts'),
       value: formatNumber(data.pendingExplanations),
       icon: AlertTriangle,
       lightBg: 'bg-red-50 dark:bg-red-900/20',
@@ -1101,73 +1058,75 @@ export default function OverviewPage() {
   const moduleCards: ModuleCardConfig[] = [
     {
       id: 'stock',
-      name: 'ระบบนับสต๊อก',
+      name: t('modules.stock.name'),
       icon: ClipboardCheck,
       href: '/stock',
       color: 'indigo',
       metrics: [
-        `สินค้า ${formatNumber(data.totalProducts)} รายการ`,
-        `นับล่าสุด: ${data.lastCheckDate ? formatThaiDate(data.lastCheckDate) : 'ยังไม่เคยนับ'}`,
-        `รอชี้แจง: ${formatNumber(data.pendingExplanations)}`,
+        t('modules.stock.products', { count: formatNumber(data.totalProducts) }),
+        data.lastCheckDate
+          ? t('modules.stock.lastCount', { date: formatThaiDate(data.lastCheckDate) })
+          : t('modules.stock.neverCounted'),
+        t('modules.stock.pendingExplanations', { count: formatNumber(data.pendingExplanations) }),
       ],
     },
     {
       id: 'deposit',
-      name: 'ระบบฝากเหล้า',
+      name: t('modules.deposit.name'),
       icon: Wine,
       href: '/deposit',
       color: 'emerald',
       metrics: [
-        `ฝากอยู่ ${formatNumber(data.totalDepositsInStore)} ราย`,
-        `รอเบิก: ${formatNumber(data.pendingWithdrawals)}`,
-        `ใกล้หมดอายุ: ${formatNumber(data.expiringDeposits)}`,
+        t('modules.deposit.depositsInStore', { count: formatNumber(data.totalDepositsInStore) }),
+        t('modules.deposit.pendingWithdrawals', { count: formatNumber(data.pendingWithdrawals) }),
+        t('modules.deposit.expiringSoon', { count: formatNumber(data.expiringDeposits) }),
       ],
     },
     {
       id: 'transfer',
-      name: 'โอนสต๊อก',
+      name: t('modules.transfer.name'),
       icon: ArrowRightLeft,
       href: '/transfer',
       color: 'blue',
-      metrics: [`รอยืนยัน: ${formatNumber(data.pendingTransfers)}`],
+      metrics: [t('modules.transfer.pendingConfirmation', { count: formatNumber(data.pendingTransfers) })],
     },
     {
       id: 'reports',
-      name: 'รายงาน',
+      name: t('modules.reports.name'),
       icon: BarChart3,
       href: '/reports',
       color: 'violet',
       metrics: [],
-      description: 'ดูรายงานสรุปภาพรวม',
+      description: t('modules.reports.description'),
     },
     {
       id: 'commission',
-      name: 'คอมมิชชั่น',
+      name: t('modules.commission.name'),
       icon: HandCoins,
       href: '/commission',
       color: 'rose',
       metrics: [
-        `เดือนนี้: ${formatNumber(data.commissionThisMonth, 2)} บาท`,
-        `${formatNumber(data.commissionEntries)} รายการ`,
+        t('modules.commission.thisMonth', { amount: formatNumber(data.commissionThisMonth, 2) }),
+        t('modules.commission.entries', { count: formatNumber(data.commissionEntries) }),
       ],
     },
     {
       id: 'borrow',
-      name: 'ยืมสินค้า',
+      name: t('modules.borrow.name'),
       icon: Repeat,
       href: '/borrow',
       color: 'amber',
       metrics: [],
-      description: 'ยืมสินค้าระหว่างสาขา',
+      description: t('modules.borrow.description'),
     },
     {
       id: 'settings',
-      name: 'ตั้งค่าร้าน',
+      name: t('modules.settings.name'),
       icon: Settings,
       href: '/settings',
       color: 'gray',
       metrics: [],
-      description: 'จัดการสาขาและการตั้งค่า',
+      description: t('modules.settings.description'),
     },
   ];
 
@@ -1195,10 +1154,10 @@ export default function OverviewPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            ภาพรวม
+            {t('title')}
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            สวัสดี, {user?.displayName || user?.username || 'เจ้าของร้าน'}<span className="hidden sm:inline"> &mdash; {today}</span>
+            {t('greeting', { name: user?.displayName || user?.username || t('defaultRole') })}<span className="hidden sm:inline"> &mdash; {today}</span>
           </p>
         </div>
         <button
@@ -1207,7 +1166,7 @@ export default function OverviewPage() {
           className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
         >
           <RefreshCw className="h-3.5 w-3.5" />
-          รีเฟรช
+          {t('refresh')}
         </button>
       </div>
 
@@ -1250,7 +1209,7 @@ export default function OverviewPage() {
       {isOwner && storeStatuses.length > 0 && (
         <div>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-            สถานะแต่ละสาขา
+            {t('storeStatus.heading')}
           </h2>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {storeStatuses.map((store) => {
@@ -1261,7 +1220,7 @@ export default function OverviewPage() {
                 // HQ store — only incoming transfers
                 if (store.pendingIncomingTransfers > 0) {
                   issueItems.push({
-                    label: 'รอรับโอนจากสาขา',
+                    label: t('storeStatus.issues.pendingIncomingTransfers'),
                     count: store.pendingIncomingTransfers,
                     icon: Truck,
                     color: 'text-teal-600 dark:text-teal-400',
@@ -1272,7 +1231,7 @@ export default function OverviewPage() {
                 // Regular stores
                 if (store.pendingApprovals > 0) {
                   issueItems.push({
-                    label: 'รออนุมัติสต๊อก',
+                    label: t('storeStatus.issues.pendingApprovals'),
                     count: store.pendingApprovals,
                     icon: FileCheck,
                     color: 'text-amber-600 dark:text-amber-400',
@@ -1281,7 +1240,7 @@ export default function OverviewPage() {
                 }
                 if (store.pendingExplanations > 0) {
                   issueItems.push({
-                    label: 'รอชี้แจงสต๊อก',
+                    label: t('storeStatus.issues.pendingExplanations'),
                     count: store.pendingExplanations,
                     icon: AlertTriangle,
                     color: 'text-red-600 dark:text-red-400',
@@ -1290,7 +1249,7 @@ export default function OverviewPage() {
                 }
                 if (store.pendingWithdrawals > 0) {
                   issueItems.push({
-                    label: 'รอเบิกเหล้า',
+                    label: t('storeStatus.issues.pendingWithdrawals'),
                     count: store.pendingWithdrawals,
                     icon: Wine,
                     color: 'text-blue-600 dark:text-blue-400',
@@ -1299,7 +1258,7 @@ export default function OverviewPage() {
                 }
                 if (store.pendingDeposits > 0) {
                   issueItems.push({
-                    label: 'รอรับฝากเหล้า',
+                    label: t('storeStatus.issues.pendingDeposits'),
                     count: store.pendingDeposits,
                     icon: Package,
                     color: 'text-indigo-600 dark:text-indigo-400',
@@ -1308,7 +1267,7 @@ export default function OverviewPage() {
                 }
                 if (store.expiringDeposits > 0) {
                   issueItems.push({
-                    label: 'ใกล้หมดอายุ',
+                    label: t('storeStatus.issues.expiringDeposits'),
                     count: store.expiringDeposits,
                     icon: CalendarClock,
                     color: 'text-orange-600 dark:text-orange-400',
@@ -1317,7 +1276,7 @@ export default function OverviewPage() {
                 }
                 if (store.pendingTransfers > 0) {
                   issueItems.push({
-                    label: 'รอโอนสต๊อก',
+                    label: t('storeStatus.issues.pendingTransfers'),
                     count: store.pendingTransfers,
                     icon: ArrowRightLeft,
                     color: 'text-cyan-600 dark:text-cyan-400',
@@ -1326,7 +1285,7 @@ export default function OverviewPage() {
                 }
                 if (store.pendingBorrows > 0) {
                   issueItems.push({
-                    label: 'ยืม/รออนุมัติ',
+                    label: t('storeStatus.issues.pendingBorrows'),
                     count: store.pendingBorrows,
                     icon: Repeat,
                     color: 'text-purple-600 dark:text-purple-400',
@@ -1394,12 +1353,12 @@ export default function OverviewPage() {
                       {hasIssues ? (
                         <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                           <CircleDot className="h-3 w-3" />
-                          {store.totalIssues} รายการค้าง
+                          {t('storeStatus.pendingItems', { count: store.totalIssues })}
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                           <CheckCircle2 className="h-3 w-3" />
-                          ปกติ
+                          {t('storeStatus.normal')}
                         </span>
                       )}
                     </div>
@@ -1412,24 +1371,24 @@ export default function OverviewPage() {
                       <div className="mb-3 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                         <span className="flex items-center gap-1">
                           <Warehouse className="h-3 w-3" />
-                          คลังกลาง — รับโอนรายการหมดอายุจากสาขา
+                          {t('storeStatus.hqDescription')}
                         </span>
                       </div>
                     ) : (
                       <div className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-gray-500 dark:text-gray-400">
                         <span className="flex items-center gap-1.5">
                           <Wine className="h-3 w-3 text-emerald-500" />
-                          ฝากอยู่ <span className="font-semibold text-gray-700 dark:text-gray-300">{store.activeDeposits}</span>
+                          {t('storeStatus.depositsInStore')} <span className="font-semibold text-gray-700 dark:text-gray-300">{store.activeDeposits}</span>
                         </span>
                         <span className="flex items-center gap-1.5">
                           <Timer className="h-3 w-3 text-indigo-500" />
-                          นับล่าสุด: {store.lastStockCheck ? formatThaiDate(store.lastStockCheck) : <span className="text-gray-400">ยังไม่เคย</span>}
+                          {t('storeStatus.lastCount')} {store.lastStockCheck ? formatThaiDate(store.lastStockCheck) : <span className="text-gray-400">{t('storeStatus.neverCounted')}</span>}
                         </span>
                         {store.commissionThisMonth > 0 && (
                           <span className="flex items-center gap-1.5 col-span-2">
                             <HandCoins className="h-3 w-3 text-rose-500" />
-                            คอมเดือนนี้ <span className="font-semibold text-gray-700 dark:text-gray-300">{formatNumber(store.commissionThisMonth, 2)}</span> บาท
-                            <span className="text-gray-400">({store.commissionEntries} รายการ)</span>
+                            {t('storeStatus.commissionThisMonth')} <span className="font-semibold text-gray-700 dark:text-gray-300">{formatNumber(store.commissionThisMonth, 2)}</span> {t('storeStatus.baht')}
+                            <span className="text-gray-400">({t('storeStatus.entries', { count: store.commissionEntries })})</span>
                           </span>
                         )}
                       </div>
@@ -1464,7 +1423,7 @@ export default function OverviewPage() {
                       </div>
                     ) : (
                       <p className="text-center text-xs text-gray-400 dark:text-gray-500 py-2">
-                        ไม่มีงานค้าง
+                        {t('storeStatus.noPendingWork')}
                       </p>
                     )}
                   </div>
@@ -1478,7 +1437,7 @@ export default function OverviewPage() {
       {/* ---- Module Grid ---- */}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          โมดูล
+          {t('modules.heading')}
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {moduleCards.map((mod) => {
@@ -1535,7 +1494,7 @@ export default function OverviewPage() {
       {/* ---- Recent Activity ---- */}
       <Card padding="none">
         <CardHeader
-          title="กิจกรรมล่าสุด"
+          title={t('activity.heading')}
           action={
             activities.length > 0 ? (
               <button
@@ -1543,7 +1502,7 @@ export default function OverviewPage() {
                 onClick={fetchData}
                 className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
               >
-                รีเฟรช
+                {t('refresh')}
                 <RefreshCw className="h-3.5 w-3.5" />
               </button>
             ) : undefined
@@ -1555,16 +1514,16 @@ export default function OverviewPage() {
               <Inbox className="h-8 w-8 text-gray-400 dark:text-gray-500" />
             </div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-              ยังไม่มีกิจกรรม
+              {t('activity.noActivityTitle')}
             </h3>
             <p className="mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">
-              กิจกรรมต่าง ๆ ของระบบจะปรากฏที่นี่
+              {t('activity.noActivityDescription')}
             </p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
             {activities.map((activity) => {
-              const mapped = mapActivity(activity.action_type, activity.table_name);
+              const mapped = mapActivity(activity.action_type, activity.table_name, t);
               const ActivityIcon = mapped.icon;
               const detail = getActivityDetail(activity);
               const href = getActivityHref(activity.action_type, activity.table_name);
@@ -1587,7 +1546,7 @@ export default function OverviewPage() {
                       {activity.changed_by_name && (
                         <span className="mr-1.5">{activity.changed_by_name}</span>
                       )}
-                      {relativeTime(activity.created_at)}
+                      {relativeTime(activity.created_at, t)}
                     </p>
                   </div>
                   {href && (

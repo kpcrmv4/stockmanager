@@ -411,5 +411,160 @@
       "receiverHQ": "ผู้รับ (HQ):",
       "documentNote": "เอกสารนี้ใช้เป็นหลักฐานการนำส่งเหล้า"
     }
+  },
+  "overview": {
+    "title": "ภาพรวม",
+    "greeting": "สวัสดี, {name}",
+    "defaultRole": "เจ้าของร้าน",
+    "refresh": "รีเฟรช",
+    "errorTitle": "เกิดข้อผิดพลาด",
+    "errorLoadData": "ไม่สามารถโหลดข้อมูลภาพรวมได้",
+    "relativeTime": {
+      "justNow": "เมื่อสักครู่",
+      "minutesAgo": "{count} นาทีที่แล้ว",
+      "hoursAgo": "{count} ชั่วโมงที่แล้ว",
+      "daysAgo": "{count} วันที่แล้ว"
+    },
+    "summaryCards": {
+      "storeCount": "จำนวนร้าน",
+      "totalDeposits": "ฝากเหล้าทั้งหมด",
+      "pendingApprovals": "รออนุมัติ",
+      "stockAlerts": "แจ้งเตือนสต๊อก"
+    },
+    "storeStatus": {
+      "heading": "สถานะแต่ละสาขา",
+      "pendingItems": "{count} รายการค้าง",
+      "normal": "ปกติ",
+      "hqDescription": "คลังกลาง — รับโอนรายการหมดอายุจากสาขา",
+      "depositsInStore": "ฝากอยู่",
+      "lastCount": "นับล่าสุด:",
+      "neverCounted": "ยังไม่เคย",
+      "commissionThisMonth": "คอมเดือนนี้",
+      "baht": "บาท",
+      "entries": "{count} รายการ",
+      "noPendingWork": "ไม่มีงานค้าง",
+      "issues": {
+        "pendingIncomingTransfers": "รอรับโอนจากสาขา",
+        "pendingApprovals": "รออนุมัติสต๊อก",
+        "pendingExplanations": "รอชี้แจงสต๊อก",
+        "pendingWithdrawals": "รอเบิกเหล้า",
+        "pendingDeposits": "รอรับฝากเหล้า",
+        "expiringDeposits": "ใกล้หมดอายุ",
+        "pendingTransfers": "รอโอนสต๊อก",
+        "pendingBorrows": "ยืม/รออนุมัติ"
+      }
+    },
+    "modules": {
+      "heading": "โมดูล",
+      "stock": {
+        "name": "ระบบนับสต๊อก",
+        "products": "สินค้า {count} รายการ",
+        "lastCount": "นับล่าสุด: {date}",
+        "neverCounted": "นับล่าสุด: ยังไม่เคยนับ",
+        "pendingExplanations": "รอชี้แจง: {count}"
+      },
+      "deposit": {
+        "name": "ระบบฝากเหล้า",
+        "depositsInStore": "ฝากอยู่ {count} ราย",
+        "pendingWithdrawals": "รอเบิก: {count}",
+        "expiringSoon": "ใกล้หมดอายุ: {count}"
+      },
+      "transfer": {
+        "name": "โอนสต๊อก",
+        "pendingConfirmation": "รอยืนยัน: {count}"
+      },
+      "reports": {
+        "name": "รายงาน",
+        "description": "ดูรายงานสรุปภาพรวม"
+      },
+      "commission": {
+        "name": "คอมมิชชั่น",
+        "thisMonth": "เดือนนี้: {amount} บาท",
+        "entries": "{count} รายการ"
+      },
+      "borrow": {
+        "name": "ยืมสินค้า",
+        "description": "ยืมสินค้าระหว่างสาขา"
+      },
+      "settings": {
+        "name": "ตั้งค่าร้าน",
+        "description": "จัดการสาขาและการตั้งค่า"
+      }
+    },
+    "activity": {
+      "heading": "กิจกรรมล่าสุด",
+      "noActivityTitle": "ยังไม่มีกิจกรรม",
+      "noActivityDescription": "กิจกรรมต่าง ๆ ของระบบจะปรากฏที่นี่",
+      "fallbackLabel": "กิจกรรม"
+    },
+    "actions": {
+      "STOCK_COUNT_SAVED": "บันทึกนับสต๊อก",
+      "STOCK_COUNT_RESET": "รีเซ็ตนับสต๊อก",
+      "STOCK_EXPLANATION_SUBMITTED": "ส่งคำชี้แจงสต๊อก",
+      "STOCK_EXPLANATION_BATCH": "ส่งคำชี้แจง (หลายรายการ)",
+      "STOCK_APPROVED": "อนุมัติผลสต๊อก",
+      "STOCK_REJECTED": "ปฏิเสธผลสต๊อก",
+      "STOCK_BATCH_APPROVED": "อนุมัติผลสต๊อก (หลายรายการ)",
+      "STOCK_BATCH_REJECTED": "ปฏิเสธผลสต๊อก (หลายรายการ)",
+      "STOCK_COMPARISON_GENERATED": "สร้างผลเปรียบเทียบสต๊อก",
+      "STOCK_TXT_UPLOADED": "อัพโหลดข้อมูล POS",
+      "AUTO_ADD_PRODUCT": "เพิ่มสินค้าอัตโนมัติ",
+      "AUTO_DEACTIVATE": "ปิดสินค้าอัตโนมัติ",
+      "AUTO_REACTIVATE": "เปิดสินค้าอัตโนมัติ",
+      "PRODUCT_CREATED": "เพิ่มสินค้าใหม่",
+      "PRODUCT_UPDATED": "แก้ไขสินค้า",
+      "PRODUCT_TOGGLED": "เปิด/ปิดสินค้า",
+      "PRODUCT_DELETED": "ลบสินค้า",
+      "DEPOSIT_CREATED": "สร้างรายการรับฝาก",
+      "DEPOSIT_REQUEST_APPROVED": "อนุมัติคำขอฝากเหล้า",
+      "DEPOSIT_REQUEST_REJECTED": "ปฏิเสธคำขอฝากเหล้า",
+      "DEPOSIT_STATUS_CHANGED": "เปลี่ยนสถานะรับฝาก",
+      "DEPOSIT_BAR_CONFIRMED": "บาร์ยืนยันรับฝาก",
+      "DEPOSIT_BAR_REJECTED": "บาร์ปฏิเสธรับฝาก",
+      "WITHDRAWAL_COMPLETED": "เบิกเหล้าสำเร็จ",
+      "WITHDRAWAL_REJECTED": "ปฏิเสธการเบิกเหล้า",
+      "WITHDRAWAL_REQUESTED": "ขอเบิกเหล้า",
+      "DEPOSIT_NO_DEPOSIT_CREATED": "สร้างรายการไม่ฝาก (รอโอน)",
+      "TRANSFER_CREATED": "สร้างรายการโอนสินค้า",
+      "TRANSFER_CONFIRMED": "ยืนยันรับโอนสินค้า",
+      "TRANSFER_REJECTED": "ปฏิเสธการโอนสินค้า",
+      "CUSTOMER_DEPOSIT_REQUEST": "ลูกค้าขอฝากเหล้า (LINE)",
+      "CUSTOMER_WITHDRAWAL_REQUEST": "ลูกค้าขอเบิกเหล้า (LINE)",
+      "CUSTOMER_INQUIRY": "ลูกค้าสอบถาม (LINE)",
+      "CRON_DAILY_REMINDER_SENT": "ส่งแจ้งเตือนนับสต๊อก",
+      "CRON_EXPIRY_CHECK": "ตรวจสอบเหล้าหมดอายุ",
+      "CRON_DEPOSIT_EXPIRED": "เหล้าหมดอายุอัตโนมัติ",
+      "CRON_FOLLOW_UP_SENT": "ส่งติดตามงาน",
+      "USER_CREATED": "สร้างผู้ใช้ใหม่",
+      "USER_UPDATED": "แก้ไขข้อมูลผู้ใช้",
+      "USER_DEACTIVATED": "ปิดการใช้งานผู้ใช้",
+      "USER_LOGIN": "เข้าสู่ระบบ",
+      "BORROW_REQUESTED": "สร้างคำขอยืมสินค้า",
+      "BORROW_APPROVED": "อนุมัติคำขอยืม",
+      "BORROW_REJECTED": "ปฏิเสธคำขอยืม",
+      "BORROW_POS_CONFIRMED": "ยืนยันตัดสต๊อก POS (ยืม)",
+      "BORROW_COMPLETED": "ยืมสินค้าเสร็จสิ้น",
+      "ACTION_CARD_CLAIMED": "รับงานในแชท",
+      "ACTION_CARD_RELEASED": "ยกเลิกรับงานในแชท",
+      "ACTION_CARD_COMPLETED": "ทำงานในแชทเสร็จ",
+      "ACTION_CARD_REJECTED": "ปฏิเสธรายการในแชท",
+      "SETTINGS_UPDATED": "อัพเดตการตั้งค่า",
+      "STORE_CREATED": "สร้างสาขาใหม่",
+      "STORE_UPDATED": "แก้ไขข้อมูลสาขา",
+      "AUDIT_LOG_CLEANUP": "เคลียร์ Audit Log",
+      "COMMISSION_ENTRY_CREATED": "บันทึกคอมมิชชั่น",
+      "COMMISSION_ENTRY_UPDATED": "แก้ไขคอมมิชชั่น",
+      "COMMISSION_ENTRY_DELETED": "ลบคอมมิชชั่น",
+      "COMMISSION_PAYMENT_CREATED": "จ่ายค่าคอมมิชชั่น",
+      "COMMISSION_PAYMENT_CANCELLED": "ยกเลิกจ่ายค่าคอม",
+      "AE_PROFILE_CREATED": "เพิ่ม AE ใหม่",
+      "AE_PROFILE_UPDATED": "แก้ไขข้อมูล AE",
+      "INSERT": "เพิ่มข้อมูล",
+      "UPDATE": "อัพเดตข้อมูล",
+      "DELETE": "ลบข้อมูล",
+      "legacyInsertDeposit": "สร้างรายการรับฝาก",
+      "legacyInsertWithdrawal": "เบิกเหล้า",
+      "legacyUpdateComparison": "อัพเดตผลเปรียบเทียบ"
+    }
   }
 }
