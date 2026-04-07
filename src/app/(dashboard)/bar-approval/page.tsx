@@ -24,6 +24,7 @@ import { notifyChatDepositConfirmed, syncChatActionCardStatus } from '@/lib/chat
 import { TableCardGrid, type TableCardItem } from '@/components/deposit/table-card-grid';
 import { useRealtime } from '@/hooks/use-realtime';
 import { cn } from '@/lib/utils/cn';
+import { useTranslations } from 'next-intl';
 import {
   CheckCircle,
   XCircle,
@@ -144,6 +145,7 @@ interface RejectWithdrawalState {
 export default function BarApprovalPage() {
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
+  const t = useTranslations('barApproval');
 
   const [activeTab, setActiveTab] = useState<TabType>('deposit');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -195,7 +197,7 @@ export default function BarApprovalPage() {
         .order('created_at', { ascending: true });
 
       if (fallbackError) {
-        toast({ type: 'error', title: 'โหลดข้อมูลไม่สำเร็จ', message: 'ไม่สามารถโหลดรายการฝากเหล้ารอยืนยันได้' });
+        toast({ type: 'error', title: t('loadError'), message: t('loadDepositError') });
         return;
       }
       setDeposits((fallbackData ?? []) as unknown as DepositRow[]);
@@ -234,7 +236,7 @@ export default function BarApprovalPage() {
         .order('created_at', { ascending: true });
 
       if (fallbackError) {
-        toast({ type: 'error', title: 'โหลดข้อมูลไม่สำเร็จ', message: 'ไม่สามารถโหลดรายการเบิกเหล้ารอดำเนินการได้' });
+        toast({ type: 'error', title: t('loadError'), message: t('loadWithdrawalError') });
         return;
       }
       setWithdrawals((fallbackData ?? []) as unknown as WithdrawalRow[]);
@@ -323,7 +325,7 @@ export default function BarApprovalPage() {
         changed_by: user.id,
       });
 
-      toast({ type: 'success', title: 'ยืนยันสำเร็จ', message: `ฝากเหล้า ${deposit.product_name} ยืนยันเรียบร้อย` });
+      toast({ type: 'success', title: t('confirmSuccess'), message: t('confirmSuccessMsg', { product: deposit.product_name }) });
 
       // ส่ง system message เข้าห้องแชทสาขา
       notifyChatDepositConfirmed(deposit.store_id, {
@@ -350,7 +352,7 @@ export default function BarApprovalPage() {
           userId: deposit.customer_id,
           storeId: deposit.store_id,
           type: 'deposit_confirmed',
-          title: 'ฝากเหล้าสำเร็จ',
+          title: t('depositConfirmedNotifTitle'),
           body: `${deposit.product_name} (${deposit.deposit_code}) ได้รับการยืนยัน`,
           data: { deposit_id: deposit.id, deposit_code: deposit.deposit_code },
           lineUserId: deposit.line_user_id ?? undefined,
@@ -361,7 +363,7 @@ export default function BarApprovalPage() {
       await loadAll();
     } catch (err) {
       console.error('Confirm deposit error:', err);
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถยืนยันรายการได้ กรุณาลองใหม่' });
+      toast({ type: 'error', title: t('error'), message: t('confirmError') });
     } finally {
       setIsSubmitting(false);
     }
@@ -374,7 +376,7 @@ export default function BarApprovalPage() {
   const handleRejectDeposit = async () => {
     if (!rejectDeposit || !user) return;
     if (!rejectDeposit.reason.trim()) {
-      toast({ type: 'warning', title: 'กรุณาระบุเหตุผล', message: 'ต้องระบุเหตุผลในการปฏิเสธ' });
+      toast({ type: 'warning', title: t('rejectReasonRequired'), message: t('rejectReasonRequiredMsg') });
       return;
     }
     setIsSubmitting(true);
@@ -413,7 +415,7 @@ export default function BarApprovalPage() {
         changed_by: user.id,
       });
 
-      toast({ type: 'success', title: 'ปฏิเสธสำเร็จ', message: `รายการฝากเหล้า ${deposit.product_name} ถูกปฏิเสธ` });
+      toast({ type: 'success', title: t('rejectSuccess'), message: t('rejectSuccessMsg', { product: deposit.product_name }) });
 
       // Notify the customer that their deposit has been rejected
       if (deposit.customer_id) {
@@ -421,7 +423,7 @@ export default function BarApprovalPage() {
           userId: deposit.customer_id,
           storeId: deposit.store_id,
           type: 'deposit_confirmed',
-          title: 'การฝากเหล้าถูกปฏิเสธ',
+          title: t('depositRejectedNotifTitle'),
           body: `${deposit.product_name} (${deposit.deposit_code}) ไม่ได้รับการยืนยัน`,
           data: { deposit_id: deposit.id, deposit_code: deposit.deposit_code },
           lineUserId: deposit.line_user_id ?? undefined,
@@ -432,7 +434,7 @@ export default function BarApprovalPage() {
       await loadAll();
     } catch (err) {
       console.error('Reject deposit error:', err);
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถปฏิเสธรายการได้ กรุณาลองใหม่' });
+      toast({ type: 'error', title: t('error'), message: t('rejectError') });
     } finally {
       setIsSubmitting(false);
     }
@@ -447,7 +449,7 @@ export default function BarApprovalPage() {
 
     const actualQty = parseInt(completeWithdrawal.actualQty, 10);
     if (isNaN(actualQty) || actualQty <= 0) {
-      toast({ type: 'warning', title: 'จำนวนไม่ถูกต้อง', message: 'กรุณาระบุจำนวนที่เบิกจริง' });
+      toast({ type: 'warning', title: t('invalidQty'), message: t('invalidQtyMsg') });
       return;
     }
 
@@ -519,7 +521,7 @@ export default function BarApprovalPage() {
         changed_by: user.id,
       });
 
-      toast({ type: 'success', title: 'เบิกเหล้าสำเร็จ', message: `${withdrawal.product_name} เบิก ${formatNumber(actualQty)} เรียบร้อย` });
+      toast({ type: 'success', title: t('withdrawalSuccess'), message: t('withdrawalSuccessMsg', { product: withdrawal.product_name || '', qty: formatNumber(actualQty) }) });
 
       // Notify the customer that their withdrawal has been completed
       if (withdrawal.customer_id) {
@@ -527,7 +529,7 @@ export default function BarApprovalPage() {
           userId: withdrawal.customer_id,
           storeId: withdrawal.store_id,
           type: 'withdrawal_completed',
-          title: 'เบิกเหล้าสำเร็จ',
+          title: t('withdrawalCompletedNotifTitle'),
           body: `${withdrawal.product_name} จำนวน ${formatNumber(actualQty)}`,
           data: { withdrawal_id: withdrawal.id, deposit_id: withdrawal.deposit_id },
           lineUserId: withdrawal.line_user_id ?? undefined,
@@ -538,7 +540,7 @@ export default function BarApprovalPage() {
       await loadAll();
     } catch (err) {
       console.error('Complete withdrawal error:', err);
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถดำเนินการเบิกได้ กรุณาลองใหม่' });
+      toast({ type: 'error', title: t('error'), message: t('withdrawalError') });
     } finally {
       setIsSubmitting(false);
     }
@@ -551,7 +553,7 @@ export default function BarApprovalPage() {
   const handleRejectWithdrawal = async () => {
     if (!rejectWithdrawal || !user) return;
     if (!rejectWithdrawal.reason.trim()) {
-      toast({ type: 'warning', title: 'กรุณาระบุเหตุผล', message: 'ต้องระบุเหตุผลในการปฏิเสธ' });
+      toast({ type: 'warning', title: t('rejectReasonRequired'), message: t('rejectReasonRequiredMsg') });
       return;
     }
     setIsSubmitting(true);
@@ -604,7 +606,7 @@ export default function BarApprovalPage() {
         changed_by: user.id,
       });
 
-      toast({ type: 'success', title: 'ปฏิเสธสำเร็จ', message: `การเบิก ${withdrawal.product_name} ถูกปฏิเสธ` });
+      toast({ type: 'success', title: t('rejectWithdrawalSuccess'), message: t('rejectWithdrawalSuccessMsg', { product: withdrawal.product_name || '' }) });
 
       // Notify the customer that their withdrawal has been rejected
       if (withdrawal.customer_id) {
@@ -612,7 +614,7 @@ export default function BarApprovalPage() {
           userId: withdrawal.customer_id,
           storeId: withdrawal.store_id,
           type: 'withdrawal_completed',
-          title: 'การเบิกเหล้าถูกปฏิเสธ',
+          title: t('withdrawalRejectedNotifTitle'),
           body: `${withdrawal.product_name} - การเบิกถูกปฏิเสธ`,
           data: { withdrawal_id: withdrawal.id, deposit_id: withdrawal.deposit_id },
           lineUserId: withdrawal.line_user_id ?? undefined,
@@ -623,7 +625,7 @@ export default function BarApprovalPage() {
       await loadAll();
     } catch (err) {
       console.error('Reject withdrawal error:', err);
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถปฏิเสธการเบิกได้ กรุณาลองใหม่' });
+      toast({ type: 'error', title: t('error'), message: t('rejectWithdrawalError') });
     } finally {
       setIsSubmitting(false);
     }
@@ -655,7 +657,7 @@ export default function BarApprovalPage() {
     id: w.id,
     type: 'withdrawal' as const,
     tableNumber: w.table_number,
-    customerName: w.customer_name || 'ลูกค้า',
+    customerName: w.customer_name || t('customer'),
     productName: w.product_name,
     quantity: w.requested_qty,
     status: w.status,

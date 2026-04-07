@@ -1107,8 +1107,8 @@ export default function TransferPage() {
             setTransferPhoto(null);
           }
         }}
-        title="ส่งโอนไปคลังกลาง"
-        description={`${selectedDeposits.length} รายการที่เลือก`}
+        title={t('transferModalTitle')}
+        description={t('transferModalDesc', { count: selectedDeposits.length })}
         size="lg"
       >
         <div className="space-y-4">
@@ -1128,7 +1128,7 @@ export default function TransferPage() {
 
           {/* Photo */}
           <PhotoUpload
-            label="แนบรูปภาพ (ถ้ามี)"
+            label={t('attachPhoto')}
             value={transferPhoto}
             onChange={setTransferPhoto}
             folder="transfers"
@@ -1137,10 +1137,10 @@ export default function TransferPage() {
 
           {/* Notes */}
           <Textarea
-            label="หมายเหตุ"
+            label={t('notesLabel')}
             value={transferNote}
             onChange={(e) => setTransferNote(e.target.value)}
-            placeholder="ระบุหมายเหตุเพิ่มเติม (ถ้ามี)"
+            placeholder={t('notesPlaceholder')}
             rows={3}
           />
         </div>
@@ -1155,14 +1155,14 @@ export default function TransferPage() {
             }}
             disabled={isSubmitting}
           >
-            ยกเลิก
+            {t('cancel')}
           </Button>
           <Button
             onClick={handleSubmitTransfer}
             isLoading={isSubmitting}
             icon={<Truck className="h-4 w-4" />}
           >
-            ยืนยันส่งโอน
+            {t('confirmTransfer')}
           </Button>
         </ModalFooter>
       </Modal>
@@ -1176,13 +1176,13 @@ export default function TransferPage() {
             setCancellingBatch(null);
           }
         }}
-        title="ยกเลิกคำขอโอน"
-        description={cancellingBatch ? `ยกเลิกทั้งหมด ${cancellingBatch.items.length} รายการในชุด ${cancellingBatch.transfer_code}` : ''}
+        title={t('cancelTransferTitle')}
+        description={cancellingBatch ? t('cancelTransferDesc', { count: cancellingBatch.items.length, code: cancellingBatch.transfer_code }) : ''}
         size="md"
       >
         <div className="space-y-3">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            รายการทั้งหมดในชุดนี้จะถูกยกเลิก และรายการฝากจะกลับไปเป็นสถานะ &quot;หมดอายุ&quot; เพื่อให้สามารถส่งโอนใหม่ได้
+            {t('cancelTransferExplanation')}
           </p>
           {cancellingBatch && (
             <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
@@ -1204,7 +1204,7 @@ export default function TransferPage() {
             }}
             disabled={isCancelling}
           >
-            ไม่ยกเลิก
+            {t('dontCancel')}
           </Button>
           <Button
             variant="danger"
@@ -1212,7 +1212,7 @@ export default function TransferPage() {
             isLoading={isCancelling}
             icon={<XCircle className="h-4 w-4" />}
           >
-            ยืนยันยกเลิก
+            {t('confirmCancel')}
           </Button>
         </ModalFooter>
       </Modal>
@@ -1224,12 +1224,12 @@ export default function TransferPage() {
           setShowPrintConfirm(false);
           setPrintingBatch(null);
         }}
-        title="ยืนยันพิมพ์ใบนำส่ง"
-        description={printingBatch ? `พิมพ์ใบนำส่ง ${printingBatch.transfer_code}` : ''}
+        title={t('printConfirmTitle')}
+        description={printingBatch ? t('printConfirmDesc', { code: printingBatch.transfer_code }) : ''}
         size="sm"
       >
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          ต้องการพิมพ์ใบนำส่งสำหรับชุด <strong>{printingBatch?.transfer_code}</strong> ({printingBatch?.items.length} รายการ) หรือไม่?
+          {t('printConfirmMsg', { code: printingBatch?.transfer_code ?? '', count: printingBatch?.items.length ?? 0 })}
         </p>
         <ModalFooter>
           <Button
@@ -1239,7 +1239,7 @@ export default function TransferPage() {
               setPrintingBatch(null);
             }}
           >
-            ยกเลิก
+            {t('cancel')}
           </Button>
           <Button
             icon={<Printer className="h-4 w-4" />}
@@ -1264,7 +1264,7 @@ export default function TransferPage() {
               setPrintingBatch(null);
             }}
           >
-            ยืนยันพิมพ์
+            {t('confirmPrint')}
           </Button>
         </ModalFooter>
       </Modal>

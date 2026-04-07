@@ -935,11 +935,11 @@ export default function WithdrawalsPage() {
       <Modal
         isOpen={showManualModal}
         onClose={() => setShowManualModal(false)}
-        title={manualStep === 'search' ? 'เบิกเหล้าใหม่ — เลือกรายการฝาก' : `เบิกเหล้าใหม่ — ยืนยัน ${withdrawItems.length} รายการ`}
+        title={manualStep === 'search' ? t('withdrawals.manual.searchTitle') : t('withdrawals.manual.confirmTitle', { count: withdrawItems.length })}
         description={
           manualStep === 'search'
-            ? 'ค้นหาจากชื่อลูกค้า, รหัสฝาก, หรือชื่อสินค้า — เลือกได้หลายรายการ'
-            : 'ตรวจสอบรายการและจำนวนก่อนยืนยัน'
+            ? t('withdrawals.manual.searchDesc')
+            : t('withdrawals.manual.confirmDesc')
         }
         size="lg"
       >
@@ -950,7 +950,7 @@ export default function WithdrawalsPage() {
               <div className="flex items-center justify-between rounded-lg bg-indigo-50 px-4 py-2.5 dark:bg-indigo-900/20">
                 <div className="flex items-center gap-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
                   <ShoppingCart className="h-4 w-4" />
-                  เลือกแล้ว {withdrawItems.length} รายการ
+                  {t('withdrawals.manual.selectedCount', { count: withdrawItems.length })}
                 </div>
                 <Button
                   variant="primary"
@@ -958,7 +958,7 @@ export default function WithdrawalsPage() {
                   onClick={() => setManualStep('confirm')}
                   icon={<CheckCircle2 className="h-3.5 w-3.5" />}
                 >
-                  ถัดไป
+                  {t('withdrawals.manual.next')}
                 </Button>
               </div>
             )}
@@ -970,7 +970,7 @@ export default function WithdrawalsPage() {
                 type="text"
                 value={depositSearch}
                 onChange={(e) => setDepositSearch(e.target.value)}
-                placeholder="พิมพ์ชื่อลูกค้า, รหัสฝาก, หรือชื่อสินค้า..."
+                placeholder={t('withdrawals.manual.searchPlaceholder')}
                 className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition-colors focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-indigo-400"
                 autoFocus
               />
@@ -984,7 +984,7 @@ export default function WithdrawalsPage() {
                 </div>
               ) : depositResults.length === 0 ? (
                 <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                  {depositSearch ? 'ไม่พบรายการฝากที่ค้นหา' : 'ไม่มีรายการฝากที่สามารถเบิกได้'}
+                  {depositSearch ? t('withdrawals.manual.noSearchResults') : t('withdrawals.manual.noDepositsAvailable')}
                 </div>
               ) : (
                 depositResults.map((dep) => {
@@ -1025,7 +1025,7 @@ export default function WithdrawalsPage() {
                         </div>
                         <div className="text-right">
                           <Badge variant="info">
-                            คงเหลือ {formatNumber(dep.remaining_qty)}/{formatNumber(dep.quantity)}
+                            {t('withdrawals.manual.remaining', { remaining: formatNumber(dep.remaining_qty), total: formatNumber(dep.quantity) })}
                           </Badge>
                         </div>
                       </div>
@@ -1081,10 +1081,10 @@ export default function WithdrawalsPage() {
                         )}
                       />
                       <span className="text-xs text-gray-500 dark:text-gray-400">
-                        / {formatNumber(item.deposit.remaining_qty)} หน่วย
+                        / {formatNumber(item.deposit.remaining_qty)} {t('withdrawals.manual.unit')}
                       </span>
                       {hasError && q > item.deposit.remaining_qty && (
-                        <span className="text-xs text-red-500">เกินจำนวนคงเหลือ</span>
+                        <span className="text-xs text-red-500">{t('withdrawals.manual.exceedsRemaining')}</span>
                       )}
                     </div>
                   </div>
@@ -1094,13 +1094,13 @@ export default function WithdrawalsPage() {
 
             {withdrawItems.length === 0 && (
               <div className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                ยังไม่ได้เลือกรายการ
+                {t('withdrawals.manual.noItemsSelected')}
               </div>
             )}
 
             {/* Withdrawal type selector */}
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">ประเภทการเบิก</label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('withdrawals.manual.withdrawType')}</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -1115,7 +1115,7 @@ export default function WithdrawalsPage() {
                   )}
                 >
                   <Wine className="h-4 w-4" />
-                  เบิกใช้ในร้าน
+                  {t('withdrawals.manual.inStore')}
                 </button>
                 <button
                   type="button"
@@ -1128,12 +1128,12 @@ export default function WithdrawalsPage() {
                   )}
                 >
                   <Home className="h-4 w-4" />
-                  เบิกกลับบ้าน
+                  {t('withdrawals.manual.takeHome')}
                 </button>
               </div>
               {blockedDayInfo?.blocked && (
                 <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                  วันนี้อนุญาตเฉพาะเบิกกลับบ้านเท่านั้น
+                  {t('withdrawals.blockedDayOnly')}
                 </p>
               )}
             </div>
@@ -1142,15 +1142,15 @@ export default function WithdrawalsPage() {
               value={manualPhotoUrl}
               onChange={(url) => setManualPhotoUrl(url)}
               folder="withdrawals"
-              label="ถ่ายรูปประกอบ (ไม่บังคับ)"
+              label={t('withdrawals.manual.photoLabel')}
               compact={true}
             />
 
             <Textarea
-              label="หมายเหตุ"
+              label={t('withdrawals.manual.notesLabel')}
               value={manualNotes}
               onChange={(e) => setManualNotes(e.target.value)}
-              placeholder="หมายเหตุเพิ่มเติม (ไม่บังคับ)"
+              placeholder={t('withdrawals.manual.notesPlaceholder')}
               rows={2}
             />
           </div>
@@ -1163,7 +1163,7 @@ export default function WithdrawalsPage() {
                 variant="outline"
                 onClick={() => setManualStep('search')}
               >
-                กลับเลือกเพิ่ม
+                {t('withdrawals.manual.backToSearch')}
               </Button>
               <Button
                 variant="primary"
@@ -1172,7 +1172,7 @@ export default function WithdrawalsPage() {
                 disabled={validItems.length === 0}
                 icon={<Minus className="h-4 w-4" />}
               >
-                ยืนยันเบิก {validItems.length} รายการ
+                {t('withdrawals.manual.confirmItems', { count: validItems.length })}
               </Button>
             </>
           ) : (
@@ -1181,7 +1181,7 @@ export default function WithdrawalsPage() {
                 variant="outline"
                 onClick={() => setShowManualModal(false)}
               >
-                ปิด
+                {t('withdrawals.manual.close')}
               </Button>
               {withdrawItems.length > 0 && (
                 <Button
@@ -1189,7 +1189,7 @@ export default function WithdrawalsPage() {
                   onClick={() => setManualStep('confirm')}
                   icon={<CheckCircle2 className="h-4 w-4" />}
                 >
-                  ถัดไป ({withdrawItems.length})
+                  {t('withdrawals.manual.nextCount', { count: withdrawItems.length })}
                 </Button>
               )}
             </>
