@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
+import { useTranslations } from 'next-intl';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useRealtime } from '@/hooks/use-realtime';
@@ -100,33 +101,35 @@ interface FormItem {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function relativeTime(dateStr: string): string {
+function relativeTime(dateStr: string, t: ReturnType<typeof useTranslations>): string {
   const now = Date.now();
   const diff = now - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'เมื่อสักครู่';
-  if (mins < 60) return `${mins} นาทีที่แล้ว`;
+  if (mins < 1) return t('justNow');
+  if (mins < 60) return t('minutesAgo', { count: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} ชั่วโมงที่แล้ว`;
+  if (hours < 24) return t('hoursAgo', { count: hours });
   const days = Math.floor(hours / 24);
-  return `${days} วันที่แล้ว`;
+  return t('daysAgo', { count: days });
 }
 
 function isNew(dateStr: string): boolean {
   return Date.now() - new Date(dateStr).getTime() < 5 * 60 * 1000;
 }
 
-const statusConfig: Record<
+function getStatusConfig(t: ReturnType<typeof useTranslations>): Record<
   BorrowWithDetails['status'],
   { label: string; variant: 'warning' | 'info' | 'default' | 'success' | 'danger'; step: number }
-> = {
-  pending_approval: { label: 'รออนุมัติ', variant: 'warning', step: 0 },
-  approved: { label: 'อนุมัติแล้ว', variant: 'info', step: 1 },
-  pos_adjusting: { label: 'รอตัดสต๊อก', variant: 'default', step: 2 },
-  completed: { label: 'เสร็จสิ้น', variant: 'success', step: 3 },
-  rejected: { label: 'ปฏิเสธ', variant: 'danger', step: -1 },
-  cancelled: { label: 'ยกเลิก', variant: 'danger', step: -1 },
-};
+> {
+  return {
+    pending_approval: { label: t('statusPendingApproval'), variant: 'warning', step: 0 },
+    approved: { label: t('statusApproved'), variant: 'info', step: 1 },
+    pos_adjusting: { label: t('statusPosAdjusting'), variant: 'default', step: 2 },
+    completed: { label: t('statusCompleted'), variant: 'success', step: 3 },
+    rejected: { label: t('statusRejected'), variant: 'danger', step: -1 },
+    cancelled: { label: t('statusCancelled'), variant: 'danger', step: -1 },
+  };
+}
 
 /**
  * สถานะจากมุมมองของฝั่งที่กำลังดู:
@@ -135,17 +138,18 @@ const statusConfig: Record<
 function getVisualStatus(
   borrow: BorrowWithDetails,
   currentStoreId: string,
+  t: ReturnType<typeof useTranslations>,
 ): { label: string; variant: 'warning' | 'info' | 'default' | 'success' | 'danger'; step: number } {
   const isBorrowerSide = borrow.from_store_id === currentStoreId;
   const isLenderSide = borrow.to_store_id === currentStoreId;
+  const statusConfig = getStatusConfig(t);
 
-  // ถ้าสถานะเป็น pos_adjusting แต่ฝั่งเราตัดแล้ว → แสดงเป็นเสร็จสิ้น
   if (borrow.status === 'pos_adjusting' || borrow.status === 'approved') {
     if (isBorrowerSide && borrow.borrower_pos_confirmed) {
-      return { label: 'เสร็จสิ้น (ฝั่งเรา)', variant: 'success', step: 3 };
+      return { label: t('statusOurSideDone'), variant: 'success', step: 3 };
     }
     if (isLenderSide && borrow.lender_pos_confirmed) {
-      return { label: 'เสร็จสิ้น (ฝั่งเรา)', variant: 'success', step: 3 };
+      return { label: t('statusOurSideDone'), variant: 'success', step: 3 };
     }
   }
 
@@ -160,11 +164,14 @@ const EMPTY_FORM_ITEM: FormItem = { product_name: '', category: '', quantity: ''
 
 function StatusProgressBar({
   status,
+  t,
 }: {
   status: BorrowWithDetails['status'];
+  t: ReturnType<typeof useTranslations>;
 }) {
-  const steps = ['ส่งคำขอ', 'อนุมัติ', 'ตัดสต๊อก POS', 'เสร็จสิ้น'];
+  const steps = [t('stepSendRequest'), t('stepApprove'), t('stepPosAdjust'), t('stepComplete')];
   const isRejected = status === 'rejected';
+  const statusConfig = getStatusConfig(t);
   const currentStep = statusConfig[status].step;
 
   return (
@@ -248,13 +255,15 @@ function BorrowCard({
   tab,
   currentStoreId,
   onClick,
+  t,
 }: {
   borrow: BorrowWithDetails;
   tab: 'outgoing' | 'incoming';
   currentStoreId: string;
   onClick: () => void;
+  t: ReturnType<typeof useTranslations>;
 }) {
-  const config = getVisualStatus(borrow, currentStoreId);
+  const config = getVisualStatus(borrow, currentStoreId, t);
   const otherStore =
     tab === 'outgoing' ? borrow.to_store_name : borrow.from_store_name;
   const itemsSummary = borrow.items
@@ -279,7 +288,7 @@ function BorrowCard({
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
             <Store className="h-4 w-4 shrink-0 text-teal-500" />
             <span className="font-medium truncate max-w-[180px] sm:max-w-none">
-              {otherStore || 'ไม่ทราบสาขา'}
+              {otherStore || t('unknownStore')}
             </span>
           </div>
           <Badge variant={config.variant as 'warning' | 'success' | 'danger' | 'info' | 'default'} size="sm">
@@ -289,7 +298,7 @@ function BorrowCard({
 
         {/* Items summary */}
         <p className="mt-2 text-sm text-gray-800 dark:text-gray-200 line-clamp-2">
-          <span className="font-medium text-teal-600 dark:text-teal-400">{totalItems} รายการ:</span>{' '}
+          <span className="font-medium text-teal-600 dark:text-teal-400">{t('itemCount', { count: totalItems })}</span>{' '}
           {itemsSummary}
         </p>
 
@@ -302,7 +311,7 @@ function BorrowCard({
                 {borrow.requester_name}
               </span>
             )}
-            <span>{relativeTime(borrow.created_at)}</span>
+            <span>{relativeTime(borrow.created_at, t)}</span>
           </div>
           <div className="flex items-center gap-2">
             {hasPhoto && <Camera className="h-3.5 w-3.5 text-gray-400" />}
@@ -331,12 +340,14 @@ function CreateBorrowModal({
   stores,
   currentStoreId,
   onSuccess,
+  t,
 }: {
   isOpen: boolean;
   onClose: () => void;
   stores: StoreOption[];
   currentStoreId: string;
   onSuccess: () => void;
+  t: ReturnType<typeof useTranslations>;
 }) {
   const [targetStore, setTargetStore] = useState('');
   const [items, setItems] = useState<FormItem[]>([{ ...EMPTY_FORM_ITEM }]);
@@ -453,17 +464,17 @@ function CreateBorrowModal({
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'ไม่สามารถสร้างคำขอยืมได้');
+        throw new Error(data.error || t('createError'));
       }
 
-      toast({ type: 'success', title: 'สร้างคำขอยืมสำเร็จ' });
+      toast({ type: 'success', title: t('createSuccess') });
       handleClose();
       onSuccess();
     } catch (err) {
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: err instanceof Error ? err.message : 'ลองอีกครั้ง',
+        title: t('actionError'),
+        message: err instanceof Error ? err.message : t('tryAgain'),
       });
     } finally {
       setIsSubmitting(false);

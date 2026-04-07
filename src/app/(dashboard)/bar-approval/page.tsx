@@ -793,7 +793,7 @@ export default function BarApprovalPage() {
           <div className="flex items-center gap-2">
             <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             <span className="text-sm text-blue-700 dark:text-blue-300">
-              เบิกรอดำเนินการ
+              {t('withdrawalTab')}
             </span>
           </div>
           <p className="mt-1 text-2xl font-bold text-blue-800 dark:text-blue-200">
@@ -814,7 +814,7 @@ export default function BarApprovalPage() {
           )}
         >
           <Wine className="h-4 w-4" />
-          ฝากรอยืนยัน
+          {t('depositTab')}
           {depositCount > 0 && (
             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
               {depositCount}
@@ -831,7 +831,7 @@ export default function BarApprovalPage() {
           )}
         >
           <Package className="h-4 w-4" />
-          เบิกรอดำเนินการ
+          {t('withdrawalTab')}
           {withdrawalCount > 0 && (
             <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
               {withdrawalCount}
@@ -853,8 +853,8 @@ export default function BarApprovalPage() {
           isLoading={isLoading}
           emptyMessage={
             activeTab === 'deposit'
-              ? 'ไม่มีรายการฝากรอยืนยัน'
-              : 'ไม่มีรายการเบิกรอดำเนินการ'
+              ? t('noDeposits')
+              : t('noWithdrawals')
           }
         />
       ) : activeTab === 'deposit' ? (
@@ -865,13 +865,13 @@ export default function BarApprovalPage() {
           {deposits.length === 0 ? (
             <EmptyState
               icon={Inbox}
-              title="ไม่มีรายการฝากรอยืนยัน"
-              description="รายการฝากเหล้าที่พนักงานสร้างจะแสดงที่นี่"
+              title={t('noDeposits')}
+              description={t('noDepositsDesc')}
             />
           ) : (
             deposits.map((deposit) => {
               const staffName =
-                deposit.received_by_profile?.display_name || 'ไม่ระบุ';
+                deposit.received_by_profile?.display_name || t('unspecifiedStaff');
 
               return (
                 <Card key={deposit.id} padding="none">
@@ -901,7 +901,7 @@ export default function BarApprovalPage() {
                       </div>
                       <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
                         <Hash className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                        <span>จำนวน: {formatNumber(deposit.quantity)}{deposit.remaining_percent != null ? ` (${deposit.remaining_percent}%)` : ''}</span>
+                        <span>{t('quantity', { count: formatNumber(deposit.quantity) })}{deposit.remaining_percent != null ? ` (${deposit.remaining_percent}%)` : ''}</span>
                       </div>
                       {deposit.table_number && (
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
@@ -911,7 +911,7 @@ export default function BarApprovalPage() {
                       )}
                       <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
                         <User className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                        <span className="text-gray-400 dark:text-gray-500">ผู้รับ:</span>
+                        <span className="text-gray-400 dark:text-gray-500">{t('receiver')}</span>
                         <span>{staffName}</span>
                       </div>
                       <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
@@ -939,12 +939,12 @@ export default function BarApprovalPage() {
                           className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400"
                         >
                           <ImageIcon className="h-3.5 w-3.5" />
-                          {expandedPhoto === deposit.id ? 'ซ่อนรูปลูกค้า' : 'ดูรูปจากลูกค้า'}
+                          {expandedPhoto === deposit.id ? t('hideCustomerPhoto') : t('viewCustomerPhoto')}
                         </button>
                         {expandedPhoto === deposit.id && (
                           <img
                             src={deposit.customer_photo_url}
-                            alt="รูปจากลูกค้า"
+                            alt={t('customerPhotoAlt')}
                             className="mt-2 max-h-48 w-full rounded-lg object-cover"
                           />
                         )}
@@ -964,12 +964,12 @@ export default function BarApprovalPage() {
                           className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400"
                         >
                           <Camera className="h-3.5 w-3.5" />
-                          {expandedPhoto === `recv-${deposit.id}` ? 'ซ่อนรูปรับของ' : 'ดูรูปรับของ'}
+                          {expandedPhoto === `recv-${deposit.id}` ? t('hideReceivedPhoto') : t('viewReceivedPhoto')}
                         </button>
                         {expandedPhoto === `recv-${deposit.id}` && (
                           <img
                             src={deposit.received_photo_url}
-                            alt="รูปรับของ"
+                            alt={t('receivedPhotoAlt')}
                             className="mt-2 max-h-48 w-full rounded-lg object-cover"
                           />
                         )}
@@ -990,7 +990,7 @@ export default function BarApprovalPage() {
                           })
                         }
                       >
-                        ยืนยันรับ
+                        {t('confirmReceive')}
                       </Button>
                       <Button
                         className="min-h-[44px] flex-1"
@@ -1003,7 +1003,7 @@ export default function BarApprovalPage() {
                           })
                         }
                       >
-                        ปฏิเสธ
+                        {t('rejectBtn')}
                       </Button>
                     </div>
                   </div>
@@ -1020,8 +1020,8 @@ export default function BarApprovalPage() {
           {withdrawals.length === 0 ? (
             <EmptyState
               icon={Inbox}
-              title="ไม่มีรายการเบิกรอดำเนินการ"
-              description="รายการเบิกเหล้าที่ลูกค้าหรือพนักงานร้องขอจะแสดงที่นี่"
+              title={t('noWithdrawals')}
+              description={t('noWithdrawalsDesc')}
             />
           ) : (
             withdrawals.map((withdrawal) => {
@@ -1036,7 +1036,7 @@ export default function BarApprovalPage() {
                     <div className="mb-3 flex items-start justify-between">
                       <div className="min-w-0 flex-1">
                         <h3 className="font-semibold text-gray-900 dark:text-white">
-                          {withdrawal.product_name || 'ไม่ระบุสินค้า'}
+                          {withdrawal.product_name || t('unspecifiedProduct')}
                         </h3>
                         {depositCode && (
                           <p className="text-xs font-mono text-indigo-600 dark:text-indigo-400">
@@ -1059,7 +1059,7 @@ export default function BarApprovalPage() {
                       )}
                       <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
                         <Hash className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                        <span>ขอเบิก: {withdrawal.requested_qty != null ? formatNumber(withdrawal.requested_qty) : '-'}</span>
+                        <span>{t('requestedQty', { count: withdrawal.requested_qty != null ? formatNumber(withdrawal.requested_qty) : '-' })}</span>
                       </div>
                       {withdrawal.table_number && (
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
@@ -1094,7 +1094,7 @@ export default function BarApprovalPage() {
                           })
                         }
                       >
-                        ดำเนินการ
+                        {t('processBtn')}
                       </Button>
                       <Button
                         className="min-h-[44px] flex-1"
@@ -1107,7 +1107,7 @@ export default function BarApprovalPage() {
                           })
                         }
                       >
-                        ปฏิเสธ
+                        {t('rejectBtn')}
                       </Button>
                     </div>
                   </div>
@@ -1124,7 +1124,7 @@ export default function BarApprovalPage() {
       <Modal
         isOpen={!!confirmDeposit}
         onClose={() => !isSubmitting && setConfirmDeposit(null)}
-        title="ยืนยันรับฝากเหล้า"
+        title={t('confirmDepositTitle')}
         description={confirmDeposit ? `${confirmDeposit.deposit.product_name} - ${confirmDeposit.deposit.customer_name}` : undefined}
         size="md"
       >
@@ -1138,13 +1138,13 @@ export default function BarApprovalPage() {
                 )
               }
               folder="deposits"
-              label="ถ่ายรูปยืนยัน"
+              label={t('confirmPhoto')}
               compact={false}
             />
 
             <Textarea
-              label="หมายเหตุ (ไม่บังคับ)"
-              placeholder="เช่น ตรวจสอบแล้ว ขวดสมบูรณ์..."
+              label={t('notesOptional')}
+              placeholder={t('notesPlaceholderDeposit')}
               rows={3}
               value={confirmDeposit.notes}
               onChange={(e) =>
@@ -1162,7 +1162,7 @@ export default function BarApprovalPage() {
                 disabled={isSubmitting}
                 className="min-h-[44px]"
               >
-                ยกเลิก
+                {t('cancel')}
               </Button>
               <Button
                 variant="primary"
@@ -1171,7 +1171,7 @@ export default function BarApprovalPage() {
                 icon={<CheckCircle className="h-4 w-4" />}
                 className="min-h-[44px]"
               >
-                ยืนยันรับ
+                {t('confirmReceive')}
               </Button>
             </ModalFooter>
           </div>
@@ -1184,15 +1184,15 @@ export default function BarApprovalPage() {
       <Modal
         isOpen={!!rejectDeposit}
         onClose={() => !isSubmitting && setRejectDeposit(null)}
-        title="ปฏิเสธรายการฝากเหล้า"
+        title={t('rejectDepositTitle')}
         description={rejectDeposit ? `${rejectDeposit.deposit.product_name} - ${rejectDeposit.deposit.customer_name}` : undefined}
         size="md"
       >
         {rejectDeposit && (
           <div className="space-y-4">
             <Textarea
-              label="เหตุผลในการปฏิเสธ"
-              placeholder="เช่น ขวดไม่ตรงกับที่แจ้ง, สินค้าเสียหาย..."
+              label={t('rejectReasonLabel')}
+              placeholder={t('rejectReasonPlaceholder')}
               rows={3}
               value={rejectDeposit.reason}
               onChange={(e) =>
@@ -1211,7 +1211,7 @@ export default function BarApprovalPage() {
                 disabled={isSubmitting}
                 className="min-h-[44px]"
               >
-                ยกเลิก
+                {t('cancel')}
               </Button>
               <Button
                 variant="danger"
@@ -1220,7 +1220,7 @@ export default function BarApprovalPage() {
                 icon={<XCircle className="h-4 w-4" />}
                 className="min-h-[44px]"
               >
-                ปฏิเสธ
+                {t('rejectBtn')}
               </Button>
             </ModalFooter>
           </div>
@@ -1233,14 +1233,14 @@ export default function BarApprovalPage() {
       <Modal
         isOpen={!!completeWithdrawal}
         onClose={() => !isSubmitting && setCompleteWithdrawal(null)}
-        title="ดำเนินการเบิกเหล้า"
+        title={t('completeWithdrawalTitle')}
         description={completeWithdrawal ? `${completeWithdrawal.withdrawal.product_name} - ${completeWithdrawal.withdrawal.customer_name}` : undefined}
         size="md"
       >
         {completeWithdrawal && (
           <div className="space-y-4">
             <Input
-              label="จำนวนที่เบิกจริง"
+              label={t('actualQty')}
               type="number"
               min={1}
               value={completeWithdrawal.actualQty}
@@ -1250,7 +1250,7 @@ export default function BarApprovalPage() {
                 )
               }
               disabled={isSubmitting}
-              hint={`ลูกค้าขอเบิก: ${completeWithdrawal.withdrawal.requested_qty ?? '-'}`}
+              hint={t('actualQtyHint', { count: String(completeWithdrawal.withdrawal.requested_qty ?? '-') })}
             />
 
             <PhotoUpload
@@ -1261,13 +1261,13 @@ export default function BarApprovalPage() {
                 )
               }
               folder="withdrawals"
-              label="ถ่ายรูปประกอบการเบิก"
+              label={t('withdrawalPhoto')}
               compact
             />
 
             <Textarea
-              label="หมายเหตุ (ไม่บังคับ)"
-              placeholder="เช่น เบิกบางส่วน, ลูกค้ามารับเอง..."
+              label={t('notesOptional')}
+              placeholder={t('withdrawalNotesPlaceholder')}
               rows={2}
               value={completeWithdrawal.notes}
               onChange={(e) =>
@@ -1285,7 +1285,7 @@ export default function BarApprovalPage() {
                 disabled={isSubmitting}
                 className="min-h-[44px]"
               >
-                ยกเลิก
+                {t('cancel')}
               </Button>
               <Button
                 variant="primary"
@@ -1294,7 +1294,7 @@ export default function BarApprovalPage() {
                 icon={<CheckCircle className="h-4 w-4" />}
                 className="min-h-[44px]"
               >
-                เบิกสำเร็จ
+                {t('completeBtn')}
               </Button>
             </ModalFooter>
           </div>
@@ -1307,15 +1307,15 @@ export default function BarApprovalPage() {
       <Modal
         isOpen={!!rejectWithdrawal}
         onClose={() => !isSubmitting && setRejectWithdrawal(null)}
-        title="ปฏิเสธการเบิกเหล้า"
+        title={t('rejectWithdrawalTitle')}
         description={rejectWithdrawal ? `${rejectWithdrawal.withdrawal.product_name} - ${rejectWithdrawal.withdrawal.customer_name}` : undefined}
         size="md"
       >
         {rejectWithdrawal && (
           <div className="space-y-4">
             <Textarea
-              label="เหตุผลในการปฏิเสธ"
-              placeholder="เช่น ขวดไม่พบในร้าน, ข้อมูลไม่ตรง..."
+              label={t('rejectReasonLabel')}
+              placeholder={t('rejectWithdrawalPlaceholder')}
               rows={3}
               value={rejectWithdrawal.reason}
               onChange={(e) =>
@@ -1333,7 +1333,7 @@ export default function BarApprovalPage() {
                 disabled={isSubmitting}
                 className="min-h-[44px]"
               >
-                ยกเลิก
+                {t('cancel')}
               </Button>
               <Button
                 variant="danger"
@@ -1342,7 +1342,7 @@ export default function BarApprovalPage() {
                 icon={<XCircle className="h-4 w-4" />}
                 className="min-h-[44px]"
               >
-                ปฏิเสธ
+                {t('rejectBtn')}
               </Button>
             </ModalFooter>
           </div>
