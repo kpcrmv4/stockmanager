@@ -129,7 +129,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
         .order('store_id');
 
       if (userStoreData) {
-        const users: StoreUser[] = userStoreData
+        const users = userStoreData
           .map((d) => {
             const profile = d.profiles as unknown as StoreUser;
             const store = d.stores as unknown as { name: string } | null;
@@ -138,10 +138,9 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
               ...profile,
               store_id: d.store_id,
               store_name: store?.name || '',
-            };
+            } as StoreUser;
           })
-          .filter((u): u is StoreUser => u !== null && u.id !== user.id)
-          .filter((u) => !u.username?.startsWith('printer'));
+          .filter((u): u is StoreUser => u !== null && u.id !== user.id && !u.username?.startsWith('printer'));
 
         setAllStoreUsers(users);
       }
