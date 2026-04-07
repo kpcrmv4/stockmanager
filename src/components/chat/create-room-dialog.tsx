@@ -148,29 +148,17 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
     }
   }, [isOpen]);
 
-  // Auto-select owners when switching to group direct mode
+  // Reset selections when switching room type
   useEffect(() => {
-    const ownerIds = new Set<string>();
-    if (roomType === 'direct') {
-      storeUsers.forEach((u) => {
-        if (u.role === 'owner') ownerIds.add(u.id);
-      });
-    }
-    setSelectedIds(ownerIds);
+    setSelectedIds(new Set());
     setDmSelectedId(null);
-  }, [roomType, storeUsers]);
+  }, [roomType]);
 
   const toggleUser = (userId: string) => {
     if (roomType === 'dm') {
       // DM: select only one person
       setDmSelectedId((prev) => (prev === userId ? null : userId));
       return;
-    }
-
-    // Don't allow deselecting owner in direct mode
-    if (roomType === 'direct') {
-      const userObj = storeUsers.find((u) => u.id === userId);
-      if (userObj?.role === 'owner') return;
     }
 
     setSelectedIds((prev) => {
@@ -378,7 +366,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
                   key={opt.value}
                   onClick={() => setRoomType(opt.value)}
                   className={cn(
-                    'flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-2.5 text-center transition-all',
+                    'flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 text-center transition-all',
                     isActive
                       ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-900/20'
                       : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500'
@@ -506,7 +494,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
                   user={su}
                   isSelected={roomType === 'dm' ? dmSelectedId === su.id : selectedIds.has(su.id)}
                   isOwner={su.role === 'owner'}
-                  canDeselect={roomType === 'dm' || su.role !== 'owner'}
+                  canDeselect={true}
                   isDm={roomType === 'dm'}
                   onToggle={() => toggleUser(su.id)}
                 />
