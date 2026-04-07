@@ -129,7 +129,8 @@ interface ModuleCardConfig {
 // ---------------------------------------------------------------------------
 
 /** Relative-time string from an ISO timestamp */
-function relativeTime(isoDate: string, t: (key: string, values?: Record<string, unknown>) => string): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function relativeTime(isoDate: string, t: (key: string, values?: any) => string): string {
   const now = Date.now();
   const then = new Date(isoDate).getTime();
   const diffSec = Math.floor((now - then) / 1000);
