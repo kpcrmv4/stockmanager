@@ -78,6 +78,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dmSelectedId, setDmSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [loadingCrossStore, setLoadingCrossStore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('all');
 
@@ -114,19 +115,18 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
     const supabase = createClient();
 
     const loadData = async () => {
-      const { data: storeData } = await supabase
-        .from('stores')
-        .select('id, name')
-        .order('name');
+      setLoadingCrossStore(true);
+      const [{ data: storeData }, { data: userStoreData }] = await Promise.all([
+        supabase.from('stores').select('id, name').order('name'),
+        supabase
+          .from('user_stores')
+          .select('store_id, user_id, stores:store_id(name), profiles:user_id(id, username, display_name, role)')
+          .order('store_id'),
+      ]);
 
       if (storeData) {
         setStores(storeData);
       }
-
-      const { data: userStoreData } = await supabase
-        .from('user_stores')
-        .select('store_id, user_id, stores:store_id(name), profiles:user_id(id, username, display_name, role)')
-        .order('store_id');
 
       if (userStoreData) {
         const users = userStoreData
@@ -144,6 +144,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
 
         setAllStoreUsers(users);
       }
+      setLoadingCrossStore(false);
     };
 
     loadData();
@@ -431,24 +432,39 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
           </div>
         )}
 
-        {/* Store filter for cross_store */}
+        {/* Store filter tabs for cross_store */}
         {roomType === 'cross_store' && stores.length > 0 && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              กรองตามสาขา
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              เลือกสาขา
             </label>
-            <select
-              value={selectedStoreFilter}
-              onChange={(e) => setSelectedStoreFilter(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
-            >
-              <option value="all">ทุกสาขา</option>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setSelectedStoreFilter('all')}
+                className={cn(
+                  'rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                  selectedStoreFilter === 'all'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300'
+                )}
+              >
+                ทุกสาขา
+              </button>
               {stores.map((s) => (
-                <option key={s.id} value={s.id}>
+                <button
+                  key={s.id}
+                  onClick={() => setSelectedStoreFilter(s.id)}
+                  className={cn(
+                    'rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                    selectedStoreFilter === s.id
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300'
+                  )}
+                >
                   {s.name}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
         )}
 
@@ -470,11 +486,16 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
             autoFocus={roomType === 'dm'}
           />
           <div className="max-h-52 space-y-0.5 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700">
-            {displayUsers.length === 0 && (
+            {roomType === 'cross_store' && loadingCrossStore ? (
+              <div className="flex items-center justify-center gap-2 px-3 py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                <span className="text-sm text-gray-400">กำลังโหลดพนักงาน...</span>
+              </div>
+            ) : displayUsers.length === 0 ? (
               <p className="px-3 py-4 text-center text-sm text-gray-400">
                 ไม่พบพนักงาน
               </p>
-            )}
+            ) : null}
 
             {roomType === 'cross_store' && groupedUsers ? (
               // Grouped by store
@@ -540,6 +561,7 @@ function UserRow({
   isOwner,
   canDeselect,
   isDm,
+  storeName,
   onToggle,
 }: {
   user: StoreUser;
@@ -547,6 +569,7 @@ function UserRow({
   isOwner: boolean;
   canDeselect: boolean;
   isDm: boolean;
+  storeName?: string;
   onToggle: () => void;
 }) {
   return (
@@ -592,7 +615,14 @@ function UserRow({
             <span className="ml-1 text-xs text-amber-500">(เจ้าของ)</span>
           )}
         </p>
-        <p className="text-xs text-gray-400">@{user.username}</p>
+        <p className="text-xs text-gray-400">
+          @{user.username}
+          {storeName && (
+            <span className="ml-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+              {storeName}
+            </span>
+          )}
+        </p>
       </div>
     </button>
   );
