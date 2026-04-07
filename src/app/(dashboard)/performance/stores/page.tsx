@@ -101,12 +101,13 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 function ChartEmptyState({ message }: { message?: string }) {
+  const t = useTranslations('performance.stores');
   return (
     <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50">
       <div className="text-center">
         <BarChart3 className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
         <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">
-          {message}
+          {message || t('noDataInRange')}
         </p>
       </div>
     </div>

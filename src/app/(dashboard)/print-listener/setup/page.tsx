@@ -270,7 +270,7 @@ export default function PrinterSetupPage() {
                 >
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">{store.store_name}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">รหัส: {store.store_code}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{store.store_code}</p>
                   </div>
                   {selectedStoreId === store.id && (
                     <CheckCircle2 className="h-5 w-5 text-blue-500 dark:text-blue-400" />

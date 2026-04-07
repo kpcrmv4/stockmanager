@@ -93,6 +93,7 @@ function extractDate(dt: string): string {
 }
 
 function CustomTooltip({ active, payload, label }: any) {
+  const t = useTranslations('performance.staff');
   if (!active || !payload) return null;
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800">
@@ -107,6 +108,7 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 function ChartEmptyState({ message }: { message?: string }) {
+  const t = useTranslations('performance.staff');
   return (
     <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50">
       <div className="text-center">
