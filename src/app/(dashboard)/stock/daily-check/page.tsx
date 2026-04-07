@@ -48,6 +48,7 @@ interface CountEntry {
 const COUNT_ROLES = ['owner', 'manager', 'bar', 'staff'];
 
 export default function DailyCheckPage() {
+  const t = useTranslations('stock');
   const { user } = useAuthStore();
 
   // Role guard — เฉพาะ staff/bar/manager/owner
@@ -55,8 +56,8 @@ export default function DailyCheckPage() {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
         <Package className="h-10 w-10 text-gray-300 dark:text-gray-600" />
-        <p className="text-sm text-gray-500 dark:text-gray-400">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</p>
-        <a href="/stock" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">กลับหน้าสต๊อก</a>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{t('dailyCheck.noPermission')}</p>
+        <a href="/stock" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">{t('dailyCheck.backToStock')}</a>
       </div>
     );
   }
@@ -361,8 +362,8 @@ export default function DailyCheckPage() {
       console.error('Error fetching products:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถโหลดรายการสินค้าได้',
+        title: t('dailyCheck.errorTitle'),
+        message: t('dailyCheck.errorLoadProducts'),
       });
     } finally {
       setLoading(false);
@@ -436,7 +437,7 @@ export default function DailyCheckPage() {
     products.forEach((p) => {
       if (p.category) cats.add(p.category);
     });
-    const tabs = [{ id: 'all', label: 'ทั้งหมด', count: products.length }];
+    const tabs = [{ id: 'all', label: t('dailyCheck.allCategories'), count: products.length }];
     Array.from(cats)
       .sort()
       .forEach((cat) => {
@@ -539,8 +540,8 @@ export default function DailyCheckPage() {
 
       toast({
         type: 'success',
-        title: 'บันทึกสำเร็จ',
-        message: `บันทึกจำนวนนับ ${entries.length} รายการเรียบร้อย`,
+        title: t('dailyCheck.saveSuccess'),
+        message: t('dailyCheck.saveCountMsg', { count: entries.length }),
       });
 
       // Update existing counts state
@@ -559,15 +560,14 @@ export default function DailyCheckPage() {
         if (result.compared) {
           toast({
             type: 'success',
-            title: 'เปรียบเทียบอัตโนมัติสำเร็จ',
-            message: `ตรง ${result.summary?.match || 0} | เกินเกณฑ์ ${result.summary?.over_tolerance || 0} รายการ`,
+            title: t('dailyCheck.autoCompareSuccess'),
+            message: t('dailyCheck.autoCompareMsg', { match: result.summary?.match || 0, overTolerance: result.summary?.over_tolerance || 0 }),
           });
         } else if (result.reason === 'no_pos') {
           toast({
             type: 'info',
-            title: 'รอข้อมูล POS',
-            message:
-              'ยังไม่มีข้อมูล POS — ระบบจะเปรียบเทียบอัตโนมัติเมื่อได้รับข้อมูล',
+            title: t('dailyCheck.waitingPosTitle'),
+            message: t('dailyCheck.waitingPosMsg'),
           });
         }
 
@@ -586,9 +586,8 @@ export default function DailyCheckPage() {
         console.error('Auto-compare error:', err);
         toast({
           type: 'warning',
-          title: 'เปรียบเทียบอัตโนมัติล้มเหลว',
-          message:
-            'สามารถเปรียบเทียบด้วยตนเองได้ที่หน้าผลเปรียบเทียบ',
+          title: t('dailyCheck.autoCompareFailed'),
+          message: t('dailyCheck.autoCompareFailedMsg'),
         });
       } finally {
         setComparing(false);
@@ -597,8 +596,8 @@ export default function DailyCheckPage() {
       console.error('Error saving counts:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถบันทึกข้อมูลการนับได้',
+        title: t('dailyCheck.errorTitle'),
+        message: t('dailyCheck.errorSaveCounts'),
       });
     } finally {
       setSaving(false);
@@ -616,8 +615,8 @@ export default function DailyCheckPage() {
     if (unfilledCount > 0) {
       toast({
         type: 'warning',
-        title: 'กรุณากรอกให้ครบทุกรายการ',
-        message: `ยังไม่ได้กรอกจำนวนอีก ${unfilledCount} รายการ`,
+        title: t('dailyCheck.fillAllItems'),
+        message: t('dailyCheck.unfilledCount', { count: unfilledCount }),
       });
       return;
     }
@@ -655,8 +654,8 @@ export default function DailyCheckPage() {
     if (entries.length === 0) {
       toast({
         type: 'warning',
-        title: 'ไม่มีข้อมูล',
-        message: 'กรุณากรอกจำนวนนับรายการเพิ่มเติมอย่างน้อย 1 รายการ',
+        title: t('dailyCheck.noData'),
+        message: t('dailyCheck.fillSupplementaryMsg'),
       });
       return;
     }
@@ -665,8 +664,8 @@ export default function DailyCheckPage() {
     if (unfilledSup > 0) {
       toast({
         type: 'warning',
-        title: 'กรุณากรอกให้ครบทุกรายการ',
-        message: `ยังไม่ได้กรอกรายการเพิ่มเติมอีก ${unfilledSup} รายการ`,
+        title: t('dailyCheck.fillAllItems'),
+        message: t('dailyCheck.unfilledSupplementary', { count: unfilledSup }),
       });
       return;
     }
@@ -698,8 +697,8 @@ export default function DailyCheckPage() {
 
       toast({
         type: 'success',
-        title: 'บันทึกรายการเพิ่มเติมสำเร็จ',
-        message: `บันทึก ${entries.length} รายการเรียบร้อย`,
+        title: t('dailyCheck.saveSupplementarySuccess'),
+        message: t('dailyCheck.saveSupplementaryMsg', { count: entries.length }),
       });
 
       setSupplementaryItems([]);
