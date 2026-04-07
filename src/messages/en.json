@@ -1529,6 +1529,7 @@
     "confirmReceiveAll": "Confirm receive all ({count} items)",
     "onePhotoForAll": "One photo for all items in {code}",
     "refreshSuccess": "Data refreshed",
-    "unknownBranch": "Unknown"
+    "unknownBranch": "Unknown",
+    "fromBranchField": "From branch:"
   }
 }

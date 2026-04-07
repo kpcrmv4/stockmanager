@@ -1529,6 +1529,7 @@
     "confirmReceiveAll": "ยืนยันรับทั้งหมด ({count} รายการ)",
     "onePhotoForAll": "รูปเดียวใช้กับทุกรายการใน {code}",
     "refreshSuccess": "โหลดข้อมูลใหม่แล้ว",
-    "unknownBranch": "ไม่ทราบ"
+    "unknownBranch": "ไม่ทราบ",
+    "fromBranchField": "จากสาขา:"
   }
 }
