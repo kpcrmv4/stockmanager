@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Bell, X } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { usePushSubscription } from '@/hooks/use-push-subscription';
+import { useTranslations } from 'next-intl';
 
 const DISMISSED_KEY = 'push-prompt-dismissed';
 
@@ -12,6 +13,7 @@ interface PushPromptProps {
 }
 
 export function PushPrompt({ className }: PushPromptProps) {
+  const t = useTranslations('pushPrompt');
   const { isSupported, isSubscribed, isLoading, permission, subscribe } =
     usePushSubscription();
   const [dismissed, setDismissed] = useState(true); // default to hidden to avoid flash
@@ -59,10 +61,10 @@ export function PushPrompt({ className }: PushPromptProps) {
       {/* Content */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
-          เปิดการแจ้งเตือน
+          {t('title')}
         </p>
         <p className="mt-0.5 text-xs text-blue-700 dark:text-blue-300">
-          รับแจ้งเตือนทันทีเมื่อมีรายการใหม่
+          {t('description')}
         </p>
 
         {/* Actions */}
@@ -75,13 +77,13 @@ export function PushPrompt({ className }: PushPromptProps) {
               isLoading && 'cursor-not-allowed opacity-60'
             )}
           >
-            {isLoading ? 'กำลังเปิด...' : 'เปิด'}
+            {isLoading ? t('enabling') : t('enable')}
           </button>
           <button
             onClick={handleDismiss}
             className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-100 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-800/30 dark:hover:text-blue-300"
           >
-            ภายหลัง
+            {t('later')}
           </button>
         </div>
       </div>
@@ -90,7 +92,7 @@ export function PushPrompt({ className }: PushPromptProps) {
       <button
         onClick={handleDismiss}
         className="shrink-0 rounded-md p-0.5 text-blue-400 transition-colors hover:bg-blue-100 hover:text-blue-600 dark:text-blue-500 dark:hover:bg-blue-800/30 dark:hover:text-blue-300"
-        aria-label="ปิด"
+        aria-label={t('close')}
       >
         <X className="h-4 w-4" />
       </button>

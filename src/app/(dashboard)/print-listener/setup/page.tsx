@@ -22,6 +22,7 @@ import {
   Play,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,23 +36,28 @@ interface StoreOption {
 
 type SetupStep = 'store' | 'install' | 'printer' | 'test' | 'done';
 
-const STEPS: { key: SetupStep; label: string }[] = [
-  { key: 'store', label: 'เลือกสาขา' },
-  { key: 'install', label: 'ติดตั้งแอป' },
-  { key: 'printer', label: 'ต่อเครื่องปริ้น' },
-  { key: 'test', label: 'ทดสอบ' },
-  { key: 'done', label: 'เสร็จสิ้น' },
-];
+// STEPS labels moved inside component for i18n
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
+const STEP_KEYS: SetupStep[] = ['store', 'install', 'printer', 'test', 'done'];
+
 export default function PrinterSetupPage() {
+  const t = useTranslations('printSetup');
   const supabase = useRef(createClient()).current;
   const { user } = useAuthStore();
   const { currentStoreId, setCurrentStoreId } = useAppStore();
   const { canInstall, isInstalled, isInstalling, install } = useInstallPWA();
+
+  const STEPS: { key: SetupStep; label: string }[] = [
+    { key: 'store', label: t('stepStore') },
+    { key: 'install', label: t('stepInstall') },
+    { key: 'printer', label: t('stepPrinter') },
+    { key: 'test', label: t('stepTest') },
+    { key: 'done', label: t('stepDone') },
+  ];
 
   const [currentStep, setCurrentStep] = useState<SetupStep>('store');
   const [stores, setStores] = useState<StoreOption[]>([]);
@@ -173,14 +179,14 @@ export default function PrinterSetupPage() {
           className="mb-3 inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
         >
           <ArrowLeft className="h-4 w-4" />
-          กลับไป Print Station
+          {t('backToPrintStation')}
         </Link>
         <h1 className="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-white">
           <Settings className="h-5 w-5" />
-          ตั้งค่าเครื่องปริ้น
+          {t('title')}
         </h1>
         <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-          ตั้งค่าคอมพิวเตอร์ที่บาร์ให้พร้อมรับงานพิมพ์อัตโนมัติ
+          {t('subtitle')}
         </p>
       </div>
 
@@ -243,9 +249,9 @@ export default function PrinterSetupPage() {
                 <Monitor className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900 dark:text-white">เลือกสาขาสำหรับเครื่องนี้</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-white">{t('selectStoreTitle')}</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  คอมพิวเตอร์เครื่องนี้จะรับงานพิมพ์เฉพาะสาขาที่เลือก
+                  {t('selectStoreDesc')}
                 </p>
               </div>
             </div>
@@ -275,7 +281,7 @@ export default function PrinterSetupPage() {
               {stores.length === 0 && (
                 <div className="flex flex-col items-center py-8 text-gray-400">
                   <AlertCircle className="mb-2 h-8 w-8" />
-                  <p className="text-sm">ไม่พบสาขาที่คุณมีสิทธิ์เข้าถึง</p>
+                  <p className="text-sm">{t('noStoreAccess')}</p>
                 </div>
               )}
             </div>
@@ -290,9 +296,9 @@ export default function PrinterSetupPage() {
                 <Download className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900 dark:text-white">ติดตั้งแอปและตั้งค่าเปิดอัตโนมัติ</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-white">{t('installTitle')}</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  ติดตั้งเป็นแอปบนคอม แล้วตั้งให้เปิดอัตโนมัติเมื่อเปิดเครื่อง
+                  {t('installDesc')}
                 </p>
               </div>
             </div>
@@ -302,17 +308,17 @@ export default function PrinterSetupPage() {
               <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900/50">
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">1</span>
-                  ติดตั้งเป็นแอปบนคอมพิวเตอร์
+                  {t('installPwaStep')}
                 </h3>
 
                 {isInstalled ? (
                   <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
                     <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                       <CheckCircle2 className="h-5 w-5" />
-                      <span className="font-medium">ติดตั้งแล้ว!</span>
+                      <span className="font-medium">{t('installed')}</span>
                     </div>
                     <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-500">
-                      StockManager ถูกติดตั้งเป็นแอปบนเครื่องนี้แล้ว
+                      {t('installedDesc')}
                     </p>
                   </div>
                 ) : canInstall ? (
@@ -326,10 +332,10 @@ export default function PrinterSetupPage() {
                       )}
                     >
                       <Download className="h-5 w-5" />
-                      {isInstalling ? 'กำลังติดตั้ง...' : 'ติดตั้ง StockManager'}
+                      {isInstalling ? t('installing') : t('installButton')}
                     </button>
                     <p className="text-center text-xs text-gray-400 dark:text-gray-500">
-                      คลิกปุ่มด้านบน แล้วกด &quot;ติดตั้ง&quot; ในป๊อปอัพที่ขึ้นมา
+                      {t('installPopupHint')}
                     </p>
                   </div>
                 ) : (
@@ -338,9 +344,9 @@ export default function PrinterSetupPage() {
                       <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                         <div>
-                          <p className="text-sm font-medium">ไม่สามารถติดตั้งอัตโนมัติได้</p>
+                          <p className="text-sm font-medium">{t('cannotAutoInstall')}</p>
                           <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">
-                            กรุณาติดตั้งด้วยตนเอง: คลิก <strong>เมนู ⋮</strong> ที่มุมขวาบนของ Chrome → <strong>&quot;ติดตั้ง StockManager...&quot;</strong>
+                            {t('manualInstallHint')}
                           </p>
                         </div>
                       </div>
@@ -353,7 +359,7 @@ export default function PrinterSetupPage() {
               <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900/50">
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">2</span>
-                  ตั้งค่าเปิดอัตโนมัติเมื่อเปิดคอม
+                  {t('autoStartStep')}
                 </h3>
 
                 {isInstalled ? (
@@ -381,7 +387,7 @@ export default function PrinterSetupPage() {
                     </ol>
                     <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-900/20">
                       <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                        <strong>เสร็จแล้ว!</strong> ทดสอบ: รีสตาร์ทคอม → แอป StockManager ควรเปิดขึ้นมาเองพร้อมหน้า Print Station
+                        {t('autoStartDone')}
                       </p>
                     </div>
                   </>
@@ -389,7 +395,7 @@ export default function PrinterSetupPage() {
                   <>
                     {/* วิธีสำหรับ Chrome (ยังไม่ได้ติดตั้ง PWA) */}
                     <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
-                      ยังไม่ได้ติดตั้งแอป? ใช้วิธีให้ Chrome เปิดหน้า Print Station อัตโนมัติแทน:
+                      {t('notInstalledHint')}
                     </p>
                     <ol className="space-y-2.5 text-sm text-gray-600 dark:text-gray-400">
                       <li className="flex items-start gap-2">
@@ -421,12 +427,12 @@ export default function PrinterSetupPage() {
                         {copiedUrl ? (
                           <>
                             <Check className="h-3 w-3 text-emerald-600" />
-                            คัดลอกแล้ว
+                            {t('copied')}
                           </>
                         ) : (
                           <>
                             <ClipboardCopy className="h-3 w-3" />
-                            คัดลอก URL Print Station
+                            {t('copyUrl')}
                           </>
                         )}
                       </button>
@@ -438,8 +444,7 @@ export default function PrinterSetupPage() {
               {/* Important note */}
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  <strong>สำคัญ:</strong> เมื่อแอปเปิดขึ้นมาอัตโนมัติ ต้องแน่ใจว่า session ยังไม่หมดอายุ
-                  (login ค้างไว้) ถ้า session หมดอายุ ระบบจะพาไปหน้า login ให้เข้าระบบใหม่
+                  {t('sessionWarning')}
                 </p>
               </div>
             </div>
@@ -454,9 +459,9 @@ export default function PrinterSetupPage() {
                 <Printer className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900 dark:text-white">ต่อเครื่องปริ้นกับคอมพิวเตอร์</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-white">{t('printerTitle')}</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  ต่อ USB หรือ Bluetooth แล้วตั้งเป็น default printer
+                  {t('printerDesc')}
                 </p>
               </div>
             </div>
@@ -468,7 +473,7 @@ export default function PrinterSetupPage() {
                   <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                     USB
                   </span>
-                  เครื่องปริ้น USB (แนะนำ)
+                  {t('usbRecommended')}
                 </h3>
                 <ol className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                   <li className="flex items-start gap-2">
@@ -494,7 +499,7 @@ export default function PrinterSetupPage() {
                   <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-bold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">
                     BT
                   </span>
-                  เครื่องปริ้น Bluetooth
+                  {t('btPrinter')}
                 </h3>
                 <ol className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                   <li className="flex items-start gap-2">
@@ -515,8 +520,7 @@ export default function PrinterSetupPage() {
               {/* Tip */}
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
                 <p className="text-xs text-blue-700 dark:text-blue-400">
-                  <strong>Tip:</strong> แนะนำเครื่องปริ้นความร้อน (thermal printer) ขนาด 80mm เช่น Epson TM-T82, Xprinter XP-80C
-                  เพราะไม่ต้องเปลี่ยนหมึก และปริ้นเร็ว
+                  {t('printerTip')}
                 </p>
               </div>
             </div>
@@ -531,9 +535,9 @@ export default function PrinterSetupPage() {
                 <Wifi className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900 dark:text-white">ทดสอบระบบ</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-white">{t('testTitle')}</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  ส่งงานพิมพ์ทดสอบไปที่เครื่องปริ้น
+                  {t('testDesc')}
                 </p>
               </div>
             </div>
@@ -541,7 +545,7 @@ export default function PrinterSetupPage() {
             <div className="space-y-4">
               <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900/50">
                 <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  ขั้นตอนทดสอบ:
+                  {t('testSteps')}
                 </h3>
                 <ol className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                   <li className="flex items-start gap-2">
@@ -575,20 +579,20 @@ export default function PrinterSetupPage() {
                   )}
                 >
                   <Printer className="h-5 w-5" />
-                  {testResult === 'sending' ? 'กำลังส่ง...' : 'ส่งงานพิมพ์ทดสอบ'}
+                  {testResult === 'sending' ? t('sending') : t('sendTestPrint')}
                 </button>
 
                 {testResult === 'success' && (
                   <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
                     <CheckCircle2 className="h-4 w-4" />
-                    ส่งงานพิมพ์ทดสอบแล้ว! ตรวจสอบที่หน้า Print Station
+                    {t('testSuccess')}
                   </div>
                 )}
 
                 {testResult === 'error' && (
                   <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
                     <AlertCircle className="h-4 w-4" />
-                    เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
+                    {t('testError')}
                   </div>
                 )}
               </div>
@@ -599,7 +603,7 @@ export default function PrinterSetupPage() {
                 className="flex items-center justify-center gap-2 text-sm text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
               >
                 <ExternalLink className="h-4 w-4" />
-                เปิดหน้า Print Station ใน tab ใหม่
+                {t('openPrintStation')}
               </Link>
             </div>
           </div>
@@ -612,9 +616,9 @@ export default function PrinterSetupPage() {
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
                 <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">ตั้งค่าเสร็จเรียบร้อย!</h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">{t('doneTitle')}</h2>
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                เครื่องนี้พร้อมรับงานพิมพ์สำหรับสาขา <strong className="text-gray-700 dark:text-gray-300">{selectedStoreName}</strong> แล้ว
+                {t('doneDesc', { store: selectedStoreName })}
               </p>
 
               <div className="mt-6 space-y-3">
@@ -623,18 +627,18 @@ export default function PrinterSetupPage() {
                   className="flex w-64 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 font-medium text-white transition-colors hover:bg-blue-700"
                 >
                   <Printer className="h-5 w-5" />
-                  เปิด Print Station
+                  {t('openStation')}
                 </Link>
               </div>
 
               <div className="mt-8 rounded-lg bg-gray-50 p-4 text-left dark:bg-gray-900/50">
                 <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  สรุปการตั้งค่า:
+                  {t('setupSummary')}
                 </h3>
                 <ul className="space-y-1.5 text-sm text-gray-600 dark:text-gray-400">
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                    สาขา: <strong>{selectedStoreName}</strong>
+                    {t('stepStore')}: <strong>{selectedStoreName}</strong>
                   </li>
                   <li className="flex items-center gap-2">
                     {isInstalled ? (
@@ -642,11 +646,11 @@ export default function PrinterSetupPage() {
                     ) : (
                       <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
                     )}
-                    แอป: {isInstalled ? 'ติดตั้งแล้ว' : 'ใช้ผ่าน Chrome'}
+                    {isInstalled ? t('summaryAppInstalled') : t('summaryAppChrome')}
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                    ระบบพร้อมรับงานพิมพ์
+                    {t('summaryReady')}
                   </li>
                 </ul>
               </div>
@@ -667,7 +671,7 @@ export default function PrinterSetupPage() {
               )}
             >
               <ArrowLeft className="h-4 w-4" />
-              ย้อนกลับ
+              {t('goBack')}
             </button>
 
             <button
@@ -678,7 +682,7 @@ export default function PrinterSetupPage() {
                 'bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50',
               )}
             >
-              {stepIndex === STEPS.length - 2 ? 'เสร็จสิ้น' : 'ถัดไป'}
+              {stepIndex === STEPS.length - 2 ? t('finish') : t('nextStep')}
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>

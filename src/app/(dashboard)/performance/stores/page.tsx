@@ -34,6 +34,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
+import { useTranslations } from 'next-intl';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -105,7 +106,7 @@ function ChartEmptyState({ message }: { message?: string }) {
       <div className="text-center">
         <BarChart3 className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
         <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">
-          {message || 'ยังไม่มีข้อมูลในช่วงนี้'}
+          {message}
         </p>
       </div>
     </div>
@@ -117,6 +118,7 @@ function ChartEmptyState({ message }: { message?: string }) {
 // ---------------------------------------------------------------------------
 
 export default function StoreComparisonPage() {
+  const t = useTranslations('performance.stores');
   const { user } = useAuthStore();
 
   const defaultRange = useMemo(() => getDefaultDateRange(), []);
@@ -296,7 +298,7 @@ export default function StoreComparisonPage() {
       setStoreKPIs(kpis);
     } catch (err) {
       console.error('Failed to fetch store comparison:', err);
-      toast({ type: 'error', title: 'โหลดข้อมูลไม่สำเร็จ' });
+      toast({ type: 'error', title: t('loadError') });
     } finally {
       setLoading(false);
     }
@@ -321,9 +323,9 @@ export default function StoreComparisonPage() {
   const barChartData = useMemo(() => {
     return storeKPIs.map((s) => ({
       name: s.storeName,
-      ฝากเหล้า: s.deposits,
-      เบิกเหล้า: s.withdrawals,
-      เช็คสต๊อก: s.stockChecks,
+      [t('deposits')]: s.deposits,
+      [t('withdrawals')]: s.withdrawals,
+      [t('stockChecks')]: s.stockChecks,
     }));
   }, [storeKPIs]);
 
@@ -338,12 +340,12 @@ export default function StoreComparisonPage() {
     const maxRate = 100;
 
     const metrics = [
-      { key: 'deposits', label: 'ฝากเหล้า', max: maxDeposits },
-      { key: 'withdrawals', label: 'เบิกเหล้า', max: maxWithdrawals },
-      { key: 'stockChecks', label: 'เช็คสต๊อก', max: maxStock },
-      { key: 'tasksCompleted', label: 'งานสำเร็จ', max: maxTasks },
+      { key: 'deposits', label: t('deposits'), max: maxDeposits },
+      { key: 'withdrawals', label: t('withdrawals'), max: maxWithdrawals },
+      { key: 'stockChecks', label: t('stockChecks'), max: maxStock },
+      { key: 'tasksCompleted', label: t('tasksCompleted'), max: maxTasks },
       { key: 'completionRate', label: 'Completion %', max: maxRate },
-      { key: 'stockAccuracy', label: 'ความแม่นยำสต๊อก', max: 100 },
+      { key: 'stockAccuracy', label: t('stockAccuracy'), max: 100 },
     ];
 
     return metrics.map((m) => {
@@ -361,16 +363,16 @@ export default function StoreComparisonPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            เปรียบเทียบสาขา
+            {t('title')}
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            เปรียบเทียบ KPI ทุกสาขา side-by-side
+            {t('subtitle')}
           </p>
         </div>
 
         <Button variant="secondary" size="sm" onClick={fetchData} disabled={loading}>
           <RefreshCw className={cn('mr-1.5 h-4 w-4', loading && 'animate-spin')} />
-          รีเฟรช
+          {t('refresh')}
         </Button>
       </div>
 
@@ -380,7 +382,7 @@ export default function StoreComparisonPage() {
           <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                ตั้งแต่
+                {t('dateFrom')}
               </label>
               <input
                 type="date"
@@ -391,7 +393,7 @@ export default function StoreComparisonPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                ถึง
+                {t('dateTo')}
               </label>
               <input
                 type="date"
@@ -409,14 +411,14 @@ export default function StoreComparisonPage() {
           <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
         </div>
       ) : storeKPIs.length === 0 ? (
-        <ChartEmptyState message="ไม่พบข้อมูลสาขา" />
+        <ChartEmptyState message={t('noStoreData')} />
       ) : (
         <>
           {/* Radar Chart */}
           <Card>
             <CardHeader
-              title="Radar เปรียบเทียบหลายมิติ"
-              description="คะแนนเทียบเป็น % ของค่าสูงสุดในแต่ละมิติ"
+              title={t('radarTitle')}
+              description={t('radarDesc')}
             />
             <CardContent>
               {radarData.length > 0 ? (
@@ -448,8 +450,8 @@ export default function StoreComparisonPage() {
           {/* Bar Chart Comparison */}
           <Card>
             <CardHeader
-              title="กิจกรรมรายสาขา"
-              description="ฝากเหล้า, เบิกเหล้า, เช็คสต๊อก"
+              title={t('activityTitle')}
+              description={t('activityDesc')}
             />
             <CardContent>
               {barChartData.length > 0 ? (
@@ -460,9 +462,9 @@ export default function StoreComparisonPage() {
                     <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
-                    <Bar dataKey="ฝากเหล้า" fill="#6366f1" />
-                    <Bar dataKey="เบิกเหล้า" fill="#10b981" />
-                    <Bar dataKey="เช็คสต๊อก" fill="#f59e0b" />
+                    <Bar dataKey={t('deposits')} fill="#6366f1" />
+                    <Bar dataKey={t('withdrawals')} fill="#10b981" />
+                    <Bar dataKey={t('stockChecks')} fill="#f59e0b" />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -474,16 +476,16 @@ export default function StoreComparisonPage() {
           {/* KPI Table */}
           <Card>
             <CardHeader
-              title="Ranking สาขา"
+              title={t('rankingTitle')}
               action={
                 <div className="flex flex-wrap gap-2">
                   {[
-                    { key: 'deposits' as const, label: 'ฝาก' },
-                    { key: 'withdrawals' as const, label: 'เบิก' },
-                    { key: 'stockChecks' as const, label: 'สต๊อก' },
-                    { key: 'tasksCompleted' as const, label: 'งานสำเร็จ' },
-                    { key: 'completionRate' as const, label: 'Rate' },
-                    { key: 'stockAccuracy' as const, label: 'แม่นยำ' },
+                    { key: 'deposits' as const, label: t('sortDeposit') },
+                    { key: 'withdrawals' as const, label: t('sortWithdrawal') },
+                    { key: 'stockChecks' as const, label: t('sortStock') },
+                    { key: 'tasksCompleted' as const, label: t('sortCompleted') },
+                    { key: 'completionRate' as const, label: t('sortRate') },
+                    { key: 'stockAccuracy' as const, label: t('sortAccuracy') },
                   ].map((opt) => (
                     <Button
                       key={opt.key}
@@ -503,18 +505,18 @@ export default function StoreComparisonPage() {
                   <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
                     <tr>
                       <th className="px-4 py-3">#</th>
-                      <th className="px-4 py-3">สาขา</th>
-                      <th className="px-4 py-3 text-center">พนักงาน</th>
-                      <th className="px-4 py-3 text-center">ฝาก</th>
-                      <th className="px-4 py-3 text-center">เบิก</th>
-                      <th className="px-4 py-3 text-center">เช็คสต๊อก</th>
-                      <th className="px-4 py-3 text-center">ผลต่าง</th>
-                      <th className="px-4 py-3 text-center">ความแม่นยำ</th>
-                      <th className="px-4 py-3 text-center">ค้างชี้แจง</th>
-                      <th className="px-4 py-3 text-center">งานสำเร็จ</th>
-                      <th className="px-4 py-3 text-center">เวลาเฉลี่ย</th>
-                      <th className="px-4 py-3 text-center">Rate</th>
-                      <th className="px-4 py-3 text-center">ใกล้หมดอายุ</th>
+                      <th className="px-4 py-3">{t('colBranch')}</th>
+                      <th className="px-4 py-3 text-center">{t('colStaff')}</th>
+                      <th className="px-4 py-3 text-center">{t('colDeposit')}</th>
+                      <th className="px-4 py-3 text-center">{t('colWithdrawal')}</th>
+                      <th className="px-4 py-3 text-center">{t('colStockCheck')}</th>
+                      <th className="px-4 py-3 text-center">{t('colDiscrepancy')}</th>
+                      <th className="px-4 py-3 text-center">{t('colAccuracy')}</th>
+                      <th className="px-4 py-3 text-center">{t('colPending')}</th>
+                      <th className="px-4 py-3 text-center">{t('colCompleted')}</th>
+                      <th className="px-4 py-3 text-center">{t('colAvgTime')}</th>
+                      <th className="px-4 py-3 text-center">{t('colRate')}</th>
+                      <th className="px-4 py-3 text-center">{t('colExpiring')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -597,7 +599,7 @@ export default function StoreComparisonPage() {
                         </td>
                         <td className="px-4 py-3 text-center text-sm">
                           {store.avgCompletionMin > 0
-                            ? `${Math.round(store.avgCompletionMin)} น.`
+                            ? `${Math.round(store.avgCompletionMin)} ${t('minuteShort')}`
                             : '-'}
                         </td>
                         <td className="px-4 py-3 text-center">

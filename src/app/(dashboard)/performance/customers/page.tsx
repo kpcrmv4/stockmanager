@@ -41,6 +41,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
+import { useTranslations } from 'next-intl';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -112,7 +113,7 @@ function ChartEmptyState({ message }: { message?: string }) {
       <div className="text-center">
         <BarChart3 className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
         <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">
-          {message || 'ยังไม่มีข้อมูลในช่วงนี้'}
+          {message}
         </p>
       </div>
     </div>
@@ -124,6 +125,7 @@ function ChartEmptyState({ message }: { message?: string }) {
 // ---------------------------------------------------------------------------
 
 export default function CustomerAnalyticsPage() {
+  const t = useTranslations('performance.customers');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
 
@@ -272,7 +274,7 @@ export default function CustomerAnalyticsPage() {
       setTimeDistribution(timeArr);
     } catch (err) {
       console.error('Failed to fetch customer analytics:', err);
-      toast({ type: 'error', title: 'โหลดข้อมูลไม่สำเร็จ' });
+      toast({ type: 'error', title: t('loadError') });
     } finally {
       setLoading(false);
     }
@@ -289,10 +291,10 @@ export default function CustomerAnalyticsPage() {
   const totalExpired = customers.reduce((s, c) => s + c.expiredDeposits, 0);
 
   const tabs = [
-    { id: 'overview', label: 'ภาพรวม' },
-    { id: 'ranking', label: 'Ranking ลูกค้า' },
-    { id: 'products', label: 'สินค้ายอดนิยม' },
-    { id: 'behavior', label: 'พฤติกรรม' },
+    { id: 'overview', label: t('tabOverview') },
+    { id: 'ranking', label: t('tabRanking') },
+    { id: 'products', label: t('tabProducts') },
+    { id: 'behavior', label: t('tabBehavior') },
   ];
 
   return (
@@ -301,15 +303,15 @@ export default function CustomerAnalyticsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            วิเคราะห์ลูกค้า
+            {t('title')}
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            ลูกค้าขาประจำ พฤติกรรมฝาก/เบิก สินค้ายอดนิยม
+            {t('subtitle')}
           </p>
         </div>
         <Button variant="secondary" size="sm" onClick={fetchData} disabled={loading}>
           <RefreshCw className={cn('mr-1.5 h-4 w-4', loading && 'animate-spin')} />
-          รีเฟรช
+          {t('refresh')}
         </Button>
       </div>
 
@@ -320,7 +322,7 @@ export default function CustomerAnalyticsPage() {
             {isOwner && stores.length > 0 && (
               <div className="w-full sm:w-auto sm:min-w-[180px]">
                 <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                  สาขา
+                  {t('branch')}
                 </label>
                 <Select
                   value={selectedStoreId}
@@ -332,7 +334,7 @@ export default function CustomerAnalyticsPage() {
             <div className="grid grid-cols-2 gap-3 sm:contents">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                  ตั้งแต่
+                  {t('dateFrom')}
                 </label>
                 <input
                   type="date"
@@ -343,7 +345,7 @@ export default function CustomerAnalyticsPage() {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                  ถึง
+                  {t('dateTo')}
                 </label>
                 <input
                   type="date"
@@ -375,7 +377,7 @@ export default function CustomerAnalyticsPage() {
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {formatNumber(totalCustomers)}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">ลูกค้าทั้งหมด</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('totalCustomers')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -407,7 +409,7 @@ export default function CustomerAnalyticsPage() {
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {formatNumber(repeatCustomers)}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">ขาประจำ (2+ ครั้ง)</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('regulars')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -423,7 +425,7 @@ export default function CustomerAnalyticsPage() {
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {formatNumber(totalExpired)}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">หมดอายุ (ริบ)</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('expiredForfeited')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -442,7 +444,7 @@ export default function CustomerAnalyticsPage() {
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Top Products Pie Chart */}
               <Card>
-                <CardHeader title="สินค้ายอดนิยม" description="Top 8 สินค้าที่ลูกค้าฝากมากที่สุด" />
+                <CardHeader title={t('topProducts')} description={t('topProductsDesc')} />
                 <CardContent>
                   {topProducts.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
@@ -475,14 +477,14 @@ export default function CustomerAnalyticsPage() {
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
-                    <ChartEmptyState message="ยังไม่มีข้อมูลสินค้า" />
+                    <ChartEmptyState message={t('noProductData')} />
                   )}
                 </CardContent>
               </Card>
 
               {/* Time Distribution */}
               <Card>
-                <CardHeader title="ช่วงเวลาที่ลูกค้าใช้บริการ" description="จำนวนการฝาก/เบิก แยกตามชั่วโมง" />
+                <CardHeader title={t('serviceHours')} description={t('serviceHoursDesc')} />
                 <CardContent>
                   {timeDistribution.some((t) => t.deposits > 0 || t.withdrawals > 0) ? (
                     <ResponsiveContainer width="100%" height={300}>
@@ -492,8 +494,8 @@ export default function CustomerAnalyticsPage() {
                         <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={30} />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend wrapperStyle={{ fontSize: 12 }} />
-                        <Bar dataKey="deposits" name="ฝาก" fill="#6366f1" />
-                        <Bar dataKey="withdrawals" name="เบิก" fill="#10b981" />
+                        <Bar dataKey="deposits" name={t('depositShort')} fill="#6366f1" />
+                        <Bar dataKey="withdrawals" name={t('withdrawalShort')} fill="#10b981" />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -508,13 +510,13 @@ export default function CustomerAnalyticsPage() {
           {activeTab === 'ranking' && (
             <Card>
               <CardHeader
-                title={`ลูกค้าทั้งหมด (${customers.length})`}
-                description="เรียงตามจำนวนครั้งที่ฝาก"
+                title={t('allCustomers', { count: customers.length })}
+                description={t('sortedByDeposit')}
               />
               <CardContent>
                 {customers.length === 0 ? (
                   <div className="flex h-32 items-center justify-center text-sm text-gray-400">
-                    ยังไม่มีข้อมูลลูกค้า
+                    {t('noCustomerData')}
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -522,13 +524,13 @@ export default function CustomerAnalyticsPage() {
                       <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
                         <tr>
                           <th className="px-4 py-3">#</th>
-                          <th className="px-4 py-3">ลูกค้า</th>
-                          <th className="px-4 py-3 text-center">ฝากทั้งหมด</th>
-                          <th className="px-4 py-3 text-center">ฝากอยู่</th>
-                          <th className="px-4 py-3 text-center">เบิกแล้ว</th>
-                          <th className="px-4 py-3 text-center">หมดอายุ</th>
-                          <th className="px-4 py-3">สินค้าที่ฝาก</th>
-                          <th className="px-4 py-3">ครั้งล่าสุด</th>
+                          <th className="px-4 py-3">{t('colCustomer')}</th>
+                          <th className="px-4 py-3 text-center">{t('colTotalDeposits')}</th>
+                          <th className="px-4 py-3 text-center">{t('colActiveDeposits')}</th>
+                          <th className="px-4 py-3 text-center">{t('colWithdrawn')}</th>
+                          <th className="px-4 py-3 text-center">{t('colExpired')}</th>
+                          <th className="px-4 py-3">{t('colProducts')}</th>
+                          <th className="px-4 py-3">{t('colLastVisit')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -611,8 +613,8 @@ export default function CustomerAnalyticsPage() {
           {activeTab === 'products' && (
             <Card>
               <CardHeader
-                title="สินค้ายอดนิยม Top 10"
-                description="จำนวนครั้งที่ถูกฝาก"
+                title={t('topProductsTop10')}
+                description={t('topProductsTop10Desc')}
               />
               <CardContent>
                 {topProducts.length > 0 ? (
@@ -627,7 +629,7 @@ export default function CustomerAnalyticsPage() {
                         width={120}
                       />
                       <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="count" name="จำนวนครั้ง" fill="#6366f1" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="count" name={t('timesCount')} fill="#6366f1" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -643,8 +645,8 @@ export default function CustomerAnalyticsPage() {
               {/* Time distribution full width */}
               <Card>
                 <CardHeader
-                  title="ช่วงเวลาที่ลูกค้าใช้บริการ (24 ชม.)"
-                  description="จำนวนการฝาก/เบิก แยกตามชั่วโมง"
+                  title={t('serviceHours24')}
+                  description={t('serviceHours24Desc')}
                 />
                 <CardContent>
                   {timeDistribution.some((t) => t.deposits > 0 || t.withdrawals > 0) ? (
@@ -655,8 +657,8 @@ export default function CustomerAnalyticsPage() {
                         <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={30} />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend wrapperStyle={{ fontSize: 12 }} />
-                        <Bar dataKey="deposits" name="ฝาก" fill="#6366f1" />
-                        <Bar dataKey="withdrawals" name="เบิก" fill="#10b981" />
+                        <Bar dataKey="deposits" name={t('depositShort')} fill="#6366f1" />
+                        <Bar dataKey="withdrawals" name={t('withdrawalShort')} fill="#10b981" />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -668,7 +670,7 @@ export default function CustomerAnalyticsPage() {
               {/* Customer segments */}
               <div className="grid gap-6 lg:grid-cols-3">
                 <Card>
-                  <CardHeader title="ลูกค้าใหม่ (ฝาก 1 ครั้ง)" />
+                  <CardHeader title={t('newCustomers')} />
                   <CardContent>
                     <div className="text-center">
                       <p className="text-4xl font-bold text-indigo-600 dark:text-indigo-400">
@@ -676,7 +678,7 @@ export default function CustomerAnalyticsPage() {
                       </p>
                       <p className="mt-1 text-sm text-gray-500">
                         {totalCustomers > 0
-                          ? `${((customers.filter((c) => c.totalDeposits === 1).length / totalCustomers) * 100).toFixed(0)}% ของทั้งหมด`
+                          ? t('percentOfTotal', { pct: ((customers.filter((c) => c.totalDeposits === 1).length / totalCustomers) * 100).toFixed(0) })
                           : '-'}
                       </p>
                     </div>
@@ -684,7 +686,7 @@ export default function CustomerAnalyticsPage() {
                 </Card>
 
                 <Card>
-                  <CardHeader title="ขาประจำ (2-5 ครั้ง)" />
+                  <CardHeader title={t('regularCustomers')} />
                   <CardContent>
                     <div className="text-center">
                       <p className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">
@@ -692,7 +694,7 @@ export default function CustomerAnalyticsPage() {
                       </p>
                       <p className="mt-1 text-sm text-gray-500">
                         {totalCustomers > 0
-                          ? `${((customers.filter((c) => c.totalDeposits >= 2 && c.totalDeposits <= 5).length / totalCustomers) * 100).toFixed(0)}% ของทั้งหมด`
+                          ? t('percentOfTotal', { pct: ((customers.filter((c) => c.totalDeposits >= 2 && c.totalDeposits <= 5).length / totalCustomers) * 100).toFixed(0) })
                           : '-'}
                       </p>
                     </div>
@@ -700,7 +702,7 @@ export default function CustomerAnalyticsPage() {
                 </Card>
 
                 <Card>
-                  <CardHeader title="Heavy Users (6+ ครั้ง)" />
+                  <CardHeader title={t('heavyUsers')} />
                   <CardContent>
                     <div className="text-center">
                       <p className="text-4xl font-bold text-amber-600 dark:text-amber-400">
@@ -708,7 +710,7 @@ export default function CustomerAnalyticsPage() {
                       </p>
                       <p className="mt-1 text-sm text-gray-500">
                         {totalCustomers > 0
-                          ? `${((customers.filter((c) => c.totalDeposits >= 6).length / totalCustomers) * 100).toFixed(0)}% ของทั้งหมด`
+                          ? t('percentOfTotal', { pct: ((customers.filter((c) => c.totalDeposits >= 6).length / totalCustomers) * 100).toFixed(0) })
                           : '-'}
                       </p>
                     </div>

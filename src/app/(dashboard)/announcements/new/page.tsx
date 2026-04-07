@@ -17,6 +17,7 @@ import {
 } from '@/components/ui';
 import { ArrowLeft, Megaphone, Bell } from 'lucide-react';
 import { todayBangkok, toBangkokISO } from '@/lib/utils/date';
+import { useTranslations } from 'next-intl';
 
 interface StoreOption {
   id: string;
@@ -24,6 +25,7 @@ interface StoreOption {
 }
 
 export default function NewAnnouncementPage() {
+  const t = useTranslations('announcements');
   const router = useRouter();
   const { user } = useAuthStore();
   const [stores, setStores] = useState<StoreOption[]>([]);
@@ -76,9 +78,9 @@ export default function NewAnnouncementPage() {
     });
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถสร้างประกาศได้' });
+      toast({ type: 'error', title: t('createError'), message: t('createErrorMsg') });
     } else {
-      toast({ type: 'success', title: 'สร้างประกาศสำเร็จ' });
+      toast({ type: 'success', title: t('createSuccess') });
       router.push('/announcements');
     }
     setIsSubmitting(false);
@@ -92,83 +94,83 @@ export default function NewAnnouncementPage() {
         className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
       >
         <ArrowLeft className="h-4 w-4" />
-        กลับ
+        {t('back')}
       </button>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">สร้างประกาศใหม่</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('newTitle')}</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          สร้างประกาศหรือโปรโมชั่นเพื่อส่งถึงลูกค้า
+          {t('newSubtitle')}
         </p>
       </div>
 
       <form onSubmit={handleSubmit}>
         <Card padding="none">
-          <CardHeader title="รายละเอียดประกาศ" />
+          <CardHeader title={t('detailsSection')} />
           <CardContent className="space-y-4">
             <Input
-              label="หัวข้อ"
+              label={t('fieldTitle')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="เช่น โปรโมชั่นต้อนรับปีใหม่"
+              placeholder={t('fieldTitlePlaceholder')}
               required
             />
 
             <Textarea
-              label="เนื้อหา"
+              label={t('fieldBody')}
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="รายละเอียดประกาศ..."
+              placeholder={t('fieldBodyPlaceholder')}
               rows={4}
             />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Select
-                label="ประเภท"
+                label={t('fieldType')}
                 value={type}
                 onChange={(e) => setType(e.target.value)}
                 options={[
-                  { value: 'promotion', label: 'โปรโมชั่น' },
-                  { value: 'announcement', label: 'ประกาศ' },
-                  { value: 'event', label: 'กิจกรรม' },
+                  { value: 'promotion', label: t('typePromotion') },
+                  { value: 'announcement', label: t('typeAnnouncement') },
+                  { value: 'event', label: t('typeEvent') },
                 ]}
               />
               <Select
-                label="กลุ่มเป้าหมาย"
+                label={t('fieldTargetAudience')}
                 value={targetAudience}
                 onChange={(e) => setTargetAudience(e.target.value)}
                 options={[
-                  { value: 'customer', label: 'ลูกค้า' },
-                  { value: 'staff', label: 'พนักงาน' },
-                  { value: 'all', label: 'ทั้งหมด' },
+                  { value: 'customer', label: t('targetCustomer') },
+                  { value: 'staff', label: t('targetStaff') },
+                  { value: 'all', label: t('targetAll') },
                 ]}
               />
             </div>
 
             <Select
-              label="สาขา"
+              label={t('fieldBranch')}
               value={storeId}
               onChange={(e) => setStoreId(e.target.value)}
               options={[
-                { value: '', label: 'ทุกสาขา' },
+                { value: '', label: t('allBranches') },
                 ...stores.map((s) => ({ value: s.id, label: s.store_name })),
               ]}
             />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input
-                label="วันเริ่มแสดง"
+                label={t('fieldStartDate')}
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 required
               />
               <Input
-                label="วันหยุดแสดง (ไม่บังคับ)"
+                label={t('fieldEndDate')}
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                hint="ปล่อยว่างหากไม่มีวันหมดอายุ"
+                hint={t('fieldEndDateHint')}
               />
             </div>
 
@@ -177,8 +179,8 @@ export default function NewAnnouncementPage() {
               value={imageUrl}
               onChange={setImageUrl}
               folder="announcements"
-              label="รูปภาพ (ไม่บังคับ)"
-              placeholder="อัปโหลดรูปภาพประกาศ"
+              label={t('fieldImage')}
+              placeholder={t('fieldImagePlaceholder')}
               maxSizeMB={5}
             />
 
@@ -188,10 +190,10 @@ export default function NewAnnouncementPage() {
                 <Bell className="h-4 w-4 text-indigo-500" />
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    ส่ง Push Notification ทันที
+                    {t('sendPushNow')}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    ส่งแจ้งเตือนไปยังลูกค้าที่เปิดรับ
+                    {t('sendPushDesc')}
                   </p>
                 </div>
               </div>
@@ -215,7 +217,7 @@ export default function NewAnnouncementPage() {
         {/* Submit */}
         <div className="mt-6 flex items-center justify-end gap-3">
           <Button variant="outline" type="button" onClick={() => router.back()}>
-            ยกเลิก
+            {t('cancel')}
           </Button>
           <Button
             type="submit"
@@ -223,7 +225,7 @@ export default function NewAnnouncementPage() {
             disabled={!title.trim()}
             icon={<Megaphone className="h-4 w-4" />}
           >
-            เผยแพร่
+            {t('publish')}
           </Button>
         </div>
       </form>
