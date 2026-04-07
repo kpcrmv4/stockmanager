@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import {
   ClipboardCheck,
@@ -34,8 +35,8 @@ import { getModuleColors } from '@/lib/utils/module-colors';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { getModulesForRole } from '@/lib/modules/registry';
-import { ROLE_LABELS } from '@/types/roles';
 import { StoreSwitcher } from './store-switcher';
+import { LanguageSwitcher } from './language-switcher';
 import type { Store } from '@/types/database';
 import type { LucideIcon } from 'lucide-react';
 
@@ -68,6 +69,7 @@ interface SidebarProps {
 export function Sidebar({ stores }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const t = useTranslations();
   const { user, logout } = useAuthStore();
   const { sidebarOpen, toggleSidebar, theme, toggleTheme } = useAppStore();
 
@@ -76,14 +78,14 @@ export function Sidebar({ stores }: SidebarProps) {
 
   // จัดกลุ่มเมนูตาม group
   const groupedModules = useMemo(() => {
-    const groups: { name: string; items: typeof modules }[] = [];
+    const groups: { nameKey: string; items: typeof modules }[] = [];
     const seen = new Set<string>();
     for (const mod of modules) {
-      if (!seen.has(mod.group)) {
-        seen.add(mod.group);
-        groups.push({ name: mod.group, items: [] });
+      if (!seen.has(mod.groupKey)) {
+        seen.add(mod.groupKey);
+        groups.push({ nameKey: mod.groupKey, items: [] });
       }
-      groups.find((g) => g.name === mod.group)!.items.push(mod);
+      groups.find((g) => g.nameKey === mod.groupKey)!.items.push(mod);
     }
     return groups;
   }, [modules]);
@@ -128,11 +130,11 @@ export function Sidebar({ stores }: SidebarProps) {
       {/* เมนูนำทาง — แบ่งหมวดหมู่ */}
       <nav className="flex-1 overflow-y-auto scrollbar-thin p-3">
         {groupedModules.map((group, gi) => (
-          <div key={group.name} className={cn(gi > 0 && 'mt-4')}>
+          <div key={group.nameKey} className={cn(gi > 0 && 'mt-4')}>
             {/* ชื่อหมวดหมู่ */}
             {!collapsed && (
               <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                {group.name}
+                {t(group.nameKey)}
               </p>
             )}
             {collapsed && gi > 0 && (
@@ -144,12 +146,13 @@ export function Sidebar({ stores }: SidebarProps) {
                 const isActive =
                   pathname === mod.href || pathname.startsWith(mod.href + '/');
                 const colors = getModuleColors(mod.color);
+                const modName = t(mod.nameKey);
 
                 return (
                   <li key={mod.id}>
                     <Link
                       href={mod.href}
-                      title={collapsed ? mod.name : undefined}
+                      title={collapsed ? modName : undefined}
                       className={cn(
                         'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
                         'transition-colors duration-150',
@@ -167,7 +170,7 @@ export function Sidebar({ stores }: SidebarProps) {
                             : 'text-gray-400 dark:text-gray-500'
                         )}
                       />
-                      {!collapsed && <span className="truncate">{mod.name}</span>}
+                      {!collapsed && <span className="truncate">{modName}</span>}
                     </Link>
                   </li>
                 );
@@ -177,13 +180,16 @@ export function Sidebar({ stores }: SidebarProps) {
         ))}
       </nav>
 
-      {/* ส่วนล่าง: Dark mode toggle + Collapse toggle + ข้อมูลผู้ใช้ */}
+      {/* ส่วนล่าง: Language + Dark mode toggle + Collapse toggle + ข้อมูลผู้ใช้ */}
       <div className="border-t border-gray-200 p-3 dark:border-gray-800">
+        {/* ปุ่มสลับภาษา */}
+        <LanguageSwitcher collapsed={collapsed} className="w-full" />
+
         {/* ปุ่มสลับ Dark Mode */}
         <button
           type="button"
           onClick={toggleTheme}
-          title={theme === 'light' ? 'เปิดโหมดมืด' : 'เปิดโหมดสว่าง'}
+          title={theme === 'light' ? t('nav.darkMode') : t('nav.lightMode')}
           className={cn(
             'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm',
             'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800',
@@ -197,7 +203,7 @@ export function Sidebar({ stores }: SidebarProps) {
             <Sun className="h-[18px] w-[18px] shrink-0" />
           )}
           {!collapsed && (
-            <span>{theme === 'light' ? 'โหมดมืด' : 'โหมดสว่าง'}</span>
+            <span>{theme === 'light' ? t('nav.darkMode') : t('nav.lightMode')}</span>
           )}
         </button>
 
@@ -205,7 +211,7 @@ export function Sidebar({ stores }: SidebarProps) {
         <button
           type="button"
           onClick={toggleSidebar}
-          title={collapsed ? 'ขยายเมนู' : 'ยุบเมนู'}
+          title={collapsed ? t('nav.expandMenu') : t('nav.collapseMenu')}
           className={cn(
             'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm',
             'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800',
@@ -218,7 +224,7 @@ export function Sidebar({ stores }: SidebarProps) {
           ) : (
             <PanelLeftClose className="h-[18px] w-[18px] shrink-0" />
           )}
-          {!collapsed && <span>ยุบเมนู</span>}
+          {!collapsed && <span>{t('nav.collapseMenu')}</span>}
         </button>
 
         {/* ข้อมูลผู้ใช้ */}
@@ -239,7 +245,7 @@ export function Sidebar({ stores }: SidebarProps) {
                 {user.displayName ?? user.username}
               </p>
               <span className="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                {ROLE_LABELS[user.role]}
+                {t(`roles.${user.role}`)}
               </span>
             </div>
           )}
@@ -248,7 +254,7 @@ export function Sidebar({ stores }: SidebarProps) {
             <button
               type="button"
               onClick={handleLogout}
-              title="ออกจากระบบ"
+              title={t('auth.logout')}
               className="shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
             >
               <LogOut className="h-4 w-4" />

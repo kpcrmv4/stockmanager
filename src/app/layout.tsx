@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Noto_Sans_Thai } from 'next/font/google';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
 import { ToastContainer } from '@/components/ui/toast';
 import { ThemeSync } from '@/components/theme-sync';
 import './globals.css';
@@ -32,13 +34,16 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="th" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         {/* ป้องกันจอขาว flash ก่อน React hydrate โดยอ่าน theme จาก localStorage ทันที */}
         <script
@@ -50,7 +55,9 @@ export default function RootLayout({
       <body
         className={`${notoSansThai.variable} font-sans antialiased bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100`}
       >
-        {children}
+        <NextIntlClientProvider messages={messages}>
+          {children}
+        </NextIntlClientProvider>
         <ThemeSync />
         <ToastContainer />
       </body>

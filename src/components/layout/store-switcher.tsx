@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { ChevronDown, Store, Check } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAppStore } from '@/stores/app-store';
@@ -15,19 +16,18 @@ interface StoreSwitcherProps {
 export function StoreSwitcher({ stores, collapsed = false }: StoreSwitcherProps) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const t = useTranslations();
   const { currentStoreId, setCurrentStoreId } = useAppStore();
   const { user } = useAuthStore();
 
   const currentStore = stores.find((s) => s.id === currentStoreId);
 
-  // ตั้งค่าร้านเริ่มต้นถ้ายังไม่ได้เลือก
   useEffect(() => {
     if (!currentStoreId && stores.length > 0) {
       setCurrentStoreId(stores[0].id);
     }
   }, [currentStoreId, stores, setCurrentStoreId]);
 
-  // ปิด dropdown เมื่อคลิกข้างนอก
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -40,7 +40,6 @@ export function StoreSwitcher({ stores, collapsed = false }: StoreSwitcherProps)
 
   if (stores.length === 0) return null;
 
-  // ถ้ามีร้านเดียว ไม่ต้องเป็น dropdown
   if (stores.length === 1) {
     return (
       <div
@@ -76,7 +75,7 @@ export function StoreSwitcher({ stores, collapsed = false }: StoreSwitcherProps)
         {!collapsed && (
           <>
             <span className="flex-1 truncate text-left text-sm font-medium text-gray-700 dark:text-gray-200">
-              {currentStore?.store_name ?? 'เลือกสาขา'}
+              {currentStore?.store_name ?? t('nav.selectStore')}
             </span>
             <ChevronDown
               className={cn(
@@ -97,7 +96,7 @@ export function StoreSwitcher({ stores, collapsed = false }: StoreSwitcherProps)
           )}
         >
           <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400">
-            เลือกสาขา
+            {t('nav.selectStore')}
           </div>
           {stores.map((store) => (
             <button

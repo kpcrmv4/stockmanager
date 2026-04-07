@@ -2,25 +2,22 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Menu, ChevronDown, LogOut, User, Settings, Bell, MessageSquare, Download, Check, Share, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { NotificationCenter } from '@/components/layout/notification-center';
+import { LanguageSwitcher } from '@/components/layout/language-switcher';
 import { useChatStore } from '@/stores/chat-store';
 import { useInstallPWA } from '@/hooks/use-install-pwa';
-import { ROLE_LABELS } from '@/types/roles';
 import type { Store } from '@/types/database';
 
 interface TopBarProps {
-  /** ชื่อหน้าปัจจุบัน สำหรับแสดงใน Desktop */
   pageTitle?: string;
-  /** ชื่อร้าน สำหรับแสดงบน Mobile */
   stores?: Store[];
-  /** แสดงปุ่ม hamburger (mobile layout) */
   showMenuButton?: boolean;
-  /** callback เมื่อกดปุ่ม hamburger */
   onMenuClick?: () => void;
 }
 
@@ -31,6 +28,7 @@ export function TopBar({
   onMenuClick,
 }: TopBarProps) {
   const router = useRouter();
+  const t = useTranslations();
   const { user, logout } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -41,7 +39,6 @@ export function TopBar({
 
   const currentStore = stores.find((s) => s.id === currentStoreId);
 
-  // ปิด user menu เมื่อคลิกข้างนอก
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
@@ -84,7 +81,7 @@ export function TopBar({
             type="button"
             onClick={onMenuClick}
             className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-            aria-label="เปิดเมนู"
+            aria-label={t('nav.openMenu')}
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -96,7 +93,6 @@ export function TopBar({
           </h1>
         )}
 
-        {/* ชื่อร้าน (แสดงเสมอบน mobile, แสดงเมื่อไม่มี pageTitle บน desktop) */}
         {showMenuButton && currentStore && (
           <span className="truncate text-sm font-medium text-gray-700 dark:text-gray-300">
             {currentStore.store_name}
@@ -110,7 +106,7 @@ export function TopBar({
         <Link
           href="/chat"
           className="relative flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-          title="แชท"
+          title={t('nav.chat')}
         >
           <MessageSquare className="h-5 w-5" />
           {chatUnread > 0 && (
@@ -134,7 +130,6 @@ export function TopBar({
               'transition-colors duration-150'
             )}
           >
-            {/* อวาตาร์ */}
             {user.avatarUrl ? (
               <img
                 src={user.avatarUrl}
@@ -169,7 +164,7 @@ export function TopBar({
                   {user.displayName ?? user.username}
                 </p>
                 <span className="mt-1 inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                  {ROLE_LABELS[user.role]}
+                  {t(`roles.${user.role}`)}
                 </span>
               </div>
 
@@ -184,7 +179,7 @@ export function TopBar({
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   <User className="h-4 w-4" />
-                  <span>โปรไฟล์</span>
+                  <span>{t('nav.profile')}</span>
                 </button>
                 <button
                   type="button"
@@ -195,7 +190,7 @@ export function TopBar({
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   <Bell className="h-4 w-4" />
-                  <span>ตั้งค่าแจ้งเตือน</span>
+                  <span>{t('nav.notificationSettings')}</span>
                 </button>
                 <button
                   type="button"
@@ -206,7 +201,7 @@ export function TopBar({
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   <Settings className="h-4 w-4" />
-                  <span>ตั้งค่า</span>
+                  <span>{t('nav.settings')}</span>
                 </button>
 
                 {/* ติดตั้งแอป */}
@@ -228,12 +223,15 @@ export function TopBar({
                   )}
                   <span>
                     {isInstalled
-                      ? 'ติดตั้งแล้ว'
+                      ? t('nav.installed')
                       : isInstalling
-                        ? 'กำลังติดตั้ง...'
-                        : 'ติดตั้งแอป'}
+                        ? t('nav.installing')
+                        : t('nav.installApp')}
                   </span>
                 </button>
+
+                {/* Language Switcher in dropdown */}
+                <LanguageSwitcher className="w-full px-4 py-2.5 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700" />
               </div>
 
               {/* ออกจากระบบ */}
@@ -244,7 +242,7 @@ export function TopBar({
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span>ออกจากระบบ</span>
+                  <span>{t('auth.logout')}</span>
                 </button>
               </div>
             </div>
@@ -260,7 +258,7 @@ export function TopBar({
           >
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                ติดตั้งแอป
+                {t('nav.installApp')}
               </h3>
               <button
                 onClick={() => setShowIosGuide(false)}
@@ -274,19 +272,19 @@ export function TopBar({
               <div className="flex items-start gap-3">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">1</div>
                 <p className="pt-1 text-sm text-gray-600 dark:text-gray-300">
-                  กดปุ่ม <Share className="inline h-4 w-4 text-blue-500" /> <strong>แชร์</strong> ที่แถบด้านล่างของ Safari
+                  {t('pwa.iosStep1')}
                 </p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">2</div>
                 <p className="pt-1 text-sm text-gray-600 dark:text-gray-300">
-                  เลื่อนลงแล้วกด <Plus className="inline h-4 w-4 text-gray-500" /> <strong>เพิ่มไปยังหน้าจอโฮม</strong>
+                  {t('pwa.iosStep2')}
                 </p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">3</div>
                 <p className="pt-1 text-sm text-gray-600 dark:text-gray-300">
-                  กด <strong>เพิ่ม</strong> เพื่อติดตั้งแอปไปหน้าจอโฮม
+                  {t('pwa.iosStep3')}
                 </p>
               </div>
             </div>
@@ -295,7 +293,7 @@ export function TopBar({
               onClick={() => setShowIosGuide(false)}
               className="mt-6 w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
             >
-              เข้าใจแล้ว
+              {t('pwa.understood')}
             </button>
           </div>
         </div>

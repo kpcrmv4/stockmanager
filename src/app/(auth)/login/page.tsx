@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
@@ -9,6 +10,7 @@ import { LogIn, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
+  const t = useTranslations('auth');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -20,11 +22,11 @@ export default function LoginPage() {
     setError(null);
 
     if (!identifier.trim()) {
-      setError('กรุณากรอกชื่อผู้ใช้หรืออีเมล');
+      setError(t('requiredUsername'));
       return;
     }
     if (!password) {
-      setError('กรุณากรอกรหัสผ่าน');
+      setError(t('requiredPassword'));
       return;
     }
 
@@ -42,11 +44,11 @@ export default function LoginPage() {
 
       if (authError) {
         if (authError.message.includes('Invalid login credentials')) {
-          setError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+          setError(t('invalidCredentials'));
         } else if (authError.message.includes('Email not confirmed')) {
-          setError('บัญชียังไม่ได้รับการยืนยัน กรุณาติดต่อผู้ดูแลระบบ');
+          setError(t('emailNotConfirmed'));
         } else {
-          setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง');
+          setError(t('loginError'));
         }
         return;
       }
@@ -54,7 +56,7 @@ export default function LoginPage() {
       router.push('/');
       router.refresh();
     } catch {
-      setError('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
+      setError(t('networkError'));
     } finally {
       setIsLoading(false);
     }
@@ -75,14 +77,14 @@ export default function LoginPage() {
           htmlFor="username"
           className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
         >
-          ชื่อผู้ใช้หรืออีเมล
+          {t('usernameOrEmail')}
         </label>
         <input
           id="username"
           type="text"
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
-          placeholder="กรอกชื่อผู้ใช้หรืออีเมล"
+          placeholder={t('enterUsername')}
           autoComplete="username"
           disabled={isLoading}
           className={cn(
@@ -102,7 +104,7 @@ export default function LoginPage() {
           htmlFor="password"
           className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
         >
-          รหัสผ่าน
+          {t('password')}
         </label>
         <div className="relative">
           <input
@@ -110,7 +112,7 @@ export default function LoginPage() {
             type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="กรอกรหัสผ่าน"
+            placeholder={t('enterPassword')}
             autoComplete="current-password"
             disabled={isLoading}
             className={cn(
@@ -153,17 +155,17 @@ export default function LoginPage() {
         ) : (
           <LogIn className="h-4 w-4" />
         )}
-        {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+        {isLoading ? t('loggingIn') : t('login')}
       </button>
 
       {/* Register Link */}
       <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
-        ยังไม่มีบัญชี?{' '}
+        {t('noAccount')}{' '}
         <Link
           href="/register"
           className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
         >
-          ลงทะเบียน
+          {t('register')}
         </Link>
       </p>
     </form>

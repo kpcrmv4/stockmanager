@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
 import { UserPlus, Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
 
 export default function RegisterPage() {
+  const t = useTranslations('auth');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -18,25 +20,25 @@ export default function RegisterPage() {
 
   const validateForm = (): string | null => {
     if (!registrationCode.trim()) {
-      return 'กรุณากรอกรหัสลงทะเบียน';
+      return t('requiredRegistrationCode');
     }
     if (!username.trim()) {
-      return 'กรุณากรอกชื่อผู้ใช้';
+      return t('requiredUsernameField');
     }
     if (username.trim().length < 3) {
-      return 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร';
+      return t('minUsername');
     }
     if (!/^[a-zA-Z0-9_]+$/.test(username.trim())) {
-      return 'ชื่อผู้ใช้ต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือขีดล่างเท่านั้น';
+      return t('usernameFormat');
     }
     if (!password) {
-      return 'กรุณากรอกรหัสผ่าน';
+      return t('requiredPasswordField');
     }
     if (password.length < 6) {
-      return 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
+      return t('minPasswordLength');
     }
     if (password !== confirmPassword) {
-      return 'รหัสผ่านไม่ตรงกัน กรุณากรอกใหม่';
+      return t('passwordMismatch');
     }
     return null;
   };
@@ -68,13 +70,13 @@ export default function RegisterPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'เกิดข้อผิดพลาดในการลงทะเบียน');
+        setError(data.error || t('registerError'));
         return;
       }
 
       setSuccess({ storeName: data.storeName });
     } catch {
-      setError('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
+      setError(t('networkError'));
     } finally {
       setIsLoading(false);
     }
@@ -89,10 +91,10 @@ export default function RegisterPage() {
             <CheckCircle className="h-7 w-7" />
           </div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-            ลงทะเบียนสำเร็จ!
+            {t('registerSuccess')}
           </h2>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            บัญชีของคุณถูกสร้างและเชื่อมกับสาขา
+            {t('accountCreatedLinked')}
           </p>
           {success.storeName && (
             <p className="mt-1 text-base font-semibold text-indigo-600 dark:text-indigo-400">
@@ -109,7 +111,7 @@ export default function RegisterPage() {
             'dark:bg-indigo-500 dark:hover:bg-indigo-600'
           )}
         >
-          ไปหน้าเข้าสู่ระบบ
+          {t('goToLogin')}
         </Link>
       </div>
     );
@@ -120,7 +122,7 @@ export default function RegisterPage() {
       {/* Title */}
       <div className="mb-6 text-center">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          ลงทะเบียนพนักงานใหม่
+          {t('registerNewStaff')}
         </p>
       </div>
 
@@ -137,14 +139,14 @@ export default function RegisterPage() {
           htmlFor="registrationCode"
           className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
         >
-          รหัสลงทะเบียน
+          {t('registrationCode')}
         </label>
         <input
           id="registrationCode"
           type="text"
           value={registrationCode}
           onChange={(e) => setRegistrationCode(e.target.value)}
-          placeholder="กรอกรหัสที่ได้รับจากผู้จัดการ"
+          placeholder={t('enterRegistrationCode')}
           disabled={isLoading}
           className={cn(
             'w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors',
@@ -156,7 +158,7 @@ export default function RegisterPage() {
           )}
         />
         <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-          รหัสลงทะเบียนจะได้รับจากเจ้าของร้านหรือผู้จัดการ
+          {t('registrationCodeHelp')}
         </p>
       </div>
 
@@ -166,15 +168,15 @@ export default function RegisterPage() {
           htmlFor="displayName"
           className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
         >
-          ชื่อที่แสดง{' '}
-          <span className="font-normal text-gray-400">(ไม่บังคับ)</span>
+          {t('displayName')}{' '}
+          <span className="font-normal text-gray-400">({t('optional', { ns: 'common' })})</span>
         </label>
         <input
           id="displayName"
           type="text"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="เช่น สมชาย, น้องเอ"
+          placeholder={t('displayNamePlaceholder')}
           disabled={isLoading}
           className={cn(
             'w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors',
@@ -193,14 +195,14 @@ export default function RegisterPage() {
           htmlFor="username"
           className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
         >
-          ชื่อผู้ใช้
+          {t('username')}
         </label>
         <input
           id="username"
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="กรอกชื่อผู้ใช้ (ภาษาอังกฤษ)"
+          placeholder={t('enterUsernameEn')}
           autoComplete="username"
           disabled={isLoading}
           className={cn(
@@ -220,7 +222,7 @@ export default function RegisterPage() {
           htmlFor="password"
           className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
         >
-          รหัสผ่าน
+          {t('password')}
         </label>
         <div className="relative">
           <input
@@ -228,7 +230,7 @@ export default function RegisterPage() {
             type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="อย่างน้อย 6 ตัวอักษร"
+            placeholder={t('minPassword')}
             autoComplete="new-password"
             disabled={isLoading}
             className={cn(
@@ -261,7 +263,7 @@ export default function RegisterPage() {
           htmlFor="confirmPassword"
           className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
         >
-          ยืนยันรหัสผ่าน
+          {t('confirmPassword')}
         </label>
         <div className="relative">
           <input
@@ -269,7 +271,7 @@ export default function RegisterPage() {
             type={showPassword ? 'text' : 'password'}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="กรอกรหัสผ่านอีกครั้ง"
+            placeholder={t('enterPasswordAgain')}
             autoComplete="new-password"
             disabled={isLoading}
             className={cn(
@@ -300,17 +302,17 @@ export default function RegisterPage() {
         ) : (
           <UserPlus className="h-4 w-4" />
         )}
-        {isLoading ? 'กำลังลงทะเบียน...' : 'ลงทะเบียน'}
+        {isLoading ? t('registering') : t('register')}
       </button>
 
       {/* Back to Login */}
       <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
-        มีบัญชีแล้ว?{' '}
+        {t('hasAccount')}{' '}
         <Link
           href="/login"
           className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
         >
-          เข้าสู่ระบบ
+          {t('login')}
         </Link>
       </p>
     </form>

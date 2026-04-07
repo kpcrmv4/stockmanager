@@ -34,6 +34,17 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   hq: 'พนักงานคลังกลาง',
 };
 
+/** Translation keys for role labels — use with useTranslations() */
+export const ROLE_LABEL_KEYS: Record<UserRole, string> = {
+  owner: 'roles.owner',
+  accountant: 'roles.accountant',
+  manager: 'roles.manager',
+  bar: 'roles.bar',
+  staff: 'roles.staff',
+  customer: 'roles.customer',
+  hq: 'roles.hq',
+};
+
 export const ROLE_HOME_ROUTES: Record<UserRole, string> = {
   owner: '/overview',
   accountant: '/reports',

@@ -1,10 +1,13 @@
 import { Package } from 'lucide-react';
+import { getTranslations } from 'next-intl/server';
 
-export default function AuthLayout({
+export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const t = await getTranslations();
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 dark:bg-gray-950">
       <div className="w-full max-w-md">
@@ -17,7 +20,7 @@ export default function AuthLayout({
             StockManager
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            ระบบจัดการสต๊อกร้านเหล้า
+            {t('meta.subtitle')}
           </p>
         </div>
 
@@ -28,7 +31,7 @@ export default function AuthLayout({
 
         {/* Footer */}
         <p className="mt-6 text-center text-xs text-gray-400 dark:text-gray-500">
-          &copy; {new Date().getFullYear()} StockManager. สงวนลิขสิทธิ์.
+          &copy; {new Date().getFullYear()} StockManager. {t('common.allRightsReserved')}.
         </p>
       </div>
     </div>

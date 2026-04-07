@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { Download, Bell, X, Smartphone, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useInstallPWA } from '@/hooks/use-install-pwa';
@@ -19,6 +20,7 @@ function detectPlatform(): Platform {
 }
 
 export function InstallPrompt() {
+  const t = useTranslations('pwa');
   const { canInstall, isInstalled, isInstalling, install } = useInstallPWA();
   const { isSupported: pushSupported, isSubscribed, permission, subscribe, isLoading: pushLoading } = usePushSubscription();
   const [isOpen, setIsOpen] = useState(false);
@@ -27,14 +29,12 @@ export function InstallPrompt() {
   const platform = useMemo(() => detectPlatform(), []);
   const isMobile = platform === 'android' || platform === 'ios';
 
-  // Show prompt after a short delay if not dismissed and not installed
   useEffect(() => {
     if (!isMobile) return;
     if (isInstalled) return;
 
     const wasDismissed = localStorage.getItem(DISMISSED_KEY);
     if (wasDismissed) {
-      // Re-show after 7 days
       const dismissedAt = parseInt(wasDismissed, 10);
       if (Date.now() - dismissedAt < 7 * 24 * 60 * 60 * 1000) return;
     }
@@ -52,7 +52,6 @@ export function InstallPrompt() {
     if (platform === 'android' && canInstall) {
       const accepted = await install();
       if (accepted) {
-        // Move to notification step
         if (pushSupported && !isSubscribed && permission !== 'denied') {
           setStep('notification');
         } else {
@@ -61,7 +60,6 @@ export function InstallPrompt() {
         }
       }
     }
-    // iOS can't trigger install programmatically — just move to notification step
     if (platform === 'ios') {
       if (pushSupported && !isSubscribed && permission !== 'denied') {
         setStep('notification');
@@ -78,7 +76,6 @@ export function InstallPrompt() {
       setStep('done');
       setTimeout(handleDismiss, 2000);
     } catch {
-      // User denied or error — just close
       setStep('done');
       setTimeout(handleDismiss, 2000);
     }
@@ -98,11 +95,10 @@ export function InstallPrompt() {
         role="dialog"
         aria-modal="true"
       >
-        {/* Close button — top right */}
         <button
           onClick={handleDismiss}
           className="absolute right-3 top-3 z-10 rounded-full p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-          aria-label="ปิด"
+          aria-label={t('understood')}
         >
           <X className="h-5 w-5" />
         </button>
@@ -116,33 +112,30 @@ export function InstallPrompt() {
               </div>
 
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                ติดตั้งแอปบนมือถือ
+                {t('installOnMobile')}
               </h3>
 
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                {platform === 'android'
-                  ? 'ติดตั้ง StockManager เป็นแอปบนหน้าจอหลัก เพื่อรับการแจ้งเตือน และใช้งานได้สะดวกยิ่งขึ้น'
-                  : 'เพิ่ม StockManager ลงหน้าจอหลัก เพื่อเข้าถึงได้เร็วขึ้น'}
+                {platform === 'android' ? t('androidInstallDesc') : t('iosInstallDesc')}
               </p>
 
-              {/* iOS instructions */}
               {platform === 'ios' && (
                 <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-left dark:border-gray-700 dark:bg-gray-900/50">
                   <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    วิธีติดตั้งบน iPhone / iPad:
+                    {t('iosInstructions')}
                   </p>
                   <ol className="mt-2 space-y-1.5 text-xs text-gray-600 dark:text-gray-400">
                     <li className="flex items-start gap-2">
                       <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400">1</span>
-                      <span>กดปุ่ม <strong>แชร์</strong> (Share) ด้านล่างของ Safari</span>
+                      <span>{t('iosStep1')}</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400">2</span>
-                      <span>เลื่อนลงแล้วกด <strong>&quot;เพิ่มไปยังหน้าจอโฮม&quot;</strong></span>
+                      <span>{t('iosStep2')}</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400">3</span>
-                      <span>กด <strong>&quot;เพิ่ม&quot;</strong> เพื่อยืนยัน</span>
+                      <span>{t('iosStep3')}</span>
                     </li>
                   </ol>
                 </div>
@@ -159,7 +152,7 @@ export function InstallPrompt() {
                     )}
                   >
                     <Download className="h-4 w-4" />
-                    {isInstalling ? 'กำลังติดตั้ง...' : 'ติดตั้งทันที'}
+                    {isInstalling ? t('enabling') : t('installNow')}
                   </button>
                 )}
 
@@ -168,7 +161,7 @@ export function InstallPrompt() {
                     onClick={handleInstall}
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
                   >
-                    เข้าใจแล้ว
+                    {t('understood')}
                   </button>
                 )}
 
@@ -176,7 +169,7 @@ export function InstallPrompt() {
                   onClick={handleDismiss}
                   className="w-full rounded-xl px-4 py-2.5 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
                 >
-                  ไว้ทีหลัง
+                  {t('later')}
                 </button>
               </div>
             </div>
@@ -190,11 +183,11 @@ export function InstallPrompt() {
               </div>
 
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                เปิดการแจ้งเตือน
+                {t('enableNotifications')}
               </h3>
 
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                รับแจ้งเตือนทันทีเมื่อมีรายการใหม่ เช่น คำขอฝากเหล้า เบิกเหล้า หรือสต๊อก
+                {t('notificationDesc')}
               </p>
 
               <div className="mt-5 flex flex-col gap-2">
@@ -207,13 +200,13 @@ export function InstallPrompt() {
                   )}
                 >
                   <Bell className="h-4 w-4" />
-                  {pushLoading ? 'กำลังเปิด...' : 'เปิดการแจ้งเตือน'}
+                  {pushLoading ? t('enabling') : t('enableNotifications')}
                 </button>
                 <button
                   onClick={handleSkipNotification}
                   className="w-full rounded-xl px-4 py-2.5 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
                 >
-                  ข้ามไปก่อน
+                  {t('skipForNow')}
                 </button>
               </div>
             </div>
@@ -227,11 +220,11 @@ export function InstallPrompt() {
               </div>
 
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                เรียบร้อย!
+                {t('allDone')}
               </h3>
 
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                ขอบคุณที่ตั้งค่าเรียบร้อยแล้ว
+                {t('thankYou')}
               </p>
             </div>
           )}
