@@ -1027,7 +1027,7 @@ function ReceiptContent({
   storeName: string;
   copyNumber?: number;
   totalCopies?: number;
-  t: (key: string, values?: Record<string, unknown>) => string;
+  t: ReturnType<typeof useTranslations>;
 }) {
   return (
     <div>
@@ -1109,7 +1109,7 @@ function ReceiptContent({
 // Label renderer (for print area)
 // ---------------------------------------------------------------------------
 
-function LabelContent({ payload, storeName, t }: { payload: PrintPayload; storeName: string; t: (key: string) => string }) {
+function LabelContent({ payload, storeName, t }: { payload: PrintPayload; storeName: string; t: ReturnType<typeof useTranslations> }) {
   return (
     <div>
       <div style={{ textAlign: 'center', fontSize: '7pt', lineHeight: 1.2, marginBottom: '1mm', color: '#333' }}>
@@ -1162,7 +1162,7 @@ function TransferReceiptContent({
 }: {
   payload: TransferPrintPayload;
   storeName: string;
-  t: (key: string, values?: Record<string, unknown>) => string;
+  t: ReturnType<typeof useTranslations>;
 }) {
   const items = payload.items || [];
   const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
