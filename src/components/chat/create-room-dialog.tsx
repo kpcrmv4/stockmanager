@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useChatStore } from '@/stores/chat-store';
 import { Modal, ModalFooter, Button, Input } from '@/components/ui';
-import { Loader2, Check, Users, MessageCircle, Building2 } from 'lucide-react';
+import { Loader2, Check, Users, User, MessageCircle, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import type { ChatRoomType } from '@/types/chat';
 
@@ -29,13 +29,19 @@ interface StoreInfo {
   name: string;
 }
 
-type CreatableRoomType = 'direct' | 'cross_store';
+type CreatableRoomType = 'dm' | 'direct' | 'cross_store';
 
-const ROOM_TYPE_OPTIONS: { value: CreatableRoomType; label: string; description: string; icon: typeof MessageCircle }[] = [
+const ROOM_TYPE_OPTIONS: { value: CreatableRoomType; label: string; description: string; icon: typeof MessageCircle; ownerOnly?: boolean }[] = [
+  {
+    value: 'dm',
+    label: '1:1',
+    description: 'แชทตัวต่อตัว',
+    icon: User,
+  },
   {
     value: 'direct',
-    label: 'แชทกลุ่ม',
-    description: 'สร้างห้องแชทกับพนักงานในสาขา',
+    label: 'กลุ่ม',
+    description: 'สร้างกลุ่มแชทในสาขา',
     icon: MessageCircle,
   },
   {
@@ -43,6 +49,7 @@ const ROOM_TYPE_OPTIONS: { value: CreatableRoomType; label: string; description:
     label: 'ข้ามสาขา',
     description: 'แชทประสานงานระหว่างสาขา',
     icon: Building2,
+    ownerOnly: true,
   },
 ];
 
@@ -51,19 +58,20 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
   const { user } = useAuthStore();
   const { rooms, setRooms } = useChatStore();
 
-  const [roomType, setRoomType] = useState<CreatableRoomType>('direct');
+  const [roomType, setRoomType] = useState<CreatableRoomType>('dm');
   const [name, setName] = useState('');
   const [storeUsers, setStoreUsers] = useState<StoreUser[]>([]);
   const [allStoreUsers, setAllStoreUsers] = useState<StoreUser[]>([]);
   const [stores, setStores] = useState<StoreInfo[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [dmSelectedId, setDmSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('all');
 
   const isOwnerOrManager = user?.role === 'owner' || user?.role === 'manager';
 
-  // Load store users for direct chat
+  // Load store users for direct/dm chat
   useEffect(() => {
     if (!isOpen || !user) return;
 
@@ -92,10 +100,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
 
     const supabase = createClient();
 
-    // Load stores the user has access to
     const loadData = async () => {
-      // For owner: load all stores in tenant
-      // For manager: load stores they belong to
       const { data: storeData } = await supabase
         .from('stores')
         .select('id, name')
@@ -105,7 +110,6 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
         setStores(storeData);
       }
 
-      // Load all users with their store assignments
       const { data: userStoreData } = await supabase
         .from('user_stores')
         .select('store_id, user_id, stores:store_id(name), profiles:user_id(id, username, display_name, role)')
@@ -136,14 +140,15 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
   useEffect(() => {
     if (!isOpen) {
       setName('');
-      setRoomType('direct');
+      setRoomType('dm');
       setSelectedIds(new Set());
+      setDmSelectedId(null);
       setSearchQuery('');
       setSelectedStoreFilter('all');
     }
   }, [isOpen]);
 
-  // Auto-select owners when switching to direct mode
+  // Auto-select owners when switching to group direct mode
   useEffect(() => {
     const ownerIds = new Set<string>();
     if (roomType === 'direct') {
@@ -152,9 +157,16 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
       });
     }
     setSelectedIds(ownerIds);
+    setDmSelectedId(null);
   }, [roomType, storeUsers]);
 
   const toggleUser = (userId: string) => {
+    if (roomType === 'dm') {
+      // DM: select only one person
+      setDmSelectedId((prev) => (prev === userId ? null : userId));
+      return;
+    }
+
     // Don't allow deselecting owner in direct mode
     if (roomType === 'direct') {
       const userObj = storeUsers.find((u) => u.id === userId);
@@ -173,10 +185,72 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
   };
 
   const handleCreate = async () => {
-    if (!user || !name.trim()) return;
+    if (!user) return;
+
+    // Validate based on type
+    if (roomType === 'dm') {
+      if (!dmSelectedId) return;
+    } else {
+      if (!name.trim()) return;
+    }
 
     setCreating(true);
     const supabase = createClient();
+
+    // For DM: check if a 1:1 room already exists
+    if (roomType === 'dm' && dmSelectedId) {
+      const { data: existingMembers } = await supabase
+        .from('chat_members')
+        .select('room_id')
+        .eq('user_id', user.id);
+
+      if (existingMembers && existingMembers.length > 0) {
+        const myRoomIds = existingMembers.map((m) => m.room_id);
+
+        // Find rooms where the other user is also a member and room type is 'direct' with exactly 2 members
+        const { data: otherMembers } = await supabase
+          .from('chat_members')
+          .select('room_id')
+          .eq('user_id', dmSelectedId)
+          .in('room_id', myRoomIds);
+
+        if (otherMembers && otherMembers.length > 0) {
+          const sharedRoomIds = otherMembers.map((m) => m.room_id);
+
+          // Check if any of these shared rooms is a DM (type='direct' with exactly 2 members)
+          for (const roomId of sharedRoomIds) {
+            const { data: room } = await supabase
+              .from('chat_rooms')
+              .select('id, type')
+              .eq('id', roomId)
+              .eq('type', 'direct')
+              .eq('is_active', true)
+              .single();
+
+            if (room) {
+              const { count } = await supabase
+                .from('chat_members')
+                .select('*', { count: 'exact', head: true })
+                .eq('room_id', roomId);
+
+              if (count === 2) {
+                // Existing DM found — navigate to it
+                setCreating(false);
+                onClose();
+                router.push(`/chat/${roomId}`);
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Generate room name for DM
+    const dmUser = roomType === 'dm' ? storeUsers.find((u) => u.id === dmSelectedId) : null;
+    const roomName = roomType === 'dm'
+      ? `${user.displayName || user.username}, ${dmUser?.display_name || dmUser?.username || ''}`
+      : name.trim();
 
     const storeId = roomType === 'cross_store' ? null : (user.storeIds?.[0] || null);
 
@@ -185,8 +259,8 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
       .from('chat_rooms')
       .insert({
         store_id: storeId,
-        name: name.trim(),
-        type: roomType as ChatRoomType,
+        name: roomName,
+        type: (roomType === 'dm' ? 'direct' : roomType) as ChatRoomType,
         created_by: user.id,
       })
       .select('id, store_id, name, type, is_active, pinned_summary, avatar_url, created_by, created_at, updated_at')
@@ -204,9 +278,14 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
       role: 'admin',
     });
 
-    // 3. Add selected members
-    if (selectedIds.size > 0) {
-      // Deduplicate user IDs (cross_store may have same user in multiple stores)
+    // 3. Add members
+    if (roomType === 'dm' && dmSelectedId) {
+      await supabase.from('chat_members').insert({
+        room_id: newRoom.id,
+        user_id: dmSelectedId,
+        role: 'member',
+      });
+    } else if (selectedIds.size > 0) {
       const uniqueUserIds = new Set(selectedIds);
       const memberInserts = Array.from(uniqueUserIds).map((uid) => ({
         room_id: newRoom.id,
@@ -235,7 +314,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
 
   // Users to display based on room type
   const displayUsers = useMemo(() => {
-    if (roomType === 'direct') {
+    if (roomType === 'dm' || roomType === 'direct') {
       return storeUsers.filter(
         (u) =>
           !searchQuery ||
@@ -244,7 +323,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
       );
     }
 
-    // cross_store: deduplicate by user id, group by store
+    // cross_store
     let users = allStoreUsers;
     if (selectedStoreFilter !== 'all') {
       users = users.filter((u) => u.store_id === selectedStoreFilter);
@@ -274,6 +353,12 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
     return groups;
   }, [roomType, displayUsers]);
 
+  const memberCount = roomType === 'dm' ? (dmSelectedId ? 1 : 0) : selectedIds.size;
+
+  const canCreate = roomType === 'dm'
+    ? !!dmSelectedId
+    : !!name.trim();
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="สร้างห้องแชทใหม่" size="md">
       <div className="space-y-4">
@@ -282,9 +367,9 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
           <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
             ประเภทห้อง
           </label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {ROOM_TYPE_OPTIONS.filter(
-              (opt) => opt.value !== 'cross_store' || isOwnerOrManager
+              (opt) => !opt.ownerOnly || isOwnerOrManager
             ).map((opt) => {
               const Icon = opt.icon;
               const isActive = roomType === opt.value;
@@ -293,7 +378,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
                   key={opt.value}
                   onClick={() => setRoomType(opt.value)}
                   className={cn(
-                    'flex flex-col items-center gap-1 rounded-xl border-2 px-3 py-3 text-center transition-all',
+                    'flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-2.5 text-center transition-all',
                     isActive
                       ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-900/20'
                       : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500'
@@ -317,7 +402,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
                   >
                     {opt.label}
                   </span>
-                  <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                  <span className="text-[11px] leading-tight text-gray-400 dark:text-gray-500">
                     {opt.description}
                   </span>
                 </button>
@@ -326,22 +411,24 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
           </div>
         </div>
 
-        {/* Room name */}
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            ชื่อห้อง
-          </label>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={
-              roomType === 'cross_store'
-                ? 'เช่น ประสานงานสต๊อก ทุกสาขา'
-                : 'เช่น ทีมบาร์ สาขา A'
-            }
-            autoFocus
-          />
-        </div>
+        {/* Room name — hide for DM */}
+        {roomType !== 'dm' && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              ชื่อห้อง
+            </label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={
+                roomType === 'cross_store'
+                  ? 'เช่น ประสานงานสต๊อก ทุกสาขา'
+                  : 'เช่น ทีมบาร์ สาขา A'
+              }
+              autoFocus
+            />
+          </div>
+        )}
 
         {/* Store filter for cross_store */}
         {roomType === 'cross_store' && stores.length > 0 && (
@@ -367,14 +454,19 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
         {/* Select members */}
         <div>
           <label className="mb-1 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-            <Users className="h-4 w-4" />
-            เลือกสมาชิก ({selectedIds.size} คน)
+            {roomType === 'dm' ? (
+              <User className="h-4 w-4" />
+            ) : (
+              <Users className="h-4 w-4" />
+            )}
+            {roomType === 'dm' ? 'เลือกคนที่ต้องการแชท' : `เลือกสมาชิก (${memberCount} คน)`}
           </label>
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="ค้นหาพนักงาน..."
             className="mb-2"
+            autoFocus={roomType === 'dm'}
           />
           <div className="max-h-52 space-y-0.5 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700">
             {displayUsers.length === 0 && (
@@ -400,20 +492,22 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
                       isSelected={selectedIds.has(su.id)}
                       isOwner={su.role === 'owner'}
                       canDeselect={true}
+                      isDm={false}
                       onToggle={() => toggleUser(su.id)}
                     />
                   ))}
                 </div>
               ))
             ) : (
-              // Flat list for direct
+              // Flat list for DM and direct
               displayUsers.map((su) => (
                 <UserRow
                   key={su.id}
                   user={su}
-                  isSelected={selectedIds.has(su.id)}
+                  isSelected={roomType === 'dm' ? dmSelectedId === su.id : selectedIds.has(su.id)}
                   isOwner={su.role === 'owner'}
-                  canDeselect={su.role !== 'owner'}
+                  canDeselect={roomType === 'dm' || su.role !== 'owner'}
+                  isDm={roomType === 'dm'}
                   onToggle={() => toggleUser(su.id)}
                 />
               ))
@@ -426,9 +520,9 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
         <Button variant="secondary" onClick={onClose}>
           ยกเลิก
         </Button>
-        <Button onClick={handleCreate} disabled={creating || !name.trim()}>
+        <Button onClick={handleCreate} disabled={creating || !canCreate}>
           {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          สร้างห้อง
+          {roomType === 'dm' ? 'เริ่มแชท' : 'สร้างห้อง'}
         </Button>
       </ModalFooter>
     </Modal>
@@ -444,12 +538,14 @@ function UserRow({
   isSelected,
   isOwner,
   canDeselect,
+  isDm,
   onToggle,
 }: {
   user: StoreUser;
   isSelected: boolean;
   isOwner: boolean;
   canDeselect: boolean;
+  isDm: boolean;
   onToggle: () => void;
 }) {
   return (
@@ -462,17 +558,32 @@ function UserRow({
           : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
       )}
     >
-      <div
-        className={cn(
-          'flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors',
-          isSelected
-            ? 'border-indigo-600 bg-indigo-600'
-            : 'border-gray-300 dark:border-gray-600',
-          !canDeselect && isSelected && 'opacity-50'
-        )}
-      >
-        {isSelected && <Check className="h-3 w-3 text-white" />}
-      </div>
+      {isDm ? (
+        // Radio button for DM
+        <div
+          className={cn(
+            'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+            isSelected
+              ? 'border-indigo-600 bg-indigo-600'
+              : 'border-gray-300 dark:border-gray-600'
+          )}
+        >
+          {isSelected && <div className="h-2 w-2 rounded-full bg-white" />}
+        </div>
+      ) : (
+        // Checkbox for group
+        <div
+          className={cn(
+            'flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors',
+            isSelected
+              ? 'border-indigo-600 bg-indigo-600'
+              : 'border-gray-300 dark:border-gray-600',
+            !canDeselect && isSelected && 'opacity-50'
+          )}
+        >
+          {isSelected && <Check className="h-3 w-3 text-white" />}
+        </div>
+      )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-200">
           {user.display_name || user.username}
