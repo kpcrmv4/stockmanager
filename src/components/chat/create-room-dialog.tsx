@@ -88,7 +88,8 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
           const users = data
             .map((d) => d.profiles as unknown as StoreUser)
             .filter(Boolean)
-            .filter((u) => u.id !== user.id);
+            .filter((u) => u.id !== user.id)
+            .filter((u) => !u.username?.startsWith('printer'));
           setStoreUsers(users);
         }
       });
@@ -127,7 +128,8 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
               store_name: store?.name || '',
             };
           })
-          .filter((u): u is StoreUser => u !== null && u.id !== user.id);
+          .filter((u): u is StoreUser => u !== null && u.id !== user.id)
+          .filter((u) => !u.username?.startsWith('printer'));
 
         setAllStoreUsers(users);
       }
