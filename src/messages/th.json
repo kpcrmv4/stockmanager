@@ -1568,11 +1568,22 @@
   },
   "notificationsPage": {
     "title": "การแจ้งเตือน",
-    "subtitle": "รายการแจ้งเตือนทั้งหมด"
+    "subtitle": "รายการแจ้งเตือนทั้งหมด",
+    "unreadCount": "ยังไม่ได้อ่าน {count} รายการ",
+    "markAllRead": "อ่านทั้งหมด",
+    "markRead": "อ่านแล้ว",
+    "empty": "ไม่มีการแจ้งเตือน",
+    "emptyDesc": "การแจ้งเตือนของคุณจะปรากฏที่นี่"
   },
   "commission": {
     "title": "ระบบคอมมิชชั่น",
-    "subtitle": "AE Commission & Bottle Commission"
+    "subtitle": "AE Commission & Bottle Commission",
+    "tabDashboard": "สรุปยอด",
+    "tabRecord": "บันทึก",
+    "tabList": "รายการ",
+    "tabPayment": "ทำจ่าย",
+    "tabHistory": "ประวัติ",
+    "tabAE": "จัดการ AE"
   },
   "stock": {
     "title": "ระบบนับสต๊อก",

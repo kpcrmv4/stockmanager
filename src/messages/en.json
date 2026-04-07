@@ -1568,11 +1568,22 @@
   },
   "notificationsPage": {
     "title": "Notifications",
-    "subtitle": "All notifications"
+    "subtitle": "All notifications",
+    "unreadCount": "{count} unread",
+    "markAllRead": "Mark all read",
+    "markRead": "Read",
+    "empty": "No notifications",
+    "emptyDesc": "Your notifications will appear here"
   },
   "commission": {
     "title": "Commission System",
-    "subtitle": "AE Commission & Bottle Commission"
+    "subtitle": "AE Commission & Bottle Commission",
+    "tabDashboard": "Dashboard",
+    "tabRecord": "Record",
+    "tabList": "Entries",
+    "tabPayment": "Payment",
+    "tabHistory": "History",
+    "tabAE": "Manage AE"
   },
   "stock": {
     "title": "Stock Check System",
