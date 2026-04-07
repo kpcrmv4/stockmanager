@@ -46,6 +46,7 @@ import {
   X,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { DepositForm } from './_components/deposit-form';
 import { DepositDetail } from './_components/deposit-detail';
 import { notifyChatTransferBatch, notifyChatTransferSubmitted } from '@/lib/chat/transfer-bot-client';
@@ -110,19 +111,21 @@ const statusVariantMap: Record<string, 'default' | 'success' | 'warning' | 'dang
   transferred_out: 'info',
 };
 
-const depositTabs = [
-  { id: 'all', label: 'ทั้งหมด' },
-  { id: 'in_store', label: 'ในร้าน' },
-  { id: 'pending_confirm', label: 'รอยืนยัน' },
-  { id: 'expired', label: 'หมดอายุ' },
-  { id: 'transfer_pending', label: 'รอนำส่ง HQ' },
-  { id: 'vip', label: 'VIP' },
-];
+const DEPOSIT_TAB_IDS = ['all', 'in_store', 'pending_confirm', 'expired', 'transfer_pending', 'vip'] as const;
+const DEPOSIT_TAB_KEYS: Record<string, string> = {
+  all: 'tabs.all',
+  in_store: 'tabs.inStore',
+  pending_confirm: 'tabs.pendingConfirm',
+  expired: 'tabs.expired',
+  transfer_pending: 'tabs.transferPending',
+  vip: 'tabs.vip',
+};
 
 const PAGE_SIZE = 50;
 const ACTIVE_STATUSES = ['in_store', 'pending_confirm', 'pending_withdrawal', 'transfer_pending', 'expired'];
 
 export default function DepositPage() {
+  const t = useTranslations('deposit');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const searchParams = useSearchParams();
@@ -191,9 +194,9 @@ export default function DepositPage() {
       requested_by: user.id,
     });
     if (error) {
-      toast({ type: 'error', title: 'ไม่สามารถส่งคำสั่งพิมพ์ได้', message: error.message });
+      toast({ type: 'error', title: t('printError'), message: error.message });
     } else {
-      toast({ type: 'success', title: 'ส่งพิมพ์ใบนำส่งแล้ว', message: 'รอเครื่องพิมพ์ดำเนินการ' });
+      toast({ type: 'success', title: t('printSent'), message: t('printSentMessage') });
     }
   }, [currentStoreId, user]);
 
@@ -350,7 +353,7 @@ export default function DepositPage() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถโหลดข้อมูลฝากเหล้าได้' });
+      toast({ type: 'error', title: t('loadError'), message: t('loadDepositError') });
     }
     if (data) {
       setDeposits(data as Deposit[]);
@@ -387,13 +390,13 @@ export default function DepositPage() {
           .in('id', depositIds);
       }
 
-      toast({ type: 'success', title: 'ยกเลิกคำขอโอนแล้ว', message: `ยกเลิก ${cancellingTransferBatch.items.length} รายการ` });
+      toast({ type: 'success', title: t('transfer.cancelSuccess'), message: t('transfer.cancelSuccessMessage', { count: cancellingTransferBatch.items.length }) });
       setShowCancelBatchModal(false);
       setCancellingTransferBatch(null);
       loadTransferBatches();
       loadDeposits();
     } catch (err) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: err instanceof Error ? err.message : 'ไม่สามารถยกเลิกได้' });
+      toast({ type: 'error', title: t('loadError'), message: err instanceof Error ? err.message : t('transfer.cancelError') });
     } finally {
       setIsCancellingBatch(false);
     }
@@ -463,7 +466,7 @@ export default function DepositPage() {
         .single();
 
       if (!centralStore) {
-        toast({ type: 'error', title: 'ไม่พบคลังกลาง', message: 'กรุณาตั้งค่าคลังกลางก่อน' });
+        toast({ type: 'error', title: t('transfer.noHQ'), message: t('transfer.noHQMessage') });
         return;
       }
 
@@ -560,14 +563,14 @@ export default function DepositPage() {
         });
       }
 
-      toast({ type: 'success', title: 'ส่งโอนสำเร็จ', message: `ส่งโอน ${selected.length} รายการ (${transferCode})` });
+      toast({ type: 'success', title: t('transfer.success'), message: t('transfer.successMessage', { count: selected.length, code: transferCode }) });
       setShowTransferModal(false);
       setBatchSelectedIds(new Set());
       setTransferNote('');
       setTransferPhoto(null);
       loadDeposits();
     } catch (err) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: err instanceof Error ? err.message : 'ไม่สามารถส่งโอนได้' });
+      toast({ type: 'error', title: t('loadError'), message: err instanceof Error ? err.message : t('transfer.error') });
     } finally {
       setIsBatchTransferring(false);
     }
@@ -631,13 +634,14 @@ export default function DepositPage() {
     return result;
   }, [deposits, activeTab, searchQuery, dateFilterEnabled, dateFrom, dateTo]);
 
-  const tabsWithCounts = depositTabs.map((t) => {
-    if (t.id === 'in_store') return { ...t, count: stats.activeCount };
-    if (t.id === 'pending_confirm') return { ...t, count: stats.pendingCount };
-    if (t.id === 'expired') return { ...t, count: stats.expiredCount };
-    if (t.id === 'transfer_pending') return { ...t, count: stats.transferPendingCount };
-    if (t.id === 'vip') return { ...t, count: stats.vipCount };
-    return t;
+  const depositTabs = DEPOSIT_TAB_IDS.map((id) => ({ id, label: t(DEPOSIT_TAB_KEYS[id]) }));
+  const tabsWithCounts = depositTabs.map((tab) => {
+    if (tab.id === 'in_store') return { ...tab, count: stats.activeCount };
+    if (tab.id === 'pending_confirm') return { ...tab, count: stats.pendingCount };
+    if (tab.id === 'expired') return { ...tab, count: stats.expiredCount };
+    if (tab.id === 'transfer_pending') return { ...tab, count: stats.transferPendingCount };
+    if (tab.id === 'vip') return { ...tab, count: stats.vipCount };
+    return tab;
   });
 
   // Show new deposit form
@@ -671,19 +675,19 @@ export default function DepositPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ฝากเหล้า</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            จัดการรายการฝากเหล้าและเบิกเหล้าของลูกค้า
+            {t('subtitle')}
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Link href="/deposit/withdrawals">
             <Button variant="danger" icon={<Minus className="h-4 w-4" />} className="w-full sm:w-auto">
-              เบิกเหล้า
+              {t('withdrawButton')}
             </Button>
           </Link>
           <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowNewForm(true)}>
-            ฝากเหล้าใหม่
+            {t('newDeposit')}
           </Button>
         </div>
       </div>
@@ -697,7 +701,7 @@ export default function DepositPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.activeCount}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">ฝากอยู่ในร้าน</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('inStore')}</p>
             </div>
           </div>
         </Card>
@@ -708,7 +712,7 @@ export default function DepositPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.pendingCount}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">รอยืนยัน</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('pendingConfirm')}</p>
             </div>
           </div>
         </Card>
@@ -719,7 +723,7 @@ export default function DepositPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.expiredCount}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">หมดอายุ</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('expired')}</p>
             </div>
           </div>
         </Card>
@@ -730,7 +734,7 @@ export default function DepositPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.pendingWithdrawalCount}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">คำขอเบิก</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('withdrawalRequests')}</p>
             </div>
           </div>
         </Card>
@@ -746,7 +750,7 @@ export default function DepositPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ค้นหารหัส/ชื่อลูกค้า..."
+              placeholder={t('searchPlaceholder')}
               className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             />
           </div>
@@ -764,7 +768,7 @@ export default function DepositPage() {
             )}
           >
             <CalendarDays className="h-3.5 w-3.5" />
-            {dateFilterEnabled ? 'กรองวันที่ · แตะเพื่อดูทั้งหมด' : 'กรองวันที่ · แตะเพื่อกรองตามวัน'}
+            {dateFilterEnabled ? t('dateFilterOn') : t('dateFilterOff')}
           </button>
           {dateFilterEnabled && (
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -774,7 +778,7 @@ export default function DepositPage() {
                 onChange={(e) => handleDateFromChange(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               />
-              <span className="text-xs text-gray-400">ถึง</span>
+              <span className="text-xs text-gray-400">{t('toDate')}</span>
               <input
                 type="date"
                 value={dateTo}
@@ -795,12 +799,12 @@ export default function DepositPage() {
       ) : filteredDeposits.length === 0 ? (
         <EmptyState
           icon={Wine}
-          title="ไม่มีรายการฝากเหล้า"
-          description={searchQuery ? 'ไม่พบรายการที่ตรงกับการค้นหา' : 'ยังไม่มีรายการฝากเหล้าในขณะนี้'}
+          title={t('noDeposits')}
+          description={searchQuery ? t('noSearchResults') : t('noDepositsYet')}
           action={
             !searchQuery ? (
               <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowNewForm(true)}>
-                ฝากเหล้าใหม่
+                {t('newDeposit')}
               </Button>
             ) : undefined
           }
@@ -829,8 +833,8 @@ export default function DepositPage() {
                     <Square className="h-5 w-5" />
                   )}
                   {batchSelectedIds.size > 0
-                    ? `เลือกแล้ว ${batchSelectedIds.size} รายการ`
-                    : 'เลือกทั้งหมด'}
+                    ? t('batch.selectedCount', { count: batchSelectedIds.size })
+                    : t('batch.selectAll')}
                 </button>
               </div>
               {batchSelectedIds.size > 0 && (
@@ -841,7 +845,7 @@ export default function DepositPage() {
                   isLoading={isBatchTransferring}
                   onClick={() => setShowTransferModal(true)}
                 >
-                  โอนคลังกลาง ({batchSelectedIds.size})
+                  {t('batch.transferToHQ', { count: batchSelectedIds.size })}
                 </Button>
               )}
             </div>
@@ -857,8 +861,8 @@ export default function DepositPage() {
               ) : transferBatches.length === 0 ? (
                 <EmptyState
                   icon={Truck}
-                  title="ไม่มีรายการรอนำส่ง"
-                  description="ยังไม่มีรายการที่รอนำส่งไปคลังกลาง"
+                  title={t('transfer.noPending')}
+                  description={t('transfer.noPendingDesc')}
                 />
               ) : (
                 <div className="space-y-3">
@@ -872,8 +876,8 @@ export default function DepositPage() {
                             <span className="font-mono text-sm font-semibold text-amber-600 dark:text-amber-400">
                               {batch.transfer_code}
                             </span>
-                            <Badge variant="warning" size="sm">รอนำส่ง HQ</Badge>
-                            <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
+                            <Badge variant="warning" size="sm">{t('transfer.waitingHQ')}</Badge>
+                            <Badge variant="default" size="sm">{t('transfer.itemsCount', { count: batch.items.length })}</Badge>
                           </div>
 
                           {/* Row 2: Buttons */}
@@ -887,7 +891,7 @@ export default function DepositPage() {
                                 setShowPrintConfirm(true);
                               }}
                             >
-                              พิมพ์
+                              {t('transfer.print')}
                             </Button>
                             <Button
                               variant="outline"
@@ -902,7 +906,7 @@ export default function DepositPage() {
                                 });
                               }}
                             >
-                              {isExpanded ? 'ซ่อน' : 'รายละเอียด'}
+                              {isExpanded ? t('transfer.hide') : t('transfer.detail')}
                             </Button>
                             <Button
                               variant="danger"
@@ -913,14 +917,14 @@ export default function DepositPage() {
                                 setShowCancelBatchModal(true);
                               }}
                             >
-                              ยกเลิก
+                              {t('cancel')}
                             </Button>
                           </div>
 
                           {/* Row 3: Date/time */}
                           <p className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                             <Calendar className="h-3 w-3" />
-                            ส่งเมื่อ: {formatThaiDate(batch.created_at)}
+                            {t('transfer.sentAt', { date: formatThaiDate(batch.created_at) })}
                           </p>
                         </div>
 
@@ -934,7 +938,7 @@ export default function DepositPage() {
                               >
                                 <div className="flex items-start justify-between gap-2">
                                   <p className="font-medium text-gray-900 dark:text-white">
-                                    {transfer.product_name || 'ไม่ระบุ'}
+                                    {transfer.product_name || t('transfer.unspecified')}
                                   </p>
                                   {transfer.quantity && (
                                     <span className="shrink-0 text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -952,14 +956,14 @@ export default function DepositPage() {
                                       )}
                                     </p>
                                   )}
-                                  {transfer.notes && <p>หมายเหตุ: {transfer.notes}</p>}
+                                  {transfer.notes && <p>{t('transfer.notesLabel', { notes: transfer.notes })}</p>}
                                 </div>
                                 {transfer.photo_url && (
                                   <button
                                     onClick={() => setViewingPhoto(transfer.photo_url)}
                                     className="mt-2 flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400"
                                   >
-                                    <ImageIcon className="h-3.5 w-3.5" /> ดูรูปนำส่ง
+                                    <ImageIcon className="h-3.5 w-3.5" /> {t('transfer.viewPhoto')}
                                   </button>
                                 )}
                               </div>
@@ -982,25 +986,25 @@ export default function DepositPage() {
                   <thead>
                     <tr className="border-b border-gray-100 dark:border-gray-700">
                       <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                        รหัสฝาก
+                        {t('table.depositCode')}
                       </th>
                       <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                        ลูกค้า
+                        {t('table.customer')}
                       </th>
                       <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                        สินค้า
+                        {t('table.product')}
                       </th>
                       <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                        คงเหลือ
+                        {t('table.remaining')}
                       </th>
                       <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                        สถานะ
+                        {t('table.status')}
                       </th>
                       <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                        วันหมดอายุ
+                        {t('table.expiryDate')}
                       </th>
                       <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                        จัดการ
+                        {t('table.actions')}
                       </th>
                     </tr>
                   </thead>
@@ -1062,14 +1066,14 @@ export default function DepositPage() {
                               {deposit.is_no_deposit && (
                                 <Badge variant="warning" size="sm">
                                   <Truck className="mr-0.5 h-3 w-3" />
-                                  ไม่ฝาก
+                                  {t('mobile.noDeposit')}
                                 </Badge>
                               )}
                             </div>
                           </td>
                           <td className="whitespace-nowrap px-5 py-4">
                             {deposit.is_vip ? (
-                              <span className="text-sm font-medium text-amber-600 dark:text-amber-400">ไม่มีวันหมดอายุ</span>
+                              <span className="text-sm font-medium text-amber-600 dark:text-amber-400">{t('mobile.noExpiry')}</span>
                             ) : deposit.expiry_date ? (
                               <div>
                                 <p className={cn(
@@ -1080,7 +1084,7 @@ export default function DepositPage() {
                                 </p>
                                 {isExpiringSoon && (
                                   <p className="text-xs text-red-500 dark:text-red-400">
-                                    เหลือ {expiryDays} วัน
+                                    {t('mobile.daysLeft', { days: expiryDays })}
                                   </p>
                                 )}
                               </div>
@@ -1098,7 +1102,7 @@ export default function DepositPage() {
                                 setSelectedDeposit(deposit);
                               }}
                             >
-                              ดูรายละเอียด
+                              {t('table.viewDetail')}
                             </Button>
                           </td>
                         </tr>
@@ -1167,7 +1171,7 @@ export default function DepositPage() {
                           {deposit.is_no_deposit && (
                             <Badge variant="warning" size="sm">
                               <Truck className="mr-0.5 h-3 w-3" />
-                              ไม่ฝาก
+                              {t('mobile.noDeposit')}
                             </Badge>
                           )}
                         </div>
@@ -1182,15 +1186,15 @@ export default function DepositPage() {
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                       <span>
-                        คงเหลือ: {formatNumber(deposit.remaining_qty)}/{formatNumber(deposit.quantity)}
+                        {t('mobile.remaining', { remaining: formatNumber(deposit.remaining_qty), total: formatNumber(deposit.quantity) })}
                       </span>
                       {deposit.is_vip ? (
-                        <span className="font-medium text-amber-600 dark:text-amber-400">ไม่มีวันหมดอายุ</span>
+                        <span className="font-medium text-amber-600 dark:text-amber-400">{t('mobile.noExpiry')}</span>
                       ) : deposit.expiry_date ? (
                         <span className={cn(isExpiringSoon && 'font-medium text-red-500 dark:text-red-400')}>
                           {isExpiringSoon
-                            ? `หมดอายุใน ${expiryDays} วัน`
-                            : `หมดอายุ: ${formatThaiDate(deposit.expiry_date)}`
+                            ? t('mobile.expiresIn', { days: expiryDays })
+                            : t('mobile.expiryLabel', { date: formatThaiDate(deposit.expiry_date) })
                           }
                         </span>
                       ) : null}
@@ -1211,7 +1215,7 @@ export default function DepositPage() {
                 isLoading={isLoadingMore}
                 onClick={() => loadInactiveDeposits(loadedInactiveCount)}
               >
-                โหลดรายการเก่าเพิ่มเติม
+                {t('loadMoreOld')}
               </Button>
             </div>
           )}
@@ -1228,8 +1232,8 @@ export default function DepositPage() {
             setTransferPhoto(null);
           }
         }}
-        title="ส่งโอนไปคลังกลาง"
-        description={`${batchSelectedIds.size} รายการที่เลือก`}
+        title={t('transfer.title')}
+        description={t('transfer.selectedItems', { count: batchSelectedIds.size })}
         size="lg"
       >
         <div className="space-y-4">
@@ -1251,7 +1255,7 @@ export default function DepositPage() {
 
           {/* Photo */}
           <PhotoUpload
-            label="แนบรูปภาพ (ถ้ามี)"
+            label={t('transfer.attachPhoto')}
             value={transferPhoto}
             onChange={setTransferPhoto}
             folder="transfers"
@@ -1260,10 +1264,10 @@ export default function DepositPage() {
 
           {/* Notes */}
           <Textarea
-            label="หมายเหตุ"
+            label={t('transfer.notes')}
             value={transferNote}
             onChange={(e) => setTransferNote(e.target.value)}
-            placeholder="ระบุหมายเหตุเพิ่มเติม (ถ้ามี)"
+            placeholder={t('transfer.notesPlaceholder')}
             rows={3}
           />
         </div>
@@ -1278,14 +1282,14 @@ export default function DepositPage() {
             }}
             disabled={isBatchTransferring}
           >
-            ยกเลิก
+            {t('cancel')}
           </Button>
           <Button
             onClick={handleBatchTransferToHq}
             isLoading={isBatchTransferring}
             icon={<Truck className="h-4 w-4" />}
           >
-            ยืนยันส่งโอน
+            {t('transfer.confirm')}
           </Button>
         </ModalFooter>
       </Modal>
@@ -1297,12 +1301,12 @@ export default function DepositPage() {
           setShowPrintConfirm(false);
           setPrintingBatch(null);
         }}
-        title="ยืนยันพิมพ์ใบนำส่ง"
-        description={printingBatch ? `พิมพ์ใบนำส่ง ${printingBatch.transfer_code}` : ''}
+        title={t('print.confirmTitle')}
+        description={printingBatch ? t('print.confirmDesc', { code: printingBatch.transfer_code }) : ''}
         size="sm"
       >
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          ต้องการพิมพ์ใบนำส่งสำหรับชุด <strong>{printingBatch?.transfer_code}</strong> ({printingBatch?.items.length} รายการ) หรือไม่?
+          {t('print.confirmMessage', { code: printingBatch?.transfer_code ?? '', count: printingBatch?.items.length ?? 0 })}
         </p>
         <ModalFooter>
           <Button
@@ -1312,7 +1316,7 @@ export default function DepositPage() {
               setPrintingBatch(null);
             }}
           >
-            ยกเลิก
+            {t('cancel')}
           </Button>
           <Button
             icon={<Printer className="h-4 w-4" />}
@@ -1320,9 +1324,9 @@ export default function DepositPage() {
               if (printingBatch) {
                 printTransferReceipt({
                   transfer_code: printingBatch.transfer_code,
-                  store_name: 'สาขา',
+                  store_name: '',
                   created_at: printingBatch.created_at,
-                  submitted_by_name: user?.displayName || user?.username || 'พนักงาน',
+                  submitted_by_name: user?.displayName || user?.username || '',
                   notes: printingBatch.items[0]?.notes || null,
                   items: printingBatch.items.map((t) => ({
                     product_name: t.product_name || '',
@@ -1337,7 +1341,7 @@ export default function DepositPage() {
               setPrintingBatch(null);
             }}
           >
-            ยืนยันพิมพ์
+            {t('print.confirm')}
           </Button>
         </ModalFooter>
       </Modal>
@@ -1351,13 +1355,13 @@ export default function DepositPage() {
             setCancellingTransferBatch(null);
           }
         }}
-        title="ยกเลิกคำขอโอน"
-        description={cancellingTransferBatch ? `ยกเลิกทั้งหมด ${cancellingTransferBatch.items.length} รายการในชุด ${cancellingTransferBatch.transfer_code}` : ''}
+        title={t('cancelBatch.title')}
+        description={cancellingTransferBatch ? t('cancelBatch.desc', { count: cancellingTransferBatch.items.length, code: cancellingTransferBatch.transfer_code }) : ''}
         size="md"
       >
         <div className="space-y-3">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            รายการทั้งหมดในชุดนี้จะถูกยกเลิก และรายการฝากจะกลับไปเป็นสถานะ &quot;หมดอายุ&quot;
+            {t('cancelBatch.message')}
           </p>
           {cancellingTransferBatch && (
             <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
@@ -1379,7 +1383,7 @@ export default function DepositPage() {
             }}
             disabled={isCancellingBatch}
           >
-            ไม่ยกเลิก
+            {t('cancelBatch.keep')}
           </Button>
           <Button
             variant="danger"
@@ -1387,7 +1391,7 @@ export default function DepositPage() {
             isLoading={isCancellingBatch}
             icon={<XCircle className="h-4 w-4" />}
           >
-            ยืนยันยกเลิก
+            {t('cancelBatch.confirm')}
           </Button>
         </ModalFooter>
       </Modal>

@@ -30,6 +30,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
 import { notifyChatNewDeposit } from '@/lib/chat/bot-client';
@@ -48,13 +49,20 @@ interface DepositRequest {
   created_at: string;
 }
 
-const statusConfig: Record<string, { label: string; variant: 'warning' | 'success' | 'danger' }> = {
-  pending: { label: 'รอตรวจสอบ', variant: 'warning' },
-  approved: { label: 'อนุมัติแล้ว', variant: 'success' },
-  rejected: { label: 'ปฏิเสธ', variant: 'danger' },
+const statusVariant: Record<string, 'warning' | 'success' | 'danger'> = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'danger',
+};
+
+const statusLabelKey: Record<string, string> = {
+  pending: 'requests.statusPending',
+  approved: 'requests.statusApproved',
+  rejected: 'requests.statusRejected',
 };
 
 export default function DepositRequestsPage() {
+  const t = useTranslations('deposit');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const [requests, setRequests] = useState<DepositRequest[]>([]);
@@ -79,7 +87,7 @@ export default function DepositRequestsPage() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถโหลดคำขอฝากเหล้าได้' });
+      toast({ type: 'error', title: t('loadError'), message: t('requests.loadError') });
     }
     if (data) {
       setRequests(data as DepositRequest[]);
@@ -138,7 +146,7 @@ export default function DepositRequestsPage() {
       });
 
       if (depositError) {
-        toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถสร้างรายการฝากเหล้าได้' });
+        toast({ type: 'error', title: t('loadError'), message: t('requests.createError') });
         setIsSubmitting(false);
         return;
       }
@@ -150,15 +158,15 @@ export default function DepositRequestsPage() {
         .eq('id', selectedRequest.id);
 
       if (updateError) {
-        toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถอัปเดตสถานะได้' });
+        toast({ type: 'error', title: t('loadError'), message: t('requests.updateError') });
       } else {
-        toast({ type: 'success', title: 'อนุมัติคำขอสำเร็จ', message: `สร้างรายการฝาก ${depositCode} - รอบาร์ยืนยัน` });
+        toast({ type: 'success', title: t('requests.approveSuccess'), message: t('requests.approveSuccessMessage', { code: depositCode }) });
 
         // Notify bar staff about the new deposit from LIFF request
         notifyStaff({
           storeId: currentStoreId,
           type: 'new_deposit',
-          title: 'มีรายการฝากเหล้าใหม่',
+          title: t('requests.notifyTitle'),
           body: `${selectedRequest.customer_name} ฝาก ${selectedRequest.product_name} x${selectedRequest.quantity}`,
           data: { deposit_code: depositCode },
           excludeUserId: user?.id,
@@ -193,9 +201,9 @@ export default function DepositRequestsPage() {
         .eq('id', selectedRequest.id);
 
       if (error) {
-        toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถปฏิเสธคำขอได้' });
+        toast({ type: 'error', title: t('loadError'), message: t('requests.rejectError') });
       } else {
-        toast({ type: 'warning', title: 'ปฏิเสธคำขอแล้ว' });
+        toast({ type: 'warning', title: t('requests.rejectSuccess') });
         await logAudit({
           store_id: currentStoreId,
           action_type: AUDIT_ACTIONS.DEPOSIT_REQUEST_REJECTED,
@@ -226,12 +234,12 @@ export default function DepositRequestsPage() {
             className="inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
           >
             <ArrowLeft className="h-4 w-4" />
-            กลับหน้าฝากเหล้า
+            {t('requests.backToDeposit')}
           </Link>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">คำขอฝากเหล้า</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('requests.title')}</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          คำขอฝากเหล้าจากลูกค้าผ่าน LINE รอตรวจสอบและอนุมัติ
+          {t('requests.subtitle')}
         </p>
       </div>
 
@@ -244,7 +252,7 @@ export default function DepositRequestsPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{pendingRequests.length}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">รอตรวจสอบ</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('requests.pendingReview')}</p>
             </div>
           </div>
         </Card>
@@ -255,7 +263,7 @@ export default function DepositRequestsPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{processedRequests.length}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">ดำเนินการแล้ว</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('requests.processed')}</p>
             </div>
           </div>
         </Card>
@@ -269,8 +277,8 @@ export default function DepositRequestsPage() {
       ) : pendingRequests.length === 0 && processedRequests.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          title="ไม่มีคำขอฝากเหล้า"
-          description="ยังไม่มีคำขอฝากเหล้าจากลูกค้าในขณะนี้"
+          title={t('requests.noRequests')}
+          description={t('requests.noRequestsDesc')}
         />
       ) : (
         <>
@@ -278,7 +286,7 @@ export default function DepositRequestsPage() {
           {pendingRequests.length > 0 && (
             <div>
               <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
-                รอตรวจสอบ ({pendingRequests.length})
+                {t('requests.pendingReview')} ({pendingRequests.length})
               </h2>
               <div className="space-y-3">
                 {pendingRequests.map((request) => (
@@ -291,10 +299,10 @@ export default function DepositRequestsPage() {
                             {request.product_name}
                           </h3>
                           <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                            จำนวน: {request.quantity}
+                            {t('requests.quantity', { qty: request.quantity })}
                           </p>
                         </div>
-                        <Badge variant="warning">รอตรวจสอบ</Badge>
+                        <Badge variant="warning">{t('requests.pendingReview')}</Badge>
                       </div>
 
                       {/* Customer Details */}
@@ -329,7 +337,7 @@ export default function DepositRequestsPage() {
                           icon={<CheckCircle2 className="h-4 w-4" />}
                           onClick={() => openApprovalModal(request, 'approve')}
                         >
-                          อนุมัติ
+                          {t('requests.approve')}
                         </Button>
                         <Button
                           className="min-h-[44px] flex-1"
@@ -337,7 +345,7 @@ export default function DepositRequestsPage() {
                           icon={<XCircle className="h-4 w-4" />}
                           onClick={() => openApprovalModal(request, 'reject')}
                         >
-                          ปฏิเสธ
+                          {t('requests.reject')}
                         </Button>
                       </div>
                     </div>
@@ -351,11 +359,12 @@ export default function DepositRequestsPage() {
           {processedRequests.length > 0 && (
             <div>
               <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
-                ดำเนินการแล้ว ({processedRequests.length})
+                {t('requests.processed')} ({processedRequests.length})
               </h2>
               <div className="space-y-3">
                 {processedRequests.map((request) => {
-                  const config = statusConfig[request.status] || statusConfig.pending;
+                  const variant = statusVariant[request.status] || statusVariant.pending;
+                  const labelKey = statusLabelKey[request.status] || statusLabelKey.pending;
                   return (
                     <Card key={request.id} padding="none">
                       <div className="p-4 sm:p-5">
@@ -369,14 +378,14 @@ export default function DepositRequestsPage() {
                                 <User className="h-3.5 w-3.5" />
                                 {request.customer_name}
                               </p>
-                              <p>จำนวน: {request.quantity}</p>
+                              <p>{t('requests.quantity', { qty: request.quantity })}</p>
                               <p className="flex items-center gap-1.5">
                                 <Clock className="h-3.5 w-3.5" />
                                 {formatThaiDateTime(request.created_at)}
                               </p>
                             </div>
                           </div>
-                          <Badge variant={config.variant}>{config.label}</Badge>
+                          <Badge variant={variant}>{t(labelKey)}</Badge>
                         </div>
                       </div>
                     </Card>
@@ -395,7 +404,7 @@ export default function DepositRequestsPage() {
           setShowApprovalModal(false);
           setSelectedRequest(null);
         }}
-        title={approvalAction === 'approve' ? 'อนุมัติคำขอฝากเหล้า' : 'ปฏิเสธคำขอฝากเหล้า'}
+        title={approvalAction === 'approve' ? t('requests.approveTitle') : t('requests.rejectTitle')}
         description={
           selectedRequest
             ? `${selectedRequest.product_name} - ${selectedRequest.customer_name}`
@@ -408,15 +417,15 @@ export default function DepositRequestsPage() {
             <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">สินค้า</span>
+                  <span className="text-gray-500 dark:text-gray-400">{t('requests.productLabel')}</span>
                   <span className="font-medium text-gray-900 dark:text-white">{selectedRequest.product_name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">ลูกค้า</span>
+                  <span className="text-gray-500 dark:text-gray-400">{t('requests.customerLabel')}</span>
                   <span className="font-medium text-gray-900 dark:text-white">{selectedRequest.customer_name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">จำนวน</span>
+                  <span className="text-gray-500 dark:text-gray-400">{t('requests.quantityLabel')}</span>
                   <span className="font-medium text-gray-900 dark:text-white">{selectedRequest.quantity}</span>
                 </div>
               </div>
@@ -424,13 +433,13 @@ export default function DepositRequestsPage() {
           )}
 
           <Textarea
-            label="หมายเหตุ"
+            label={t('requests.notesLabel')}
             value={approvalNotes}
             onChange={(e) => setApprovalNotes(e.target.value)}
             placeholder={
               approvalAction === 'approve'
-                ? 'หมายเหตุเพิ่มเติม (ไม่บังคับ)'
-                : 'ระบุเหตุผลในการปฏิเสธ'
+                ? t('requests.approveNotesPlaceholder')
+                : t('requests.rejectNotesPlaceholder')
             }
             rows={3}
           />
@@ -444,7 +453,7 @@ export default function DepositRequestsPage() {
               setSelectedRequest(null);
             }}
           >
-            ยกเลิก
+            {t('cancel')}
           </Button>
           <Button
             variant={approvalAction === 'approve' ? 'primary' : 'danger'}
@@ -456,7 +465,7 @@ export default function DepositRequestsPage() {
                 : <XCircle className="h-4 w-4" />
             }
           >
-            {approvalAction === 'approve' ? 'อนุมัติ' : 'ปฏิเสธ'}
+            {approvalAction === 'approve' ? t('requests.approve') : t('requests.reject')}
           </Button>
         </ModalFooter>
       </Modal>

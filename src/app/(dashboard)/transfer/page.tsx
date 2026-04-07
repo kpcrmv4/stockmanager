@@ -20,6 +20,7 @@ import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyChatTransferBatch, notifyChatTransferSubmitted } from '@/lib/chat/transfer-bot-client';
 import type { TransferCardItem } from '@/types/transfer-chat';
 import { cn } from '@/lib/utils/cn';
+import { useTranslations } from 'next-intl';
 import { generateTransferCode } from '@/lib/utils/transfer-code';
 import type { TransferPrintPayload } from '@/types/database';
 import {
@@ -127,6 +128,7 @@ function groupByTransferCode(transfers: TransferItem[]): TransferBatch[] {
 export default function TransferPage() {
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
+  const t = useTranslations('transfer');
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -182,9 +184,9 @@ export default function TransferPage() {
       requested_by: user.id,
     });
     if (error) {
-      toast({ type: 'error', title: 'ไม่สามารถส่งคำสั่งพิมพ์ได้', message: error.message });
+      toast({ type: 'error', title: t('printError'), message: error.message });
     } else {
-      toast({ type: 'success', title: 'ส่งพิมพ์ใบนำส่งแล้ว', message: 'รอเครื่องพิมพ์ดำเนินการ' });
+      toast({ type: 'success', title: t('printSuccess'), message: t('printSuccessMsg') });
     }
   }, [currentStoreId, user]);
 
@@ -411,7 +413,7 @@ export default function TransferPage() {
         changed_by: user.id,
       });
 
-      toast({ type: 'success', title: 'ส่งโอนสำเร็จ', message: `ส่งโอน ${selectedDeposits.length} รายการ (${transferCode})` });
+      toast({ type: 'success', title: t('transferSuccess'), message: t('transferSuccessMsg', { count: selectedDeposits.length, code: transferCode }) });
 
       const submitterName = user.displayName || user.username || 'พนักงาน';
 
@@ -467,7 +469,7 @@ export default function TransferPage() {
       setTransferPhoto(null);
       await loadAll();
     } catch (err) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: err instanceof Error ? err.message : 'ไม่สามารถส่งโอนได้' });
+      toast({ type: 'error', title: t('transferError'), message: err instanceof Error ? err.message : t('transferError') });
     } finally {
       if (mountedRef.current) setIsSubmitting(false);
     }
@@ -503,12 +505,12 @@ export default function TransferPage() {
           .in('id', depositIds);
       }
 
-      toast({ type: 'success', title: 'ยกเลิกคำขอโอนแล้ว', message: `ยกเลิก ${cancellingBatch.items.length} รายการ` });
+      toast({ type: 'success', title: t('cancelSuccess'), message: t('cancelSuccessMsg', { count: cancellingBatch.items.length }) });
       setShowCancelModal(false);
       setCancellingBatch(null);
       await loadAll();
     } catch (err) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: err instanceof Error ? err.message : 'ไม่สามารถยกเลิกได้' });
+      toast({ type: 'error', title: t('cancelError'), message: err instanceof Error ? err.message : t('cancelError') });
     } finally {
       if (mountedRef.current) setIsCancelling(false);
     }
@@ -532,9 +534,9 @@ export default function TransferPage() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">โอนคลังกลาง</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            จัดการรายการหมดอายุ — ส่งโอนไปคลังกลาง
+            {t('subtitle')}
           </p>
         </div>
         <Button
@@ -544,7 +546,7 @@ export default function TransferPage() {
           onClick={loadAll}
           disabled={isLoading}
         >
-          รีเฟรช
+          {t('refresh')}
         </Button>
       </div>
 
@@ -561,7 +563,7 @@ export default function TransferPage() {
         >
           <AlertTriangle className="mx-auto h-5 w-5 text-red-600 dark:text-red-400" />
           <p className="mt-1 text-xl font-bold text-red-700 dark:text-red-300">{tabCounts.expired}</p>
-          <p className="text-[10px] text-red-600 dark:text-red-400">หมดอายุ</p>
+          <p className="text-[10px] text-red-600 dark:text-red-400">{t('tabExpired')}</p>
         </button>
         <button
           onClick={() => setActiveTab('pending')}
@@ -574,7 +576,7 @@ export default function TransferPage() {
         >
           <Clock className="mx-auto h-5 w-5 text-amber-600 dark:text-amber-400" />
           <p className="mt-1 text-xl font-bold text-amber-700 dark:text-amber-300">{tabCounts.pending}</p>
-          <p className="text-[10px] text-amber-600 dark:text-amber-400">รอรับ</p>
+          <p className="text-[10px] text-amber-600 dark:text-amber-400">{t('tabPending')}</p>
         </button>
         <button
           onClick={() => setActiveTab('confirmed')}
@@ -587,7 +589,7 @@ export default function TransferPage() {
         >
           <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-600 dark:text-emerald-400" />
           <p className="mt-1 text-xl font-bold text-emerald-700 dark:text-emerald-300">{tabCounts.confirmed}</p>
-          <p className="text-[10px] text-emerald-600 dark:text-emerald-400">รับแล้ว</p>
+          <p className="text-[10px] text-emerald-600 dark:text-emerald-400">{t('tabConfirmed')}</p>
         </button>
         <button
           onClick={() => setActiveTab('rejected')}
@@ -600,7 +602,7 @@ export default function TransferPage() {
         >
           <Ban className="mx-auto h-5 w-5 text-gray-600 dark:text-gray-400" />
           <p className="mt-1 text-xl font-bold text-gray-700 dark:text-gray-300">{tabCounts.rejected}</p>
-          <p className="text-[10px] text-gray-600 dark:text-gray-400">ปฏิเสธ</p>
+          <p className="text-[10px] text-gray-600 dark:text-gray-400">{t('tabRejected')}</p>
         </button>
       </div>
 
@@ -617,17 +619,17 @@ export default function TransferPage() {
           {expiredDeposits.length === 0 ? (
             <EmptyState
               icon={Package}
-              title="ไม่มีรายการหมดอายุ"
-              description="ไม่มีเหล้าฝากที่หมดอายุในขณะนี้"
+              title={t('noExpiredItems')}
+              description={t('noExpiredItemsDesc')}
             />
           ) : (
             <>
               {/* Sub-filter pills */}
               <div className="flex gap-2 overflow-x-auto">
                 {([
-                  { key: 'all' as ExpiredFilter, label: 'ทั้งหมด', count: expiredDeposits.length },
-                  { key: 'no_deposit' as ExpiredFilter, label: 'ไม่ฝาก (รอโอน)', count: noDepositCount },
-                  { key: 'natural' as ExpiredFilter, label: 'หมดอายุจริง', count: naturalExpiredCount },
+                  { key: 'all' as ExpiredFilter, label: t('filterAll'), count: expiredDeposits.length },
+                  { key: 'no_deposit' as ExpiredFilter, label: t('filterNoDeposit'), count: noDepositCount },
+                  { key: 'natural' as ExpiredFilter, label: t('filterNaturalExpiry'), count: naturalExpiredCount },
                 ]).map((f) => (
                   <button
                     key={f.key}
@@ -667,19 +669,19 @@ export default function TransferPage() {
                     className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                   />
                   <span className="text-gray-700 dark:text-gray-300">
-                    เลือกทั้งหมด
+                    {t('selectAll')}
                   </span>
                 </label>
                 {selectedIds.size > 0 && (
                   <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
-                    เลือก {selectedIds.size} รายการ
+                    {t('selectedCount', { count: selectedIds.size })}
                   </span>
                 )}
               </div>
 
               {filteredExpiredDeposits.length === 0 ? (
                 <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
-                  ไม่มีรายการในหมวดนี้
+                  {t('noCategoryItems')}
                 </div>
               ) : (
               <>
@@ -713,9 +715,9 @@ export default function TransferPage() {
                             {deposit.product_name}
                           </p>
                           {deposit.is_no_deposit ? (
-                            <Badge variant="warning" size="sm">ไม่ฝาก</Badge>
+                            <Badge variant="warning" size="sm">{t('badgeNoDeposit')}</Badge>
                           ) : (
-                            <Badge variant="danger" size="sm">หมดอายุ</Badge>
+                            <Badge variant="danger" size="sm">{t('badgeExpired')}</Badge>
                           )}
                         </div>
                         <div className="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -728,7 +730,7 @@ export default function TransferPage() {
                           </p>
                           <p className="flex items-center gap-1">
                             <Wine className="h-3 w-3" />
-                            จำนวน: {deposit.remaining_qty || deposit.quantity}
+                            {t('quantity', { count: deposit.remaining_qty || deposit.quantity })}
                             {deposit.category && (
                               <span className="ml-1 text-gray-400">({deposit.category})</span>
                             )}
@@ -736,10 +738,10 @@ export default function TransferPage() {
                           {deposit.expiry_date && (
                             <p className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              หมดอายุ: {formatThaiDate(deposit.expiry_date)}
+                              {t('expiryDate', { date: formatThaiDate(deposit.expiry_date) })}
                               {overdue > 0 && (
                                 <span className="ml-1 font-medium text-red-600 dark:text-red-400">
-                                  (เกิน {overdue} วัน)
+                                  {t('overdueDays', { days: overdue })}
                                 </span>
                               )}
                             </p>
@@ -762,7 +764,7 @@ export default function TransferPage() {
                     icon={<Send className="h-4 w-4" />}
                     onClick={() => setShowTransferModal(true)}
                   >
-                    ส่งโอน {selectedIds.size} รายการไปคลังกลาง
+                    {t('sendTransfer', { count: selectedIds.size })}
                   </Button>
                 </div>
               )}
@@ -777,8 +779,8 @@ export default function TransferPage() {
           {pendingBatches.length === 0 ? (
             <EmptyState
               icon={Clock}
-              title="ไม่มีรายการรอรับ"
-              description="ไม่มีรายการโอนที่รอคลังกลางรับ"
+              title={t('noPendingItems')}
+              description={t('noPendingItemsDesc')}
             />
           ) : (
             <div className="space-y-3">
@@ -792,8 +794,8 @@ export default function TransferPage() {
                         <span className="font-mono text-sm font-semibold text-amber-600 dark:text-amber-400">
                           {batch.transfer_code}
                         </span>
-                        <Badge variant="warning" size="sm">รอรับ</Badge>
-                        <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
+                        <Badge variant="warning" size="sm">{t('tabPending')}</Badge>
+                        <Badge variant="default" size="sm">{t('itemCount', { count: batch.items.length })}</Badge>
                       </div>
 
                       {/* Row 2: Buttons — Print / Detail / Cancel */}
@@ -807,7 +809,7 @@ export default function TransferPage() {
                             setShowPrintConfirm(true);
                           }}
                         >
-                          พิมพ์
+                          {t('print')}
                         </Button>
                         <Button
                           variant="outline"
@@ -815,7 +817,7 @@ export default function TransferPage() {
                           icon={isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                           onClick={() => toggleBatch(batch.transfer_code)}
                         >
-                          {isExpanded ? 'ซ่อน' : 'รายละเอียด'}
+                          {isExpanded ? t('hide') : t('detail')}
                         </Button>
                         <Button
                           variant="danger"
@@ -826,14 +828,14 @@ export default function TransferPage() {
                             setShowCancelModal(true);
                           }}
                         >
-                          ยกเลิก
+                          {t('cancel')}
                         </Button>
                       </div>
 
                       {/* Row 3: Date/time */}
                       <p className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                         <Calendar className="h-3 w-3" />
-                        ส่งเมื่อ: {formatThaiDateTime(batch.created_at)}
+                        {t('sentAt', { date: formatThaiDateTime(batch.created_at) })}
                       </p>
                     </div>
 
@@ -847,7 +849,7 @@ export default function TransferPage() {
                           >
                             <div className="flex items-start justify-between gap-2">
                               <p className="font-medium text-gray-900 dark:text-white">
-                                {transfer.product_name || 'ไม่ระบุ'}
+                                {transfer.product_name || t('unspecified')}
                               </p>
                               {transfer.quantity && (
                                 <span className="shrink-0 text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -865,14 +867,14 @@ export default function TransferPage() {
                                   )}
                                 </p>
                               )}
-                              {transfer.notes && <p>หมายเหตุ: {transfer.notes}</p>}
+                              {transfer.notes && <p>{t('notes', { text: transfer.notes })}</p>}
                             </div>
                             {transfer.photo_url && (
                               <button
                                 onClick={() => setViewingPhoto(transfer.photo_url)}
                                 className="mt-2 flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400"
                               >
-                                <ImageIcon className="h-3.5 w-3.5" /> ดูรูปนำส่ง
+                                <ImageIcon className="h-3.5 w-3.5" /> {t('viewTransferPhoto')}
                               </button>
                             )}
                           </div>
@@ -893,8 +895,8 @@ export default function TransferPage() {
           {confirmedBatches.length === 0 ? (
             <EmptyState
               icon={CheckCircle2}
-              title="ยังไม่มีรายการที่รับแล้ว"
-              description="รายการที่คลังกลางรับแล้วจะแสดงที่นี่"
+              title={t('noConfirmedItems')}
+              description={t('noConfirmedItemsDesc')}
             />
           ) : (
             <div className="space-y-3">
@@ -908,8 +910,8 @@ export default function TransferPage() {
                         <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">
                           {batch.transfer_code}
                         </span>
-                        <Badge variant="success" size="sm">รับแล้ว</Badge>
-                        <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
+                        <Badge variant="success" size="sm">{t('tabConfirmed')}</Badge>
+                        <Badge variant="default" size="sm">{t('itemCount', { count: batch.items.length })}</Badge>
                       </div>
 
                       {/* Row 2: Detail button */}
@@ -920,14 +922,14 @@ export default function TransferPage() {
                           icon={isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                           onClick={() => toggleBatch(batch.transfer_code)}
                         >
-                          {isExpanded ? 'ซ่อน' : 'รายละเอียด'}
+                          {isExpanded ? t('hide') : t('detail')}
                         </Button>
                       </div>
 
                       {/* Row 3: Date/time */}
                       <p className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                         <Calendar className="h-3 w-3" />
-                        ส่งเมื่อ: {formatThaiDateTime(batch.created_at)}
+                        {t('sentAt', { date: formatThaiDateTime(batch.created_at) })}
                       </p>
                     </div>
 
@@ -940,7 +942,7 @@ export default function TransferPage() {
                           >
                             <div className="flex items-start justify-between gap-2">
                               <p className="font-medium text-gray-900 dark:text-white">
-                                {transfer.product_name || 'ไม่ระบุ'}
+                                {transfer.product_name || t('unspecified')}
                               </p>
                               {transfer.quantity && (
                                 <span className="shrink-0 text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -958,7 +960,7 @@ export default function TransferPage() {
                                   )}
                                 </p>
                               )}
-                              {transfer.notes && <p>หมายเหตุ: {transfer.notes}</p>}
+                              {transfer.notes && <p>{t('notes', { text: transfer.notes })}</p>}
                             </div>
                             {(transfer.photo_url || transfer.confirm_photo_url) && (
                               <div className="mt-2 flex gap-2">
@@ -967,7 +969,7 @@ export default function TransferPage() {
                                     onClick={() => setViewingPhoto(transfer.photo_url)}
                                     className="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400"
                                   >
-                                    <ImageIcon className="h-3.5 w-3.5" /> รูปนำส่ง
+                                    <ImageIcon className="h-3.5 w-3.5" /> {t('transferPhoto')}
                                   </button>
                                 )}
                                 {transfer.confirm_photo_url && (
@@ -975,7 +977,7 @@ export default function TransferPage() {
                                     onClick={() => setViewingPhoto(transfer.confirm_photo_url)}
                                     className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-600 transition hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400"
                                   >
-                                    <ImageIcon className="h-3.5 w-3.5" /> รูปยืนยันรับ
+                                    <ImageIcon className="h-3.5 w-3.5" /> {t('confirmPhoto')}
                                   </button>
                                 )}
                               </div>
@@ -998,8 +1000,8 @@ export default function TransferPage() {
           {rejectedBatches.length === 0 ? (
             <EmptyState
               icon={Ban}
-              title="ไม่มีรายการที่ถูกปฏิเสธ"
-              description="รายการที่คลังกลางปฏิเสธจะแสดงที่นี่"
+              title={t('noRejectedItems')}
+              description={t('noRejectedItemsDesc')}
             />
           ) : (
             <div className="space-y-3">
@@ -1014,8 +1016,8 @@ export default function TransferPage() {
                         <span className="font-mono text-sm font-semibold text-gray-500 dark:text-gray-400">
                           {batch.transfer_code}
                         </span>
-                        <Badge variant="danger" size="sm">ปฏิเสธ</Badge>
-                        <Badge variant="default" size="sm">{batch.items.length} รายการ</Badge>
+                        <Badge variant="danger" size="sm">{t('tabRejected')}</Badge>
+                        <Badge variant="default" size="sm">{t('itemCount', { count: batch.items.length })}</Badge>
                       </div>
 
                       {/* Row 2: Detail button */}
@@ -1026,7 +1028,7 @@ export default function TransferPage() {
                           icon={isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                           onClick={() => toggleBatch(batch.transfer_code)}
                         >
-                          {isExpanded ? 'ซ่อน' : 'รายละเอียด'}
+                          {isExpanded ? t('hide') : t('detail')}
                         </Button>
                       </div>
 
@@ -1034,11 +1036,11 @@ export default function TransferPage() {
                       <div className="space-y-0.5">
                         <p className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                           <Calendar className="h-3 w-3" />
-                          ส่งเมื่อ: {formatThaiDateTime(batch.created_at)}
+                          {t('sentAt', { date: formatThaiDateTime(batch.created_at) })}
                         </p>
                         {rejectionReason && (
                           <p className="text-xs text-red-600 dark:text-red-400">
-                            เหตุผล: {rejectionReason}
+                            {t('reason', { text: rejectionReason })}
                           </p>
                         )}
                       </div>
@@ -1053,7 +1055,7 @@ export default function TransferPage() {
                           >
                             <div className="flex items-start justify-between gap-2">
                               <p className="font-medium text-gray-900 dark:text-white">
-                                {transfer.product_name || 'ไม่ระบุ'}
+                                {transfer.product_name || t('unspecified')}
                               </p>
                               {transfer.quantity && (
                                 <span className="shrink-0 text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -1072,7 +1074,7 @@ export default function TransferPage() {
                                 </p>
                               )}
                               {transfer.rejection_reason && (
-                                <p className="text-red-500">เหตุผล: {transfer.rejection_reason}</p>
+                                <p className="text-red-500">{t('reason', { text: transfer.rejection_reason })}</p>
                               )}
                             </div>
                             {transfer.photo_url && (
@@ -1080,7 +1082,7 @@ export default function TransferPage() {
                                 onClick={() => setViewingPhoto(transfer.photo_url)}
                                 className="mt-2 flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400"
                               >
-                                <ImageIcon className="h-3.5 w-3.5" /> ดูรูปนำส่ง
+                                <ImageIcon className="h-3.5 w-3.5" /> {t('viewTransferPhoto')}
                               </button>
                             )}
                           </div>

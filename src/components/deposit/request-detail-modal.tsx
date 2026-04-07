@@ -127,32 +127,32 @@ export function RequestDetailModal({
 
         {/* ── Info rows ─────────────────────────────────────────────── */}
         <div className="mt-5 divide-y divide-gray-100">
-          <InfoRow icon={User} label="ชื่อลูกค้า" value={item.customerName} />
+          <InfoRow icon={User} label={t('detailModal.customerName')} value={item.customerName} />
 
           {item.customerPhone && (
             <InfoRow
               icon={Phone}
-              label="เบอร์โทร"
+              label={t('detailModal.phone')}
               value={item.customerPhone}
             />
           )}
 
           {item.tableNumber && (
-            <InfoRow icon={MapPin} label="โต๊ะ" value={item.tableNumber} />
+            <InfoRow icon={MapPin} label={t('detailModal.table')} value={item.tableNumber} />
           )}
 
           {item.productName && (
-            <InfoRow icon={Wine} label="สินค้า" value={item.productName} />
+            <InfoRow icon={Wine} label={t('detailModal.product')} value={item.productName} />
           )}
 
           {item.quantity != null && (
-            <InfoRow icon={Hash} label="จำนวน" value={item.quantity} />
+            <InfoRow icon={Hash} label={t('detailModal.quantity')} value={item.quantity} />
           )}
 
           {item.depositCode && (
             <InfoRow
               icon={FileText}
-              label="รหัสฝาก"
+              label={t('detailModal.depositCode')}
               value={item.depositCode}
             />
           )}
@@ -160,7 +160,7 @@ export function RequestDetailModal({
           {item.notes && (
             <InfoRow
               icon={MessageSquare}
-              label="หมายเหตุ"
+              label={t('detailModal.notes')}
               value={item.notes}
             />
           )}
@@ -168,7 +168,7 @@ export function RequestDetailModal({
           {item.createdAt && (
             <InfoRow
               icon={Clock}
-              label="เวลา"
+              label={t('detailModal.time')}
               value={formatThaiDateTime(item.createdAt)}
             />
           )}

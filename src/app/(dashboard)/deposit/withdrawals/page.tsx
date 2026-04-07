@@ -41,6 +41,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
 import { notifyChatWithdrawalCompleted, syncChatActionCardStatus } from '@/lib/chat/bot-client';
@@ -88,13 +89,14 @@ const statusVariantMap: Record<string, 'warning' | 'success' | 'default' | 'dang
   rejected: 'danger',
 };
 
-const withdrawalTabs = [
-  { id: 'pending', label: 'รอดำเนินการ' },
-  { id: 'completed', label: 'สำเร็จ' },
-  { id: 'rejected', label: 'ปฏิเสธ' },
-];
+const WITHDRAWAL_TAB_KEYS: Record<string, string> = {
+  pending: 'withdrawals.pending',
+  completed: 'withdrawals.completed',
+  rejected: 'withdrawals.rejected',
+};
 
 export default function WithdrawalsPage() {
+  const t = useTranslations('deposit');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
@@ -148,7 +150,7 @@ export default function WithdrawalsPage() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถโหลดรายการเบิกเหล้าได้' });
+      toast({ type: 'error', title: t('loadError'), message: t('withdrawals.loadError') });
     }
     if (data) {
       // Resolve processed_by names
@@ -295,7 +297,7 @@ export default function WithdrawalsPage() {
 
     // Block in-store withdrawal on blocked days
     if (blockedDayInfo?.blocked && manualWithdrawalType !== 'take_home') {
-      toast({ type: 'error', title: 'วันนี้ไม่สามารถเบิกเหล้าใช้ในร้านได้', message: 'กรุณาเลือก "เบิกกลับบ้าน"' });
+      toast({ type: 'error', title: t('withdrawals.blockedDayInlineError'), message: t('withdrawals.blockedDaySelectTakeHome') });
       return;
     }
 
@@ -303,11 +305,11 @@ export default function WithdrawalsPage() {
     for (const item of withdrawItems) {
       const q = parseFloat(item.qty);
       if (isNaN(q) || q <= 0) {
-        toast({ type: 'error', title: 'กรุณาระบุจำนวนที่ถูกต้อง', message: item.deposit.product_name });
+        toast({ type: 'error', title: t('withdrawals.manual.qtyError'), message: item.deposit.product_name });
         return;
       }
       if (q > item.deposit.remaining_qty) {
-        toast({ type: 'error', title: 'จำนวนเกินกว่าที่คงเหลือ', message: `${item.deposit.product_name}: คงเหลือ ${formatNumber(item.deposit.remaining_qty)}` });
+        toast({ type: 'error', title: t('withdrawals.manual.qtyExceedsError'), message: `${item.deposit.product_name}: ${formatNumber(item.deposit.remaining_qty)}` });
         return;
       }
     }
@@ -336,7 +338,7 @@ export default function WithdrawalsPage() {
       });
 
       if (withdrawalError) {
-        toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: `ไม่สามารถเบิก ${dep.product_name} ได้` });
+        toast({ type: 'error', title: t('loadError'), message: t('withdrawals.manual.processError', { product: dep.product_name }) });
         setIsManualSubmitting(false);
         return;
       }
@@ -379,14 +381,14 @@ export default function WithdrawalsPage() {
     }
 
     const summary = withdrawItems.map((w) => `${w.deposit.product_name} x${w.qty}`).join(', ');
-    toast({ type: 'success', title: 'เบิกเหล้าสำเร็จ', message: `${withdrawItems.length} รายการ: ${summary}` });
+    toast({ type: 'success', title: t('withdrawals.manual.successTitle'), message: t('withdrawals.manual.successMessage', { count: withdrawItems.length, summary }) });
 
     // Notify other staff (single notification for batch)
     notifyStaff({
       storeId: currentStoreId,
       type: 'withdrawal_request',
-      title: 'เบิกเหล้าแล้ว',
-      body: `เบิก ${withdrawItems.length} รายการ: ${summary}`,
+      title: t('withdrawals.manual.notifyTitle'),
+      body: t('withdrawals.manual.notifyBody', { count: withdrawItems.length, summary }),
       data: {},
       excludeUserId: user.id,
     });
@@ -413,7 +415,7 @@ export default function WithdrawalsPage() {
     if (processAction === 'complete') {
       const qty = parseFloat(actualQty);
       if (isNaN(qty) || qty <= 0) {
-        toast({ type: 'error', title: 'กรุณาระบุจำนวนที่ถูกต้อง' });
+        toast({ type: 'error', title: t('withdrawals.invalidQty') });
         setIsSubmitting(false);
         return;
       }
@@ -431,7 +433,7 @@ export default function WithdrawalsPage() {
         .eq('id', selectedWithdrawal.id);
 
       if (withdrawalError) {
-        toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถดำเนินการเบิกเหล้าได้' });
+        toast({ type: 'error', title: t('loadError'), message: t('withdrawals.processError') });
         setIsSubmitting(false);
         return;
       }
@@ -458,7 +460,7 @@ export default function WithdrawalsPage() {
           .eq('id', selectedWithdrawal.deposit_id);
       }
 
-      toast({ type: 'success', title: 'เบิกเหล้าสำเร็จ', message: `เบิก ${qty} หน่วย` });
+      toast({ type: 'success', title: t('withdrawals.processSuccess'), message: t('withdrawals.processSuccessMessage', { qty }) });
 
       // ส่ง system message เข้าห้องแชทสาขา
       notifyChatWithdrawalCompleted(currentStoreId!, {
@@ -514,7 +516,7 @@ export default function WithdrawalsPage() {
         .eq('id', selectedWithdrawal.id);
 
       if (error) {
-        toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถปฏิเสธรายการได้' });
+        toast({ type: 'error', title: t('loadError'), message: t('withdrawals.rejectError') });
         setIsSubmitting(false);
         return;
       }
@@ -532,7 +534,7 @@ export default function WithdrawalsPage() {
         .eq('id', selectedWithdrawal.deposit_id)
         .eq('status', 'pending_withdrawal');
 
-      toast({ type: 'warning', title: 'ปฏิเสธรายการเบิกเหล้าแล้ว' });
+      toast({ type: 'warning', title: t('withdrawals.rejectSuccess') });
 
       // Sync action card ในแชทให้เป็น rejected
       if (rejectedDeposit?.deposit_code && currentStoreId) {
@@ -575,11 +577,12 @@ export default function WithdrawalsPage() {
     return withdrawals;
   }, [withdrawals, activeTab]);
 
-  const tabsWithCounts = withdrawalTabs.map((t) => {
-    if (t.id === 'pending') return { ...t, count: pendingCount };
-    if (t.id === 'completed') return { ...t, count: completedCount };
-    if (t.id === 'rejected') return { ...t, count: rejectedCount };
-    return t;
+  const withdrawalTabs = ['pending', 'completed', 'rejected'].map((id) => ({ id, label: t(WITHDRAWAL_TAB_KEYS[id]) }));
+  const tabsWithCounts = withdrawalTabs.map((tab) => {
+    if (tab.id === 'pending') return { ...tab, count: pendingCount };
+    if (tab.id === 'completed') return { ...tab, count: completedCount };
+    if (tab.id === 'rejected') return { ...tab, count: rejectedCount };
+    return tab;
   });
 
   return (
@@ -592,14 +595,14 @@ export default function WithdrawalsPage() {
             className="inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
           >
             <ArrowLeft className="h-4 w-4" />
-            กลับหน้าฝากเหล้า
+            {t('withdrawals.backToDeposit')}
           </Link>
         </div>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">เบิกเหล้า</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('withdrawals.title')}</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              ประวัติและจัดการรายการเบิกเหล้าของลูกค้า
+              {t('withdrawals.subtitle')}
             </p>
           </div>
           <Button
@@ -608,7 +611,7 @@ export default function WithdrawalsPage() {
             icon={<Plus className="h-4 w-4" />}
             onClick={openManualModal}
           >
-            เบิกเหล้าใหม่
+            {t('withdrawals.newWithdrawal')}
           </Button>
         </div>
       </div>
@@ -620,10 +623,10 @@ export default function WithdrawalsPage() {
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div>
               <p className="font-semibold text-amber-800 dark:text-amber-200">
-                วันนี้ไม่สามารถเบิกเหล้าใช้ในร้านได้
+                {t('withdrawals.blockedDayTitle')}
               </p>
               <p className="mt-0.5 text-sm text-amber-700 dark:text-amber-300">
-                อนุญาตเฉพาะการเบิกกลับบ้านเท่านั้น
+                {t('withdrawals.blockedDaySubtitle')}
               </p>
             </div>
           </div>
@@ -639,7 +642,7 @@ export default function WithdrawalsPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{pendingCount}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">รอดำเนินการ</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('withdrawals.pending')}</p>
             </div>
           </div>
         </Card>
@@ -652,7 +655,7 @@ export default function WithdrawalsPage() {
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {completedCount}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">สำเร็จ</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('withdrawals.completed')}</p>
             </div>
           </div>
         </Card>
@@ -665,7 +668,7 @@ export default function WithdrawalsPage() {
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {rejectedCount}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">ปฏิเสธ</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('withdrawals.rejected')}</p>
             </div>
           </div>
         </Card>
@@ -682,13 +685,13 @@ export default function WithdrawalsPage() {
       ) : filteredWithdrawals.length === 0 ? (
         <EmptyState
           icon={Package}
-          title="ไม่มีรายการเบิกเหล้า"
+          title={t('withdrawals.noWithdrawals')}
           description={
             activeTab === 'pending'
-              ? 'ไม่มีรายการเบิกเหล้าที่รอดำเนินการ'
+              ? t('withdrawals.noPending')
               : activeTab === 'completed'
-                ? 'ไม่มีรายการเบิกเหล้าที่สำเร็จ'
-                : 'ไม่มีรายการเบิกเหล้าที่ถูกปฏิเสธ'
+                ? t('withdrawals.noCompleted')
+                : t('withdrawals.noRejected')
           }
         />
       ) : (
@@ -721,7 +724,7 @@ export default function WithdrawalsPage() {
                       {withdrawal.customer_name} · x{formatNumber(withdrawal.requested_qty)} · {formatThaiDateTime(withdrawal.created_at)}
                       {withdrawal.withdrawal_type === 'take_home' && (
                         <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                          <Home className="h-2.5 w-2.5" /> กลับบ้าน
+                          <Home className="h-2.5 w-2.5" /> {t('withdrawals.takeHome')}
                         </span>
                       )}
                     </p>
@@ -742,21 +745,21 @@ export default function WithdrawalsPage() {
                     {/* Details Grid */}
                     <div className="mb-4 mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
                       <div>
-                        <span className="text-gray-500 dark:text-gray-400">ลูกค้า</span>
+                        <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.customerLabel')}</span>
                         <p className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
                           <User className="h-3.5 w-3.5 text-gray-400" />
                           {withdrawal.customer_name}
                         </p>
                       </div>
                       <div>
-                        <span className="text-gray-500 dark:text-gray-400">จำนวนขอเบิก</span>
+                        <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.requestedQty')}</span>
                         <p className="font-medium text-gray-900 dark:text-white">
                           {formatNumber(withdrawal.requested_qty)}
                         </p>
                       </div>
                       {withdrawal.actual_qty !== null && (
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">จำนวนจริง</span>
+                          <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.actualQty')}</span>
                           <p className="font-medium text-gray-900 dark:text-white">
                             {formatNumber(withdrawal.actual_qty)}
                           </p>
@@ -764,19 +767,19 @@ export default function WithdrawalsPage() {
                       )}
                       {withdrawal.table_number && (
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">โต๊ะ</span>
+                          <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.tableLabel')}</span>
                           <p className="font-medium text-gray-900 dark:text-white">{withdrawal.table_number}</p>
                         </div>
                       )}
                       <div>
-                        <span className="text-gray-500 dark:text-gray-400">วันที่</span>
+                        <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.dateLabel')}</span>
                         <p className="font-medium text-gray-900 dark:text-white">
                           {formatThaiDateTime(withdrawal.created_at)}
                         </p>
                       </div>
                       {withdrawal.processed_by_name && (
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">ดำเนินการโดย</span>
+                          <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.processedBy')}</span>
                           <p className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
                             <User className="h-3.5 w-3.5 text-gray-400" />
                             {withdrawal.processed_by_name}
@@ -789,7 +792,7 @@ export default function WithdrawalsPage() {
                       <div className="mb-3">
                         <img
                           src={withdrawal.photo_url}
-                          alt="รูปถ่ายเบิกเหล้า"
+                          alt={t('withdrawals.photoAlt')}
                           className="h-20 w-20 rounded-lg object-cover"
                         />
                       </div>
@@ -797,7 +800,7 @@ export default function WithdrawalsPage() {
 
                     {withdrawal.notes && (
                       <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                        หมายเหตุ: {withdrawal.notes}
+                        {t('withdrawals.notesPrefix', { notes: withdrawal.notes })}
                       </p>
                     )}
 
@@ -810,7 +813,7 @@ export default function WithdrawalsPage() {
                           icon={<XCircle className="h-4 w-4" />}
                           onClick={() => openProcessModal(withdrawal, 'reject')}
                         >
-                          ปฏิเสธ
+                          {t('withdrawals.rejectButton')}
                         </Button>
                         <Button
                           className="min-h-[44px] flex-1"
@@ -818,7 +821,7 @@ export default function WithdrawalsPage() {
                           icon={<CheckCircle2 className="h-4 w-4" />}
                           onClick={() => openProcessModal(withdrawal, 'complete')}
                         >
-                          ดำเนินการเบิก
+                          {t('withdrawals.processButton')}
                         </Button>
                       </div>
                     )}
@@ -837,7 +840,7 @@ export default function WithdrawalsPage() {
           setShowProcessModal(false);
           setSelectedWithdrawal(null);
         }}
-        title={processAction === 'complete' ? 'ดำเนินการเบิกเหล้า' : 'ปฏิเสธการเบิกเหล้า'}
+        title={processAction === 'complete' ? t('withdrawals.processTitle') : t('withdrawals.rejectTitle')}
         description={
           selectedWithdrawal
             ? `${selectedWithdrawal.product_name} - ${selectedWithdrawal.customer_name}`
@@ -851,15 +854,15 @@ export default function WithdrawalsPage() {
             <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">สินค้า</span>
+                  <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.productLabel')}</span>
                   <span className="font-medium text-gray-900 dark:text-white">{selectedWithdrawal.product_name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">ลูกค้า</span>
+                  <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.customerLabel')}</span>
                   <span className="font-medium text-gray-900 dark:text-white">{selectedWithdrawal.customer_name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">จำนวนขอเบิก</span>
+                  <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.requestedQty')}</span>
                   <span className="font-medium text-gray-900 dark:text-white">
                     {formatNumber(selectedWithdrawal.requested_qty)}
                   </span>
@@ -871,32 +874,32 @@ export default function WithdrawalsPage() {
           {processAction === 'complete' && (
             <>
               <Input
-                label="จำนวนที่เบิกจริง"
+                label={t('withdrawals.actualQtyLabel')}
                 type="number"
                 value={actualQty}
                 onChange={(e) => setActualQty(e.target.value)}
                 placeholder="0"
-                hint="ระบุจำนวนที่เบิกให้ลูกค้าจริง"
+                hint={t('withdrawals.actualQtyHint')}
               />
 
               <PhotoUpload
                 value={withdrawalPhotoUrl}
                 onChange={(url) => setWithdrawalPhotoUrl(url)}
                 folder="withdrawals"
-                label="ถ่ายรูปประกอบ (ไม่บังคับ)"
+                label={t('withdrawals.photoLabel')}
                 compact={true}
               />
             </>
           )}
 
           <Textarea
-            label="หมายเหตุ"
+            label={t('withdrawals.notesLabel')}
             value={processNotes}
             onChange={(e) => setProcessNotes(e.target.value)}
             placeholder={
               processAction === 'complete'
-                ? 'หมายเหตุเพิ่มเติม (ไม่บังคับ)'
-                : 'ระบุเหตุผลในการปฏิเสธ'
+                ? t('withdrawals.completeNotesPlaceholder')
+                : t('withdrawals.rejectNotesPlaceholder')
             }
             rows={3}
           />
@@ -910,7 +913,7 @@ export default function WithdrawalsPage() {
               setSelectedWithdrawal(null);
             }}
           >
-            ยกเลิก
+            {t('cancel')}
           </Button>
           <Button
             variant={processAction === 'complete' ? 'primary' : 'danger'}
@@ -923,7 +926,7 @@ export default function WithdrawalsPage() {
                 : <XCircle className="h-4 w-4" />
             }
           >
-            {processAction === 'complete' ? 'ยืนยันเบิก' : 'ปฏิเสธ'}
+            {processAction === 'complete' ? t('withdrawals.confirmWithdraw') : t('withdrawals.rejectButton')}
           </Button>
         </ModalFooter>
       </Modal>
