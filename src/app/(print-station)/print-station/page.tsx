@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/stores/app-store';
 import { useSessionRefresh } from '@/hooks/use-session-refresh';
 import { useInstallPWA } from '@/hooks/use-install-pwa';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils/cn';
 import { formatThaiDateTime, formatThaiDate, formatNumber } from '@/lib/utils/format';
 import type { PrintJob, PrintPayload, TransferPrintPayload, ReceiptSettings } from '@/types/database';
@@ -28,13 +29,6 @@ import {
 // Constants
 // ---------------------------------------------------------------------------
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'รอพิมพ์',
-  printing: 'กำลังพิมพ์',
-  completed: 'พิมพ์แล้ว',
-  failed: 'ล้มเหลว',
-};
-
 const STATUS_VARIANTS: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   printing: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -42,9 +36,16 @@ const STATUS_VARIANTS: Record<string, string> = {
   failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 };
 
-const JOB_TYPE_LABELS: Record<string, string> = {
-  receipt: 'ใบรับ',
-  label: 'ป้ายขวด',
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  pending: 'statusPending',
+  printing: 'statusPrinting',
+  completed: 'statusCompleted',
+  failed: 'statusFailed',
+};
+
+const JOB_TYPE_LABEL_KEYS: Record<string, string> = {
+  receipt: 'jobTypeReceipt',
+  label: 'jobTypeLabel',
 };
 
 const DASHED_LINE = '--------------------------------';
@@ -65,6 +66,7 @@ interface StoreOption {
 // ---------------------------------------------------------------------------
 
 export default function PrintStationPage() {
+  const t = useTranslations('printStation');
   const supabase = useRef(createClient()).current;
   const { currentStoreId, setCurrentStoreId } = useAppStore();
 
@@ -408,7 +410,7 @@ export default function PrintStationPage() {
           }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ';
+        const message = err instanceof Error ? err.message : t('unknownError');
         await updateJobStatus(job.id, 'failed', message);
         setRecentJobs((prev) =>
           prev.map((j) =>
@@ -656,7 +658,7 @@ export default function PrintStationPage() {
           // Receipt: print copies = number of bottles (quantity)
           Array.from({ length: (activePrintJob.payload as PrintPayload).quantity || 1 }).map((_, i) => (
             <div key={i} className="print-copy-separator">
-              <ReceiptContent payload={activePrintJob.payload as PrintPayload} settings={receiptSettings} storeName={storeName} copyNumber={i + 1} totalCopies={(activePrintJob.payload as PrintPayload).quantity || 1} />
+              <ReceiptContent payload={activePrintJob.payload as PrintPayload} settings={receiptSettings} storeName={storeName} copyNumber={i + 1} totalCopies={(activePrintJob.payload as PrintPayload).quantity || 1} t={t} />
             </div>
           ))
         )}
@@ -664,13 +666,13 @@ export default function PrintStationPage() {
           // Label: print copies from settings
           Array.from({ length: receiptSettings?.label_copies || 1 }).map((_, i) => (
             <div key={i} className="print-label-copy">
-              <LabelContent payload={activePrintJob.payload as PrintPayload} storeName={storeName} />
+              <LabelContent payload={activePrintJob.payload as PrintPayload} storeName={storeName} t={t} />
             </div>
           ))
         )}
         {activePrintJob && activePrintJob.job_type === 'transfer' && (
           <div className="print-copy-separator">
-            <TransferReceiptContent payload={activePrintJob.payload as TransferPrintPayload} storeName={storeName} />
+            <TransferReceiptContent payload={activePrintJob.payload as TransferPrintPayload} storeName={storeName} t={t} />
           </div>
         )}
       </div>
@@ -684,8 +686,8 @@ export default function PrintStationPage() {
               <Package className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Print Station</h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">สแตนบายรับงานพิมพ์อัตโนมัติ</p>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">{t('title')}</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('subtitle')}</p>
             </div>
           </div>
 
@@ -698,20 +700,20 @@ export default function PrintStationPage() {
                 className="flex items-center gap-1.5 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-60"
               >
                 <Download className="h-3.5 w-3.5" />
-                {isInstalling ? 'กำลังติดตั้ง...' : 'ติดตั้งแอป'}
+                {isInstalling ? t('installing') : t('installApp')}
               </button>
             )}
             {isInstalled && (
               <span className="flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">แอปติดตั้งแล้ว</span>
+                <span className="hidden sm:inline">{t('appInstalled')}</span>
               </span>
             )}
 
             {/* Startup .bat download */}
             <button
               onClick={downloadStartupBat}
-              title="ดาวน์โหลดไฟล์ตั้งค่า Startup อัตโนมัติ"
+              title={t('downloadStartupTitle')}
               className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-purple-50 hover:text-purple-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-purple-900/20 dark:hover:text-purple-400"
             >
               <MonitorUp className="h-3.5 w-3.5" />
@@ -732,17 +734,17 @@ export default function PrintStationPage() {
               {connected ? (
                 <>
                   <Wifi className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">เชื่อมต่อแล้ว</span>
+                  <span className="hidden sm:inline">{t('connected')}</span>
                 </>
               ) : currentStoreId ? (
                 <>
                   <WifiOff className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">ไม่ได้เชื่อมต่อ</span>
+                  <span className="hidden sm:inline">{t('disconnected')}</span>
                 </>
               ) : (
                 <>
                   <Clock className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">รอเลือกสาขา</span>
+                  <span className="hidden sm:inline">{t('waitingForStore')}</span>
                 </>
               )}
             </div>
@@ -763,7 +765,7 @@ export default function PrintStationPage() {
                     <p className="text-xs text-gray-500 dark:text-gray-400">{storeCode}</p>
                   </>
                 ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">ไม่มีสาขาที่ผูกไว้</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('noStoreAssigned')}</p>
                 )}
               </div>
             </div>
@@ -789,7 +791,7 @@ export default function PrintStationPage() {
                 ) : (
                   <LogOut className="h-3.5 w-3.5" />
                 )}
-                ออกจากระบบ
+                {t('logout')}
               </button>
             </div>
           </div>
@@ -798,7 +800,7 @@ export default function PrintStationPage() {
           {hasMultipleStores && (
             <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-700">
               <label className="mb-1.5 block text-xs text-gray-500 dark:text-gray-400">
-                เปลี่ยนสาขา (คุณมีสิทธิ์เข้าถึง {stores.length} สาขา)
+                {t('switchStore', { count: stores.length })}
               </label>
               <select
                 value={currentStoreId || ''}
@@ -808,7 +810,7 @@ export default function PrintStationPage() {
                 }}
                 className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               >
-                <option value="">-- เลือกสาขา --</option>
+                <option value="">{t('selectStore')}</option>
                 {stores.map((store) => (
                   <option key={store.id} value={store.id}>
                     {store.store_name} ({store.store_code})
@@ -824,10 +826,10 @@ export default function PrintStationPage() {
           <div className="flex flex-col items-center justify-center rounded-xl bg-white py-20 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
             <Printer className="mb-3 h-12 w-12 text-gray-300 dark:text-gray-600" />
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              บัญชีนี้ไม่ได้ผูกกับสาขาใด กรุณาติดต่อผู้ดูแลระบบ
+              {t('noStoreMessage')}
             </p>
             <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-              หรือออกจากระบบแล้วเข้าสู่ระบบด้วยบัญชีอื่น
+              {t('orLoginOther')}
             </p>
           </div>
         )}
@@ -836,19 +838,19 @@ export default function PrintStationPage() {
         {currentStoreId && (
           <div className="mb-4 grid grid-cols-3 gap-3">
             <div className="rounded-xl bg-white p-3 text-center shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400">สำเร็จ</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('statsCompleted')}</p>
               <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
                 {formatNumber(jobCounts.completed)}
               </p>
             </div>
             <div className="rounded-xl bg-white p-3 text-center shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400">ล้มเหลว</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('statsFailed')}</p>
               <p className="text-xl font-bold text-red-600 dark:text-red-400">
                 {formatNumber(jobCounts.failed)}
               </p>
             </div>
             <div className="rounded-xl bg-white p-3 text-center shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400">รอพิมพ์</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('statsPending')}</p>
               <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
                 {formatNumber(jobCounts.pending)}
               </p>
@@ -861,7 +863,7 @@ export default function PrintStationPage() {
           <div className="mb-4 flex items-center gap-3 rounded-xl bg-blue-50 p-4 dark:bg-blue-900/20">
             <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
             <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-              กำลังพิมพ์ {activePrintJob ? JOB_TYPE_LABELS[activePrintJob.job_type] : ''}...
+              {t('printing', { type: activePrintJob ? t(JOB_TYPE_LABEL_KEYS[activePrintJob.job_type] ?? 'jobTypeReceipt') : '' })}
             </span>
           </div>
         )}
@@ -874,7 +876,7 @@ export default function PrintStationPage() {
           >
             <Printer className="h-6 w-6" />
             <span className="text-base font-bold">
-              มีงานรอพิมพ์ {jobCounts.pending} รายการ — กดที่นี่เพื่อพิมพ์
+              {t('pendingAlert', { count: jobCounts.pending })}
             </span>
           </button>
         )}
@@ -884,7 +886,7 @@ export default function PrintStationPage() {
           <div className="rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
             <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-                งานพิมพ์ล่าสุด
+                {t('recentJobs')}
               </h2>
             </div>
 
@@ -892,7 +894,7 @@ export default function PrintStationPage() {
               <div className="flex flex-col items-center py-16">
                 <Printer className="mb-3 h-10 w-10 text-gray-300 dark:text-gray-600" />
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  กำลังรองานพิมพ์...
+                  {t('waitingForJobs')}
                 </p>
               </div>
             ) : (
@@ -918,7 +920,7 @@ export default function PrintStationPage() {
 
                       {/* Type badge */}
                       <span className="inline-flex w-fit shrink-0 items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                        {JOB_TYPE_LABELS[job.job_type] ?? job.job_type}
+                        {JOB_TYPE_LABEL_KEYS[job.job_type] ? t(JOB_TYPE_LABEL_KEYS[job.job_type]) : job.job_type}
                       </span>
 
                       {/* Info */}
@@ -929,13 +931,13 @@ export default function PrintStationPage() {
                             : (job.payload as PrintPayload).deposit_code}
                           <span className="ml-2 font-normal text-gray-500 dark:text-gray-400">
                             {job.job_type === 'transfer'
-                              ? `${(job.payload as TransferPrintPayload).items?.length || 0} รายการ`
+                              ? t('itemsCount', { count: (job.payload as TransferPrintPayload).items?.length || 0 })
                               : (job.payload as PrintPayload).customer_name}
                           </span>
                         </p>
                         <p className="truncate text-xs text-gray-400 dark:text-gray-500">
                           {job.job_type === 'transfer'
-                            ? 'ใบนำส่งคลังกลาง'
+                            ? t('transferLabel')
                             : (job.payload as PrintPayload).product_name}
                         </p>
                       </div>
@@ -948,7 +950,7 @@ export default function PrintStationPage() {
                         )}
                       >
                         <StatusIcon status={job.status} />
-                        {STATUS_LABELS[job.status] ?? job.status}
+                        {STATUS_LABEL_KEYS[job.status] ? t(STATUS_LABEL_KEYS[job.status]) : job.status}
                       </span>
 
                       {/* Print / Reprint button */}
@@ -971,7 +973,7 @@ export default function PrintStationPage() {
                           ) : (
                             <RotateCcw className="h-3.5 w-3.5" />
                           )}
-                          {isPendingJob ? 'พิมพ์' : 'พิมพ์ซ้ำ'}
+                          {isPendingJob ? t('printButton') : t('reprintButton')}
                         </button>
                       )}
                     </div>
@@ -984,7 +986,7 @@ export default function PrintStationPage() {
 
         {/* ---- Footer ---- */}
         <p className="mt-6 text-center text-xs text-gray-400 dark:text-gray-500">
-          Print Station &middot; StockManager &middot; เปิดหน้านี้ค้างไว้เพื่อรับงานพิมพ์อัตโนมัติ
+          {t('title')} &middot; StockManager &middot; {t('footer')}
         </p>
       </div>
     </>
@@ -1018,12 +1020,14 @@ function ReceiptContent({
   storeName,
   copyNumber,
   totalCopies,
+  t,
 }: {
   payload: PrintPayload;
   settings: ReceiptSettings | null;
   storeName: string;
   copyNumber?: number;
   totalCopies?: number;
+  t: (key: string, values?: Record<string, unknown>) => string;
 }) {
   return (
     <div>
@@ -1044,29 +1048,29 @@ function ReceiptContent({
       )}
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
       <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '14px', margin: '4px 0' }}>
-        ใบรับฝากเหล้า
+        {t('receipt.depositReceipt')}
       </div>
       <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '18px', margin: '4px 0', letterSpacing: '1px' }}>
         {payload.deposit_code}
       </div>
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
       <div style={{ margin: '6px 0' }}>
-        <ReceiptRow label="ชื่อลูกค้า:" value={payload.customer_name} bold />
-        {payload.customer_phone && <ReceiptRow label="เบอร์โทร:" value={payload.customer_phone} />}
-        {payload.table_number && <ReceiptRow label="โต๊ะ:" value={payload.table_number} />}
+        <ReceiptRow label={t('receipt.customerName')} value={payload.customer_name} bold />
+        {payload.customer_phone && <ReceiptRow label={t('receipt.phone')} value={payload.customer_phone} />}
+        {payload.table_number && <ReceiptRow label={t('receipt.table')} value={payload.table_number} />}
       </div>
       <div style={{ margin: '6px 0' }}>
-        <ReceiptRow label="สินค้า:" value={payload.product_name} bold />
-        {payload.category && <ReceiptRow label="หมวด:" value={payload.category} />}
-        <ReceiptRow label="จำนวน:" value={`${formatNumber(payload.remaining_qty)} / ${formatNumber(payload.quantity)}`} />
+        <ReceiptRow label={t('receipt.product')} value={payload.product_name} bold />
+        {payload.category && <ReceiptRow label={t('receipt.category')} value={payload.category} />}
+        <ReceiptRow label={t('receipt.quantity')} value={`${formatNumber(payload.remaining_qty)} / ${formatNumber(payload.quantity)}`} />
       </div>
       <div style={{ margin: '6px 0' }}>
-        <ReceiptRow label="วันที่ฝาก:" value={formatThaiDate(payload.created_at)} />
-        {payload.expiry_date && <ReceiptRow label="วันหมดอายุ:" value={formatThaiDate(payload.expiry_date)} />}
+        <ReceiptRow label={t('receipt.depositDate')} value={formatThaiDate(payload.created_at)} />
+        {payload.expiry_date && <ReceiptRow label={t('receipt.expiryDate')} value={formatThaiDate(payload.expiry_date)} />}
       </div>
       {payload.received_by_name && (
         <div style={{ margin: '6px 0' }}>
-          <ReceiptRow label="ผู้รับฝาก:" value={payload.received_by_name} />
+          <ReceiptRow label={t('receipt.receivedBy')} value={payload.received_by_name} />
         </div>
       )}
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
@@ -1094,7 +1098,7 @@ function ReceiptContent({
       )}
       {totalCopies && totalCopies > 1 && copyNumber && (
         <div style={{ textAlign: 'center', fontSize: '10px', color: '#888', margin: '2px 0' }}>
-          ใบที่ {copyNumber}/{totalCopies}
+          {t('receipt.copyOf', { current: copyNumber, total: totalCopies })}
         </div>
       )}
     </div>
@@ -1105,7 +1109,7 @@ function ReceiptContent({
 // Label renderer (for print area)
 // ---------------------------------------------------------------------------
 
-function LabelContent({ payload, storeName }: { payload: PrintPayload; storeName: string }) {
+function LabelContent({ payload, storeName, t }: { payload: PrintPayload; storeName: string; t: (key: string) => string }) {
   return (
     <div>
       <div style={{ textAlign: 'center', fontSize: '7pt', lineHeight: 1.2, marginBottom: '1mm', color: '#333' }}>
@@ -1115,10 +1119,10 @@ function LabelContent({ payload, storeName }: { payload: PrintPayload; storeName
         {payload.deposit_code}
       </div>
       <hr style={{ border: 'none', borderTop: '0.5px solid #999', margin: '1mm 0' }} />
-      <LabelRow label="ลูกค้า:" value={payload.customer_name} />
-      <LabelRow label="สินค้า:" value={payload.product_name} />
-      {payload.expiry_date && <LabelRow label="หมดอายุ:" value={formatThaiDate(payload.expiry_date)} />}
-      <LabelRow label="วันที่ฝาก:" value={formatThaiDate(payload.created_at)} />
+      <LabelRow label={t('label.customer')} value={payload.customer_name} />
+      <LabelRow label={t('label.product')} value={payload.product_name} />
+      {payload.expiry_date && <LabelRow label={t('label.expiry')} value={formatThaiDate(payload.expiry_date)} />}
+      <LabelRow label={t('label.depositDate')} value={formatThaiDate(payload.created_at)} />
     </div>
   );
 }
@@ -1154,9 +1158,11 @@ function LabelRow({ label, value }: { label: string; value: string }) {
 function TransferReceiptContent({
   payload,
   storeName,
+  t,
 }: {
   payload: TransferPrintPayload;
   storeName: string;
+  t: (key: string, values?: Record<string, unknown>) => string;
 }) {
   const items = payload.items || [];
   const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
@@ -1168,7 +1174,7 @@ function TransferReceiptContent({
       </div>
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
       <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '14px', margin: '4px 0' }}>
-        ใบนำส่งเหล้าคลังกลาง
+        {t('transferReceipt.title')}
       </div>
       <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '18px', margin: '4px 0', letterSpacing: '1px' }}>
         {payload.transfer_code}
@@ -1176,15 +1182,15 @@ function TransferReceiptContent({
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
 
       <div style={{ margin: '6px 0' }}>
-        <ReceiptRow label="วันที่:" value={formatThaiDateTime(payload.created_at)} />
-        <ReceiptRow label="สาขา:" value={payload.store_name} bold />
-        <ReceiptRow label="จำนวนรวม:" value={`${formatNumber(totalQty)} (${items.length} รายการ)`} bold />
+        <ReceiptRow label={t('transferReceipt.date')} value={formatThaiDateTime(payload.created_at)} />
+        <ReceiptRow label={t('transferReceipt.branch')} value={payload.store_name} bold />
+        <ReceiptRow label={t('transferReceipt.totalQuantity')} value={`${formatNumber(totalQty)} (${t('itemsCount', { count: items.length })})`} bold />
       </div>
 
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
 
       <div style={{ margin: '6px 0' }}>
-        <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>รายการ:</div>
+        <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{t('transferReceipt.itemsList')}</div>
         {items.map((item, idx) => (
           <div key={idx} style={{ marginBottom: '4px', paddingBottom: '4px', borderBottom: idx < items.length - 1 ? '1px dotted #ccc' : 'none' }}>
             <div style={{ fontWeight: 'bold' }}>
@@ -1195,7 +1201,7 @@ function TransferReceiptContent({
               <span>{item.deposit_code || ''}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-              <span>จำนวน: {formatNumber(item.quantity)}</span>
+              <span>{t('transferReceipt.quantity')} {formatNumber(item.quantity)}</span>
               {item.category && <span>({item.category})</span>}
             </div>
           </div>
@@ -1206,27 +1212,27 @@ function TransferReceiptContent({
 
       {payload.notes && (
         <div style={{ margin: '6px 0', fontSize: '11px' }}>
-          หมายเหตุ: {payload.notes}
+          {t('transferReceipt.notes')} {payload.notes}
         </div>
       )}
 
       <div style={{ margin: '16px 0 6px' }}>
-        <ReceiptRow label="ผู้นำส่ง:" value={payload.submitted_by_name} bold />
+        <ReceiptRow label={t('transferReceipt.submittedBy')} value={payload.submitted_by_name} bold />
         <div style={{ margin: '4px 0 16px' }}>
-          <span>ลงชื่อ: </span>
+          <span>{t('transferReceipt.signature')} </span>
           <span style={{ borderBottom: '1px solid #000', display: 'inline-block', width: '180px' }}>&nbsp;</span>
         </div>
 
-        <ReceiptRow label="ผู้รับ (HQ):" value="_______________" />
+        <ReceiptRow label={t('transferReceipt.receiverHQ')} value="_______________" />
         <div style={{ margin: '4px 0' }}>
-          <span>ลงชื่อ: </span>
+          <span>{t('transferReceipt.signature')} </span>
           <span style={{ borderBottom: '1px solid #000', display: 'inline-block', width: '180px' }}>&nbsp;</span>
         </div>
       </div>
 
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
       <div style={{ textAlign: 'center', fontSize: '11px', margin: '4px 0' }}>
-        เอกสารนี้ใช้เป็นหลักฐานการนำส่งเหล้า
+        {t('transferReceipt.documentNote')}
       </div>
     </div>
   );

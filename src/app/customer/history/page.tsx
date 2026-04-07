@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { formatThaiDate, formatThaiDateTime, formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils/cn';
@@ -17,16 +18,17 @@ interface HistoryItem {
   store_name?: string;
 }
 
-const withdrawalStatusMap: Record<string, { label: string; color: string }> = {
-  pending: { label: 'รอดำเนินการ', color: 'text-amber-600 bg-amber-50' },
-  approved: { label: 'อนุมัติแล้ว', color: 'text-green-600 bg-green-50' },
-  completed: { label: 'สำเร็จ', color: 'text-green-600 bg-green-50' },
-  rejected: { label: 'ปฏิเสธ', color: 'text-red-600 bg-red-50' },
-};
-
 export default function CustomerHistoryPage() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const t = useTranslations('customer.history');
+
+  const withdrawalStatusMap: Record<string, { label: string; color: string }> = {
+    pending: { label: t('statusPending'), color: 'text-amber-600 bg-amber-50' },
+    approved: { label: t('statusApproved'), color: 'text-green-600 bg-green-50' },
+    completed: { label: t('statusCompleted'), color: 'text-green-600 bg-green-50' },
+    rejected: { label: t('statusRejected'), color: 'text-red-600 bg-red-50' },
+  };
 
   useEffect(() => {
     loadHistory();
@@ -107,13 +109,13 @@ export default function CustomerHistoryPage() {
 
   return (
     <div className="px-4 py-4">
-      <h2 className="text-lg font-bold text-gray-900">ประวัติธุรกรรม</h2>
-      <p className="mt-0.5 text-sm text-gray-500">รายการฝากและเบิกเหล้าทั้งหมด</p>
+      <h2 className="text-lg font-bold text-gray-900">{t('title')}</h2>
+      <p className="mt-0.5 text-sm text-gray-500">{t('subtitle')}</p>
 
       {history.length === 0 ? (
         <div className="mt-12 flex flex-col items-center gap-2 text-gray-400">
           <History className="h-12 w-12" />
-          <p className="text-sm">ยังไม่มีประวัติ</p>
+          <p className="text-sm">{t('noHistory')}</p>
         </div>
       ) : (
         <div className="mt-4 space-y-2">
@@ -144,7 +146,7 @@ export default function CustomerHistoryPage() {
                     </p>
                     {item.type === 'deposit' ? (
                       <span className="shrink-0 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">
-                        ฝาก
+                        {t('deposit')}
                       </span>
                     ) : wStatus ? (
                       <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', wStatus.color)}>
@@ -153,7 +155,7 @@ export default function CustomerHistoryPage() {
                     ) : null}
                   </div>
                   <p className="mt-0.5 text-xs text-gray-500">
-                    จำนวน {formatNumber(item.quantity)}
+                    {t('quantity', { qty: formatNumber(item.quantity) })}
                     {item.deposit_code && ` | ${item.deposit_code}`}
                   </p>
                   <p className="mt-0.5 text-[11px] text-gray-400">

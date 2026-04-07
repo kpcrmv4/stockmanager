@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { formatThaiDate } from '@/lib/utils/format';
 import { cn } from '@/lib/utils/cn';
@@ -17,15 +18,16 @@ interface Announcement {
   store?: { store_name: string };
 }
 
-const typeConfig: Record<string, { label: string; color: string }> = {
-  promotion: { label: 'โปรโมชั่น', color: 'bg-green-50 text-green-700' },
-  announcement: { label: 'ประกาศ', color: 'bg-blue-50 text-blue-700' },
-  event: { label: 'กิจกรรม', color: 'bg-amber-50 text-amber-700' },
-};
-
 export default function CustomerPromotionsPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const t = useTranslations('customer.promotions');
+
+  const typeConfig: Record<string, { label: string; color: string }> = {
+    promotion: { label: t('typePromotion'), color: 'bg-green-50 text-green-700' },
+    announcement: { label: t('typeAnnouncement'), color: 'bg-blue-50 text-blue-700' },
+    event: { label: t('typeEvent'), color: 'bg-amber-50 text-amber-700' },
+  };
 
   useEffect(() => {
     loadAnnouncements();
@@ -59,13 +61,13 @@ export default function CustomerPromotionsPage() {
 
   return (
     <div className="px-4 py-4">
-      <h2 className="text-lg font-bold text-gray-900">โปรโมชั่น</h2>
-      <p className="mt-0.5 text-sm text-gray-500">โปรโมชั่นและประกาศจากร้านค้า</p>
+      <h2 className="text-lg font-bold text-gray-900">{t('title')}</h2>
+      <p className="mt-0.5 text-sm text-gray-500">{t('subtitle')}</p>
 
       {announcements.length === 0 ? (
         <div className="mt-12 flex flex-col items-center gap-2 text-gray-400">
           <Megaphone className="h-12 w-12" />
-          <p className="text-sm">ไม่มีโปรโมชั่นในขณะนี้</p>
+          <p className="text-sm">{t('noPromotions')}</p>
         </div>
       ) : (
         <div className="mt-4 space-y-4">
