@@ -31,25 +31,37 @@ interface StoreInfo {
 
 type CreatableRoomType = 'dm' | 'direct' | 'cross_store';
 
-const ROOM_TYPE_OPTIONS: { value: CreatableRoomType; label: string; description: string; icon: typeof MessageCircle; ownerOnly?: boolean }[] = [
+// Role hierarchy: higher number = higher privilege
+const ROLE_LEVEL: Record<string, number> = {
+  staff: 1,
+  bar: 2,
+  accountant: 3,
+  manager: 4,
+  owner: 5,
+  admin: 5,
+};
+
+const ROOM_TYPE_OPTIONS: { value: CreatableRoomType; label: string; description: string; icon: typeof MessageCircle; minRole: number }[] = [
   {
     value: 'dm',
     label: '1:1',
     description: 'แชทตัวต่อตัว',
     icon: User,
+    minRole: 1, // ทุก role
   },
   {
     value: 'direct',
     label: 'กลุ่ม',
     description: 'สร้างกลุ่มแชทในสาขา',
     icon: MessageCircle,
+    minRole: 2, // bar ขึ้นไป
   },
   {
     value: 'cross_store',
     label: 'ข้ามสาขา',
     description: 'แชทประสานงานระหว่างสาขา',
     icon: Building2,
-    ownerOnly: true,
+    minRole: 5, // owner/admin เท่านั้น
   },
 ];
 
@@ -69,7 +81,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('all');
 
-  const isOwnerOrManager = user?.role === 'owner' || user?.role === 'manager';
+  const userRoleLevel = ROLE_LEVEL[user?.role || ''] || 0;
 
   // Load store users for direct/dm chat
   useEffect(() => {
@@ -359,7 +371,7 @@ export function CreateRoomDialog({ isOpen, onClose }: CreateRoomDialogProps) {
           </label>
           <div className="grid grid-cols-3 gap-2">
             {ROOM_TYPE_OPTIONS.filter(
-              (opt) => !opt.ownerOnly || isOwnerOrManager
+              (opt) => userRoleLevel >= opt.minRole
             ).map((opt) => {
               const Icon = opt.icon;
               const isActive = roomType === opt.value;
