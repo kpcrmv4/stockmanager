@@ -710,10 +710,10 @@ export default function BarApprovalPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            รายการรออนุมัติ
+            {t('title')}
           </h1>
           <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-            ตรวจสอบและอนุมัติรายการฝาก-เบิกเหล้า
+            {t('subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -749,7 +749,7 @@ export default function BarApprovalPage() {
             onClick={loadAll}
             disabled={isLoading}
           >
-            รีเฟรช
+            {t('refresh')}
           </Button>
         </div>
       </div>
@@ -774,7 +774,7 @@ export default function BarApprovalPage() {
           <div className="flex items-center gap-2">
             <Wine className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <span className="text-sm text-amber-700 dark:text-amber-300">
-              ฝากรอยืนยัน
+              {t('depositTab')}
             </span>
           </div>
           <p className="mt-1 text-2xl font-bold text-amber-800 dark:text-amber-200">
