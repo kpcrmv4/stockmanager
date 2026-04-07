@@ -1531,5 +1531,51 @@
     "refreshSuccess": "Data refreshed",
     "unknownBranch": "Unknown",
     "fromBranchField": "From branch:"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage stores and system settings",
+    "storeList": "Branch List",
+    "storeListDesc": "Manage branches and their settings",
+    "addStore": "Add Branch",
+    "centralWarehouse": "Central Warehouse",
+    "importDeposits": "Import Deposit Data",
+    "importDepositsDesc": "Import deposit data from legacy system (CSV)"
+  },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "Manage personal information"
+  },
+  "users": {
+    "title": "Manage Users",
+    "subtitle": "Add, edit, delete system users"
+  },
+  "reports": {
+    "title": "Reports",
+    "subtitle": "Summary reports"
+  },
+  "activity": {
+    "title": "Activity Audit",
+    "subtitle": "View audit logs and branch status"
+  },
+  "myTasks": {
+    "title": "My Tasks",
+    "subtitle": "Tasks assigned to me"
+  },
+  "storeOverview": {
+    "title": "Store Overview",
+    "subtitle": "Branch summary"
+  },
+  "notificationsPage": {
+    "title": "Notifications",
+    "subtitle": "All notifications"
+  },
+  "commission": {
+    "title": "Commission System",
+    "subtitle": "AE Commission & Bottle Commission"
+  },
+  "stock": {
+    "title": "Stock Check System",
+    "subtitle": "Stock count overview and discrepancy checking"
   }
 }

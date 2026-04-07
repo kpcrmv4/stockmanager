@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import {
   Button,
@@ -25,6 +26,7 @@ interface StoreInfo {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const t = useTranslations('settings');
   const [stores, setStores] = useState<StoreInfo[]>([]);
 
 
@@ -44,24 +46,24 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ตั้งค่า</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          จัดการร้านค้าและตั้งค่าระบบ
+          {t('subtitle')}
         </p>
       </div>
 
       {/* Stores List */}
       <Card padding="none">
         <CardHeader
-          title="รายการสาขา"
-          description="จัดการสาขาและตั้งค่าแต่ละสาขา"
+          title={t('storeList')}
+          description={t('storeListDesc')}
           action={
             <Button
               size="sm"
               icon={<Plus className="h-3.5 w-3.5" />}
               onClick={() => router.push('/settings/stores/new')}
             >
-              เพิ่มสาขา
+              {t('addStore')}
             </Button>
           }
         />
@@ -80,7 +82,7 @@ export default function SettingsPage() {
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
                     {store.store_name}
                     {store.is_central && (
-                      <span className="ml-1.5 text-xs text-gray-400">(คลังกลาง)</span>
+                      <span className="ml-1.5 text-xs text-gray-400">({t('centralWarehouse')})</span>
                     )}
                   </p>
                   <p className="text-xs text-gray-400">{store.store_code}</p>
@@ -104,10 +106,10 @@ export default function SettingsPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-white">
-                นำเข้าข้อมูลฝากเหล้า
+                {t('importDeposits')}
               </p>
               <p className="text-xs text-gray-400">
-                นำเข้าข้อมูลฝากเหล้าจากระบบเดิม (CSV)
+                {t('importDepositsDesc')}
               </p>
             </div>
           </div>

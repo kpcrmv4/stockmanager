@@ -1531,5 +1531,51 @@
     "refreshSuccess": "โหลดข้อมูลใหม่แล้ว",
     "unknownBranch": "ไม่ทราบ",
     "fromBranchField": "จากสาขา:"
+  },
+  "settings": {
+    "title": "ตั้งค่า",
+    "subtitle": "จัดการร้านค้าและตั้งค่าระบบ",
+    "storeList": "รายการสาขา",
+    "storeListDesc": "จัดการสาขาและตั้งค่าแต่ละสาขา",
+    "addStore": "เพิ่มสาขา",
+    "centralWarehouse": "คลังกลาง",
+    "importDeposits": "นำเข้าข้อมูลฝากเหล้า",
+    "importDepositsDesc": "นำเข้าข้อมูลฝากเหล้าจากระบบเดิม (CSV)"
+  },
+  "profile": {
+    "title": "โปรไฟล์",
+    "subtitle": "จัดการข้อมูลส่วนตัว"
+  },
+  "users": {
+    "title": "จัดการผู้ใช้",
+    "subtitle": "เพิ่ม แก้ไข ลบผู้ใช้ในระบบ"
+  },
+  "reports": {
+    "title": "รายงาน",
+    "subtitle": "รายงานสรุปข้อมูล"
+  },
+  "activity": {
+    "title": "ตรวจสอบกิจกรรม",
+    "subtitle": "ดู audit log และสถานะรายสาขา"
+  },
+  "myTasks": {
+    "title": "งานของฉัน",
+    "subtitle": "รายการงานที่ต้องทำ"
+  },
+  "storeOverview": {
+    "title": "ภาพรวมสาขา",
+    "subtitle": "สรุปข้อมูลสาขา"
+  },
+  "notificationsPage": {
+    "title": "การแจ้งเตือน",
+    "subtitle": "รายการแจ้งเตือนทั้งหมด"
+  },
+  "commission": {
+    "title": "ระบบคอมมิชชั่น",
+    "subtitle": "AE Commission & Bottle Commission"
+  },
+  "stock": {
+    "title": "ระบบนับสต๊อก",
+    "subtitle": "ภาพรวมการนับสต๊อกและตรวจสอบส่วนต่าง"
   }
 }
