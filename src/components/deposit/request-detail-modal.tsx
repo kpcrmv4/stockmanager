@@ -15,6 +15,7 @@ import {
 import { Modal } from '@/components/ui/modal';
 import { cn } from '@/lib/utils/cn';
 import { formatThaiDateTime } from '@/lib/utils/format';
+import { useTranslations } from 'next-intl';
 import type { TableCardItem } from '@/components/deposit/table-card-grid';
 
 // ---------------------------------------------------------------------------
@@ -34,22 +35,16 @@ interface RequestDetailModalProps {
 
 type ItemType = TableCardItem['type'];
 
-const TYPE_CONFIG: Record<
-  ItemType,
-  { label: string; gradient: string }
-> = {
-  deposit_request: {
-    label: 'คำขอฝากเหล้า',
-    gradient: 'bg-gradient-to-r from-teal-500 to-emerald-500',
-  },
-  deposit: {
-    label: 'รอยืนยัน',
-    gradient: 'bg-gradient-to-r from-orange-500 to-amber-500',
-  },
-  withdrawal: {
-    label: 'คำขอเบิกเหล้า',
-    gradient: 'bg-gradient-to-r from-red-500 to-pink-500',
-  },
+const TYPE_GRADIENT: Record<ItemType, string> = {
+  deposit_request: 'bg-gradient-to-r from-teal-500 to-emerald-500',
+  deposit: 'bg-gradient-to-r from-orange-500 to-amber-500',
+  withdrawal: 'bg-gradient-to-r from-red-500 to-pink-500',
+};
+
+const TYPE_LABEL_KEY: Record<ItemType, string> = {
+  deposit_request: 'detailModal.depositRequest',
+  deposit: 'detailModal.pendingConfirm',
+  withdrawal: 'detailModal.withdrawalRequest',
 };
 
 // ---------------------------------------------------------------------------
@@ -90,9 +85,12 @@ export function RequestDetailModal({
   onClose,
   children,
 }: RequestDetailModalProps) {
+  const t = useTranslations('deposit');
+
   if (!item) return null;
 
-  const config = TYPE_CONFIG[item.type] ?? TYPE_CONFIG.deposit;
+  const gradient = TYPE_GRADIENT[item.type] ?? TYPE_GRADIENT.deposit;
+  const labelKey = TYPE_LABEL_KEY[item.type] ?? TYPE_LABEL_KEY.deposit;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="" size="lg" showClose>
@@ -102,10 +100,10 @@ export function RequestDetailModal({
         <div
           className={cn(
             'mx-[-1.5rem] mt-[-1.5rem] rounded-t-xl px-6 py-5 text-white',
-            config.gradient,
+            gradient,
           )}
         >
-          <h2 className="text-lg font-bold">{config.label}</h2>
+          <h2 className="text-lg font-bold">{t(labelKey)}</h2>
           {item.status && (
             <p className="mt-1 text-sm text-white/80">{item.status}</p>
           )}
@@ -119,7 +117,7 @@ export function RequestDetailModal({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={item.photoUrl}
-                  alt="รูปภาพ"
+                  alt={t('detailModal.photoAlt')}
                   className="max-h-48 w-full rounded-lg object-contain"
                 />
               </div>

@@ -5,8 +5,10 @@ import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/stores/app-store';
 import { cn } from '@/lib/utils/cn';
 import { AlertTriangle, ArrowRight, Truck } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 export function ExpiredDepositsBanner() {
+  const t = useTranslations('deposit');
   const { currentStoreId } = useAppStore();
   const [count, setCount] = useState<number | null>(null);
 
@@ -43,15 +45,15 @@ export function ExpiredDepositsBanner() {
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-red-800 dark:text-red-200">
-          เหล้าฝากหมดอายุ {count} รายการ
+          {t('expiredBanner.title', { count })}
         </p>
         <p className="text-xs text-red-600 dark:text-red-400">
           <Truck className="mr-0.5 inline h-3 w-3" />
-          กดเพื่อส่งโอนไปคลังกลาง
+          {t('expiredBanner.action')}
         </p>
       </div>
       <span className="flex items-center text-xs font-medium text-red-700 dark:text-red-300">
-        จัดการ <ArrowRight className="ml-0.5 h-3.5 w-3.5" />
+        {t('expiredBanner.manage')} <ArrowRight className="ml-0.5 h-3.5 w-3.5" />
       </span>
     </a>
   );
