@@ -494,14 +494,14 @@ function CreateBorrowModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="สร้างคำขอยืม"
-      description="ส่งคำขอยืมสินค้าจากสาขาอื่น"
+      title={t('createBorrowTitle')}
+      description={t('createBorrowDesc')}
       size="lg"
     >
       <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-1">
         {/* Target store */}
         <Select
-          label="สาขาที่ต้องการยืม"
+          label={t('targetStore')}
           options={availableStores.map((s) => ({
             value: s.id,
             label: `${s.store_name} (${s.store_code})`,
@@ -512,13 +512,13 @@ function CreateBorrowModal({
             // Reset items when switching branch
             setItems([{ ...EMPTY_FORM_ITEM }]);
           }}
-          placeholder="เลือกสาขา"
+          placeholder={t('selectStore')}
         />
 
         {/* Items */}
         <div>
           <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            รายการสินค้า
+            {t('itemList')}
             {loadingProducts && (
               <Loader2 className="ml-2 inline h-3.5 w-3.5 animate-spin text-teal-500" />
             )}
@@ -535,7 +535,7 @@ function CreateBorrowModal({
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <span className="text-xs font-medium text-teal-600 dark:text-teal-400">
-                      รายการที่ {idx + 1}
+                      {t('itemNumber', { num: idx + 1 })}
                     </span>
                     {items.length > 1 && (
                       <button
@@ -551,7 +551,7 @@ function CreateBorrowModal({
                     {/* Product name with autocomplete */}
                     <div className="relative sm:col-span-2">
                       <Input
-                        placeholder={targetStore ? 'พิมพ์ชื่อสินค้า *' : 'เลือกสาขาก่อน *'}
+                        placeholder={targetStore ? t('productPlaceholder') : t('selectStorePlaceholder')}
                         value={item.product_name}
                         onChange={(e) => {
                           updateItem(idx, 'product_name', e.target.value);
@@ -586,20 +586,20 @@ function CreateBorrowModal({
                       )}
                     </div>
                     <Input
-                      placeholder="หมวดหมู่"
+                      placeholder={t('categoryPlaceholder')}
                       value={item.category}
                       onChange={(e) => updateItem(idx, 'category', e.target.value)}
                       disabled={!targetStore}
                     />
                     <Input
-                      placeholder="หน่วย"
+                      placeholder={t('unitPlaceholder')}
                       value={item.unit}
                       onChange={(e) => updateItem(idx, 'unit', e.target.value)}
                       disabled={!targetStore}
                     />
                     <Input
                       type="number"
-                      placeholder="จำนวน *"
+                      placeholder={t('quantityPlaceholder')}
                       min="1"
                       value={item.quantity}
                       onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
@@ -616,16 +616,16 @@ function CreateBorrowModal({
             className="mt-2 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-teal-600 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-900/20"
           >
             <Plus className="h-4 w-4" />
-            เพิ่มรายการ
+            {t('addItem')}
           </button>
         </div>
 
         {/* Notes */}
         <Textarea
-          label="หมายเหตุ"
+          label={t('notesLabel')}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="ระบุเหตุผลการยืม (ถ้ามี)"
+          placeholder={t('notesPlaceholder')}
           rows={2}
         />
       </div>
