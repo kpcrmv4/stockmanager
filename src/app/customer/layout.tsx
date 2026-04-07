@@ -3,6 +3,7 @@
 import { Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import {
   Wine,
   Plus,
@@ -16,22 +17,23 @@ import { CustomerProvider } from './_components/customer-provider';
 import type { LucideIcon } from 'lucide-react';
 
 interface CustomerNavItem {
-  label: string;
+  labelKey: string;
   href: string;
   icon: LucideIcon;
 }
 
 const customerNavItems: CustomerNavItem[] = [
-  { label: 'ของฝาก', href: '/customer', icon: Wine },
-  { label: 'ฝากเหล้า', href: '/customer/deposit', icon: Plus },
-  { label: 'ขอเบิก', href: '/customer/withdraw', icon: ArrowUpFromLine },
-  { label: 'ประวัติ', href: '/customer/history', icon: History },
-  { label: 'ตั้งค่า', href: '/customer/settings', icon: Settings },
+  { labelKey: 'myDeposits', href: '/customer', icon: Wine },
+  { labelKey: 'deposit', href: '/customer/deposit', icon: Plus },
+  { labelKey: 'withdraw', href: '/customer/withdraw', icon: ArrowUpFromLine },
+  { labelKey: 'history', href: '/customer/history', icon: History },
+  { labelKey: 'settings', href: '/customer/settings', icon: Settings },
 ];
 
 function CustomerLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const t = useTranslations('customer.nav');
 
   // ส่งต่อ token param ไปยัง nav links (เพื่อไม่หลุด token เมื่อกดเมนู)
   const token = searchParams.get('token');
@@ -73,7 +75,7 @@ function CustomerLayoutInner({ children }: { children: React.ReactNode }) {
                       className={cn('h-5 w-5', isActive && 'fill-current')}
                     />
                     <span className="text-[10px] font-medium leading-tight">
-                      {item.label}
+                      {t(item.labelKey)}
                     </span>
                   </Link>
                 </li>
