@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/stores/app-store';
@@ -15,6 +16,7 @@ type BannerState =
   | { type: 'no_settings' };
 
 export function StockCountBanner() {
+  const t = useTranslations('stock');
   const { currentStoreId } = useAppStore();
   const [state, setState] = useState<BannerState>({ type: 'loading' });
 
@@ -86,7 +88,7 @@ export function StockCountBanner() {
         <CalendarOff className="h-5 w-5 shrink-0 text-gray-400 dark:text-gray-500" />
         <div className="min-w-0 flex-1">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            วันนี้ไม่ต้องนับสต๊อก
+            {t('banner.notCountingDay')}
           </p>
         </div>
       </div>
@@ -108,14 +110,14 @@ export function StockCountBanner() {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-            ยังไม่ได้นับสต๊อก
+            {t('banner.notCounted')}
           </p>
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            รอบ {businessDate} — สินค้าที่ต้องนับ {state.totalProducts} รายการ
+            {t('banner.periodNotCounted', { date: businessDate, count: state.totalProducts })}
           </p>
         </div>
         <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
-          นับเลย &rarr;
+          {t('banner.countNow')} &rarr;
         </span>
       </a>
     );
@@ -160,7 +162,7 @@ export function StockCountBanner() {
               : 'text-blue-800 dark:text-blue-200',
           )}
         >
-          {isComplete ? 'นับสต๊อกครบแล้ว' : 'กำลังนับสต๊อก'}
+          {isComplete ? t('banner.countComplete') : t('banner.counting')}
         </p>
         <p
           className={cn(
@@ -170,7 +172,7 @@ export function StockCountBanner() {
               : 'text-blue-600 dark:text-blue-400',
           )}
         >
-          รอบ {businessDate} — นับแล้ว {state.countedItems}/{state.totalProducts} รายการ
+          {t('banner.periodCounted', { date: businessDate, counted: state.countedItems, total: state.totalProducts })}
         </p>
       </div>
       <span
@@ -181,7 +183,7 @@ export function StockCountBanner() {
             : 'text-blue-700 dark:text-blue-300',
         )}
       >
-        ดูรายละเอียด &rarr;
+        {t('banner.viewDetails')} &rarr;
       </span>
     </a>
   );

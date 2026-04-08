@@ -34,6 +34,7 @@ type ViewFilter = 'pending' | 'explained';
 const EXPLAIN_ROLES = ['owner', 'manager', 'bar', 'staff'];
 
 export default function ExplanationPage() {
+  const t = useTranslations('stock');
   const { user } = useAuthStore();
 
   // Role guard — เฉพาะ staff/bar/manager/owner
@@ -41,8 +42,8 @@ export default function ExplanationPage() {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
         <AlertTriangle className="h-10 w-10 text-gray-300 dark:text-gray-600" />
-        <p className="text-sm text-gray-500 dark:text-gray-400">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</p>
-        <a href="/stock" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">กลับหน้าสต๊อก</a>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{t('explanation.noPermission')}</p>
+        <a href="/stock" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">{t('explanation.backToStock')}</a>
       </div>
     );
   }
@@ -85,8 +86,8 @@ export default function ExplanationPage() {
       console.error('Error fetching comparisons:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถโหลดข้อมูลส่วนต่างได้',
+        title: t('explanation.errorTitle'),
+        message: t('explanation.errorLoadData'),
       });
     } finally {
       setLoading(false);
@@ -127,8 +128,8 @@ export default function ExplanationPage() {
     if (!explanation) {
       toast({
         type: 'warning',
-        title: 'กรุณากรอกคำชี้แจง',
-        message: 'ต้องระบุเหตุผลประกอบการชี้แจงส่วนต่าง',
+        title: t('explanation.pleaseExplain'),
+        message: t('explanation.pleaseExplainMsg'),
       });
       return;
     }
@@ -175,8 +176,8 @@ export default function ExplanationPage() {
 
       toast({
         type: 'success',
-        title: 'บันทึกสำเร็จ',
-        message: 'ส่งคำชี้แจงเรียบร้อย',
+        title: t('explanation.saveSuccess'),
+        message: t('explanation.saveSuccessMsg'),
       });
 
       // Notify owners about the submitted explanation
@@ -185,7 +186,7 @@ export default function ExplanationPage() {
         notifyOwners({
           storeId: currentStoreId!,
           type: 'explanation_submitted',
-          title: 'มีคำชี้แจงส่วนต่างสต๊อก',
+          title: t('explanation.notifyOwnerTitle'),
           body: `${comparison.product_name} - ส่วนต่าง ${formatNumber(comparison.difference ?? 0)} (${formatPercent(comparison.diff_percent ?? 0)})`,
           data: {
             comparison_id: comparisonId,
@@ -196,17 +197,17 @@ export default function ExplanationPage() {
 
         // ส่ง system message เข้าห้องแชทสาขา
         notifyChatExplanationSubmitted(currentStoreId!, {
-          product_name: comparison.product_name || 'ไม่ระบุ',
+          product_name: comparison.product_name || t('explanation.unspecified'),
           difference: comparison.difference ?? 0,
-          submitted_by_name: user?.displayName || user?.username || 'พนักงาน',
+          submitted_by_name: user?.displayName || user?.username || t('explanation.staff'),
         });
       }
     } catch (error) {
       console.error('Error submitting explanation:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถบันทึกคำชี้แจงได้',
+        title: t('explanation.errorTitle'),
+        message: t('explanation.errorSaveExplanation'),
       });
     } finally {
       setSubmittingId(null);
@@ -221,8 +222,8 @@ export default function ExplanationPage() {
     if (itemsToSubmit.length === 0) {
       toast({
         type: 'warning',
-        title: 'ไม่มีรายการที่จะส่ง',
-        message: 'กรุณากรอกคำชี้แจงอย่างน้อย 1 รายการ',
+        title: t('explanation.noItemsToSubmit'),
+        message: t('explanation.noItemsToSubmitMsg'),
       });
       return;
     }
@@ -274,24 +275,24 @@ export default function ExplanationPage() {
 
       toast({
         type: 'success',
-        title: 'บันทึกสำเร็จ',
-        message: `ส่งคำชี้แจง ${itemsToSubmit.length} รายการเรียบร้อย`,
+        title: t('explanation.saveSuccess'),
+        message: t('explanation.batchSaveSuccessMsg', { count: itemsToSubmit.length }),
       });
 
       // Notify owners once for the batch submission
       notifyOwners({
         storeId: currentStoreId!,
         type: 'explanation_submitted',
-        title: 'มีคำชี้แจงส่วนต่างสต๊อก',
-        body: `ส่งคำชี้แจง ${itemsToSubmit.length} รายการ`,
+        title: t('explanation.notifyOwnerTitle'),
+        body: t('explanation.notifyOwnerBatchBody', { count: itemsToSubmit.length }),
         data: { url: '/stock/approval' },
       });
     } catch (error) {
       console.error('Error submitting all explanations:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถบันทึกคำชี้แจงได้',
+        title: t('explanation.errorTitle'),
+        message: t('explanation.errorSaveExplanation'),
       });
     } finally {
       setSubmittingAll(false);
@@ -322,11 +323,11 @@ export default function ExplanationPage() {
             <ArrowLeft className="h-5 w-5" />
           </a>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            ชี้แจงส่วนต่างสต๊อก
+            {t('explanation.title')}
           </h1>
         </div>
         <p className="mt-0.5 ml-9 text-sm text-gray-500 dark:text-gray-400">
-          อธิบายเหตุผลสำหรับสินค้าที่มีส่วนต่าง
+          {t('explanation.subtitle')}
         </p>
       </div>
 
@@ -336,7 +337,7 @@ export default function ExplanationPage() {
           <div className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <span className="text-sm text-amber-700 dark:text-amber-300">
-              รอชี้แจง
+              {t('explanation.pendingExplanation')}
             </span>
           </div>
           <p className="mt-1 text-2xl font-bold text-amber-800 dark:text-amber-200">
@@ -347,7 +348,7 @@ export default function ExplanationPage() {
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             <span className="text-sm text-blue-700 dark:text-blue-300">
-              ชี้แจงแล้ว
+              {t('explanation.explained')}
             </span>
           </div>
           <p className="mt-1 text-2xl font-bold text-blue-800 dark:text-blue-200">
@@ -359,8 +360,8 @@ export default function ExplanationPage() {
       {/* View Filter Tabs */}
       <Tabs
         tabs={[
-          { id: 'pending', label: 'รอชี้แจง', count: pendingItems.length },
-          { id: 'explained', label: 'ชี้แจงแล้ว', count: explainedItems.length },
+          { id: 'pending', label: t('explanation.pendingExplanation'), count: pendingItems.length },
+          { id: 'explained', label: t('explanation.explained'), count: explainedItems.length },
         ]}
         activeTab={viewFilter}
         onChange={(id) => setViewFilter(id as ViewFilter)}
@@ -368,7 +369,7 @@ export default function ExplanationPage() {
 
       {/* Search */}
       <Input
-        placeholder="ค้นหาสินค้า..."
+        placeholder={t('explanation.searchProduct')}
         leftIcon={<Search className="h-4 w-4" />}
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
@@ -380,13 +381,13 @@ export default function ExplanationPage() {
           icon={viewFilter === 'pending' ? Inbox : FileText}
           title={
             viewFilter === 'pending'
-              ? 'ไม่มีรายการที่รอชี้แจง'
-              : 'ยังไม่มีรายการที่ชี้แจงแล้ว'
+              ? t('explanation.noPendingItems')
+              : t('explanation.noExplainedItems')
           }
           description={
             viewFilter === 'pending'
-              ? 'รายการส่วนต่างทั้งหมดได้รับการชี้แจงแล้ว'
-              : 'เมื่อชี้แจงส่วนต่างแล้วจะแสดงที่นี่'
+              ? t('explanation.allExplained')
+              : t('explanation.willShowHere')
           }
         />
       ) : (
@@ -423,9 +424,9 @@ export default function ExplanationPage() {
                     <p className="text-xs text-gray-400">{item.product_code}</p>
                   </div>
                   {isPending ? (
-                    <Badge variant="warning">รอชี้แจง</Badge>
+                    <Badge variant="warning">{t('explanation.pendingExplanation')}</Badge>
                   ) : (
-                    <Badge variant="info">ชี้แจงแล้ว</Badge>
+                    <Badge variant="info">{t('explanation.explained')}</Badge>
                   )}
                 </div>
 
@@ -441,7 +442,7 @@ export default function ExplanationPage() {
                   </div>
                   <div className="text-center">
                     <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                      นับจริง
+                      {t('explanation.manualCount')}
                     </p>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
                       {item.manual_quantity !== null
@@ -491,7 +492,7 @@ export default function ExplanationPage() {
 
                 {/* Date */}
                 <p className="mt-2 text-[10px] text-gray-400 dark:text-gray-500">
-                  วันที่: {formatThaiDate(item.comp_date)}
+                  {t('explanation.dateLabel')}: {formatThaiDate(item.comp_date)}
                 </p>
 
                 {/* Explanation Input / Display */}
@@ -500,7 +501,7 @@ export default function ExplanationPage() {
                     <div className="space-y-2">
                       <textarea
                         rows={2}
-                        placeholder="กรอกคำชี้แจงส่วนต่าง เช่น แตกเสียหาย, ของหมดอายุ, คำนวณผิด..."
+                        placeholder={t('explanation.explanationPlaceholder')}
                         value={explanation}
                         onChange={(e) =>
                           handleExplanationChange(item.id, e.target.value)
@@ -521,7 +522,7 @@ export default function ExplanationPage() {
                         onClick={() => handleSubmitSingle(item.id)}
                         className="w-full"
                       >
-                        ส่งคำชี้แจง
+                        {t('explanation.submitExplanation')}
                       </Button>
                     </div>
                   ) : (
@@ -546,11 +547,11 @@ export default function ExplanationPage() {
         <div className="sticky bottom-0 -mx-4 border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/95 sm:-mx-6 sm:px-6">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              กรอกแล้ว{' '}
+              {t('explanation.filled')}{' '}
               <span className="font-medium text-gray-900 dark:text-white">
                 {filledCount}
               </span>{' '}
-              / {pendingItems.length} รายการ
+              / {pendingItems.length} {t('explanation.itemsLabel')}
             </div>
             <Button
               size="sm"
@@ -559,7 +560,7 @@ export default function ExplanationPage() {
               disabled={filledCount === 0}
               onClick={handleSubmitAll}
             >
-              ส่งทั้งหมด ({filledCount})
+              {t('explanation.submitAll', { count: filledCount })}
             </Button>
           </div>
         </div>

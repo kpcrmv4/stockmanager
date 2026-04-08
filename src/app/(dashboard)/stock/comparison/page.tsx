@@ -46,29 +46,29 @@ import {
 
 type FilterStatus = 'all' | ComparisonStatus;
 
-function getStatusConfig(status: ComparisonStatus) {
+function getStatusConfig(status: ComparisonStatus, t?: (key: string) => string) {
   switch (status) {
     case 'pending':
       return {
-        label: 'รอชี้แจง',
+        label: t?.('comparison.statusPending') ?? 'Pending',
         variant: 'warning' as const,
         icon: Clock,
       };
     case 'explained':
       return {
-        label: 'ชี้แจงแล้ว',
+        label: t?.('comparison.statusExplained') ?? 'Explained',
         variant: 'info' as const,
         icon: FileText,
       };
     case 'approved':
       return {
-        label: 'อนุมัติ',
+        label: t?.('comparison.statusApproved') ?? 'Approved',
         variant: 'success' as const,
         icon: CheckCircle2,
       };
     case 'rejected':
       return {
-        label: 'ปฏิเสธ',
+        label: t?.('comparison.statusRejected') ?? 'Rejected',
         variant: 'danger' as const,
         icon: XCircle,
       };
@@ -81,7 +81,7 @@ function getDiffColor(difference: number | null, diffPercent: number | null) {
       bg: 'bg-emerald-50 dark:bg-emerald-900/20',
       text: 'text-emerald-700 dark:text-emerald-400',
       ring: 'ring-emerald-200 dark:ring-emerald-800',
-      label: 'ตรง',
+      labelKey: 'comparison.match',
     };
   }
   const absPct = Math.abs(diffPercent || 0);
@@ -90,14 +90,14 @@ function getDiffColor(difference: number | null, diffPercent: number | null) {
       bg: 'bg-yellow-50 dark:bg-yellow-900/20',
       text: 'text-yellow-700 dark:text-yellow-400',
       ring: 'ring-yellow-200 dark:ring-yellow-800',
-      label: 'ภายในเกณฑ์',
+      labelKey: 'comparison.withinTolerance',
     };
   }
   return {
     bg: 'bg-red-50 dark:bg-red-900/20',
     text: 'text-red-700 dark:text-red-400',
     ring: 'ring-red-200 dark:ring-red-800',
-    label: 'เกินเกณฑ์',
+    labelKey: 'comparison.overTolerance',
   };
 }
 
@@ -113,6 +113,7 @@ interface DayStat {
 }
 
 export default function ComparisonPage() {
+  const t = useTranslations('stock');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const [loading, setLoading] = useState(true);
@@ -174,8 +175,8 @@ export default function ComparisonPage() {
       console.error('Error fetching comparisons:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถโหลดข้อมูลเปรียบเทียบได้',
+        title: t('comparison.errorTitle'),
+        message: t('comparison.errorLoadData'),
       });
     } finally {
       setLoading(false);
@@ -215,25 +216,25 @@ export default function ComparisonPage() {
       : comparisons;
 
     return [
-      { id: 'all', label: 'ทั้งหมด', count: dateComparisons.length },
+      { id: 'all', label: t('comparison.all'), count: dateComparisons.length },
       {
         id: 'pending',
-        label: 'รอชี้แจง',
+        label: t('comparison.statusPending'),
         count: dateComparisons.filter((c) => c.status === 'pending').length,
       },
       {
         id: 'explained',
-        label: 'ชี้แจงแล้ว',
+        label: t('comparison.statusExplained'),
         count: dateComparisons.filter((c) => c.status === 'explained').length,
       },
       {
         id: 'approved',
-        label: 'อนุมัติ',
+        label: t('comparison.statusApproved'),
         count: dateComparisons.filter((c) => c.status === 'approved').length,
       },
       {
         id: 'rejected',
-        label: 'ปฏิเสธ',
+        label: t('comparison.statusRejected'),
         count: dateComparisons.filter((c) => c.status === 'rejected').length,
       },
     ];
@@ -527,11 +528,11 @@ export default function ComparisonPage() {
               <ArrowLeft className="h-5 w-5" />
             </a>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              ผลเปรียบเทียบสต๊อก
+              {t('comparison.title')}
             </h1>
           </div>
           <p className="mt-0.5 ml-9 text-sm text-gray-500 dark:text-gray-400">
-            POS vs จำนวนนับจริง
+            {t('comparison.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -542,7 +543,7 @@ export default function ComparisonPage() {
                 size="sm"
                 icon={<FileText className="h-4 w-4" />}
               >
-                ไฟล์ POS
+                {t('comparison.posFile')}
               </Button>
             </a>
           )}
@@ -552,7 +553,7 @@ export default function ComparisonPage() {
             icon={<RefreshCw className="h-4 w-4" />}
             onClick={fetchComparisons}
           >
-            รีเฟรช
+            {t('comparison.refresh')}
           </Button>
         </div>
       </div>
@@ -584,34 +585,34 @@ export default function ComparisonPage() {
           <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
             {stats.total}
           </p>
-          <p className="text-[10px] text-blue-600 dark:text-blue-500">ทั้งหมด</p>
+          <p className="text-[10px] text-blue-600 dark:text-blue-500">{t('comparison.all')}</p>
         </div>
         <div className="rounded-xl bg-emerald-50 px-3 py-3 text-center dark:bg-emerald-900/20">
           <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
             {stats.match}
           </p>
-          <p className="text-[10px] text-emerald-600 dark:text-emerald-500">ตรง</p>
+          <p className="text-[10px] text-emerald-600 dark:text-emerald-500">{t('comparison.match')}</p>
         </div>
         <div className="rounded-xl bg-yellow-50 px-3 py-3 text-center dark:bg-yellow-900/20">
           <p className="text-lg font-bold text-yellow-700 dark:text-yellow-400">
             {stats.withinTolerance}
           </p>
           <p className="text-[10px] text-yellow-600 dark:text-yellow-500">
-            ในเกณฑ์
+            {t('comparison.withinTolerance')}
           </p>
         </div>
         <div className="rounded-xl bg-red-50 px-3 py-3 text-center dark:bg-red-900/20">
           <p className="text-lg font-bold text-red-700 dark:text-red-400">
             {stats.overTolerance}
           </p>
-          <p className="text-[10px] text-red-600 dark:text-red-500">เกินเกณฑ์</p>
+          <p className="text-[10px] text-red-600 dark:text-red-500">{t('comparison.overTolerance')}</p>
         </div>
       </div>
 
       {/* Monthly Statistics */}
       <Card padding="none">
         <CardHeader
-          title="สถิติรายวัน"
+          title={t('comparison.dailyStats')}
           action={
             <div className="flex items-center gap-2">
               <button
@@ -635,7 +636,7 @@ export default function ComparisonPage() {
 
         {monthlyStats.length === 0 ? (
           <div className="px-4 pb-4 text-center text-xs text-gray-400">
-            ไม่มีข้อมูลเดือนนี้
+            {t('comparison.noDataThisMonth')}
           </div>
         ) : (
           <>
@@ -645,25 +646,25 @@ export default function ComparisonPage() {
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700">
                     <th className="px-3 py-2 text-left font-medium text-gray-500">
-                      วันที่
+                      {t('comparison.dateCol')}
                     </th>
                     <th className="px-3 py-2 text-right font-medium text-gray-500">
-                      รายการ
+                      {t('comparison.itemsCol')}
                     </th>
                     <th className="px-3 py-2 text-right font-medium text-emerald-600">
-                      ตรง
+                      {t('comparison.match')}
                     </th>
                     <th className="px-3 py-2 text-right font-medium text-yellow-600">
-                      ในเกณฑ์
+                      {t('comparison.withinTolerance')}
                     </th>
                     <th className="px-3 py-2 text-right font-medium text-red-600">
-                      เกินเกณฑ์
+                      {t('comparison.overTolerance')}
                     </th>
                     <th className="px-3 py-2 text-right font-medium text-orange-600">
-                      รอชี้แจง
+                      {t('comparison.statusPending')}
                     </th>
                     <th className="px-3 py-2 text-center font-medium text-gray-500">
-                      สถานะ
+                      {t('comparison.statusCol')}
                     </th>
                     <th className="px-3 py-2 text-center font-medium text-gray-500" />
                   </tr>
@@ -736,7 +737,7 @@ export default function ComparisonPage() {
                         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                       ) : (
                         <Badge variant="warning">
-                          {stat.pending} รอชี้แจง
+                          {stat.pending} {t('comparison.statusPending')}
                         </Badge>
                       )}
                     </div>
@@ -745,25 +746,25 @@ export default function ComparisonPage() {
                         <p className="text-xs font-bold text-gray-700 dark:text-gray-200">
                           {stat.total}
                         </p>
-                        <p className="text-[9px] text-gray-400">รายการ</p>
+                        <p className="text-[9px] text-gray-400">{t('comparison.itemsCol')}</p>
                       </div>
                       <div>
                         <p className="text-xs font-bold text-emerald-600">
                           {stat.match}
                         </p>
-                        <p className="text-[9px] text-gray-400">ตรง</p>
+                        <p className="text-[9px] text-gray-400">{t('comparison.match')}</p>
                       </div>
                       <div>
                         <p className="text-xs font-bold text-yellow-600">
                           {stat.withinTolerance}
                         </p>
-                        <p className="text-[9px] text-gray-400">ในเกณฑ์</p>
+                        <p className="text-[9px] text-gray-400">{t('comparison.withinTolerance')}</p>
                       </div>
                       <div>
                         <p className="text-xs font-bold text-red-600">
                           {stat.overTolerance}
                         </p>
-                        <p className="text-[9px] text-gray-400">เกินเกณฑ์</p>
+                        <p className="text-[9px] text-gray-400">{t('comparison.overTolerance')}</p>
                       </div>
                     </div>
                   </button>
@@ -777,7 +778,7 @@ export default function ComparisonPage() {
       {/* ── Trend Chart ── */}
       <Card padding="none">
         <CardHeader
-          title="แนวโน้มผลเปรียบเทียบ"
+          title={t('comparison.trendTitle')}
           action={
             <div className="flex rounded-lg bg-gray-100 p-0.5 dark:bg-gray-700">
               <button
@@ -789,7 +790,7 @@ export default function ComparisonPage() {
                     : 'text-gray-500 hover:text-gray-700 dark:text-gray-400',
                 )}
               >
-                สัปดาห์นี้
+                {t('comparison.thisWeek')}
               </button>
               <button
                 onClick={() => setTrendRange('month')}
@@ -800,14 +801,14 @@ export default function ComparisonPage() {
                     : 'text-gray-500 hover:text-gray-700 dark:text-gray-400',
                 )}
               >
-                เดือนนี้
+                {t('comparison.thisMonth')}
               </button>
             </div>
           }
         />
         {trendChartData.length === 0 ? (
           <div className="px-4 pb-4 text-center text-xs text-gray-400">
-            ไม่มีข้อมูลช่วงนี้
+            {t('comparison.noDataThisPeriod')}
           </div>
         ) : (
           <div className="px-2 pb-4">
@@ -820,9 +821,9 @@ export default function ComparisonPage() {
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
                   formatter={(value: any, name: any) => {
                     const labels: Record<string, string> = {
-                      match: 'ตรง',
-                      withinTolerance: 'ในเกณฑ์',
-                      overTolerance: 'เกินเกณฑ์',
+                      match: t('comparison.match'),
+                      withinTolerance: t('comparison.withinTolerance'),
+                      overTolerance: t('comparison.overTolerance'),
                     };
                     return [value, labels[name] || name];
                   }}
@@ -853,12 +854,12 @@ export default function ComparisonPage() {
       {/* ── Per-Product Cross-Day View ── */}
       <Card padding="none">
         <CardHeader
-          title="มุมมองรายสินค้า"
-          description={`ช่วง${trendRange === 'week' ? 'สัปดาห์' : 'เดือน'}นี้ — สินค้าที่มีปัญหาบ่อยแสดงก่อน`}
+          title={t('comparison.productView')}
+          description={t('comparison.productViewDesc', { range: trendRange === 'week' ? t('comparison.thisWeek') : t('comparison.thisMonth') })}
         />
         <div className="px-4 pb-2">
           <Input
-            placeholder="ค้นหาสินค้า..."
+            placeholder={t('comparison.searchProduct')}
             leftIcon={<Search className="h-4 w-4" />}
             value={productViewSearch}
             onChange={(e) => setProductViewSearch(e.target.value)}
@@ -867,7 +868,7 @@ export default function ComparisonPage() {
 
         {productCrossDayData.products.length === 0 ? (
           <div className="px-4 pb-4 text-center text-xs text-gray-400">
-            ไม่มีข้อมูลช่วงนี้
+            {t('comparison.noDataThisPeriod')}
           </div>
         ) : (
           <>
@@ -877,7 +878,7 @@ export default function ComparisonPage() {
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700">
                     <th className="sticky left-0 bg-white py-2 pr-2 text-left font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400" style={{ minWidth: 140 }}>
-                      สินค้า
+                      {t('comparison.product')}
                     </th>
                     {productCrossDayData.allDates.map((date) => {
                       const d = new Date(date);
@@ -891,7 +892,7 @@ export default function ComparisonPage() {
                       );
                     })}
                     <th className="px-2 py-2 text-center font-medium text-gray-500 dark:text-gray-400" style={{ minWidth: 50 }}>
-                      ครั้ง
+                      {t('comparison.times')}
                     </th>
                   </tr>
                 </thead>
@@ -950,7 +951,7 @@ export default function ComparisonPage() {
               </table>
             </div>
             <div className="px-4 pb-3 pt-1 text-right text-[10px] text-gray-400">
-              แสดง {productCrossDayData.products.length} สินค้า · กดที่แถวเพื่อดูประวัติ
+              {t('comparison.showingProducts', { count: productCrossDayData.products.length })}
             </div>
           </>
         )}
@@ -962,14 +963,14 @@ export default function ComparisonPage() {
         onClose={() => setSelectedProduct(null)}
         title={
           selectedProduct
-            ? `ประวัติ ${comparisons.find((c) => c.product_code === selectedProduct)?.product_name || selectedProduct}`
+            ? t('comparison.historyTitle', { name: comparisons.find((c) => c.product_code === selectedProduct)?.product_name || selectedProduct })
             : ''
         }
         size="full"
       >
         <div className="max-h-[60vh] overflow-y-auto">
           {selectedProductHistory.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-400">ไม่มีข้อมูล</p>
+            <p className="py-8 text-center text-sm text-gray-400">{t('comparison.noData')}</p>
           ) : (
             <>
               {/* Mini line chart */}
@@ -988,7 +989,7 @@ export default function ComparisonPage() {
                     <Tooltip
                       contentStyle={{ fontSize: 11, borderRadius: 8 }}
                       formatter={(value: any, name: any) => {
-                        const labels: Record<string, string> = { difference: 'ส่วนต่าง', pos: 'POS', manual: 'นับจริง' };
+                        const labels: Record<string, string> = { difference: t('comparison.difference'), pos: 'POS', manual: t('comparison.manualCount') };
                         return [value, labels[name] || name];
                       }}
                     />
@@ -1007,7 +1008,7 @@ export default function ComparisonPage() {
               <div className="space-y-2">
                 {selectedProductHistory.map((item) => {
                   const diffColor = getDiffColor(item.difference, item.diff_percent);
-                  const statusConfig = getStatusConfig(item.status);
+                  const statusConfig = getStatusConfig(item.status, t);
                   return (
                     <div key={item.id} className={cn('rounded-lg border p-3', diffColor.ring)}>
                       <div className="flex items-center justify-between">
@@ -1022,24 +1023,24 @@ export default function ComparisonPage() {
                           <span className="font-medium">{item.pos_quantity !== null ? formatNumber(item.pos_quantity) : '-'}</span>
                         </div>
                         <div>
-                          <span className="text-gray-400">นับ: </span>
+                          <span className="text-gray-400">{t('comparison.countShort')}: </span>
                           <span className="font-medium">{item.manual_quantity !== null ? formatNumber(item.manual_quantity) : '-'}</span>
                         </div>
                         <div>
-                          <span className="text-gray-400">ต่าง: </span>
+                          <span className="text-gray-400">{t('comparison.diffShort')}: </span>
                           <span className={cn('font-bold', diffColor.text)}>
                             {item.difference !== null ? (item.difference > 0 ? '+' : '') + formatNumber(item.difference) : '-'}
                           </span>
                         </div>
                         <div>
                           <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold', diffColor.bg, diffColor.text)}>
-                            {diffColor.label}
+                            {t(diffColor.labelKey)}
                           </span>
                         </div>
                       </div>
                       {item.explanation && (
                         <div className="mt-2 rounded-lg bg-blue-50 p-2 dark:bg-blue-900/20">
-                          <p className="text-[10px] font-medium text-blue-600 dark:text-blue-400">คำชี้แจง:</p>
+                          <p className="text-[10px] font-medium text-blue-600 dark:text-blue-400">{t('comparison.explanationLabel')}:</p>
                           <p className="text-xs text-blue-700 dark:text-blue-300">{item.explanation}</p>
                         </div>
                       )}
@@ -1054,7 +1055,7 @@ export default function ComparisonPage() {
 
       {/* Search */}
       <Input
-        placeholder="ค้นหาสินค้า..."
+        placeholder={t('comparison.searchProduct')}
         leftIcon={<Search className="h-4 w-4" />}
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
@@ -1071,11 +1072,11 @@ export default function ComparisonPage() {
       {filteredComparisons.length === 0 ? (
         <EmptyState
           icon={BarChart3}
-          title="ไม่มีข้อมูลเปรียบเทียบ"
+          title={t('comparison.noData')}
           description={
             selectedDate
-              ? 'ไม่พบข้อมูลสำหรับวันที่เลือก'
-              : 'ยังไม่มีข้อมูลการเปรียบเทียบสต๊อก'
+              ? t('comparison.noDataForDate')
+              : t('comparison.noComparisonData')
           }
         />
       ) : (
@@ -1087,25 +1088,25 @@ export default function ComparisonPage() {
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/80">
                     <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">
-                      สินค้า
+                      {t('comparison.product')}
                     </th>
                     <th className="px-4 py-3 text-right font-medium text-gray-500 dark:text-gray-400">
                       POS
                     </th>
                     <th className="px-4 py-3 text-right font-medium text-gray-500 dark:text-gray-400">
-                      นับจริง
+                      {t('comparison.manualCount')}
                     </th>
                     <th className="px-4 py-3 text-right font-medium text-gray-500 dark:text-gray-400">
-                      ส่วนต่าง
+                      {t('comparison.difference')}
                     </th>
                     <th className="px-4 py-3 text-right font-medium text-gray-500 dark:text-gray-400">
                       %
                     </th>
                     <th className="px-4 py-3 text-center font-medium text-gray-500 dark:text-gray-400">
-                      ระดับ
+                      {t('comparison.level')}
                     </th>
                     <th className="px-4 py-3 text-center font-medium text-gray-500 dark:text-gray-400">
-                      สถานะ
+                      {t('comparison.statusCol')}
                     </th>
                   </tr>
                 </thead>
@@ -1115,7 +1116,7 @@ export default function ComparisonPage() {
                       item.difference,
                       item.diff_percent
                     );
-                    const statusConfig = getStatusConfig(item.status);
+                    const statusConfig = getStatusConfig(item.status, t);
                     return (
                       <tr
                         key={item.id}
@@ -1168,7 +1169,7 @@ export default function ComparisonPage() {
                               diffColor.text
                             )}
                           >
-                            {diffColor.label}
+                            {t(diffColor.labelKey)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -1191,7 +1192,7 @@ export default function ComparisonPage() {
                 item.difference,
                 item.diff_percent
               );
-              const statusConfig = getStatusConfig(item.status);
+              const statusConfig = getStatusConfig(item.status, t);
               const DiffIcon =
                 item.difference === null || item.difference === 0
                   ? Minus
@@ -1232,7 +1233,7 @@ export default function ComparisonPage() {
                     </div>
                     <div>
                       <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                        นับจริง
+                        {t('comparison.manualCount')}
                       </p>
                       <p className="text-sm font-medium text-gray-900 dark:text-white">
                         {item.manual_quantity !== null
@@ -1242,7 +1243,7 @@ export default function ComparisonPage() {
                     </div>
                     <div>
                       <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                        ส่วนต่าง
+                        {t('comparison.difference')}
                       </p>
                       <div className="flex items-center gap-1">
                         <DiffIcon
@@ -1266,13 +1267,13 @@ export default function ComparisonPage() {
                         diffColor.text
                       )}
                     >
-                      {diffColor.label}
+                      {t(diffColor.labelKey)}
                       {item.diff_percent !== null &&
                         ` (${formatPercent(item.diff_percent)})`}
                     </span>
                     {item.explanation && (
                       <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                        มีคำชี้แจง
+                        {t('comparison.hasExplanation')}
                       </span>
                     )}
                   </div>
@@ -1287,7 +1288,7 @@ export default function ComparisonPage() {
       <Modal
         isOpen={!!detailDate}
         onClose={() => setDetailDate(null)}
-        title={detailDate ? `รายละเอียด ${formatThaiDate(detailDate)}` : ''}
+        title={detailDate ? t('comparison.detailTitle', { date: formatThaiDate(detailDate) }) : ''}
         size="full"
       >
         <div className="max-h-[60vh] overflow-y-auto">
@@ -1302,25 +1303,25 @@ export default function ComparisonPage() {
                     <p className="text-sm font-bold text-blue-700 dark:text-blue-400">
                       {stat.total}
                     </p>
-                    <p className="text-[9px] text-blue-600">ทั้งหมด</p>
+                    <p className="text-[9px] text-blue-600">{t('comparison.all')}</p>
                   </div>
                   <div className="rounded-lg bg-emerald-50 p-2 text-center dark:bg-emerald-900/20">
                     <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
                       {stat.match}
                     </p>
-                    <p className="text-[9px] text-emerald-600">ตรง</p>
+                    <p className="text-[9px] text-emerald-600">{t('comparison.match')}</p>
                   </div>
                   <div className="rounded-lg bg-yellow-50 p-2 text-center dark:bg-yellow-900/20">
                     <p className="text-sm font-bold text-yellow-700 dark:text-yellow-400">
                       {stat.withinTolerance}
                     </p>
-                    <p className="text-[9px] text-yellow-600">ในเกณฑ์</p>
+                    <p className="text-[9px] text-yellow-600">{t('comparison.withinTolerance')}</p>
                   </div>
                   <div className="rounded-lg bg-red-50 p-2 text-center dark:bg-red-900/20">
                     <p className="text-sm font-bold text-red-700 dark:text-red-400">
                       {stat.overTolerance}
                     </p>
-                    <p className="text-[9px] text-red-600">เกินเกณฑ์</p>
+                    <p className="text-[9px] text-red-600">{t('comparison.overTolerance')}</p>
                   </div>
                 </div>
               );
@@ -1330,7 +1331,7 @@ export default function ComparisonPage() {
           <div className="space-y-2">
             {detailItems.map((item) => {
               const diffColor = getDiffColor(item.difference, item.diff_percent);
-              const statusConfig = getStatusConfig(item.status);
+              const statusConfig = getStatusConfig(item.status, t);
               return (
                 <div
                   key={item.id}
@@ -1384,7 +1385,7 @@ export default function ComparisonPage() {
                           diffColor.text,
                         )}
                       >
-                        {diffColor.label}
+                        {t(diffColor.labelKey)}
                       </span>
                     </div>
                   </div>
@@ -1393,7 +1394,7 @@ export default function ComparisonPage() {
                   {item.explanation && (
                     <div className="mt-2 rounded-lg bg-blue-50 p-2 dark:bg-blue-900/20">
                       <p className="text-[10px] font-medium text-blue-600 dark:text-blue-400">
-                        คำชี้แจง:
+                        {t('comparison.explanationLabel')}:
                       </p>
                       <p className="text-xs text-blue-700 dark:text-blue-300">
                         {item.explanation}
@@ -1403,7 +1404,7 @@ export default function ComparisonPage() {
                   {item.owner_notes && (
                     <div className="mt-1 rounded-lg bg-gray-50 p-2 dark:bg-gray-700/50">
                       <p className="text-[10px] font-medium text-gray-500">
-                        หมายเหตุเจ้าของ:
+                        {t('comparison.ownerNotes')}:
                       </p>
                       <p className="text-xs text-gray-600 dark:text-gray-300">
                         {item.owner_notes}

@@ -35,6 +35,7 @@ type ViewFilter = 'explained' | 'approved' | 'rejected';
 const APPROVAL_ROLES = ['owner', 'manager'];
 
 export default function ApprovalPage() {
+  const t = useTranslations('stock');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
 
@@ -43,8 +44,8 @@ export default function ApprovalPage() {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
         <Shield className="h-10 w-10 text-gray-300 dark:text-gray-600" />
-        <p className="text-sm text-gray-500 dark:text-gray-400">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</p>
-        <a href="/stock" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">กลับหน้าสต๊อก</a>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{t('approval.noPermission')}</p>
+        <a href="/stock" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">{t('approval.backToStock')}</a>
       </div>
     );
   }
@@ -80,8 +81,8 @@ export default function ApprovalPage() {
       console.error('Error fetching comparisons:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถโหลดข้อมูลรออนุมัติได้',
+        title: t('approval.errorTitle'),
+        message: t('approval.errorLoadData'),
       });
     } finally {
       setLoading(false);
@@ -187,8 +188,8 @@ export default function ApprovalPage() {
 
       toast({
         type: 'success',
-        title: 'อนุมัติสำเร็จ',
-        message: 'อนุมัติคำชี้แจงเรียบร้อย',
+        title: t('approval.approveSuccess'),
+        message: t('approval.approveSuccessMsg'),
       });
 
       // Notify the staff who submitted the explanation
@@ -198,8 +199,8 @@ export default function ApprovalPage() {
           userId: comparison.explained_by,
           storeId: currentStoreId!,
           type: 'approval_result',
-          title: 'คำชี้แจงได้รับการอนุมัติ',
-          body: `${comparison.product_name} - อนุมัติแล้ว`,
+          title: t('approval.notifyApproved'),
+          body: `${comparison.product_name} - ${t('approval.approvedLabel')}`,
           data: {
             comparison_id: comparisonId,
             result: 'approved',
@@ -211,17 +212,17 @@ export default function ApprovalPage() {
       // ส่ง system message เข้าห้องแชทสาขา
       if (compItem) {
         notifyChatApprovalResult(currentStoreId!, {
-          product_name: compItem.product_name || 'ไม่ระบุ',
+          product_name: compItem.product_name || t('approval.unspecified'),
           result: 'approved',
-          approved_by_name: user?.displayName || user?.username || 'เจ้าของ',
+          approved_by_name: user?.displayName || user?.username || t('approval.owner'),
         });
       }
     } catch (error) {
       console.error('Error approving:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถอนุมัติได้',
+        title: t('approval.errorTitle'),
+        message: t('approval.errorApprove'),
       });
     } finally {
       setProcessingId(null);
@@ -233,8 +234,8 @@ export default function ApprovalPage() {
     if (!notes) {
       toast({
         type: 'warning',
-        title: 'กรุณาระบุเหตุผล',
-        message: 'กรุณาระบุหมายเหตุก่อนปฏิเสธ',
+        title: t('approval.pleaseProvideReason'),
+        message: t('approval.pleaseProvideReasonMsg'),
       });
       return;
     }
@@ -289,8 +290,8 @@ export default function ApprovalPage() {
 
       toast({
         type: 'success',
-        title: 'ปฏิเสธสำเร็จ',
-        message: 'ปฏิเสธคำชี้แจงเรียบร้อย',
+        title: t('approval.rejectSuccess'),
+        message: t('approval.rejectSuccessMsg'),
       });
 
       // Notify the staff who submitted the explanation
@@ -300,8 +301,8 @@ export default function ApprovalPage() {
           userId: comparison.explained_by,
           storeId: currentStoreId!,
           type: 'approval_result',
-          title: 'คำชี้แจงถูกปฏิเสธ',
-          body: `${comparison.product_name} - กรุณาชี้แจงใหม่`,
+          title: t('approval.notifyRejected'),
+          body: `${comparison.product_name} - ${t('approval.pleaseReExplain')}`,
           data: {
             comparison_id: comparisonId,
             result: 'rejected',
@@ -314,9 +315,9 @@ export default function ApprovalPage() {
       // ส่ง system message เข้าห้องแชทสาขา
       if (rejItem) {
         notifyChatApprovalResult(currentStoreId!, {
-          product_name: rejItem.product_name || 'ไม่ระบุ',
+          product_name: rejItem.product_name || t('approval.unspecified'),
           result: 'rejected',
-          approved_by_name: user?.displayName || user?.username || 'เจ้าของ',
+          approved_by_name: user?.displayName || user?.username || t('approval.owner'),
           reason: notes,
         });
       }
@@ -324,8 +325,8 @@ export default function ApprovalPage() {
       console.error('Error rejecting:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถปฏิเสธได้',
+        title: t('approval.errorTitle'),
+        message: t('approval.errorReject'),
       });
     } finally {
       setProcessingId(null);
@@ -356,8 +357,8 @@ export default function ApprovalPage() {
     if (selectedIds.size === 0) {
       toast({
         type: 'warning',
-        title: 'ไม่มีรายการที่เลือก',
-        message: 'กรุณาเลือกรายการที่ต้องการอนุมัติ',
+        title: t('approval.noSelection'),
+        message: t('approval.noSelectionApproveMsg'),
       });
       return;
     }
@@ -409,8 +410,8 @@ export default function ApprovalPage() {
 
       toast({
         type: 'success',
-        title: 'อนุมัติสำเร็จ',
-        message: `อนุมัติ ${selectedIds.size} รายการเรียบร้อย`,
+        title: t('approval.approveSuccess'),
+        message: t('approval.batchApproveSuccessMsg', { count: selectedIds.size }),
       });
 
       // Notify each unique staff member who submitted explanations
@@ -426,8 +427,8 @@ export default function ApprovalPage() {
           userId: staffId,
           storeId: currentStoreId!,
           type: 'approval_result',
-          title: 'คำชี้แจงได้รับการอนุมัติ',
-          body: `อนุมัติ ${count} รายการเรียบร้อย`,
+          title: t('approval.notifyApproved'),
+          body: t('approval.batchApproveSuccessMsg', { count }),
           data: {
             result: 'approved',
             count,
@@ -441,8 +442,8 @@ export default function ApprovalPage() {
       console.error('Error batch approving:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถอนุมัติแบบกลุ่มได้',
+        title: t('approval.errorTitle'),
+        message: t('approval.errorBatchApprove'),
       });
     } finally {
       setBatchProcessing(false);
@@ -453,8 +454,8 @@ export default function ApprovalPage() {
     if (selectedIds.size === 0) {
       toast({
         type: 'warning',
-        title: 'ไม่มีรายการที่เลือก',
-        message: 'กรุณาเลือกรายการที่ต้องการปฏิเสธ',
+        title: t('approval.noSelection'),
+        message: t('approval.noSelectionRejectMsg'),
       });
       return;
     }
@@ -470,7 +471,7 @@ export default function ApprovalPage() {
             status: 'rejected',
             approved_by: user?.id || null,
             approval_status: 'rejected',
-            owner_notes: ownerNotes[id]?.trim() || 'ปฏิเสธแบบกลุ่ม',
+            owner_notes: ownerNotes[id]?.trim() || t('approval.batchRejectNote'),
           })
           .eq('id', id)
       );
@@ -498,7 +499,7 @@ export default function ApprovalPage() {
                 status: 'rejected' as const,
                 approved_by: user?.id || null,
                 approval_status: 'rejected',
-                owner_notes: ownerNotes[c.id]?.trim() || 'ปฏิเสธแบบกลุ่ม',
+                owner_notes: ownerNotes[c.id]?.trim() || t('approval.batchRejectNote'),
               }
             : c
         )
@@ -506,8 +507,8 @@ export default function ApprovalPage() {
 
       toast({
         type: 'success',
-        title: 'ปฏิเสธสำเร็จ',
-        message: `ปฏิเสธ ${selectedIds.size} รายการเรียบร้อย`,
+        title: t('approval.rejectSuccess'),
+        message: t('approval.batchRejectSuccessMsg', { count: selectedIds.size }),
       });
 
       // Notify each unique staff member whose explanations were rejected
@@ -523,8 +524,8 @@ export default function ApprovalPage() {
           userId: staffId,
           storeId: currentStoreId!,
           type: 'approval_result',
-          title: 'คำชี้แจงถูกปฏิเสธ',
-          body: `ปฏิเสธ ${count} รายการ - กรุณาชี้แจงใหม่`,
+          title: t('approval.notifyRejected'),
+          body: t('approval.batchRejectNotifyBody', { count }),
           data: {
             result: 'rejected',
             count,
@@ -538,8 +539,8 @@ export default function ApprovalPage() {
       console.error('Error batch rejecting:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถปฏิเสธแบบกลุ่มได้',
+        title: t('approval.errorTitle'),
+        message: t('approval.errorBatchReject'),
       });
     } finally {
       setBatchProcessing(false);
@@ -567,11 +568,11 @@ export default function ApprovalPage() {
               <ArrowLeft className="h-5 w-5" />
             </a>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              อนุมัติคำชี้แจงสต๊อก
+              {t('approval.title')}
             </h1>
           </div>
           <p className="mt-0.5 ml-9 text-sm text-gray-500 dark:text-gray-400">
-            ตรวจสอบและอนุมัติคำชี้แจงส่วนต่างจากพนักงาน
+            {t('approval.subtitle')}
           </p>
         </div>
         <Button
@@ -580,7 +581,7 @@ export default function ApprovalPage() {
           icon={<RefreshCw className="h-4 w-4" />}
           onClick={fetchComparisons}
         >
-          รีเฟรช
+          {t('approval.refresh')}
         </Button>
       </div>
 
@@ -590,7 +591,7 @@ export default function ApprovalPage() {
           <div className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <span className="text-sm text-amber-700 dark:text-amber-300">
-              รออนุมัติ
+              {t('approval.pendingApproval')}
             </span>
           </div>
           <p className="mt-1 text-2xl font-bold text-amber-800 dark:text-amber-200">
@@ -601,7 +602,7 @@ export default function ApprovalPage() {
           <div className="flex items-center gap-2">
             <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             <span className="text-sm text-emerald-700 dark:text-emerald-300">
-              อนุมัติ
+              {t('approval.approved')}
             </span>
           </div>
           <p className="mt-1 text-2xl font-bold text-emerald-800 dark:text-emerald-200">
@@ -612,7 +613,7 @@ export default function ApprovalPage() {
           <div className="flex items-center gap-2">
             <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
             <span className="text-sm text-red-700 dark:text-red-300">
-              ปฏิเสธ
+              {t('approval.rejected')}
             </span>
           </div>
           <p className="mt-1 text-2xl font-bold text-red-800 dark:text-red-200">
@@ -626,11 +627,11 @@ export default function ApprovalPage() {
         tabs={[
           {
             id: 'explained',
-            label: 'รออนุมัติ',
+            label: t('approval.pendingApproval'),
             count: explainedItems.length,
           },
-          { id: 'approved', label: 'อนุมัติแล้ว', count: approvedItems.length },
-          { id: 'rejected', label: 'ปฏิเสธแล้ว', count: rejectedItems.length },
+          { id: 'approved', label: t('approval.approvedTab'), count: approvedItems.length },
+          { id: 'rejected', label: t('approval.rejectedTab'), count: rejectedItems.length },
         ]}
         activeTab={viewFilter}
         onChange={(id) => {
@@ -641,7 +642,7 @@ export default function ApprovalPage() {
 
       {/* Search */}
       <Input
-        placeholder="ค้นหาสินค้า..."
+        placeholder={t('approval.searchProduct')}
         leftIcon={<Search className="h-4 w-4" />}
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
@@ -660,11 +661,11 @@ export default function ApprovalPage() {
               onChange={toggleSelectAll}
               className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600"
             />
-            เลือกทั้งหมด ({explainedItems.length})
+            {t('approval.selectAll', { count: explainedItems.length })}
           </label>
           {selectedIds.size > 0 && (
             <span className="text-xs text-indigo-600 dark:text-indigo-400">
-              เลือกแล้ว {selectedIds.size} รายการ
+              {t('approval.selectedCount', { count: selectedIds.size })}
             </span>
           )}
         </div>
@@ -676,15 +677,15 @@ export default function ApprovalPage() {
           icon={viewFilter === 'explained' ? Shield : Inbox}
           title={
             viewFilter === 'explained'
-              ? 'ไม่มีรายการรออนุมัติ'
+              ? t('approval.noPendingItems')
               : viewFilter === 'approved'
-                ? 'ยังไม่มีรายการที่อนุมัติ'
-                : 'ยังไม่มีรายการที่ปฏิเสธ'
+                ? t('approval.noApprovedItems')
+                : t('approval.noRejectedItems')
           }
           description={
             viewFilter === 'explained'
-              ? 'คำชี้แจงทั้งหมดได้รับการตรวจสอบแล้ว'
-              : 'เมื่อมีการอนุมัติ/ปฏิเสธจะแสดงที่นี่'
+              ? t('approval.allReviewed')
+              : t('approval.willShowHere')
           }
         />
       ) : (
@@ -734,13 +735,13 @@ export default function ApprovalPage() {
                         </p>
                       </div>
                       {item.status === 'approved' && (
-                        <Badge variant="success">อนุมัติ</Badge>
+                        <Badge variant="success">{t('approval.approved')}</Badge>
                       )}
                       {item.status === 'rejected' && (
-                        <Badge variant="danger">ปฏิเสธ</Badge>
+                        <Badge variant="danger">{t('approval.rejected')}</Badge>
                       )}
                       {item.status === 'explained' && (
-                        <Badge variant="info">รออนุมัติ</Badge>
+                        <Badge variant="info">{t('approval.pendingApproval')}</Badge>
                       )}
                     </div>
 
@@ -758,7 +759,7 @@ export default function ApprovalPage() {
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                          นับจริง
+                          {t('approval.manualCount')}
                         </p>
                         <p className="text-sm font-medium text-gray-900 dark:text-white">
                           {item.manual_quantity !== null
@@ -768,7 +769,7 @@ export default function ApprovalPage() {
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                          ส่วนต่าง
+                          {t('approval.difference')}
                         </p>
                         <div className="flex items-center gap-1">
                           <DiffIcon
@@ -817,7 +818,7 @@ export default function ApprovalPage() {
                     {item.explanation && (
                       <div className="mt-2 rounded-lg bg-blue-50 px-3 py-2 dark:bg-blue-900/20">
                         <p className="text-[10px] font-medium text-blue-600 dark:text-blue-500">
-                          คำชี้แจงจากพนักงาน:
+                          {t('approval.staffExplanation')}:
                         </p>
                         <div className="mt-0.5 flex items-start gap-1.5">
                           <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-blue-500" />
@@ -830,7 +831,7 @@ export default function ApprovalPage() {
 
                     {/* Date */}
                     <p className="mt-2 text-[10px] text-gray-400 dark:text-gray-500">
-                      วันที่: {formatThaiDate(item.comp_date)}
+                      {t('approval.dateLabel')}: {formatThaiDate(item.comp_date)}
                     </p>
 
                     {/* Owner Notes & Actions (for explained items) */}
@@ -838,7 +839,7 @@ export default function ApprovalPage() {
                       <div className="mt-3 space-y-2">
                         <input
                           type="text"
-                          placeholder="หมายเหตุจากเจ้าของ (ถ้ามี)..."
+                          placeholder={t('approval.ownerNotesPlaceholder')}
                           value={ownerNotes[item.id] || ''}
                           onChange={(e) =>
                             handleNotesChange(item.id, e.target.value)
@@ -860,7 +861,7 @@ export default function ApprovalPage() {
                             ) : (
                               <CheckCircle className="h-4 w-4" />
                             )}
-                            อนุมัติ
+                            {t('approval.approved')}
                           </button>
                           <button
                             onClick={() => handleReject(item.id)}
@@ -876,7 +877,7 @@ export default function ApprovalPage() {
                             ) : (
                               <XCircle className="h-4 w-4" />
                             )}
-                            ปฏิเสธ
+                            {t('approval.rejected')}
                           </button>
                         </div>
                       </div>
@@ -901,7 +902,7 @@ export default function ApprovalPage() {
                                 : 'text-red-600 dark:text-red-500'
                             )}
                           >
-                            หมายเหตุจากเจ้าของ:
+                            {t('approval.ownerNotes')}:
                           </p>
                           <p
                             className={cn(
@@ -928,11 +929,11 @@ export default function ApprovalPage() {
         <div className="sticky bottom-0 -mx-4 border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/95 sm:-mx-6 sm:px-6">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              เลือกแล้ว{' '}
+              {t('approval.selectedLabel')}{' '}
               <span className="font-medium text-gray-900 dark:text-white">
                 {selectedIds.size}
               </span>{' '}
-              รายการ
+              {t('approval.itemsLabel')}
             </div>
             <div className="flex gap-2">
               <Button
@@ -942,7 +943,7 @@ export default function ApprovalPage() {
                 isLoading={batchProcessing}
                 onClick={handleBatchReject}
               >
-                ปฏิเสธทั้งหมด
+                {t('approval.rejectAll')}
               </Button>
               <Button
                 size="sm"
@@ -951,7 +952,7 @@ export default function ApprovalPage() {
                 onClick={handleBatchApprove}
                 className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-500 dark:hover:bg-emerald-600"
               >
-                อนุมัติทั้งหมด ({selectedIds.size})
+                {t('approval.approveAll', { count: selectedIds.size })}
               </Button>
             </div>
           </div>
