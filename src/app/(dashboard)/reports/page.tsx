@@ -1433,7 +1433,7 @@ export default function ReportsPage() {
               </div>
             ) : (
               <CardContent>
-                <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">ยังไม่มีข้อมูลในช่วงนี้</div>
+                <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">{t('noDataInRange')}</div>
               </CardContent>
             )}
           </Card>
@@ -1460,7 +1460,7 @@ export default function ReportsPage() {
               </div>
             ) : (
               <CardContent>
-                <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">ยังไม่มีข้อมูลในช่วงนี้</div>
+                <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">{t('noDataInRange')}</div>
               </CardContent>
             )}
           </Card>
