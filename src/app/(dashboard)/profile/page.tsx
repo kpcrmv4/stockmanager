@@ -60,6 +60,7 @@ const defaultPrefs: NotifPrefs = {
 // ---------------------------------------------------------------------------
 
 export default function ProfilePage() {
+  const t = useTranslations('profile');
   const { user, updateUser } = useAuthStore();
   const pushSub = usePushSubscription();
 
@@ -90,11 +91,11 @@ export default function ProfilePage() {
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
     if (!allowedTypes.includes(file.type)) {
-      toast({ type: 'error', title: 'รองรับเฉพาะไฟล์ JPEG, PNG, WebP' });
+      toast({ type: 'error', title: t('avatarInvalidType') });
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
-      toast({ type: 'error', title: 'ไฟล์ใหญ่เกินไป (สูงสุด 10MB)' });
+      toast({ type: 'error', title: t('avatarFileTooLarge') });
       return;
     }
 
@@ -105,7 +106,7 @@ export default function ProfilePage() {
       formData.append('folder', 'avatars');
 
       const res = await fetch('/api/upload/photo', { method: 'POST', body: formData });
-      if (!res.ok) throw new Error('อัพโหลดไม่สำเร็จ');
+      if (!res.ok) throw new Error('Upload failed');
 
       const { url } = await res.json();
       const supabase = createClient();
@@ -117,9 +118,9 @@ export default function ProfilePage() {
       if (error) throw error;
 
       updateUser({ avatarUrl: url });
-      toast({ type: 'success', title: 'อัพเดทรูปโปรไฟล์สำเร็จ' });
+      toast({ type: 'success', title: t('avatarUploadSuccess') });
     } catch {
-      toast({ type: 'error', title: 'อัพโหลดรูปไม่สำเร็จ' });
+      toast({ type: 'error', title: t('avatarUploadFailed') });
     } finally {
       setIsUploadingAvatar(false);
       if (avatarInputRef.current) avatarInputRef.current.value = '';
@@ -145,9 +146,9 @@ export default function ProfilePage() {
 
       updateUser({ displayName: newName });
       setIsEditingNickname(false);
-      toast({ type: 'success', title: 'บันทึกชื่อเล่นสำเร็จ' });
+      toast({ type: 'success', title: t('nicknameSaveSuccess') });
     } catch {
-      toast({ type: 'error', title: 'บันทึกไม่สำเร็จ' });
+      toast({ type: 'error', title: t('nicknameSaveFailed') });
     } finally {
       setIsSavingProfile(false);
     }
@@ -207,7 +208,7 @@ export default function ProfilePage() {
 
     if (!authUser) {
       setIsSaving(false);
-      toast({ type: 'error', title: 'ไม่พบข้อมูลผู้ใช้' });
+      toast({ type: 'error', title: t('userNotFound') });
       return;
     }
 
@@ -216,9 +217,9 @@ export default function ProfilePage() {
       .upsert({ user_id: authUser.id, ...prefs }, { onConflict: 'user_id' });
 
     if (error) {
-      toast({ type: 'error', title: 'ไม่สามารถบันทึกได้', message: error.message });
+      toast({ type: 'error', title: t('saveFailed'), message: error.message });
     } else {
-      toast({ type: 'success', title: 'บันทึกการตั้งค่าสำเร็จ' });
+      toast({ type: 'success', title: t('settingsSaveSuccess') });
     }
     setIsSaving(false);
   };
