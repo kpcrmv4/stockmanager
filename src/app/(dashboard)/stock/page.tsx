@@ -375,8 +375,8 @@ export default function StockOverviewPage() {
       staffVisible: true,
     },
     {
-      label: 'ชี้แจงส่วนต่าง',
-      description: 'อธิบายสินค้าที่ขาด/เกิน',
+      label: t('explainDiscrepancy'),
+      description: t('explainDiscrepancyDesc'),
       icon: FileText,
       href: '/stock/explanation',
       gradient: 'from-amber-500 to-orange-600',
@@ -384,8 +384,8 @@ export default function StockOverviewPage() {
       staffVisible: true,
     },
     {
-      label: 'อนุมัติ',
-      description: 'ตรวจสอบและอนุมัติ',
+      label: t('approve'),
+      description: t('approveDesc'),
       icon: ClipboardList,
       href: '/stock/approval',
       gradient: 'from-violet-500 to-purple-600',
@@ -401,11 +401,11 @@ export default function StockOverviewPage() {
   function getCheckStatusBadge(status: string) {
     switch (status) {
       case 'approved':
-        return { label: 'อนุมัติแล้ว', variant: 'success' as const };
+        return { label: t('statusApproved'), variant: 'success' as const };
       case 'pending':
-        return { label: 'รอชี้แจง', variant: 'warning' as const };
+        return { label: t('statusPendingExplanation'), variant: 'warning' as const };
       case 'in_progress':
-        return { label: 'กำลังดำเนินการ', variant: 'info' as const };
+        return { label: t('statusInProgress'), variant: 'info' as const };
       default:
         return { label: status, variant: 'default' as const };
     }
