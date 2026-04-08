@@ -835,9 +835,9 @@ export default function ComparisonPage() {
                 <Legend
                   formatter={(value: any) => {
                     const labels: Record<string, string> = {
-                      match: 'ตรง',
-                      withinTolerance: 'ในเกณฑ์',
-                      overTolerance: 'เกินเกณฑ์',
+                      match: t('comparison.match'),
+                      withinTolerance: t('comparison.withinTolerance'),
+                      overTolerance: t('comparison.overTolerance'),
                     };
                     return <span className="text-[10px]">{labels[value] || value}</span>;
                   }}
@@ -994,7 +994,7 @@ export default function ComparisonPage() {
                       }}
                     />
                     <Legend formatter={(value: any) => {
-                      const labels: Record<string, string> = { difference: 'ส่วนต่าง', pos: 'POS', manual: 'นับจริง' };
+                      const labels: Record<string, string> = { difference: t('comparison.difference'), pos: 'POS', manual: t('comparison.manualCount') };
                       return <span className="text-[10px]">{labels[value] || value}</span>;
                     }} />
                     <Line type="monotone" dataKey="pos" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
@@ -1361,7 +1361,7 @@ export default function ComparisonPage() {
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-400">นับ: </span>
+                      <span className="text-gray-400">{t('comparison.countShort')}: </span>
                       <span className="font-medium text-gray-700 dark:text-gray-200">
                         {item.manual_quantity !== null
                           ? formatNumber(item.manual_quantity)
@@ -1369,7 +1369,7 @@ export default function ComparisonPage() {
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-400">ต่าง: </span>
+                      <span className="text-gray-400">{t('comparison.diffShort')}: </span>
                       <span className={cn('font-bold', diffColor.text)}>
                         {item.difference !== null
                           ? (item.difference > 0 ? '+' : '') +

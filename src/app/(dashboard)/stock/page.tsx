@@ -375,8 +375,8 @@ export default function StockOverviewPage() {
       staffVisible: true,
     },
     {
-      label: 'ชี้แจงส่วนต่าง',
-      description: 'อธิบายสินค้าที่ขาด/เกิน',
+      label: t('explainDiscrepancy'),
+      description: t('explainDiscrepancyDesc'),
       icon: FileText,
       href: '/stock/explanation',
       gradient: 'from-amber-500 to-orange-600',
@@ -384,8 +384,8 @@ export default function StockOverviewPage() {
       staffVisible: true,
     },
     {
-      label: 'อนุมัติ',
-      description: 'ตรวจสอบและอนุมัติ',
+      label: t('approve'),
+      description: t('approveDesc'),
       icon: ClipboardList,
       href: '/stock/approval',
       gradient: 'from-violet-500 to-purple-600',
@@ -401,11 +401,11 @@ export default function StockOverviewPage() {
   function getCheckStatusBadge(status: string) {
     switch (status) {
       case 'approved':
-        return { label: 'อนุมัติแล้ว', variant: 'success' as const };
+        return { label: t('statusApproved'), variant: 'success' as const };
       case 'pending':
-        return { label: 'รอชี้แจง', variant: 'warning' as const };
+        return { label: t('statusPendingExplanation'), variant: 'warning' as const };
       case 'in_progress':
-        return { label: 'กำลังดำเนินการ', variant: 'info' as const };
+        return { label: t('statusInProgress'), variant: 'info' as const };
       default:
         return { label: status, variant: 'default' as const };
     }
@@ -423,14 +423,14 @@ export default function StockOverviewPage() {
     return (
       <EmptyState
         icon={Package}
-        title="ยังไม่มีสาขาในระบบ"
-        description="กรุณาสร้างสาขาก่อนเพื่อเริ่มใช้งานระบบนับสต๊อก"
+        title={t('noStoreTitle')}
+        description={t('noStoreDesc')}
         action={
           <Button
             size="sm"
             onClick={() => { window.location.href = '/settings'; }}
           >
-            ไปหน้าตั้งค่า
+            {t('goToSettings')}
           </Button>
         }
       />
@@ -443,10 +443,10 @@ export default function StockOverviewPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-white">
-            ระบบนับสต๊อก
+            {t('title')}
           </h1>
           <p className="mt-0.5 text-xs text-gray-500 sm:mt-1 sm:text-sm dark:text-gray-400">
-            ภาพรวมการนับสต๊อกและตรวจสอบส่วนต่าง
+            {t('subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -455,7 +455,7 @@ export default function StockOverviewPage() {
             className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors sm:px-3 sm:py-2 sm:text-sm hover:bg-cyan-700 active:bg-cyan-800"
           >
             <Package className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            จัดการสินค้า
+            {t('manageProducts')}
           </Link>
           <Button
             variant="outline"
@@ -463,7 +463,7 @@ export default function StockOverviewPage() {
             icon={<RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
             onClick={fetchData}
           >
-            รีเฟรช
+            {t('refresh')}
           </Button>
         </div>
       </div>
@@ -508,7 +508,7 @@ export default function StockOverviewPage() {
       {/* Today's Stock Status Card */}
       <Card>
         <CardHeader
-          title={`สถานะนับสต๊อก — ${formatThaiDate(businessDate)}`}
+          title={`${t('stockStatusTitle')} — ${formatThaiDate(businessDate)}`}
         />
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -537,7 +537,7 @@ export default function StockOverviewPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  นับ Manual
+                  {t('manualCount')}
                 </p>
                 <p
                   className={cn(
@@ -549,7 +549,7 @@ export default function StockOverviewPage() {
                 >
                   {todayStatus.manualCount > 0
                     ? `${todayStatus.manualCount}/${todayStatus.totalProducts}`
-                    : 'ยังไม่ได้นับ'}
+                    : t('notCounted')}
                 </p>
               </div>
             </div>
@@ -579,7 +579,7 @@ export default function StockOverviewPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  อัพโหลด POS
+                  {t('uploadPOS')}
                 </p>
                 <p
                   className={cn(
@@ -589,7 +589,7 @@ export default function StockOverviewPage() {
                       : 'text-gray-500 dark:text-gray-400',
                   )}
                 >
-                  {todayStatus.posUploaded ? 'อัพโหลดแล้ว' : 'ยังไม่อัพโหลด'}
+                  {todayStatus.posUploaded ? t('uploaded') : t('notUploaded')}
                 </p>
               </div>
             </div>
@@ -627,7 +627,7 @@ export default function StockOverviewPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  เปรียบเทียบ
+                  {t('comparisonLabel')}
                 </p>
                 <p
                   className={cn(
@@ -641,9 +641,9 @@ export default function StockOverviewPage() {
                 >
                   {todayStatus.compared
                     ? todayStatus.overTolerance > 0
-                      ? `เกินเกณฑ์ ${todayStatus.overTolerance}`
-                      : 'ผ่านทั้งหมด'
-                    : 'ยังไม่ได้เปรียบเทียบ'}
+                      ? t('overToleranceCount', { count: todayStatus.overTolerance })
+                      : t('allPassed')
+                    : t('notCompared')}
                 </p>
               </div>
             </div>
@@ -687,7 +687,7 @@ export default function StockOverviewPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  สถานะรวม
+                  {t('overallStatus')}
                 </p>
                 <p
                   className={cn(
@@ -705,9 +705,9 @@ export default function StockOverviewPage() {
                   todayStatus.posUploaded &&
                   todayStatus.compared
                     ? todayStatus.overTolerance === 0
-                      ? 'เสร็จสมบูรณ์'
-                      : 'รอชี้แจง'
-                    : 'กำลังดำเนินการ'}
+                      ? t('statusComplete')
+                      : t('statusPendingExplanation')
+                    : t('statusInProgress')}
                 </p>
               </div>
             </div>
@@ -750,13 +750,13 @@ export default function StockOverviewPage() {
       {/* Recent Stock Checks */}
       <Card padding="none">
         <CardHeader
-          title="การนับสต๊อกล่าสุด"
+          title={t('recentStockChecks')}
           action={
             <a
               href="/stock/comparison"
               className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
             >
-              ดูทั้งหมด
+              {t('viewAll')}
               <ArrowRight className="h-3.5 w-3.5" />
             </a>
           }
@@ -764,8 +764,8 @@ export default function StockOverviewPage() {
         {recentChecks.length === 0 ? (
           <EmptyState
             icon={Inbox}
-            title="ยังไม่มีข้อมูลการนับสต๊อก"
-            description="เริ่มนับสต๊อกประจำวันเพื่อดูผลเปรียบเทียบที่นี่"
+            title={t('noStockCheckTitle')}
+            description={t('noStockCheckDesc')}
             action={
               <Button
                 size="sm"
@@ -774,7 +774,7 @@ export default function StockOverviewPage() {
                   window.location.href = '/stock/daily-check';
                 }}
               >
-                เริ่มนับสต๊อก
+                {t('startStockCount')}
               </Button>
             }
           />
@@ -810,13 +810,13 @@ export default function StockOverviewPage() {
                       {formatThaiDate(check.comp_date)}
                     </p>
                     <div className="mt-0.5 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-                      <span>{check.totalItems} รายการ</span>
+                      <span>{t('itemsCount', { count: check.totalItems })}</span>
                       <span className="text-emerald-500">
-                        ตรง {check.matchCount}
+                        {t('matchCount', { count: check.matchCount })}
                       </span>
                       {check.discrepancyCount > 0 && (
                         <span className="text-red-500">
-                          ต่าง {check.discrepancyCount}
+                          {t('diffCount', { count: check.discrepancyCount })}
                         </span>
                       )}
                     </div>
@@ -834,11 +834,11 @@ export default function StockOverviewPage() {
       {!isStaffOrBar && crossStoreData.length > 0 && (
         <Card>
           <CardHeader
-            title="เปรียบเทียบสาขา — สต๊อก"
+            title={t('crossStoreTitle')}
             action={
               <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                 <Store className="h-3.5 w-3.5" />
-                {crossStoreData.length} สาขา
+                {t('storesCount', { count: crossStoreData.length })}
               </div>
             }
           />
@@ -855,7 +855,7 @@ export default function StockOverviewPage() {
                     </h3>
                     {store.compared && (
                       <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                        ตรง{' '}
+                        {t('matchLabel')}{' '}
                         <span className="text-emerald-600 dark:text-emerald-400">
                           {store.matchCount}
                         </span>
@@ -864,7 +864,7 @@ export default function StockOverviewPage() {
                           <>
                             {' · '}
                             <span className="text-red-600 dark:text-red-400">
-                              รอชี้แจง {store.pendingCount}
+                              {t('pendingExplanation', { count: store.pendingCount })}
                             </span>
                           </>
                         )}
@@ -885,7 +885,7 @@ export default function StockOverviewPage() {
                       ) : (
                         <Clock className="h-3 w-3" />
                       )}
-                      นับ Manual
+                      {t('manualCount')}
                     </span>
                     <span
                       className={cn(
@@ -921,7 +921,7 @@ export default function StockOverviewPage() {
                       ) : (
                         <Clock className="h-3 w-3" />
                       )}
-                      เปรียบเทียบ
+                      {t('comparisonLabel')}
                     </span>
                   </div>
                 </div>
