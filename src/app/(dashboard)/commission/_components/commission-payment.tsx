@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { Loader2, Banknote, Clock, Search, CheckCircle2, XCircle, Eye, Image } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { useTranslations } from 'next-intl';
 import type { AEProfile } from '@/types/commission';
 
 function formatCurrency(n: number) {
@@ -61,6 +62,7 @@ interface PaymentRecord {
 }
 
 export function CommissionPayment() {
+  const t = useTranslations('commission');
   const { currentStoreId } = useAppStore();
   const { user } = useAuthStore();
   const [month, setMonth] = useState(getCurrentMonth());
@@ -136,13 +138,13 @@ export function CommissionPayment() {
 
       if (res.ok) {
         const payment = await res.json();
-        toast({ type: 'success', title: 'บันทึกการจ่ายสำเร็จ' });
+        toast({ type: 'success', title: t('payment.paySuccess') });
         logAudit({ store_id: currentStoreId, action_type: AUDIT_ACTIONS.COMMISSION_PAYMENT_CREATED, table_name: 'commission_payments', record_id: payment.id, new_value: payload as Record<string, unknown>, changed_by: user?.id });
         setSelectedType(null); setSelectedId(''); setSlipPhoto(null); setPayNotes('');
         fetchData();
       } else {
         const err = await res.json();
-        toast({ type: 'error', title: err.error || 'เกิดข้อผิดพลาด' });
+        toast({ type: 'error', title: err.error || t('payment.error') });
       }
     } finally {
       setPaying(false);
@@ -159,12 +161,12 @@ export function CommissionPayment() {
         body: JSON.stringify({ action: 'cancel', reason: cancelReason }),
       });
       if (res.ok) {
-        toast({ type: 'success', title: 'ยกเลิกการจ่ายสำเร็จ' });
+        toast({ type: 'success', title: t('payment.cancelSuccess') });
         logAudit({ store_id: currentStoreId, action_type: AUDIT_ACTIONS.COMMISSION_PAYMENT_CANCELLED, table_name: 'commission_payments', record_id: cancelModal, changed_by: user?.id });
         setCancelModal(null); setCancelReason('');
         fetchData();
       } else {
-        toast({ type: 'error', title: 'เกิดข้อผิดพลาด' });
+        toast({ type: 'error', title: t('payment.error') });
       }
     } finally {
       setCancelling(false);
@@ -187,7 +189,7 @@ export function CommissionPayment() {
     <div className="space-y-4">
       {/* Month picker */}
       <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">เดือน</label>
+        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('payment.month')}</label>
         <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white" />
       </div>
 
@@ -200,7 +202,7 @@ export function CommissionPayment() {
                 <Banknote className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">ค่าคอมรวมเดือนนี้</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('payment.totalCommissionThisMonth')}</p>
                 <p className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency((summary?.grand_total.total_payout || 0))}</p>
               </div>
             </div>

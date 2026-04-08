@@ -88,7 +88,7 @@ const CATEGORY_OPTIONS = [
   { value: 'gin', label: 'Gin' },
   { value: 'tequila', label: 'Tequila' },
   { value: 'soju', label: 'Soju' },
-  { value: 'อื่นๆ', label: 'อื่นๆ' },
+  { value: 'other', label: 'other' },
 ];
 
 const defaultAcceptForm: AcceptFormState = {
@@ -770,7 +770,7 @@ export default function MyTasksPage() {
 
             <Select
               label={t('categoryLabel')}
-              options={CATEGORY_OPTIONS}
+              options={CATEGORY_OPTIONS.map(opt => opt.value === 'other' ? { ...opt, label: t('categoryOther') } : opt)}
               value={acceptForm.category}
               onChange={(e) =>
                 setAcceptForm((prev) => ({ ...prev, category: e.target.value }))
