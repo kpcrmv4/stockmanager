@@ -65,72 +65,73 @@ interface AuditLogEntry {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Thai relative-time string from an ISO timestamp */
-function relativeTime(isoDate: string): string {
+/** Relative-time string from an ISO timestamp — needs t() from component */
+function relativeTime(isoDate: string, t: (key: string, values?: any) => string): string {
   const now = Date.now();
   const then = new Date(isoDate).getTime();
   const diffSec = Math.floor((now - then) / 1000);
 
-  if (diffSec < 60) return 'เมื่อสักครู่';
+  if (diffSec < 60) return t('justNow');
   const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`;
+  if (diffMin < 60) return t('minutesAgo', { count: diffMin });
   const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour} ชั่วโมงที่แล้ว`;
+  if (diffHour < 24) return t('hoursAgo', { count: diffHour });
   const diffDay = Math.floor(diffHour / 24);
-  if (diffDay < 7) return `${diffDay} วันที่แล้ว`;
+  if (diffDay < 7) return t('daysAgo', { count: diffDay });
   return formatThaiDate(isoDate);
 }
 
-/** Map audit_logs action to Thai label + icon + color */
+/** Map audit_logs action to label + icon + color — needs t() from component */
 function mapActivity(
   actionType: string,
-  tableName: string | null
+  tableName: string | null,
+  t: (key: string) => string
 ): { label: string; icon: LucideIcon; colorClass: string } {
   if (actionType === 'INSERT' && tableName === 'deposits') {
-    return { label: 'ฝากเหล้าใหม่', icon: Wine, colorClass: 'text-emerald-500' };
+    return { label: t('actNewDeposit'), icon: Wine, colorClass: 'text-emerald-500' };
   }
   if (actionType === 'INSERT' && tableName === 'withdrawals') {
-    return { label: 'เบิกเหล้า', icon: Package, colorClass: 'text-blue-500' };
+    return { label: t('actWithdrawal'), icon: Package, colorClass: 'text-blue-500' };
   }
   if (actionType === 'UPDATE' && tableName === 'comparisons') {
     return {
-      label: 'อัพเดตผลเปรียบเทียบ',
+      label: t('actUpdateComparison'),
       icon: BarChart3,
       colorClass: 'text-amber-500',
     };
   }
   if (actionType === 'INSERT' && tableName === 'deposit_requests') {
     return {
-      label: 'คำขอฝากเหล้าใหม่',
+      label: t('actNewDepositRequest'),
       icon: ClipboardCheck,
       colorClass: 'text-indigo-500',
     };
   }
   if (actionType === 'UPDATE' && tableName === 'deposits') {
     return {
-      label: 'อัพเดตสถานะฝากเหล้า',
+      label: t('actUpdateDepositStatus'),
       icon: CheckCircle2,
       colorClass: 'text-teal-500',
     };
   }
   if (actionType === 'INSERT' && tableName === 'manual_counts') {
     return {
-      label: 'นับสต๊อก',
+      label: t('actStockCount'),
       icon: ClipboardCheck,
       colorClass: 'text-violet-500',
     };
   }
   if (actionType === 'AUTO_DEACTIVATE') {
-    return { label: 'ปิดสินค้าอัตโนมัติ', icon: XCircle, colorClass: 'text-red-500' };
+    return { label: t('actAutoDeactivate'), icon: XCircle, colorClass: 'text-red-500' };
   }
   if (actionType === 'AUTO_REACTIVATE') {
     return {
-      label: 'เปิดสินค้าอัตโนมัติ',
+      label: t('actAutoReactivate'),
       icon: CheckCircle2,
       colorClass: 'text-emerald-500',
     };
   }
-  return { label: actionType || 'กิจกรรม', icon: Clock, colorClass: 'text-gray-400' };
+  return { label: actionType || t('actGeneric'), icon: Clock, colorClass: 'text-gray-400' };
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +139,7 @@ function mapActivity(
 // ---------------------------------------------------------------------------
 
 export default function StoreOverviewPage() {
+  const t = useTranslations('storeOverview');
   const { user } = useAuthStore();
   const { currentStoreId, setCurrentStoreId } = useAppStore();
 
@@ -200,8 +202,8 @@ export default function StoreOverviewPage() {
       console.error('Error fetching stores:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถโหลดรายชื่อร้านค้าได้',
+        title: t('errorOccurred'),
+        message: t('cannotLoadStores'),
       });
     }
   }, [user]);
@@ -328,8 +330,8 @@ export default function StoreOverviewPage() {
       console.error('Error fetching store data:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถโหลดข้อมูลร้านค้าได้',
+        title: t('errorOccurred'),
+        message: t('cannotLoadStoreData'),
       });
     } finally {
       setLoading(false);
@@ -380,10 +382,10 @@ export default function StoreOverviewPage() {
       <div className="space-y-4">
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            ภาพรวมร้าน
+            {t('title')}
           </h1>
           <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-            จัดการและติดตามสถานะร้านค้า
+            {t('subtitle')}
           </p>
         </div>
         <div className="flex flex-col items-center justify-center rounded-xl bg-white py-16 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
@@ -391,10 +393,10 @@ export default function StoreOverviewPage() {
             <Store className="h-8 w-8 text-gray-400 dark:text-gray-500" />
           </div>
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-            ไม่พบร้านค้า
+            {t('noStoresFound')}
           </h3>
           <p className="mt-1 max-w-sm text-center text-sm text-gray-500 dark:text-gray-400">
-            ยังไม่มีร้านค้าที่กำหนดให้คุณ กรุณาติดต่อผู้ดูแลระบบ
+            {t('noStoresAssigned')}
           </p>
         </div>
       </div>
@@ -410,10 +412,10 @@ export default function StoreOverviewPage() {
       {/* Page Header */}
       <div>
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-          ภาพรวมร้าน
+          {t('title')}
         </h1>
         <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-          จัดการและติดตามสถานะร้านค้า
+          {t('subtitle')}
         </p>
       </div>
 
@@ -433,10 +435,10 @@ export default function StoreOverviewPage() {
             </div>
             <div className="text-left">
               <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                {selectedStore?.store_name || 'เลือกร้าน'}
+                {selectedStore?.store_name || t('selectStore')}
               </p>
               <p className="text-xs text-gray-400 dark:text-gray-500">
-                รหัสร้าน {selectedStore?.store_code || '-'}
+                {t('storeCode', { code: selectedStore?.store_code || '-' })}
               </p>
             </div>
           </div>
@@ -482,7 +484,7 @@ export default function StoreOverviewPage() {
                     {store.store_name}
                   </p>
                   <p className="text-xs text-gray-400 dark:text-gray-500">
-                    รหัสร้าน {store.store_code}
+                    {t('storeCode', { code: store.store_code })}
                   </p>
                 </div>
               </button>
@@ -506,13 +508,13 @@ export default function StoreOverviewPage() {
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-indigo-500" />
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                พนักงาน
+                {t('staffCount')}
               </span>
             </div>
             <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
               {formatNumber(stats.staffCount)}
             </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">คน</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">{t('people')}</p>
           </div>
 
           {/* Active deposits */}
@@ -520,13 +522,13 @@ export default function StoreOverviewPage() {
             <div className="flex items-center gap-2">
               <Wine className="h-4 w-4 text-emerald-500" />
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                ฝากเหล้าที่ใช้งาน
+                {t('activeDeposits')}
               </span>
             </div>
             <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
               {formatNumber(stats.activeDeposits)}
             </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">รายการ</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">{t('entries')}</p>
           </div>
 
           {/* Pending (deposits + withdrawals) */}
@@ -534,15 +536,14 @@ export default function StoreOverviewPage() {
             <div className="flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4 text-amber-500" />
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                รอดำเนินการ
+                {t('pendingAction')}
               </span>
             </div>
             <p className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
               {formatNumber(stats.pendingDeposits + stats.pendingWithdrawals)}
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              ฝาก {formatNumber(stats.pendingDeposits)} / เบิก{' '}
-              {formatNumber(stats.pendingWithdrawals)}
+              {t('depositSlashWithdraw', { deposits: formatNumber(stats.pendingDeposits), withdrawals: formatNumber(stats.pendingWithdrawals) })}
             </p>
           </div>
 
@@ -556,7 +557,7 @@ export default function StoreOverviewPage() {
                 )}
               />
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                แจ้งเตือนสต๊อก
+                {t('stockAlerts')}
               </span>
             </div>
             <p
@@ -569,7 +570,7 @@ export default function StoreOverviewPage() {
             >
               {formatNumber(stats.stockAlerts)}
             </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">รายการ</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">{t('entries')}</p>
           </div>
 
           {/* Expiring soon */}
@@ -582,7 +583,7 @@ export default function StoreOverviewPage() {
                 )}
               />
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                ใกล้หมดอายุ
+                {t('expiringSoon')}
               </span>
             </div>
             <p
@@ -596,7 +597,7 @@ export default function StoreOverviewPage() {
               {formatNumber(stats.expiringSoon)}
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              ภายใน 7 วัน
+              {t('within7Days')}
             </p>
           </div>
 
@@ -605,17 +606,17 @@ export default function StoreOverviewPage() {
             <div className="flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4 text-violet-500" />
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                เช็คสต๊อกล่าสุด
+                {t('lastStockCheck')}
               </span>
             </div>
             <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white">
               {stats.lastStockCheck
                 ? formatThaiDate(stats.lastStockCheck)
-                : 'ยังไม่เคยนับ'}
+                : t('neverCounted')}
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500">
               {stats.lastStockCheck
-                ? relativeTime(stats.lastStockCheck)
+                ? relativeTime(stats.lastStockCheck, t)
                 : '-'}
             </p>
           </div>
@@ -627,13 +628,13 @@ export default function StoreOverviewPage() {
         <div className="rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
           <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-700">
             <h2 className="font-semibold text-gray-900 dark:text-white">
-              กิจกรรมล่าสุด
+              {t('recentActivity')}
             </h2>
             <Link
               href="/activity"
               className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
             >
-              ดูทั้งหมด
+              {t('viewAll')}
               <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
@@ -644,10 +645,10 @@ export default function StoreOverviewPage() {
                 <Inbox className="h-8 w-8 text-gray-400 dark:text-gray-500" />
               </div>
               <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-                ยังไม่มีกิจกรรม
+                {t('noActivity')}
               </h3>
               <p className="mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">
-                กิจกรรมต่าง ๆ ของร้านนี้จะปรากฏที่นี่
+                {t('noActivityDesc')}
               </p>
             </div>
           ) : (
@@ -655,7 +656,8 @@ export default function StoreOverviewPage() {
               {activities.map((activity) => {
                 const mapped = mapActivity(
                   activity.action_type,
-                  activity.table_name
+                  activity.table_name,
+                  t
                 );
                 const ActivityIcon = mapped.icon;
                 return (
@@ -676,7 +678,7 @@ export default function StoreOverviewPage() {
                         )}
                       </p>
                       <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                        {relativeTime(activity.created_at)}
+                        {relativeTime(activity.created_at, t)}
                       </p>
                     </div>
                   </div>

@@ -129,13 +129,13 @@ const FILTER_CATEGORIES: Record<FilterCategory, string[]> = {
   ],
 };
 
-const FILTER_LABELS: Record<FilterCategory, string> = {
-  all: 'ทั้งหมด',
-  stock: 'สต๊อก',
-  deposit: 'ฝากเหล้า',
-  borrow: 'ยืมสินค้า',
-  customer: 'ลูกค้า',
-  system: 'ระบบ',
+const FILTER_LABEL_KEYS: Record<FilterCategory, string> = {
+  all: 'filterAll',
+  stock: 'filterStock',
+  deposit: 'filterDeposit',
+  borrow: 'filterBorrow',
+  customer: 'filterCustomer',
+  system: 'filterSystem',
 };
 
 const STORE_BORDER_COLORS = [
@@ -157,16 +157,16 @@ function getTodayDateString(): string {
   return todayBangkok();
 }
 
-function getRelativeTime(dateStr: string): string {
+function getRelativeTime(dateStr: string, t: (key: string, values?: any) => string): string {
   const date = new Date(dateStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
 
-  if (diffMins < 1) return 'เมื่อสักครู่';
-  if (diffMins < 60) return `${diffMins} นาทีที่แล้ว`;
+  if (diffMins < 1) return t('justNow');
+  if (diffMins < 60) return t('minutesAgo', { count: diffMins });
   const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours} ชั่วโมงที่แล้ว`;
+  if (diffHours < 24) return t('hoursAgo', { count: diffHours });
   return formatThaiDateTime(dateStr);
 }
 
@@ -206,22 +206,22 @@ function getActionLabel(action_type: string): string {
   return config?.label || action_type;
 }
 
-function getActorLabel(entry: AuditLogEntry): string {
+function getActorLabel(entry: AuditLogEntry, t: (key: string) => string): string {
   if (entry.action_type.startsWith('CUSTOMER_')) {
-    return 'ลูกค้า';
+    return t('actorCustomer');
   }
   if (!entry.changed_by) {
-    return 'ระบบ';
+    return t('actorSystem');
   }
   if (entry.profile) {
     const name = entry.profile.display_name || entry.profile.username;
     const role = entry.profile.role;
     return `${name} (${role})`;
   }
-  return 'ไม่ทราบ';
+  return t('actorUnknown');
 }
 
-function getEntryDetails(entry: AuditLogEntry): string {
+function getEntryDetails(entry: AuditLogEntry, t: (key: string, values?: any) => string): string {
   const newVal = entry.new_value as Record<string, unknown> | null;
   const oldVal = entry.old_value as Record<string, unknown> | null;
   const action = entry.action_type;
@@ -232,7 +232,7 @@ function getEntryDetails(entry: AuditLogEntry): string {
     const productName = val?.product_name ? String(val.product_name) : '';
     const productCode = val?.product_code ? String(val.product_code) : '';
     const newActive = newVal?.active;
-    const statusText = newActive === true ? 'เปิดใช้งาน' : newActive === false ? 'ปิดใช้งาน' : '';
+    const statusText = newActive === true ? t('detailActivated') : newActive === false ? t('detailDeactivated') : '';
     const parts: string[] = [];
     if (productName) parts.push(productName);
     if (productCode) parts.push(`(${productCode})`);
@@ -265,9 +265,9 @@ function getEntryDetails(entry: AuditLogEntry): string {
     if (val?.deposit_code) parts.push(String(val.deposit_code));
     if (val?.customer_name) parts.push(String(val.customer_name));
     if (val?.product_name) parts.push(String(val.product_name));
-    if (val?.actual_qty != null) parts.push(`จำนวน ${val.actual_qty}`);
-    if (val?.quantity != null && !val?.actual_qty) parts.push(`จำนวน ${val.quantity}`);
-    if (val?.reason) parts.push(`เหตุผล: ${String(val.reason)}`);
+    if (val?.actual_qty != null) parts.push(t('detailQty', { qty: val.actual_qty }));
+    if (val?.quantity != null && !val?.actual_qty) parts.push(t('detailQty', { qty: val.quantity }));
+    if (val?.reason) parts.push(t('detailReason', { reason: String(val.reason) }));
     return parts.join(' — ');
   }
 
@@ -302,7 +302,7 @@ function getEntryDetails(entry: AuditLogEntry): string {
     }
     if (val?.product_name) parts.push(String(val.product_name));
     if (val?.total_items && typeof val.total_items === 'number')
-      parts.push(`${val.total_items} รายการ`);
+      parts.push(t('detailItems', { count: val.total_items }));
     return parts.join(' — ');
   }
 
@@ -314,7 +314,7 @@ function getEntryDetails(entry: AuditLogEntry): string {
     if (val?.product_code) parts.push(`(${String(val.product_code)})`);
     if (val?.difference != null) {
       const diff = Number(val.difference);
-      parts.push(`ส่วนต่าง ${diff > 0 ? '+' : ''}${diff}`);
+      parts.push(t('detailDifference', { diff: `${diff > 0 ? '+' : ''}${diff}` }));
     }
     return parts.join(' ');
   }
@@ -324,9 +324,9 @@ function getEntryDetails(entry: AuditLogEntry): string {
     const val = newVal || oldVal;
     const parts: string[] = [];
     if (val?.count && typeof val.count === 'number')
-      parts.push(`${val.count} รายการ`);
+      parts.push(t('detailItems', { count: val.count }));
     if (val?.submitted_count && typeof val.submitted_count === 'number')
-      parts.push(`${val.submitted_count} รายการ`);
+      parts.push(t('detailItems', { count: val.submitted_count }));
     if (val?.products && Array.isArray(val.products)) {
       const names = (val.products as string[]).slice(0, 3);
       if (names.length > 0) parts.push(names.join(', '));
@@ -348,8 +348,8 @@ function getEntryDetails(entry: AuditLogEntry): string {
     } else {
       // Batch: show items count + product list
       if (val?.items_count && typeof val.items_count === 'number')
-        parts.push(`${val.items_count} รายการ`);
-      if (val?.type === 'supplementary') parts.push('(เพิ่มเติม)');
+        parts.push(t('detailItems', { count: val.items_count }));
+      if (val?.type === 'supplementary') parts.push(t('detailSupplementary'));
       if (val?.products && Array.isArray(val.products)) {
         const names = (val.products as string[]).slice(0, 3);
         if (names.length > 0) parts.push(names.join(', '));
@@ -367,11 +367,11 @@ function getEntryDetails(entry: AuditLogEntry): string {
     if (val?.product_name) parts.push(String(val.product_name));
     if (val?.product_code) parts.push(`(${String(val.product_code)})`);
     if (val?.items_count && typeof val.items_count === 'number')
-      parts.push(`${val.items_count} รายการ`);
+      parts.push(t('detailItems', { count: val.items_count }));
     if (val?.count && typeof val.count === 'number')
-      parts.push(`${val.count} รายการ`);
+      parts.push(t('detailItems', { count: val.count }));
     if (val?.total_items && typeof val.total_items === 'number')
-      parts.push(`${val.total_items} รายการ`);
+      parts.push(t('detailItems', { count: val.total_items }));
     return parts.join(' ');
   }
 
@@ -379,8 +379,8 @@ function getEntryDetails(entry: AuditLogEntry): string {
   if (action === 'AUDIT_LOG_CLEANUP') {
     const val = newVal || oldVal;
     const parts: string[] = [];
-    if (val?.deleted_count != null) parts.push(`ลบ ${val.deleted_count} รายการ`);
-    if (val?.retention_days != null) parts.push(`(เก็บ ${val.retention_days} วัน)`);
+    if (val?.deleted_count != null) parts.push(t('detailDeleted', { count: val.deleted_count }));
+    if (val?.retention_days != null) parts.push(t('detailRetention', { days: val.retention_days }));
     return parts.join(' ');
   }
 
@@ -392,9 +392,9 @@ function getEntryDetails(entry: AuditLogEntry): string {
     if (newVal.product_name) parts.push(String(newVal.product_name));
     if (newVal.product_code) parts.push(`(${String(newVal.product_code)})`);
     if (newVal.count && typeof newVal.count === 'number')
-      parts.push(`${newVal.count} รายการ`);
+      parts.push(t('detailItems', { count: newVal.count }));
     if (newVal.total_items && typeof newVal.total_items === 'number')
-      parts.push(`${newVal.total_items} รายการ`);
+      parts.push(t('detailItems', { count: newVal.total_items }));
     if (parts.length > 0) return parts.join(' — ');
   }
   if (oldVal) {
@@ -413,6 +413,7 @@ function getEntryDetails(entry: AuditLogEntry): string {
 // ---------------------------------------------------------------------------
 
 export default function ActivityPage() {
+  const t = useTranslations('activity');
   // State
   const [loading, setLoading] = useState(true);
   const [stores, setStores] = useState<StoreOption[]>([]);
@@ -443,8 +444,8 @@ export default function ActivityPage() {
       console.error('Error fetching stores:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถโหลดรายชื่อสาขาได้',
+        title: t('errorOccurred'),
+        message: t('cannotLoadBranches'),
       });
       return [];
     }
@@ -617,8 +618,8 @@ export default function ActivityPage() {
         console.error('Error fetching store summaries:', error);
         toast({
           type: 'error',
-          title: 'เกิดข้อผิดพลาด',
-          message: 'ไม่สามารถโหลดข้อมูลสรุปสาขาได้',
+          title: t('errorOccurred'),
+          message: t('cannotLoadBranchSummary'),
         });
       }
     },
@@ -661,8 +662,8 @@ export default function ActivityPage() {
         console.error('Error fetching audit logs:', error);
         toast({
           type: 'error',
-          title: 'เกิดข้อผิดพลาด',
-          message: 'ไม่สามารถโหลดกิจกรรมได้',
+          title: t('errorOccurred'),
+          message: t('cannotLoadActivity'),
         });
         setAuditLogs([]);
       } finally {
@@ -708,7 +709,7 @@ export default function ActivityPage() {
   // -------------------------------------------------------------------------
 
   const storeTabs = useMemo(() => {
-    const allTab = { id: 'all', label: 'ทุกสาขา' };
+    const allTab = { id: 'all', label: t('allBranches') };
     const storeTabs = stores.map((s) => ({
       id: s.id,
       label: s.store_name,
@@ -749,10 +750,10 @@ export default function ActivityPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            ตรวจสอบกิจกรรม
+            {t('title')}
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            ติดตามสถานะและกิจกรรมทุกสาขา
+            {t('subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -775,7 +776,7 @@ export default function ActivityPage() {
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            รีเฟรช
+            {t('refresh')}
           </button>
         </div>
       </div>
@@ -790,15 +791,15 @@ export default function ActivityPage() {
       {/* ==== Section 1: สรุปสถานะรายสาขา ==== */}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          สรุปสถานะรายสาขา
+          {t('branchStatusSummary')}
         </h2>
 
         {filteredSummaries.length === 0 ? (
           <Card padding="md">
             <EmptyState
               icon={StoreIcon}
-              title="ไม่มีข้อมูลสาขา"
-              description="ยังไม่มีสาขาที่เปิดใช้งาน"
+              title={t('noBranchData')}
+              description={t('noBranchActive')}
             />
           </Card>
         ) : (
@@ -823,11 +824,11 @@ export default function ActivityPage() {
                     </span>
                   </div>
                   <span className="text-xs text-gray-400 dark:text-gray-500">
-                    กิจกรรมวันนี้:{' '}
+                    {t('todayActivity')}{' '}
                     <span className="font-semibold text-gray-700 dark:text-gray-300">
                       {formatNumber(summary.todayActivityCount)}
                     </span>{' '}
-                    รายการ
+                    {t('entries')}
                   </span>
                 </div>
 
@@ -836,27 +837,27 @@ export default function ActivityPage() {
                   <div className="mb-2 flex items-center gap-1.5">
                     <Wine className="h-3.5 w-3.5 text-emerald-500" />
                     <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                      ฝากเหล้า
+                      {t('sectionDeposit')}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <StatBox
-                      label="รอ Staff รับ"
+                      label={t('waitingStaffAccept')}
                       value={summary.deposit.pendingConfirm}
                       color="amber"
                     />
                     <StatBox
-                      label="รอเบิก"
+                      label={t('waitingWithdraw')}
                       value={summary.deposit.pendingWithdrawal}
                       color="blue"
                     />
                     <StatBox
-                      label="ในร้าน"
+                      label={t('inStore')}
                       value={summary.deposit.inStore}
                       color="emerald"
                     />
                     <StatBox
-                      label="ใกล้หมดอายุ"
+                      label={t('expiringSoon')}
                       value={summary.deposit.expiringSoon}
                       color={summary.deposit.expiringSoon > 0 ? 'red' : 'gray'}
                     />
@@ -868,31 +869,31 @@ export default function ActivityPage() {
                   <div className="mb-2 flex items-center gap-1.5">
                     <ClipboardCheck className="h-3.5 w-3.5 text-indigo-500" />
                     <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                      นับสต๊อก
+                      {t('sectionStock')}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <StatBox
-                      label="นับวันนี้"
+                      label={t('countedToday')}
                       value={summary.stock.countedToday}
                       color="indigo"
                     />
                     <StatBox
-                      label="รอชี้แจง"
+                      label={t('pendingExplanation')}
                       value={summary.stock.pendingExplanation}
                       color={
                         summary.stock.pendingExplanation > 0 ? 'amber' : 'gray'
                       }
                     />
                     <StatBox
-                      label="รออนุมัติ"
+                      label={t('pendingApproval')}
                       value={summary.stock.pendingApproval}
                       color={
                         summary.stock.pendingApproval > 0 ? 'blue' : 'gray'
                       }
                     />
                     <StatBox
-                      label="เกินเกณฑ์"
+                      label={t('overThreshold')}
                       value={summary.stock.overThreshold}
                       color={
                         summary.stock.overThreshold > 0 ? 'red' : 'gray'
@@ -906,40 +907,40 @@ export default function ActivityPage() {
                   <div className="mb-2 flex items-center gap-1.5">
                     <Repeat className="h-3.5 w-3.5 text-teal-500" />
                     <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                      ยืมสินค้า
+                      {t('sectionBorrow')}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     <StatBox
-                      label="ขอยืม"
+                      label={t('borrowOutgoing')}
                       value={summary.borrow.outgoing}
                       color={
                         summary.borrow.outgoing > 0 ? 'violet' : 'gray'
                       }
                     />
                     <StatBox
-                      label="ให้ยืม"
+                      label={t('borrowIncoming')}
                       value={summary.borrow.incoming}
                       color={
                         summary.borrow.incoming > 0 ? 'teal' : 'gray'
                       }
                     />
                     <StatBox
-                      label="รออนุมัติ"
+                      label={t('pendingApproval')}
                       value={summary.borrow.pendingApproval}
                       color={
                         summary.borrow.pendingApproval > 0 ? 'amber' : 'gray'
                       }
                     />
                     <StatBox
-                      label="อนุมัติแล้ว"
+                      label={t('approved')}
                       value={summary.borrow.approved}
                       color={
                         summary.borrow.approved > 0 ? 'blue' : 'gray'
                       }
                     />
                     <StatBox
-                      label="รอตัดสต๊อก"
+                      label={t('pendingPosAdjust')}
                       value={summary.borrow.posAdjusting}
                       color={
                         summary.borrow.posAdjusting > 0 ? 'amber' : 'gray'
@@ -956,12 +957,12 @@ export default function ActivityPage() {
       {/* ==== Section 2: กิจกรรมทั้งหมด (Audit Log Timeline) ==== */}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          กิจกรรมทั้งหมด
+          {t('allActivity')}
         </h2>
 
         {/* Category filter chips */}
         <div className="mb-4 flex flex-wrap gap-2">
-          {(Object.keys(FILTER_LABELS) as FilterCategory[]).map((cat) => {
+          {(Object.keys(FILTER_LABEL_KEYS) as FilterCategory[]).map((cat) => {
             const count = cat === 'all'
               ? auditLogs.length
               : auditLogs.filter((log) => FILTER_CATEGORIES[cat].includes(log.action_type)).length;
@@ -977,7 +978,7 @@ export default function ActivityPage() {
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
                 )}
               >
-                {FILTER_LABELS[cat]}
+                {t(FILTER_LABEL_KEYS[cat])}
                 {count > 0 && (
                   <span className={cn(
                     'ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold',
@@ -999,13 +1000,13 @@ export default function ActivityPage() {
             title={`${formatThaiDate(selectedDate)}`}
             description={
               selectedStore === 'all'
-                ? 'ทุกสาขา'
+                ? t('allBranches')
                 : stores.find((s) => s.id === selectedStore)?.store_name ||
                   ''
             }
             action={
               <span className="text-xs text-gray-400 dark:text-gray-500">
-                {formatNumber(filteredLogs.length)} รายการ
+                {t('itemCount', { count: formatNumber(filteredLogs.length) })}
               </span>
             }
           />
@@ -1017,14 +1018,14 @@ export default function ActivityPage() {
           ) : filteredLogs.length === 0 ? (
             <EmptyState
               icon={Inbox}
-              title="ไม่มีกิจกรรม"
-              description={`ไม่พบกิจกรรมในวันที่ ${formatThaiDate(selectedDate)}`}
+              title={t('noActivity')}
+              description={t('noActivityOnDate', { date: formatThaiDate(selectedDate) })}
             />
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
               {filteredLogs.map((entry) => {
-                const details = getEntryDetails(entry);
-                const actorLabel = getActorLabel(entry);
+                const details = getEntryDetails(entry, t);
+                const actorLabel = getActorLabel(entry, t);
 
                 return (
                   <div
@@ -1066,10 +1067,10 @@ export default function ActivityPage() {
                           </span>
                         )}
                         <span className="text-xs text-gray-400 dark:text-gray-500">
-                          โดย: {actorLabel}
+                          {t('by')}: {actorLabel}
                         </span>
                         <span className="text-xs text-gray-300 dark:text-gray-600">
-                          {getRelativeTime(entry.created_at)}
+                          {getRelativeTime(entry.created_at, t)}
                         </span>
                       </div>
                     </div>

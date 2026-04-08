@@ -152,6 +152,7 @@ function mapWithdrawal(w: WithdrawalRow): TableCardItem {
 // ---------------------------------------------------------------------------
 
 export default function MyTasksPage() {
+  const t = useTranslations('myTasks');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const today = formatThaiDate(new Date());
@@ -283,7 +284,7 @@ export default function MyTasksPage() {
 
     const { productName, category, quantity, remainingPercent, storageDays } = acceptForm;
     if (!productName.trim()) {
-      toast({ type: 'warning', title: 'กรุณาระบุชื่อเหล้า' });
+      toast({ type: 'warning', title: t('pleaseSpecifyProductName') });
       return;
     }
 
@@ -350,8 +351,8 @@ export default function MyTasksPage() {
       notifyStaff({
         storeId: currentStoreId,
         type: 'new_deposit',
-        title: 'มีรายการฝากใหม่',
-        body: `${selectedItem.customerName} ฝาก ${productName.trim()} (${depositCode})`,
+        title: t('newDepositNotification'),
+        body: t('depositNotificationBody', { customer: selectedItem.customerName, product: productName.trim(), code: depositCode }),
         data: { deposit_code: depositCode },
         excludeUserId: user.id,
       });
@@ -359,8 +360,8 @@ export default function MyTasksPage() {
       // 5. Toast success
       toast({
         type: 'success',
-        title: 'รับเข้าระบบสำเร็จ',
-        message: `${productName.trim()} — รหัส ${depositCode}`,
+        title: t('acceptSuccess'),
+        message: t('acceptSuccessMsg', { product: productName.trim(), code: depositCode }),
       });
 
       // 6. Close and reload
@@ -370,8 +371,8 @@ export default function MyTasksPage() {
       console.error('[MyTasks] Accept deposit failed:', err);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถรับเข้าระบบได้ กรุณาลองใหม่',
+        title: t('errorOccurred'),
+        message: t('cannotAcceptRetry'),
       });
     } finally {
       setIsAccepting(false);
@@ -390,7 +391,7 @@ export default function MyTasksPage() {
     if (!rejectState || !currentStoreId || !user) return;
 
     if (!rejectState.reason.trim()) {
-      toast({ type: 'warning', title: 'กรุณาระบุเหตุผลในการปฏิเสธ' });
+      toast({ type: 'warning', title: t('pleaseSpecifyRejectReason') });
       return;
     }
 
@@ -425,7 +426,7 @@ export default function MyTasksPage() {
 
       toast({
         type: 'success',
-        title: 'ปฏิเสธคำขอฝากสำเร็จ',
+        title: t('rejectDepositSuccess'),
       });
 
       setRejectState(null);
@@ -435,8 +436,8 @@ export default function MyTasksPage() {
       console.error('[MyTasks] Reject deposit request failed:', err);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถปฏิเสธคำขอได้ กรุณาลองใหม่',
+        title: t('errorOccurred'),
+        message: t('cannotRejectRetry'),
       });
     } finally {
       setIsRejecting(false);
@@ -478,15 +479,15 @@ export default function MyTasksPage() {
       notifyStaff({
         storeId: currentStoreId,
         type: 'withdrawal_request',
-        title: 'อนุมัติคำขอเบิก',
-        body: `${selectedItem.customerName} เบิก ${selectedItem.productName || 'เหล้า'}`,
+        title: t('approveWithdrawalNotification'),
+        body: t('withdrawalNotificationBody', { customer: selectedItem.customerName, product: selectedItem.productName || t('liquor') }),
         data: { withdrawal_id: selectedItem.id },
         excludeUserId: user.id,
       });
 
       toast({
         type: 'success',
-        title: 'อนุมัติคำขอเบิกสำเร็จ',
+        title: t('approveWithdrawalSuccess'),
       });
 
       closeDetail();
@@ -495,8 +496,8 @@ export default function MyTasksPage() {
       console.error('[MyTasks] Approve withdrawal failed:', err);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถอนุมัติคำขอเบิกได้ กรุณาลองใหม่',
+        title: t('errorOccurred'),
+        message: t('cannotApproveWithdrawalRetry'),
       });
     } finally {
       setIsApprovingWithdrawal(false);
@@ -515,7 +516,7 @@ export default function MyTasksPage() {
     if (!rejectState || !currentStoreId || !user) return;
 
     if (!rejectState.reason.trim()) {
-      toast({ type: 'warning', title: 'กรุณาระบุเหตุผลในการปฏิเสธ' });
+      toast({ type: 'warning', title: t('pleaseSpecifyRejectReason') });
       return;
     }
 
@@ -566,7 +567,7 @@ export default function MyTasksPage() {
 
       toast({
         type: 'success',
-        title: 'ปฏิเสธคำขอเบิกสำเร็จ',
+        title: t('rejectWithdrawalSuccess'),
       });
 
       setRejectState(null);
@@ -576,8 +577,8 @@ export default function MyTasksPage() {
       console.error('[MyTasks] Reject withdrawal failed:', err);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถปฏิเสธคำขอเบิกได้ กรุณาลองใหม่',
+        title: t('errorOccurred'),
+        message: t('cannotRejectWithdrawalRetry'),
       });
     } finally {
       setIsRejecting(false);
@@ -616,9 +617,9 @@ export default function MyTasksPage() {
     <div className="space-y-4 pb-8">
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div>
-        <h1 className="text-xl font-bold text-gray-900">งานของฉัน</h1>
+        <h1 className="text-xl font-bold text-gray-900">{t('title')}</h1>
         <p className="mt-0.5 text-sm text-gray-500">
-          สวัสดี, {user?.displayName || user?.username || 'พนักงาน'} &mdash; {today}
+          {t('greeting', { name: user?.displayName || user?.username || t('staff') })} &mdash; {today}
         </p>
       </div>
 
@@ -639,7 +640,7 @@ export default function MyTasksPage() {
           )}
         >
           <ScanLine className="h-6 w-6" />
-          <span className="text-xs font-medium">นับสต๊อก</span>
+          <span className="text-xs font-medium">{t('countStock')}</span>
         </a>
         <a
           href="/deposit?action=new"
@@ -650,7 +651,7 @@ export default function MyTasksPage() {
           )}
         >
           <Wine className="h-6 w-6" />
-          <span className="text-xs font-medium">ฝากใหม่</span>
+          <span className="text-xs font-medium">{t('newDeposit')}</span>
         </a>
         <a
           href="/deposit?action=withdraw"
@@ -661,7 +662,7 @@ export default function MyTasksPage() {
           )}
         >
           <Package className="h-6 w-6" />
-          <span className="text-xs font-medium">เบิกเหล้า</span>
+          <span className="text-xs font-medium">{t('withdrawLiquor')}</span>
         </a>
       </div>
 
@@ -678,7 +679,7 @@ export default function MyTasksPage() {
           )}
         >
           <p className="text-2xl font-bold text-teal-600">{depositCount}</p>
-          <p className="mt-0.5 text-xs text-gray-500">คำขอฝาก</p>
+          <p className="mt-0.5 text-xs text-gray-500">{t('depositRequests')}</p>
         </button>
         <button
           type="button"
@@ -691,7 +692,7 @@ export default function MyTasksPage() {
           )}
         >
           <p className="text-2xl font-bold text-red-600">{withdrawalCount}</p>
-          <p className="mt-0.5 text-xs text-gray-500">คำขอเบิก</p>
+          <p className="mt-0.5 text-xs text-gray-500">{t('withdrawalRequests')}</p>
         </button>
       </div>
 
@@ -707,7 +708,7 @@ export default function MyTasksPage() {
               : 'text-gray-500 hover:text-gray-700',
           )}
         >
-          ฝากรอตรวจสอบ
+          {t('depositsPendingReview')}
           {depositCount > 0 && (
             <span className="ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-teal-100 text-xs font-semibold text-teal-700">
               {depositCount}
@@ -724,7 +725,7 @@ export default function MyTasksPage() {
               : 'text-gray-500 hover:text-gray-700',
           )}
         >
-          เบิกรอดำเนินการ
+          {t('withdrawalsPendingAction')}
           {withdrawalCount > 0 && (
             <span className="ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-xs font-semibold text-red-700">
               {withdrawalCount}
@@ -740,8 +741,8 @@ export default function MyTasksPage() {
         isLoading={isLoading}
         emptyMessage={
           activeTab === 'deposits'
-            ? 'ไม่มีคำขอฝากที่รอตรวจสอบ'
-            : 'ไม่มีคำขอเบิกที่รอดำเนินการ'
+            ? t('noDepositRequests')
+            : t('noWithdrawalRequests')
         }
       />
 
@@ -755,12 +756,12 @@ export default function MyTasksPage() {
         {selectedItem?.type === 'deposit_request' && (
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-gray-900">
-              กรอกข้อมูลสินค้าเพื่อรับเข้าระบบ
+              {t('fillProductInfoToAccept')}
             </h3>
 
             <Input
-              label="ชื่อเหล้า *"
-              placeholder="เช่น Johnnie Walker Black Label"
+              label={t('productNameLabel')}
+              placeholder={t('productNamePlaceholder')}
               value={acceptForm.productName}
               onChange={(e) =>
                 setAcceptForm((prev) => ({ ...prev, productName: e.target.value }))
@@ -768,7 +769,7 @@ export default function MyTasksPage() {
             />
 
             <Select
-              label="ประเภท"
+              label={t('categoryLabel')}
               options={CATEGORY_OPTIONS}
               value={acceptForm.category}
               onChange={(e) =>
@@ -778,7 +779,7 @@ export default function MyTasksPage() {
 
             <div className="grid grid-cols-3 gap-3">
               <Input
-                label="จำนวน"
+                label={t('quantityLabel')}
                 type="number"
                 min="1"
                 value={acceptForm.quantity}
@@ -787,7 +788,7 @@ export default function MyTasksPage() {
                 }
               />
               <Input
-                label="% คงเหลือ"
+                label={t('remainingPercentLabel')}
                 type="number"
                 min="0"
                 max="100"
@@ -800,7 +801,7 @@ export default function MyTasksPage() {
                 }
               />
               <Input
-                label="ระยะเวลา (วัน)"
+                label={t('storageDaysLabel')}
                 type="number"
                 min="1"
                 value={acceptForm.storageDays}
@@ -820,7 +821,7 @@ export default function MyTasksPage() {
                 isLoading={isAccepting}
                 disabled={isAccepting}
               >
-                รับเข้าระบบ
+                {t('acceptIntoSystem')}
               </Button>
               <Button
                 variant="danger"
@@ -830,7 +831,7 @@ export default function MyTasksPage() {
                 }}
                 disabled={isAccepting}
               >
-                ปฏิเสธ
+                {t('reject')}
               </Button>
             </div>
           </div>
@@ -846,7 +847,7 @@ export default function MyTasksPage() {
                 isLoading={isApprovingWithdrawal}
                 disabled={isApprovingWithdrawal}
               >
-                อนุมัติ
+                {t('approve')}
               </Button>
               <Button
                 variant="danger"
@@ -856,7 +857,7 @@ export default function MyTasksPage() {
                 }}
                 disabled={isApprovingWithdrawal}
               >
-                ปฏิเสธ
+                {t('reject')}
               </Button>
             </div>
           </div>
@@ -867,13 +868,13 @@ export default function MyTasksPage() {
       <Modal
         isOpen={!!rejectState}
         onClose={() => setRejectState(null)}
-        title="ระบุเหตุผลที่ปฏิเสธ"
+        title={t('specifyRejectReason')}
         size="sm"
       >
         <div className="space-y-4">
           <Textarea
-            label="เหตุผล"
-            placeholder="กรุณาระบุเหตุผลที่ปฏิเสธ..."
+            label={t('reasonLabel')}
+            placeholder={t('reasonPlaceholder')}
             rows={3}
             value={rejectState?.reason || ''}
             onChange={(e) =>
@@ -890,7 +891,7 @@ export default function MyTasksPage() {
               isLoading={isRejecting}
               disabled={isRejecting}
             >
-              ยืนยันปฏิเสธ
+              {t('confirmReject')}
             </Button>
             <Button
               variant="secondary"
@@ -898,7 +899,7 @@ export default function MyTasksPage() {
               onClick={() => setRejectState(null)}
               disabled={isRejecting}
             >
-              ยกเลิก
+              {t('cancel')}
             </Button>
           </div>
         </div>
