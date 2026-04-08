@@ -28,17 +28,18 @@ import {
   Loader2,
 } from 'lucide-react';
 
-const steps = [
-  { id: 1, label: 'ข้อมูลสาขา', icon: Store },
-  { id: 2, label: 'กลุ่ม LINE', icon: MessageCircle },
-  { id: 3, label: 'สินค้า', icon: Package },
-  { id: 4, label: 'พนักงาน', icon: Users },
-  { id: 5, label: 'แจ้งเตือน', icon: Bell },
-];
-
 export default function CreateStoreWizardPage() {
+  const t = useTranslations('settings');
   const router = useRouter();
   const { user } = useAuthStore();
+
+  const steps = [
+    { id: 1, label: t('newStore.stepStoreInfo'), icon: Store },
+    { id: 2, label: t('newStore.stepLineGroup'), icon: MessageCircle },
+    { id: 3, label: t('newStore.stepProducts'), icon: Package },
+    { id: 4, label: t('newStore.stepStaff'), icon: Users },
+    { id: 5, label: t('newStore.stepNotifications'), icon: Bell },
+  ];
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -64,7 +65,7 @@ export default function CreateStoreWizardPage() {
   const [notifyDays, setNotifyDays] = useState(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
 
   const dayLabels: Record<string, string> = {
-    Mon: 'จ', Tue: 'อ', Wed: 'พ', Thu: 'พฤ', Fri: 'ศ', Sat: 'ส', Sun: 'อา',
+    Mon: t('newStore.dayMon'), Tue: t('newStore.dayTue'), Wed: t('newStore.dayWed'), Thu: t('newStore.dayThu'), Fri: t('newStore.dayFri'), Sat: t('newStore.daySat'), Sun: t('newStore.daySun'),
   };
 
   const toggleDay = (day: string) => {
