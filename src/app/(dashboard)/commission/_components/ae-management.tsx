@@ -24,9 +24,11 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { useAuthStore } from '@/stores/auth-store';
+import { useTranslations } from 'next-intl';
 import type { AEProfile } from '@/types/commission';
 
 export function AEManagement() {
+  const t = useTranslations('commission');
   const [aeList, setAeList] = useState<AEProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -58,7 +60,7 @@ export function AEManagement() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ค้นหา AE..."
+            placeholder={t('ae.searchPlaceholder')}
             className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
           />
         </div>
@@ -69,11 +71,11 @@ export function AEManagement() {
             onChange={(e) => setShowInactive(e.target.checked)}
             className="rounded"
           />
-          แสดงที่ปิดใช้งาน
+          {t('ae.showInactive')}
         </label>
         <Button size="sm" onClick={() => setEditModal('new')}>
           <Plus className="h-4 w-4" />
-          เพิ่ม AE
+          {t('ae.addAE')}
         </Button>
       </div>
 
@@ -83,7 +85,7 @@ export function AEManagement() {
         </div>
       ) : aeList.length === 0 ? (
         <p className="py-8 text-center text-gray-500 dark:text-gray-400">
-          ไม่มีข้อมูล AE
+          {t('ae.noData')}
         </p>
       ) : (
         <div className="space-y-2">
@@ -99,7 +101,7 @@ export function AEManagement() {
                       {ae.nickname && (
                         <span className="text-sm text-gray-400">({ae.nickname})</span>
                       )}
-                      {!ae.is_active && <Badge variant="default" size="sm">ปิดใช้งาน</Badge>}
+                      {!ae.is_active && <Badge variant="default" size="sm">{t('ae.inactive')}</Badge>}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
                       {ae.phone && (
@@ -155,6 +157,7 @@ interface AEFormModalProps {
 }
 
 function AEFormModal({ ae, onClose, onSaved }: AEFormModalProps) {
+  const t = useTranslations('commission');
   const { user } = useAuthStore();
   const isNew = !ae;
   const [name, setName] = useState(ae?.name || '');
@@ -169,7 +172,7 @@ function AEFormModal({ ae, onClose, onSaved }: AEFormModalProps) {
 
   async function handleSave() {
     if (!name.trim()) {
-      toast({ type: 'error', title: 'กรุณากรอกชื่อ AE' });
+      toast({ type: 'error', title: t('ae.nameRequired') });
       return;
     }
 
@@ -187,12 +190,12 @@ function AEFormModal({ ae, onClose, onSaved }: AEFormModalProps) {
 
       if (res.ok) {
         const saved = await res.json();
-        toast({ type: 'success', title: isNew ? 'เพิ่ม AE สำเร็จ' : 'แก้ไข AE สำเร็จ' });
+        toast({ type: 'success', title: isNew ? t('ae.addSuccess') : t('ae.editSuccess') });
         logAudit({ action_type: isNew ? AUDIT_ACTIONS.AE_PROFILE_CREATED : AUDIT_ACTIONS.AE_PROFILE_UPDATED, table_name: 'ae_profiles', record_id: saved.id, new_value: payload as Record<string, unknown>, changed_by: user?.id });
         onSaved();
       } else {
         const err = await res.json();
-        toast({ type: 'error', title: err.error || 'เกิดข้อผิดพลาด' });
+        toast({ type: 'error', title: err.error || t('ae.error') });
       }
     } finally {
       setSaving(false);
@@ -203,23 +206,23 @@ function AEFormModal({ ae, onClose, onSaved }: AEFormModalProps) {
     <Modal
       isOpen
       onClose={onClose}
-      title={isNew ? 'เพิ่ม AE ใหม่' : `แก้ไข: ${ae!.name}`}
+      title={isNew ? t('ae.addNewAE') : `${t('ae.editPrefix')}: ${ae!.name}`}
       size="lg"
     >
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
-          <Input label="ชื่อ AE" value={name} onChange={(e) => setName(e.target.value)} required />
-          <Input label="ชื่อเล่น" value={nickname} onChange={(e) => setNickname(e.target.value)} />
+          <Input label={t('ae.aeName')} value={name} onChange={(e) => setName(e.target.value)} required />
+          <Input label={t('ae.nickname')} value={nickname} onChange={(e) => setNickname(e.target.value)} />
         </div>
-        <Input label="เบอร์โทร" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <Input label={t('ae.phone')} value={phone} onChange={(e) => setPhone(e.target.value)} />
 
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">ข้อมูลธนาคาร</p>
-        <Input label="ธนาคาร" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="กสิกร, กรุงเทพ, ..." />
+        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('ae.bankInfo')}</p>
+        <Input label={t('ae.bankName')} value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder={t('ae.bankNamePlaceholder')} />
         <div className="grid grid-cols-2 gap-3">
-          <Input label="เลขบัญชี" value={bankAccountNo} onChange={(e) => setBankAccountNo(e.target.value)} />
-          <Input label="ชื่อบัญชี" value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} />
+          <Input label={t('ae.bankAccountNo')} value={bankAccountNo} onChange={(e) => setBankAccountNo(e.target.value)} />
+          <Input label={t('ae.bankAccountName')} value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} />
         </div>
-        <Input label="หมายเหตุ" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <Input label={t('ae.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} />
 
         {!isNew && (
           <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -229,16 +232,16 @@ function AEFormModal({ ae, onClose, onSaved }: AEFormModalProps) {
               onChange={(e) => setIsActive(e.target.checked)}
               className="rounded"
             />
-            เปิดใช้งาน
+            {t('ae.active')}
           </label>
         )}
       </div>
 
       <ModalFooter>
-        <Button variant="ghost" onClick={onClose}>ยกเลิก</Button>
+        <Button variant="ghost" onClick={onClose}>{t('ae.cancel')}</Button>
         <Button onClick={handleSave} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {isNew ? 'เพิ่ม AE' : 'บันทึก'}
+          {isNew ? t('ae.addAE') : t('ae.saveBtn')}
         </Button>
       </ModalFooter>
     </Modal>

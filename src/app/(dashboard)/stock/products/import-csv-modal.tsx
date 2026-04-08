@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Loader2,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -93,6 +94,7 @@ export function ImportCSVModal({
   onClose,
   onImported,
 }: ImportCSVModalProps) {
+  const t = useTranslations('stock');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -137,7 +139,7 @@ export function ImportCSVModal({
 
         if (parsed.length < 2) {
           setParseError(
-            'ไฟล์ต้องมีอย่างน้อย 1 แถวข้อมูล (นอกจากหัวตาราง)'
+            t('importCsv.errorMinRows')
           );
           return;
         }
@@ -156,7 +158,7 @@ export function ImportCSVModal({
 
         if (codeIdx === -1 || nameIdx === -1) {
           setParseError(
-            'ไม่พบคอลัมน์ product_code หรือ product_name ในหัวตาราง'
+            t('importCsv.errorMissingColumns')
           );
           return;
         }
@@ -204,7 +206,7 @@ export function ImportCSVModal({
         });
 
         if (importRows.length === 0) {
-          setParseError('ไม่พบข้อมูลสินค้าในไฟล์');
+          setParseError(t('importCsv.errorNoProducts'));
           return;
         }
 
@@ -212,7 +214,7 @@ export function ImportCSVModal({
         setStep('preview');
       } catch (err) {
         console.error('CSV parse error:', err);
-        setParseError('ไม่สามารถอ่านไฟล์ได้ กรุณาตรวจสอบรูปแบบไฟล์');
+        setParseError(t('importCsv.errorReadFile'));
       }
     };
     reader.readAsText(file, 'UTF-8');
@@ -296,8 +298,8 @@ export function ImportCSVModal({
 
       toast({
         type: 'success',
-        title: 'นำเข้าสินค้าสำเร็จ',
-        message: `เพิ่มใหม่ ${newCount} รายการ, อัปเดต ${updateCount} รายการ`,
+        title: t('importCsv.importSuccess'),
+        message: t('importCsv.importSuccessMessage', { created: newCount, updated: updateCount }),
       });
 
       onImported();
@@ -305,8 +307,8 @@ export function ImportCSVModal({
       console.error('Import error:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถนำเข้าข้อมูลได้ กรุณาลองใหม่',
+        title: t('importCsv.importError'),
+        message: t('importCsv.importErrorMessage'),
       });
     } finally {
       setImporting(false);
@@ -332,19 +334,18 @@ export function ImportCSVModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="นำเข้าสินค้าจาก CSV"
+      title={t('importCsv.title')}
       size="lg"
     >
       {/* Step 1: Upload */}
       {step === 'upload' && (
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            ส่งออกข้อมูลจาก Google Sheets เป็น CSV แล้วอัปโหลดที่นี่
-            ไฟล์ต้องมีคอลัมน์{' '}
+            {t('importCsv.uploadDesc')}{' '}
             <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-700">
               product_code
             </code>{' '}
-            และ{' '}
+            {t('importCsv.and')}{' '}
             <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-700">
               product_name
             </code>
@@ -362,10 +363,10 @@ export function ImportCSVModal({
             <Upload className="h-10 w-10 text-gray-400" />
             <div className="text-center">
               <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
-                คลิกเลือกไฟล์
+                {t('importCsv.clickToSelect')}
               </span>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                รองรับ .csv และ .tsv
+                {t('importCsv.supportedFormats')}
               </p>
             </div>
             <input
@@ -391,7 +392,7 @@ export function ImportCSVModal({
           {/* Supported columns */}
           <div className="rounded-lg bg-blue-50 px-4 py-3 dark:bg-blue-900/20">
             <p className="text-xs font-medium text-blue-700 dark:text-blue-400">
-              คอลัมน์ที่รองรับ:
+              {t('importCsv.supportedColumns')}:
             </p>
             <p className="mt-1 text-xs text-blue-600 dark:text-blue-400/80">
               product_code, product_name, category, unit, cost_price,
@@ -424,7 +425,7 @@ export function ImportCSVModal({
                 {rows.length}
               </p>
               <p className="text-xs text-blue-600/70 dark:text-blue-400/70">
-                ทั้งหมด
+                {t('importCsv.total')}
               </p>
             </div>
             <div className="rounded-lg bg-emerald-50 px-3 py-2.5 dark:bg-emerald-900/20">
@@ -432,7 +433,7 @@ export function ImportCSVModal({
                 {activeCount}
               </p>
               <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70">
-                เปิดใช้
+                {t('importCsv.active')}
               </p>
             </div>
             <div className="rounded-lg bg-gray-100 px-3 py-2.5 dark:bg-gray-700">
@@ -440,7 +441,7 @@ export function ImportCSVModal({
                 {inactiveCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                ปิดใช้
+                {t('importCsv.inactive')}
               </p>
             </div>
             <div className="rounded-lg bg-amber-50 px-3 py-2.5 dark:bg-amber-900/20">
@@ -448,7 +449,7 @@ export function ImportCSVModal({
                 {excludedCount}
               </p>
               <p className="text-xs text-amber-600/70 dark:text-amber-400/70">
-                ยกเว้นนับ
+                {t('importCsv.excluded')}
               </p>
             </div>
           </div>
@@ -457,7 +458,7 @@ export function ImportCSVModal({
           {categories.length > 0 && (
             <div>
               <p className="mb-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
-                หมวดหมู่ ({categories.length})
+                {t('importCsv.categories', { count: categories.length })}
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {categories.map((cat) => (
@@ -475,18 +476,18 @@ export function ImportCSVModal({
           {/* Sample data */}
           <div>
             <p className="mb-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
-              ตัวอย่างข้อมูล (5 รายการแรก)
+              {t('importCsv.sampleData')}
             </p>
             <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-gray-50 text-left text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                    <th className="px-3 py-2">รหัส</th>
-                    <th className="px-3 py-2">ชื่อ</th>
-                    <th className="px-3 py-2">หมวด</th>
-                    <th className="px-3 py-2">หน่วย</th>
-                    <th className="px-3 py-2">ขนาด</th>
-                    <th className="px-3 py-2 text-right">ราคา</th>
+                    <th className="px-3 py-2">{t('importCsv.colCode')}</th>
+                    <th className="px-3 py-2">{t('importCsv.colName')}</th>
+                    <th className="px-3 py-2">{t('importCsv.colCategory')}</th>
+                    <th className="px-3 py-2">{t('importCsv.colUnit')}</th>
+                    <th className="px-3 py-2">{t('importCsv.colSize')}</th>
+                    <th className="px-3 py-2 text-right">{t('importCsv.colPrice')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -517,7 +518,7 @@ export function ImportCSVModal({
             </div>
             {rows.length > 5 && (
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                ... และอีก {rows.length - 5} รายการ
+                {t('importCsv.andMore', { count: rows.length - 5 })}
               </p>
             )}
           </div>
@@ -527,12 +528,11 @@ export function ImportCSVModal({
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             <div className="text-xs text-amber-700 dark:text-amber-400">
               <p>
-                สินค้าที่มี product_code ซ้ำจะถูก
-                <strong>อัปเดตทับ</strong>ข้อมูลเดิม
+                {t('importCsv.duplicateWarning')}
               </p>
               {uniqueRows > 0 && (
                 <p className="mt-1">
-                  พบรหัสสินค้าซ้ำ {uniqueRows} แถวในไฟล์ (จะใช้แถวสุดท้าย)
+                  {t('importCsv.duplicateRows', { count: uniqueRows })}
                 </p>
               )}
             </div>
@@ -548,18 +548,18 @@ export function ImportCSVModal({
           </div>
           <div className="text-center">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-              นำเข้าสำเร็จ!
+              {t('importCsv.importDone')}
             </h3>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              เพิ่มใหม่{' '}
+              {t('importCsv.created')}{' '}
               <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                 {result.created}
               </span>{' '}
-              รายการ &middot; อัปเดต{' '}
+              {t('importCsv.items')} &middot; {t('importCsv.updated')}{' '}
               <span className="font-semibold text-blue-600 dark:text-blue-400">
                 {result.updated}
               </span>{' '}
-              รายการ
+              {t('importCsv.items')}
             </p>
           </div>
         </div>
@@ -569,13 +569,13 @@ export function ImportCSVModal({
       <ModalFooter>
         {step === 'upload' && (
           <Button variant="outline" onClick={handleClose}>
-            ปิด
+            {t('importCsv.close')}
           </Button>
         )}
         {step === 'preview' && (
           <>
             <Button variant="outline" onClick={reset}>
-              เลือกไฟล์ใหม่
+              {t('importCsv.selectNewFile')}
             </Button>
             <Button
               onClick={handleImport}
@@ -585,13 +585,13 @@ export function ImportCSVModal({
               }
             >
               {importing
-                ? 'กำลังนำเข้า...'
-                : `นำเข้า ${rows.length} รายการ`}
+                ? t('importCsv.importing')
+                : t('importCsv.importCount', { count: rows.length })}
             </Button>
           </>
         )}
         {step === 'done' && (
-          <Button onClick={handleClose}>ปิด</Button>
+          <Button onClick={handleClose}>{t('importCsv.close')}</Button>
         )}
       </ModalFooter>
     </Modal>

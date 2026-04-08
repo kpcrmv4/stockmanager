@@ -35,6 +35,7 @@ import { notifyStaff } from '@/lib/notifications/client';
 import { notifyChatNewDepositForBar } from '@/lib/chat/bot-client';
 import { expiryDateISO } from '@/lib/utils/date';
 import { formatThaiDate } from '@/lib/utils/format';
+import { useTranslations } from 'next-intl';
 
 interface DepositFormProps {
   onBack: () => void;
@@ -54,20 +55,29 @@ interface DepositItem {
   showDropdown: boolean;
 }
 
-const categoryOptions = [
-  { value: '', label: 'เลือกประเภท', disabled: true },
-  { value: 'whisky', label: 'วิสกี้' },
-  { value: 'vodka', label: 'วอดก้า' },
-  { value: 'brandy', label: 'บรั่นดี' },
-  { value: 'rum', label: 'รัม' },
-  { value: 'gin', label: 'จิน' },
-  { value: 'tequila', label: 'เตกิล่า' },
-  { value: 'wine', label: 'ไวน์' },
-  { value: 'beer', label: 'เบียร์' },
-  { value: 'sake', label: 'สาเก' },
-  { value: 'soju', label: 'โซจู' },
-  { value: 'other', label: 'อื่นๆ' },
-];
+// Static map for non-component contexts (e.g. ProductSearchInput)
+const CATEGORY_LABEL_MAP: Record<string, string> = {
+  whisky: 'Whisky', vodka: 'Vodka', brandy: 'Brandy', rum: 'Rum',
+  gin: 'Gin', tequila: 'Tequila', wine: 'Wine', beer: 'Beer',
+  sake: 'Sake', soju: 'Soju', other: 'Other',
+};
+
+function getCategoryOptions(t: (key: string) => string) {
+  return [
+    { value: '', label: t('form.selectCategory'), disabled: true },
+    { value: 'whisky', label: t('form.catWhisky') },
+    { value: 'vodka', label: t('form.catVodka') },
+    { value: 'brandy', label: t('form.catBrandy') },
+    { value: 'rum', label: t('form.catRum') },
+    { value: 'gin', label: t('form.catGin') },
+    { value: 'tequila', label: t('form.catTequila') },
+    { value: 'wine', label: t('form.catWine') },
+    { value: 'beer', label: t('form.catBeer') },
+    { value: 'sake', label: t('form.catSake') },
+    { value: 'soju', label: t('form.catSoju') },
+    { value: 'other', label: t('form.catOther') },
+  ];
+}
 
 const EMPTY_ITEM: DepositItem = {
   productName: '',
@@ -236,6 +246,7 @@ function ProductSearchInput({
   onSelectProduct: (index: number, product: ProductOption) => void;
   error?: string;
 }) {
+  const t = useTranslations('deposit');
   const containerRef = useRef<HTMLDivElement>(null);
   const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -265,7 +276,7 @@ function ProductSearchInput({
   return (
     <div ref={containerRef} className="relative">
       <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-        ชื่อสินค้า *
+        {t("form.productName")}
       </label>
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -279,7 +290,7 @@ function ProductSearchInput({
           }}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          placeholder="พิมพ์ค้นหาชื่อเหล้า..."
+          placeholder={t("form.searchProductPlaceholder")}
           className={cn(
             'w-full rounded-lg border bg-white py-2 pl-9 pr-3 text-sm transition-colors',
             'focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500',
@@ -308,7 +319,7 @@ function ProductSearchInput({
               </span>
               {product.category && (
                 <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-                  {categoryOptions.find((c) => c.value === product.category)?.label || product.category}
+                  {CATEGORY_LABEL_MAP[product.category] || product.category}
                 </span>
               )}
             </button>
@@ -319,7 +330,7 @@ function ProductSearchInput({
       {/* No results hint */}
       {item.showDropdown && item.searchQuery && filtered.length === 0 && (
         <div className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white p-3 text-center text-xs text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500">
-          ไม่พบสินค้าในระบบ — จะใช้ชื่อที่พิมพ์
+          {t("form.noProductFound")}
         </div>
       )}
     </div>
@@ -331,6 +342,8 @@ function ProductSearchInput({
 // ---------------------------------------------------------------------------
 
 export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
+  const t = useTranslations('deposit');
+  const categoryOptions = getCategoryOptions(t);
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
 
@@ -450,18 +463,18 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
     const newErrors: Record<string, string> = {};
 
     if (!customerName.trim()) {
-      newErrors.customerName = 'กรุณาระบุชื่อลูกค้า';
+      newErrors.customerName = t('form.errorCustomerName');
     }
     if (!isNoDeposit && !isVip && (!expiryDays || parseInt(expiryDays) <= 0)) {
-      newErrors.expiryDays = 'กรุณาระบุจำนวนวันที่ถูกต้อง';
+      newErrors.expiryDays = t('form.errorExpiryDays');
     }
 
     items.forEach((item, idx) => {
       if (!item.productName.trim()) {
-        newErrors[`item_${idx}_productName`] = 'กรุณาระบุชื่อสินค้า';
+        newErrors[`item_${idx}_productName`] = t('form.errorProductName');
       }
       if (!item.quantity || parseFloat(item.quantity) <= 0) {
-        newErrors[`item_${idx}_quantity`] = 'กรุณาระบุจำนวนที่ถูกต้อง';
+        newErrors[`item_${idx}_quantity`] = t('form.errorQuantity');
       }
     });
 
@@ -505,7 +518,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
               : expiryDateISO(parseInt(expiryDays)),
           received_by: user.id,
           notes: isNoDeposit
-            ? (notes.trim() ? `[ไม่ฝาก] ${notes.trim()}` : '[ไม่ฝาก] ลูกค้ากินไม่หมด ไม่ต้องการฝาก')
+            ? (notes.trim() ? `[${t('form.noDepositTag')}] ${notes.trim()}` : t('form.noDepositDefaultNote'))
             : (notes.trim() || null),
           received_photo_url: receivedPhotoUrl || null,
         });
@@ -513,8 +526,8 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
         if (error) {
           toast({
             type: 'error',
-            title: 'เกิดข้อผิดพลาด',
-            message: `ไม่สามารถบันทึก ${item.productName} ได้`,
+            title: t('form.error'),
+            message: t('form.errorSaveProduct', { name: item.productName }),
           });
           setIsSubmitting(false);
           return;
@@ -545,23 +558,23 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
 
       toast({
         type: 'success',
-        title: isNoDeposit ? 'สร้างรายการรอโอนสำเร็จ' : 'บันทึกสำเร็จ',
+        title: isNoDeposit ? t('form.createPendingSuccess') : t('form.saveSuccess'),
         message: isNoDeposit
           ? (items.length === 1
-              ? `สร้างรายการรอโอน ${depositCodes[0]}`
-              : `สร้าง ${items.length} รายการรอโอน`)
+              ? t('form.createdPendingSingle', { code: depositCodes[0] })
+              : t('form.createdPendingMultiple', { count: items.length }))
           : (items.length === 1
-              ? `สร้างรายการฝากเหล้า ${depositCodes[0]}`
-              : `สร้าง ${items.length} รายการฝากเหล้า`),
+              ? t('form.createdDepositSingle', { code: depositCodes[0] })
+              : t('form.createdDepositMultiple', { count: items.length })),
       });
 
       notifyStaff({
         storeId: currentStoreId,
         type: 'new_deposit',
-        title: isNoDeposit ? 'มีรายการไม่ฝาก (รอโอน)' : 'มีรายการฝากเหล้าใหม่',
+        title: isNoDeposit ? t('form.notifyNoDeposit') : t('form.notifyNewDeposit'),
         body: isNoDeposit
-          ? `${customerName.trim()} ไม่ฝาก ${itemsSummary} — รอโอนคลังกลาง`
-          : `${customerName.trim()} ฝาก ${itemsSummary}`,
+          ? `${customerName.trim()} ${t('form.notifyNoDepositBody', { items: itemsSummary })}`
+          : `${customerName.trim()} ${t('form.notifyDepositBody', { items: itemsSummary })}`,
         data: { deposit_code: depositCodes[0] },
         excludeUserId: user?.id,
       });
@@ -577,7 +590,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
             quantity: parseFloat(items[i].quantity),
             table_number: tableNumber.trim() || null,
             notes: notes.trim() || null,
-            received_by_name: user.displayName || user.username || 'พนักงาน',
+            received_by_name: user.displayName || user.username || t("form.staffFallback"),
           });
         }
       }
@@ -586,8 +599,8 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
     } catch {
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ลองอีกครั้ง',
+        title: t('form.error'),
+        message: t('form.tryAgain'),
       });
     } finally {
       setIsSubmitting(false);
@@ -607,16 +620,16 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
         >
           <ArrowLeft className="h-4 w-4" />
-          กลับหน้าฝากเหล้า
+          {t("form.backToDeposit")}
         </button>
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-900/20">
             <Wine className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ฝากเหล้าใหม่</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t("form.newDeposit")}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              สร้างรายการฝากเหล้าสำหรับลูกค้า
+              {t("form.newDepositDesc")}
             </p>
           </div>
         </div>
@@ -625,14 +638,14 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
       {/* Customer info */}
       <Card padding="none">
         <CardHeader
-          title="ข้อมูลลูกค้า"
-          description={isNoDeposit ? 'กรอกอัตโนมัติ — ไม่จำเป็นต้องระบุข้อมูลลูกค้า' : 'ระบุข้อมูลลูกค้าที่ต้องการฝากเหล้า'}
+          title={t("form.customerInfo")}
+          description={isNoDeposit ? t("form.customerAutoFill") : t("form.customerInfoDesc")}
         />
         <CardContent>
           <div className={cn('space-y-4', isNoDeposit && 'opacity-60')}>
             <div className="grid gap-4 sm:grid-cols-2">
               <CustomerSearchInput
-                label="ชื่อลูกค้า *"
+                label={t("form.customerName")}
                 value={customerName}
                 onChange={(v) => {
                   setCustomerName(v);
@@ -643,7 +656,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
                   if (c.customer_phone) setCustomerPhone(c.customer_phone);
                   if (errors.customerName) setErrors((prev) => ({ ...prev, customerName: '' }));
                 }}
-                placeholder="พิมพ์ค้นหาหรือกรอกชื่อลูกค้า"
+                placeholder={t("form.searchCustomerPlaceholder")}
                 icon={User}
                 error={errors.customerName}
                 disabled={isNoDeposit}
@@ -651,14 +664,14 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
                 matchField="customer_name"
               />
               <CustomerSearchInput
-                label="เบอร์โทรศัพท์"
+                label={t("form.phone")}
                 value={customerPhone}
                 onChange={setCustomerPhone}
                 onSelectCustomer={(c) => {
                   setCustomerPhone(c.customer_phone || '');
                   if (!customerName) setCustomerName(c.customer_name);
                 }}
-                placeholder="พิมพ์ค้นหาหรือกรอกเบอร์โทร"
+                placeholder={t("form.searchPhonePlaceholder")}
                 icon={Phone}
                 disabled={isNoDeposit}
                 customers={customers.filter((c) => !!c.customer_phone)}
@@ -666,10 +679,10 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
               />
             </div>
             <Input
-              label="หมายเลขโต๊ะ"
+              label={t("form.tableNumber")}
               value={tableNumber}
               onChange={(e) => setTableNumber(e.target.value)}
-              placeholder="เช่น โต๊ะ 12, VIP 3"
+              placeholder={t("form.tablePlaceholder")}
               disabled={isNoDeposit}
             />
           </div>
@@ -679,8 +692,8 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
       {/* Items */}
       <Card padding="none">
         <CardHeader
-          title="รายการสินค้า"
-          description={`${items.length} รายการ — พิมพ์ค้นหาเหล้าในร้านได้ทันที`}
+          title={t("form.productList")}
+          description={`${items.length} ${t("form.itemsSearchHint")}`}
           action={
             loadingProducts ? (
               <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
@@ -703,7 +716,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
                   <div className="flex items-center gap-2">
                     <Package className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
                     <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
-                      รายการที่ {idx + 1}
+                      {t("form.itemNumber", { num: idx + 1 })}
                     </span>
                   </div>
                   {items.length > 1 && (
@@ -730,19 +743,19 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
                 {/* Category + Quantity */}
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <Select
-                    label="ประเภท"
+                    label={t("form.category")}
                     options={categoryOptions}
                     value={item.category}
                     onChange={(e) => updateItem(idx, 'category', e.target.value)}
-                    placeholder="เลือกประเภท"
+                    placeholder={t("form.selectCategory")}
                   />
                   <Input
-                    label="จำนวน *"
+                    label={t("form.quantity")}
                     type="number"
                     value={item.quantity}
                     onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
                     placeholder="1"
-                    hint="จำนวนขวด"
+                    hint={t("form.bottleCount")}
                     error={errors[`item_${idx}_quantity`]}
                   />
                 </div>
@@ -750,7 +763,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
                 {/* Auto-filled badge */}
                 {item.category && item.productName && (
                   <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
-                    หมวดหมู่จะถูกเลือกอัตโนมัติเมื่อเลือกจากรายการ — แก้ไขได้
+                    {t("form.categoryAutoFillHint")}
                   </p>
                 )}
               </div>
@@ -763,7 +776,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
               className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm font-medium text-gray-500 transition-colors hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-400 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
             >
               <Plus className="h-4 w-4" />
-              เพิ่มรายการสินค้า
+              {t("form.addProduct")}
             </button>
           </div>
         </CardContent>
@@ -771,7 +784,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
 
       {/* Storage & Notes */}
       <Card padding="none">
-        <CardHeader title="การจัดเก็บ" description="ระยะเวลาเก็บรักษาและหมายเหตุ" />
+        <CardHeader title={t("form.storage")} description={t("form.storageDesc")} />
         <CardContent>
           <div className="space-y-4">
             {/* No-Deposit Toggle */}
@@ -787,10 +800,10 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
                 <Truck className={cn('h-5 w-5', isNoDeposit ? 'text-orange-500' : 'text-gray-400')} />
                 <div>
                   <p className={cn('text-sm font-medium', isNoDeposit ? 'text-orange-700 dark:text-orange-400' : 'text-gray-700 dark:text-gray-300')}>
-                    ไม่ฝาก (เก็บรอโอน)
+                    {t("form.noDeposit")}
                   </p>
                   <p className={cn('text-xs', isNoDeposit ? 'text-orange-600 dark:text-orange-500' : 'text-gray-500 dark:text-gray-400')}>
-                    {isNoDeposit ? 'สร้างรายการรอโอนคลังกลางทันที' : 'ลูกค้ากินไม่หมด ไม่ต้องการฝาก'}
+                    {isNoDeposit ? t("form.noDepositActiveDesc") : t("form.noDepositDesc")}
                   </p>
                 </div>
               </div>
@@ -801,7 +814,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
                   setIsNoDeposit(next);
                   if (next) {
                     setIsVip(false);
-                    setCustomerName('ลูกค้าทั่วไป');
+                    setCustomerName(t('form.generalCustomer'));
                     setCustomerPhone('');
                     setTableNumber('');
                   } else {
@@ -839,10 +852,10 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
                     <Crown className={cn('h-5 w-5', isVip ? 'text-yellow-500' : 'text-gray-400')} />
                     <div>
                       <p className={cn('text-sm font-medium', isVip ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-700 dark:text-gray-300')}>
-                        สถานะ VIP
+                        {t("form.vipStatus")}
                       </p>
                       <p className={cn('text-xs', isVip ? 'text-yellow-600 dark:text-yellow-500' : 'text-gray-500 dark:text-gray-400')}>
-                        {isVip ? 'ฝากได้ไม่มีหมดอายุ' : 'มีกำหนดวันหมดอายุปกติ'}
+                        {isVip ? t("form.vipActiveDesc") : t("form.vipInactiveDesc")}
                       </p>
                     </div>
                   </div>
@@ -865,7 +878,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
 
                 {!isVip && (
                   <Input
-                    label="ระยะเวลาเก็บรักษา (วัน) *"
+                    label={t("form.storageDays")}
                     type="number"
                     value={expiryDays}
                     onChange={(e) => {
@@ -875,8 +888,8 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
                     placeholder="30"
                     hint={
                       expiryDays && parseInt(expiryDays) > 0
-                        ? `หมดอายุประมาณ ${formatThaiDate(new Date(Date.now() + parseInt(expiryDays) * 86400000))}`
-                        : 'ระบุจำนวนวันที่เก็บรักษา'
+                        ? t('form.expiryApprox', { date: formatThaiDate(new Date(Date.now() + parseInt(expiryDays) * 86400000)) })
+                        : t("form.storageDaysHint")
                     }
                     error={errors.expiryDays}
                   />
@@ -884,17 +897,17 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
               </>
             )}
             <Textarea
-              label="หมายเหตุ"
+              label={t("form.notes")}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="เช่น เหลือประมาณ 60%, ขวดใหม่ยังไม่เปิด"
+              placeholder={t("form.notesPlaceholder")}
               rows={3}
             />
             <PhotoUpload
               value={receivedPhotoUrl}
               onChange={(url) => setReceivedPhotoUrl(url)}
               folder="deposits"
-              label="ถ่ายรูปเหล้า"
+              label={t("form.photoLabel")}
             />
           </div>
         </CardContent>
@@ -907,7 +920,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
           onClick={onBack}
           className="min-h-[44px] sm:min-h-0"
         >
-          ยกเลิก
+          {t('form.cancel')}
         </Button>
         <Button
           onClick={handleSubmit}
@@ -918,11 +931,11 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
         >
           {isNoDeposit
             ? (items.length > 1
-                ? `บันทึก ${items.length} รายการรอโอน`
-                : 'บันทึกรายการรอโอน')
+                ? t('form.savePendingMultiple', { count: items.length })
+                : t('form.savePendingSingle'))
             : (items.length > 1
-                ? `บันทึก ${items.length} รายการฝากเหล้า`
-                : 'บันทึกรายการฝากเหล้า')}
+                ? t('form.saveDepositMultiple', { count: items.length })
+                : t('form.saveDepositSingle'))}
         </Button>
       </div>
     </div>

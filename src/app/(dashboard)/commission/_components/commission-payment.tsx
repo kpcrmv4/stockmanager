@@ -215,7 +215,7 @@ export function CommissionPayment() {
                 <Clock className="h-5 w-5 text-red-600 dark:text-red-400" />
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">ยอดค้างจ่าย</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('payment.unpaidBalance')}</p>
                 <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(totalUnpaid)}</p>
               </div>
             </div>
@@ -226,18 +226,18 @@ export function CommissionPayment() {
       {/* Unpaid AE list */}
       {unpaidAE.length > 0 && (
         <Card>
-          <CardHeader title="AE ค้างจ่าย" />
+          <CardHeader title={t('payment.unpaidAE')} />
           <CardContent>
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
               {unpaidAE.map((ae) => (
                 <div key={ae.ae_id} className="flex items-center justify-between px-2 py-3">
                   <div>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{ae.ae_name} {ae.ae_nickname ? `(${ae.ae_nickname})` : ''}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{ae.entry_count} บิล | {ae.bank_name ? `${ae.bank_name} ${ae.bank_account_no}` : 'ไม่มีข้อมูลธนาคาร'}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ae.entry_count} {t('payment.bills')} | {ae.bank_name ? `${ae.bank_name} ${ae.bank_account_no}` : t('payment.noBankInfo')}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{formatCurrency(ae.total_net)}</span>
-                    <Button size="sm" onClick={() => { setSelectedType('ae'); setSelectedId(ae.ae_id); }}>จ่าย</Button>
+                    <Button size="sm" onClick={() => { setSelectedType('ae'); setSelectedId(ae.ae_id); }}>{t('payment.pay')}</Button>
                   </div>
                 </div>
               ))}
@@ -249,18 +249,18 @@ export function CommissionPayment() {
       {/* Unpaid Bottle list */}
       {unpaidBottle.length > 0 && (
         <Card>
-          <CardHeader title="Bottle ค้างจ่าย" />
+          <CardHeader title={t('payment.unpaidBottle')} />
           <CardContent>
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
               {unpaidBottle.map((b) => (
                 <div key={b.staff_id} className="flex items-center justify-between px-2 py-3">
                   <div>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{b.staff_name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{b.total_bottles} ขวด | {b.entry_count} รายการ</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{b.total_bottles} {t('payment.bottles')} | {b.entry_count} {t('payment.entries')}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatCurrency(b.total_net)}</span>
-                    <Button size="sm" onClick={() => { setSelectedType('bottle'); setSelectedId(b.staff_id); }}>จ่าย</Button>
+                    <Button size="sm" onClick={() => { setSelectedType('bottle'); setSelectedId(b.staff_id); }}>{t('payment.pay')}</Button>
                   </div>
                 </div>
               ))}
@@ -270,31 +270,31 @@ export function CommissionPayment() {
       )}
 
       {unpaidAE.length === 0 && unpaidBottle.length === 0 && (
-        <p className="py-4 text-center text-sm text-gray-400">ไม่มียอดค้างจ่ายเดือนนี้</p>
+        <p className="py-4 text-center text-sm text-gray-400">{t('payment.noUnpaid')}</p>
       )}
 
       {/* Payment form modal */}
       {selectedType && selectedId && (
         <Card>
-          <CardHeader title={`บันทึกจ่ายค่าคอม — ${selectedType === 'ae' ? unpaidAE.find(a => a.ae_id === selectedId)?.ae_name : unpaidBottle.find(b => b.staff_id === selectedId)?.staff_name}`} />
+          <CardHeader title={`${t('payment.recordPayment')} — ${selectedType === 'ae' ? unpaidAE.find(a => a.ae_id === selectedId)?.ae_name : unpaidBottle.find(b => b.staff_id === selectedId)?.staff_name}`} />
           <CardContent className="space-y-3 p-4">
             {/* Show entries for this selection */}
             <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                จำนวน: {selectedType === 'ae' ? unpaidAE.find(a => a.ae_id === selectedId)?.entry_count : unpaidBottle.find(b => b.staff_id === selectedId)?.entry_count} รายการ
+                {t('payment.count')}: {selectedType === 'ae' ? unpaidAE.find(a => a.ae_id === selectedId)?.entry_count : unpaidBottle.find(b => b.staff_id === selectedId)?.entry_count} {t('payment.entries')}
               </p>
               <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                ยอดจ่าย: {formatCurrency(selectedType === 'ae' ? (unpaidAE.find(a => a.ae_id === selectedId)?.total_net || 0) : (unpaidBottle.find(b => b.staff_id === selectedId)?.total_net || 0))}
+                {t('payment.payAmount')}: {formatCurrency(selectedType === 'ae' ? (unpaidAE.find(a => a.ae_id === selectedId)?.total_net || 0) : (unpaidBottle.find(b => b.staff_id === selectedId)?.total_net || 0))}
               </p>
             </div>
-            <PhotoUpload value={slipPhoto} onChange={setSlipPhoto} folder="commission-slips" label="แนบสลิปโอนเงิน" placeholder="แตะเพื่อถ่ายรูปสลิป" />
-            <Textarea label="หมายเหตุ" value={payNotes} onChange={(e) => setPayNotes(e.target.value)} rows={2} />
+            <PhotoUpload value={slipPhoto} onChange={setSlipPhoto} folder="commission-slips" label={t('payment.attachSlip')} placeholder={t('payment.attachSlipPlaceholder')} />
+            <Textarea label={t('payment.notes')} value={payNotes} onChange={(e) => setPayNotes(e.target.value)} rows={2} />
             <div className="flex gap-2">
               <Button variant="primary" className="flex-1" onClick={handlePay} disabled={paying}>
                 {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                บันทึกจ่าย
+                {t('payment.recordPay')}
               </Button>
-              <Button variant="ghost" onClick={() => { setSelectedType(null); setSelectedId(''); setSlipPhoto(null); setPayNotes(''); }}>ยกเลิก</Button>
+              <Button variant="ghost" onClick={() => { setSelectedType(null); setSelectedId(''); setSlipPhoto(null); setPayNotes(''); }}>{t('payment.cancel')}</Button>
             </div>
           </CardContent>
         </Card>
@@ -303,20 +303,20 @@ export function CommissionPayment() {
       {/* Paid this month */}
       {payments.filter(p => p.status === 'paid').length > 0 && (
         <Card>
-          <CardHeader title="จ่ายแล้วเดือนนี้" />
+          <CardHeader title={t('payment.paidThisMonth')} />
           <CardContent>
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
               {payments.filter(p => p.status === 'paid').map((p) => (
                 <div key={p.id} className="flex items-center justify-between px-2 py-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="success" size="sm">จ่ายแล้ว</Badge>
+                      <Badge variant="success" size="sm">{t('payment.paid')}</Badge>
                       <span className="text-xs text-gray-400">{new Date(p.paid_at).toLocaleDateString('th-TH')}</span>
                     </div>
                     <p className="mt-0.5 text-sm font-medium text-gray-900 dark:text-white">
                       {p.type === 'ae_commission' ? p.ae_profile?.name : p.staff_profile?.display_name || p.staff_profile?.username}
                     </p>
-                    <p className="text-xs text-gray-500">{p.total_entries} รายการ</p>
+                    <p className="text-xs text-gray-500">{p.total_entries} {t('payment.entries')}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(p.total_amount)}</span>
@@ -331,26 +331,26 @@ export function CommissionPayment() {
       )}
 
       {/* Detail modal */}
-      <Modal isOpen={!!detailModal} onClose={() => setDetailModal(null)} title="รายละเอียดการจ่าย" size="lg">
+      <Modal isOpen={!!detailModal} onClose={() => setDetailModal(null)} title={t('payment.paymentDetail')} size="lg">
         {detailModal && (
           <div className="space-y-3">
             <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
-              <p className="text-sm"><span className="text-gray-500">ชื่อ:</span> <span className="font-medium">{detailModal.type === 'ae_commission' ? detailModal.ae_profile?.name : detailModal.staff_profile?.display_name}</span></p>
-              <p className="text-sm"><span className="text-gray-500">เดือน:</span> {detailModal.month}</p>
-              <p className="text-sm"><span className="text-gray-500">จำนวน:</span> {detailModal.total_entries} รายการ</p>
+              <p className="text-sm"><span className="text-gray-500">{t('payment.name')}:</span> <span className="font-medium">{detailModal.type === 'ae_commission' ? detailModal.ae_profile?.name : detailModal.staff_profile?.display_name}</span></p>
+              <p className="text-sm"><span className="text-gray-500">{t('payment.month')}:</span> {detailModal.month}</p>
+              <p className="text-sm"><span className="text-gray-500">{t('payment.count')}:</span> {detailModal.total_entries} {t('payment.entries')}</p>
               <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(detailModal.total_amount)}</p>
             </div>
             {detailModal.slip_photo_url && (
               <div>
-                <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">สลิปโอนเงิน</p>
+                <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('payment.transferSlip')}</p>
                 <img src={detailModal.slip_photo_url} alt="Slip" className="max-h-60 rounded-lg object-contain" />
               </div>
             )}
             {detailModal.entries && detailModal.entries.length > 0 && (
               <div>
-                <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">รายการที่จ่าย</p>
+                <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('payment.paidEntries')}</p>
                 <table className="w-full text-xs">
-                  <thead><tr className="text-gray-500"><th className="py-1 text-left">วันที่</th><th className="py-1 text-left">ใบเสร็จ</th><th className="py-1 text-right">ยอด</th></tr></thead>
+                  <thead><tr className="text-gray-500"><th className="py-1 text-left">{t('payment.date')}</th><th className="py-1 text-left">{t('payment.receipt')}</th><th className="py-1 text-right">{t('payment.amount')}</th></tr></thead>
                   <tbody className="text-gray-700 dark:text-gray-300">
                     {detailModal.entries.map((e: Record<string, unknown>) => (
                       <tr key={e.id as string} className="border-t border-gray-100 dark:border-gray-700">
@@ -368,16 +368,16 @@ export function CommissionPayment() {
       </Modal>
 
       {/* Cancel confirmation modal */}
-      <Modal isOpen={!!cancelModal} onClose={() => { setCancelModal(null); setCancelReason(''); }} title="ยืนยันยกเลิกการจ่าย" size="sm">
+      <Modal isOpen={!!cancelModal} onClose={() => { setCancelModal(null); setCancelReason(''); }} title={t('payment.confirmCancel')} size="sm">
         <div className="space-y-3">
-          <p className="text-sm text-gray-600 dark:text-gray-400">ต้องการยกเลิกการจ่ายนี้ใช่ไหม? รายการที่ผูกไว้จะกลับเป็นสถานะ &quot;ยังไม่จ่าย&quot;</p>
-          <Textarea label="เหตุผล (ถ้ามี)" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={2} />
+          <p className="text-sm text-gray-600 dark:text-gray-400">{t('payment.confirmCancelDesc')}</p>
+          <Textarea label={t('payment.reasonOptional')} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={2} />
         </div>
         <ModalFooter>
-          <Button variant="ghost" onClick={() => { setCancelModal(null); setCancelReason(''); }}>ไม่ยกเลิก</Button>
+          <Button variant="ghost" onClick={() => { setCancelModal(null); setCancelReason(''); }}>{t('payment.dontCancel')}</Button>
           <Button variant="danger" onClick={handleCancel} disabled={cancelling}>
             {cancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            ยืนยันยกเลิก
+            {t('payment.confirmCancelBtn')}
           </Button>
         </ModalFooter>
       </Modal>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, Badge, Modal } from '@/components/ui';
 import { useAppStore } from '@/stores/app-store';
 import { Loader2, Eye, Image } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 function formatCurrency(n: number) {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -30,6 +31,7 @@ interface PaymentRecord {
 }
 
 export function CommissionPaymentHistory() {
+  const t = useTranslations('commission');
   const { currentStoreId } = useAppStore();
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -72,21 +74,21 @@ export function CommissionPaymentHistory() {
     <div className="space-y-4">
       {/* Year picker + summary */}
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">ปี</label>
+        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('paymentHistory.year')}</label>
         <select value={year} onChange={(e) => setYear(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white">
           {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
             <option key={y} value={y}>{y + 543}</option>
           ))}
         </select>
         <span className="text-sm text-gray-500 dark:text-gray-400">
-          จ่ายแล้ว {formatCurrency(totalPaid)} | ยกเลิก {formatCurrency(totalCancelled)}
+          {t('paymentHistory.paidTotal')} {formatCurrency(totalPaid)} | {t('paymentHistory.cancelledTotal')} {formatCurrency(totalCancelled)}
         </span>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>
       ) : months.length === 0 ? (
-        <p className="py-8 text-center text-gray-500 dark:text-gray-400">ไม่มีประวัติการจ่าย</p>
+        <p className="py-8 text-center text-gray-500 dark:text-gray-400">{t('paymentHistory.noHistory')}</p>
       ) : (
         months.map((month) => {
           const items = grouped[month];
@@ -109,7 +111,7 @@ export function CommissionPaymentHistory() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <Badge variant={isPaid ? 'success' : 'danger'} size="sm">
-                              {isPaid ? 'จ่ายแล้ว' : 'ยกเลิก'}
+                              {isPaid ? t('paymentHistory.paid') : t('paymentHistory.cancelled')}
                             </Badge>
                             <Badge variant={p.type === 'ae_commission' ? 'warning' : 'default'} size="sm">
                               {p.type === 'ae_commission' ? 'AE' : 'Bottle'}
@@ -117,11 +119,11 @@ export function CommissionPaymentHistory() {
                           </div>
                           <p className="mt-0.5 text-sm font-medium text-gray-900 dark:text-white">{name || '-'}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {p.total_entries} รายการ | {new Date(p.paid_at).toLocaleDateString('th-TH')}
-                            {p.paid_by_profile && ` | โดย ${p.paid_by_profile.display_name || p.paid_by_profile.username}`}
+                            {p.total_entries} {t('paymentHistory.entries')} | {new Date(p.paid_at).toLocaleDateString('th-TH')}
+                            {p.paid_by_profile && ` | ${t('paymentHistory.by')} ${p.paid_by_profile.display_name || p.paid_by_profile.username}`}
                           </p>
                           {!isPaid && p.cancel_reason && (
-                            <p className="text-xs text-red-500">เหตุผล: {p.cancel_reason}</p>
+                            <p className="text-xs text-red-500">{t('paymentHistory.reason')}: {p.cancel_reason}</p>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
@@ -143,28 +145,28 @@ export function CommissionPaymentHistory() {
       )}
 
       {/* Detail modal */}
-      <Modal isOpen={!!detailModal} onClose={() => setDetailModal(null)} title="รายละเอียดการจ่าย" size="lg">
+      <Modal isOpen={!!detailModal} onClose={() => setDetailModal(null)} title={t('paymentHistory.paymentDetail')} size="lg">
         {detailModal && (
           <div className="space-y-3">
             <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
-              <p className="text-sm"><span className="text-gray-500">ชื่อ:</span> <span className="font-medium">{detailModal.type === 'ae_commission' ? detailModal.ae_profile?.name : detailModal.staff_profile?.display_name}</span></p>
-              <p className="text-sm"><span className="text-gray-500">เดือน:</span> {detailModal.month}</p>
-              <p className="text-sm"><span className="text-gray-500">สถานะ:</span> <Badge variant={detailModal.status === 'paid' ? 'success' : 'danger'} size="sm">{detailModal.status === 'paid' ? 'จ่ายแล้ว' : 'ยกเลิก'}</Badge></p>
-              <p className="text-sm"><span className="text-gray-500">จำนวน:</span> {detailModal.total_entries} รายการ</p>
+              <p className="text-sm"><span className="text-gray-500">{t('paymentHistory.name')}:</span> <span className="font-medium">{detailModal.type === 'ae_commission' ? detailModal.ae_profile?.name : detailModal.staff_profile?.display_name}</span></p>
+              <p className="text-sm"><span className="text-gray-500">{t('paymentHistory.monthLabel')}:</span> {detailModal.month}</p>
+              <p className="text-sm"><span className="text-gray-500">{t('paymentHistory.status')}:</span> <Badge variant={detailModal.status === 'paid' ? 'success' : 'danger'} size="sm">{detailModal.status === 'paid' ? t('paymentHistory.paid') : t('paymentHistory.cancelled')}</Badge></p>
+              <p className="text-sm"><span className="text-gray-500">{t('paymentHistory.count')}:</span> {detailModal.total_entries} {t('paymentHistory.entries')}</p>
               <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(detailModal.total_amount)}</p>
-              {detailModal.notes && <p className="text-xs text-gray-500">หมายเหตุ: {detailModal.notes}</p>}
+              {detailModal.notes && <p className="text-xs text-gray-500">{t('paymentHistory.notes')}: {detailModal.notes}</p>}
             </div>
             {detailModal.slip_photo_url && (
               <div>
-                <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">สลิปโอนเงิน</p>
+                <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('paymentHistory.transferSlip')}</p>
                 <img src={detailModal.slip_photo_url} alt="Slip" className="max-h-60 rounded-lg object-contain" />
               </div>
             )}
             {detailModal.entries && detailModal.entries.length > 0 && (
               <div>
-                <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">รายการที่จ่าย</p>
+                <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('paymentHistory.paidEntries')}</p>
                 <table className="w-full text-xs">
-                  <thead><tr className="text-gray-500"><th className="py-1 text-left">วันที่</th><th className="py-1 text-left">ใบเสร็จ</th><th className="py-1 text-right">ยอด</th></tr></thead>
+                  <thead><tr className="text-gray-500"><th className="py-1 text-left">{t('paymentHistory.date')}</th><th className="py-1 text-left">{t('paymentHistory.receipt')}</th><th className="py-1 text-right">{t('paymentHistory.amount')}</th></tr></thead>
                   <tbody className="text-gray-700 dark:text-gray-300">
                     {detailModal.entries.map((e: Record<string, unknown>) => (
                       <tr key={e.id as string} className="border-t border-gray-100 dark:border-gray-700">
