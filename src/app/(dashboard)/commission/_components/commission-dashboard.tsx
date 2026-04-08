@@ -5,6 +5,7 @@ import { Card, CardHeader, CardContent, Badge } from '@/components/ui';
 import { useAppStore } from '@/stores/app-store';
 import { Loader2, TrendingUp, Receipt, Wine, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { useTranslations } from 'next-intl';
 
 interface AESummaryItem {
   ae_id: string;
@@ -53,6 +54,7 @@ function getCurrentMonth() {
 }
 
 export function CommissionDashboard() {
+  const t = useTranslations('commission');
   const { currentStoreId } = useAppStore();
   const [month, setMonth] = useState(getCurrentMonth());
   const [data, setData] = useState<SummaryData | null>(null);
@@ -80,7 +82,7 @@ export function CommissionDashboard() {
     <div className="space-y-4">
       {/* Month picker */}
       <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">เดือน</label>
+        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('dashboard.month')}</label>
         <input
           type="month"
           value={month}
@@ -94,7 +96,7 @@ export function CommissionDashboard() {
           <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
         </div>
       ) : !data ? (
-        <p className="py-8 text-center text-gray-500">ไม่สามารถโหลดข้อมูลได้</p>
+        <p className="py-8 text-center text-gray-500">{t('dashboard.loadError')}</p>
       ) : (
         <>
           {/* Grand Total Cards */}
@@ -110,7 +112,7 @@ export function CommissionDashboard() {
                     <p className="text-lg font-bold text-gray-900 dark:text-white">
                       {formatCurrency(data.grand_total.ae_total_net)}
                     </p>
-                    <p className="text-xs text-gray-400">{data.grand_total.ae_total_entries} รายการ</p>
+                    <p className="text-xs text-gray-400">{data.grand_total.ae_total_entries} {t('dashboard.entries')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -127,7 +129,7 @@ export function CommissionDashboard() {
                     <p className="text-lg font-bold text-gray-900 dark:text-white">
                       {formatCurrency(data.grand_total.bottle_total_net)}
                     </p>
-                    <p className="text-xs text-gray-400">{data.grand_total.bottle_total_entries} รายการ</p>
+                    <p className="text-xs text-gray-400">{data.grand_total.bottle_total_entries} {t('dashboard.entries')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -140,12 +142,12 @@ export function CommissionDashboard() {
                     <Receipt className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">ยอดจ่ายรวม</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('dashboard.totalPayout')}</p>
                     <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                       {formatCurrency(data.grand_total.total_payout)}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {data.grand_total.ae_total_entries + data.grand_total.bottle_total_entries} รายการ
+                      {data.grand_total.ae_total_entries + data.grand_total.bottle_total_entries} {t('dashboard.entries')}
                     </p>
                   </div>
                 </div>
@@ -158,7 +160,7 @@ export function CommissionDashboard() {
             <CardHeader title="AE Commission" />
             <CardContent>
               {data.ae_summary.length === 0 ? (
-                <p className="py-4 text-center text-sm text-gray-400">ไม่มีข้อมูลเดือนนี้</p>
+                <p className="py-4 text-center text-sm text-gray-400">{t('dashboard.noDataThisMonth')}</p>
               ) : (
                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
                   {data.ae_summary.map((ae) => (
@@ -175,7 +177,7 @@ export function CommissionDashboard() {
                             )}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {ae.entry_count} บิล | ยอดรวม {formatCurrency(ae.total_subtotal)}
+                            {ae.entry_count} {t('dashboard.bills')} | {t('dashboard.subtotal')} {formatCurrency(ae.total_subtotal)}
                           </p>
                         </div>
                         <div className="flex items-center gap-2 text-right">
@@ -184,7 +186,7 @@ export function CommissionDashboard() {
                               {formatCurrency(ae.total_net)}
                             </p>
                             <p className="text-[10px] text-gray-400">
-                              คอม {formatCurrency(ae.total_commission)} - ภาษี {formatCurrency(ae.total_tax)}
+                              {t('dashboard.commission')} {formatCurrency(ae.total_commission)} - {t('dashboard.tax')} {formatCurrency(ae.total_tax)}
                             </p>
                           </div>
                           {expandedAE === ae.ae_id ? (
@@ -200,16 +202,16 @@ export function CommissionDashboard() {
                           {/* Bank info */}
                           {ae.bank_name && (
                             <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                              ธนาคาร: {ae.bank_name} | เลขบัญชี: {ae.bank_account_no} | ชื่อบัญชี: {ae.bank_account_name}
+                              {t('dashboard.bank')}: {ae.bank_name} | {t('dashboard.accountNo')}: {ae.bank_account_no} | {t('dashboard.accountName')}: {ae.bank_account_name}
                             </p>
                           )}
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="text-gray-500 dark:text-gray-400">
-                                <th className="py-1 text-left">วันที่</th>
-                                <th className="py-1 text-left">ใบเสร็จ</th>
-                                <th className="py-1 text-right">ยอดรวม</th>
-                                <th className="py-1 text-right">สุทธิ</th>
+                                <th className="py-1 text-left">{t('dashboard.date')}</th>
+                                <th className="py-1 text-left">{t('dashboard.receipt')}</th>
+                                <th className="py-1 text-right">{t('dashboard.subtotal')}</th>
+                                <th className="py-1 text-right">{t('dashboard.net')}</th>
                               </tr>
                             </thead>
                             <tbody className="text-gray-700 dark:text-gray-300">
@@ -237,7 +239,7 @@ export function CommissionDashboard() {
             <CardHeader title="Bottle Commission" />
             <CardContent>
               {data.bottle_summary.length === 0 ? (
-                <p className="py-4 text-center text-sm text-gray-400">ไม่มีข้อมูลเดือนนี้</p>
+                <p className="py-4 text-center text-sm text-gray-400">{t('dashboard.noDataThisMonth')}</p>
               ) : (
                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
                   {data.bottle_summary.map((item) => (
@@ -249,7 +251,7 @@ export function CommissionDashboard() {
                         <div>
                           <p className="font-medium text-gray-900 dark:text-white">{item.staff_name}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {item.total_bottles} ขวด | {item.entry_count} รายการ
+                            {item.total_bottles} {t('dashboard.bottles')} | {item.entry_count} {t('dashboard.entries')}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -269,10 +271,10 @@ export function CommissionDashboard() {
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="text-gray-500 dark:text-gray-400">
-                                <th className="py-1 text-left">วันที่</th>
-                                <th className="py-1 text-left">ใบเสร็จ</th>
-                                <th className="py-1 text-right">จำนวนขวด</th>
-                                <th className="py-1 text-right">ยอด</th>
+                                <th className="py-1 text-left">{t('dashboard.date')}</th>
+                                <th className="py-1 text-left">{t('dashboard.receipt')}</th>
+                                <th className="py-1 text-right">{t('dashboard.bottleCount')}</th>
+                                <th className="py-1 text-right">{t('dashboard.amount')}</th>
                               </tr>
                             </thead>
                             <tbody className="text-gray-700 dark:text-gray-300">

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import type { UserRole } from '@/types/roles';
 import { ROLE_LABELS } from '@/types/roles';
 import { manualSections, ROLE_COLOR_CLASSES, type ManualSectionId } from './manual-data';
+import { useTranslations } from 'next-intl';
 
 import { SectionIntro } from './sections/section-intro';
 import { SectionRoles } from './sections/section-roles';
@@ -64,6 +65,7 @@ function isSectionVisible(sectionRoles: 'all' | UserRole[], userRole: UserRole):
 }
 
 export function UserManual() {
+  const t = useTranslations('guide');
   const user = useAuthStore((s) => s.user);
   const userRole = user?.role ?? 'staff';
   const [filterRole, setFilterRole] = useState<'auto' | UserRole>('auto');
@@ -77,13 +79,13 @@ export function UserManual() {
   );
 
   const tocGroups = useMemo(() => {
-    const groups: { name: string; items: typeof visibleSections }[] = [];
+    const groups: { nameKey: string; items: typeof visibleSections }[] = [];
     let lastGroup = '';
     for (const section of visibleSections) {
-      if (!section.tocGroup) continue;
-      if (section.tocGroup !== lastGroup) {
-        groups.push({ name: section.tocGroup, items: [] });
-        lastGroup = section.tocGroup;
+      if (!section.tocGroupKey) continue;
+      if (section.tocGroupKey !== lastGroup) {
+        groups.push({ nameKey: section.tocGroupKey, items: [] });
+        lastGroup = section.tocGroupKey;
       }
       groups[groups.length - 1].items.push(section);
     }
@@ -103,9 +105,9 @@ export function UserManual() {
             <BookOpen className="h-5 w-5 text-sky-600 dark:text-sky-400" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">คู่มือการใช้งาน</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              วิธีใช้งานระบบ StockManager สำหรับ{ROLE_LABELS[effectiveRole]}
+              {t('subtitle', { role: ROLE_LABELS[effectiveRole] })}
             </p>
           </div>
         </div>
@@ -122,7 +124,7 @@ export function UserManual() {
               }`}
             >
               <Filter className="h-4 w-4" />
-              {filterRole === 'auto' ? 'ทุก Role' : ROLE_LABELS[filterRole]}
+              {filterRole === 'auto' ? t('allRoles') : ROLE_LABELS[filterRole]}
             </button>
             {showFilter && (
               <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
@@ -132,7 +134,7 @@ export function UserManual() {
                     filterRole === 'auto' ? 'font-semibold text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
                   }`}
                 >
-                  ทุก Role (Owner)
+                  {t('allRolesOwner')}
                 </button>
                 {STAFF_ROLES.map((role) => {
                   const c = ROLE_COLOR_CLASSES[role];
@@ -159,8 +161,8 @@ export function UserManual() {
 
       {/* Hero */}
       <div className="rounded-xl bg-gradient-to-r from-violet-500 to-blue-500 px-6 py-8 text-center text-white">
-        <h2 className="mb-2 text-2xl font-extrabold">StockManager</h2>
-        <p className="text-sm opacity-90">คู่มือการใช้งานระบบจัดการคลังสินค้า ฝากเหล้า และสื่อสารภายในสำหรับพนักงาน</p>
+        <h2 className="mb-2 text-2xl font-extrabold">{t('heroTitle')}</h2>
+        <p className="text-sm opacity-90">{t('heroDesc')}</p>
         <span className="mt-3 inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-medium">
           Version 1.0 · March 2026
         </span>
@@ -169,13 +171,13 @@ export function UserManual() {
       {/* Table of Contents */}
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800/50">
         <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
-          📖 สารบัญ
+          {t('toc')}
         </h2>
         <div className="space-y-4">
           {tocGroups.map((group) => (
-            <div key={group.name}>
+            <div key={group.nameKey}>
               <div className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                {group.name}
+                {t(group.nameKey)}
               </div>
               <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                 {group.items.map((s) => {
@@ -198,7 +200,7 @@ export function UserManual() {
                           {s.number}
                         </span>
                       )}
-                      <span className="font-medium text-gray-700 dark:text-gray-200">{s.title}</span>
+                      <span className="font-medium text-gray-700 dark:text-gray-200">{t(s.titleKey)}</span>
                     </button>
                   );
                 })}
@@ -224,9 +226,9 @@ export function UserManual() {
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                   {section.number ? `${section.number}. ` : ''}
-                  {section.title}
+                  {t(section.titleKey)}
                 </h2>
-                <div className="text-sm text-gray-500 dark:text-gray-400">{section.desc}</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">{t(section.descKey)}</div>
               </div>
             </div>
 
@@ -238,7 +240,7 @@ export function UserManual() {
               className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40"
             >
               <ChevronUp className="h-3.5 w-3.5" />
-              กลับสารบัญ
+              {t('backToToc')}
             </button>
           </div>
         );

@@ -39,6 +39,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
+import { useTranslations } from 'next-intl';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,26 +86,21 @@ function getDefaultDateRange(): { start: string; end: string } {
   return { start: `${y}-${m}-${day}`, end: endStr };
 }
 
-function formatMinutes(mins: number): string {
-  if (mins < 1) return '< 1 นาที';
-  if (mins < 60) return `${Math.round(mins)} นาที`;
-  const h = Math.floor(mins / 60);
-  const m = Math.round(mins % 60);
-  return m > 0 ? `${h} ชม. ${m} น.` : `${h} ชม.`;
-}
+// formatMinutes is defined inside the component to access translations
 
 function extractDate(dt: string): string {
   return dt.split('T')[0];
 }
 
 function CustomTooltip({ active, payload, label }: any) {
+  const t = useTranslations('performance.staff');
   if (!active || !payload) return null;
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800">
       <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
       {payload.map((entry: any, idx: number) => (
         <p key={idx} className="text-sm" style={{ color: entry.color }}>
-          {entry.name}: {formatNumber(entry.value)} งาน
+          {entry.name}: {formatNumber(entry.value)} {t('tasks')}
         </p>
       ))}
     </div>
@@ -112,12 +108,13 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 function ChartEmptyState({ message }: { message?: string }) {
+  const t = useTranslations('performance.staff');
   return (
     <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50">
       <div className="text-center">
         <BarChart3 className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
         <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">
-          {message || 'ยังไม่มีข้อมูลในช่วงนี้'}
+          {message || t('noDataInRange')}
         </p>
       </div>
     </div>
@@ -159,8 +156,17 @@ function RankBadge({ rank }: { rank: number }) {
 // ---------------------------------------------------------------------------
 
 export default function StaffPerformancePage() {
+  const t = useTranslations('performance.staff');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
+
+  function formatMinutes(mins: number): string {
+    if (mins < 1) return t('lessThanOneMin');
+    if (mins < 60) return t('minutes', { count: Math.round(mins) });
+    const h = Math.floor(mins / 60);
+    const m = Math.round(mins % 60);
+    return m > 0 ? t('hoursMinutes', { h, m }) : t('hours', { h });
+  }
 
   const defaultRange = useMemo(() => getDefaultDateRange(), []);
   const [startDate, setStartDate] = useState(defaultRange.start);
@@ -348,7 +354,7 @@ export default function StaffPerformancePage() {
       setDailyData(dailyArr);
     } catch (err) {
       console.error('Failed to fetch staff performance:', err);
-      toast({ type: 'error', title: 'โหลดข้อมูลไม่สำเร็จ' });
+      toast({ type: 'error', title: t('loadError') });
     } finally {
       setLoading(false);
     }
@@ -395,10 +401,10 @@ export default function StaffPerformancePage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            ประสิทธิภาพพนักงาน
+            {t('title')}
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            วัดผลงานจากระบบ Action Cards (Claim → Complete)
+            {t('subtitle')}
           </p>
         </div>
 
@@ -409,7 +415,7 @@ export default function StaffPerformancePage() {
           disabled={loading}
         >
           <RefreshCw className={cn('mr-1.5 h-4 w-4', loading && 'animate-spin')} />
-          รีเฟรช
+          {t('refresh')}
         </Button>
       </div>
 
@@ -420,7 +426,7 @@ export default function StaffPerformancePage() {
             {isOwner && stores.length > 0 && (
               <div className="w-full sm:w-auto sm:min-w-[180px]">
                 <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                  สาขา
+                  {t('branch')}
                 </label>
                 <Select
                   value={selectedStoreId}
@@ -432,7 +438,7 @@ export default function StaffPerformancePage() {
             <div className="grid grid-cols-2 gap-3 sm:contents">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                  ตั้งแต่
+                  {t('dateFrom')}
                 </label>
                 <input
                   type="date"
@@ -443,7 +449,7 @@ export default function StaffPerformancePage() {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                  ถึง
+                  {t('dateTo')}
                 </label>
                 <input
                   type="date"
@@ -475,7 +481,7 @@ export default function StaffPerformancePage() {
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {formatNumber(totalTasks)}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">งานเสร็จทั้งหมด</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('totalCompleted')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -491,7 +497,7 @@ export default function StaffPerformancePage() {
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {formatMinutes(avgTime)}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">เวลาเฉลี่ย/งาน</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('avgTimePerTask')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -507,7 +513,7 @@ export default function StaffPerformancePage() {
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {overallRate.toFixed(0)}%
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Completion Rate</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('completionRate')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -523,7 +529,7 @@ export default function StaffPerformancePage() {
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {formatNumber(totalExpired)}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Timeout/หมดเวลา</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('timeoutExpired')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -533,8 +539,8 @@ export default function StaffPerformancePage() {
           {/* Daily Trend Chart */}
           <Card>
             <CardHeader
-              title="งานสำเร็จรายวัน (Top 10 พนักงาน)"
-              description="จำนวนงานที่ทำเสร็จต่อวันแยกตามพนักงาน"
+              title={t('dailyChartTitle')}
+              description={t('dailyChartDesc')}
             />
             <CardContent>
               {dailyData.length > 0 ? (
@@ -556,7 +562,7 @@ export default function StaffPerformancePage() {
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <ChartEmptyState message="ยังไม่มีข้อมูลงานสำเร็จในช่วงนี้" />
+                <ChartEmptyState message={t('noCompletedInRange')} />
               )}
             </CardContent>
           </Card>
@@ -564,7 +570,7 @@ export default function StaffPerformancePage() {
           {/* Staff Ranking Table */}
           <Card>
             <CardHeader
-              title="Ranking พนักงาน"
+              title={t('rankingTitle')}
               action={
                 <div className="flex gap-2">
                   <Button
@@ -572,21 +578,21 @@ export default function StaffPerformancePage() {
                     size="sm"
                     onClick={() => setSortBy('completed')}
                   >
-                    งานสำเร็จ
+                    {t('sortCompleted')}
                   </Button>
                   <Button
                     variant={sortBy === 'avgTime' ? 'primary' : 'secondary'}
                     size="sm"
                     onClick={() => setSortBy('avgTime')}
                   >
-                    เร็วสุด
+                    {t('sortFastest')}
                   </Button>
                   <Button
                     variant={sortBy === 'rate' ? 'primary' : 'secondary'}
                     size="sm"
                     onClick={() => setSortBy('rate')}
                   >
-                    Completion Rate
+                    {t('sortRate')}
                   </Button>
                 </div>
               }
@@ -594,20 +600,20 @@ export default function StaffPerformancePage() {
             <CardContent>
               {sortedStaff.length === 0 ? (
                 <div className="flex h-32 items-center justify-center text-sm text-gray-400">
-                  ไม่มีข้อมูลพนักงานในช่วงนี้
+                  {t('noStaffInRange')}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400">
                       <tr>
-                        <th className="px-4 py-3">อันดับ</th>
-                        <th className="px-4 py-3">พนักงาน</th>
-                        <th className="px-4 py-3 text-center">รับงาน</th>
-                        <th className="px-4 py-3 text-center">สำเร็จ</th>
-                        <th className="px-4 py-3 text-center">หมดเวลา</th>
-                        <th className="px-4 py-3 text-center">เวลาเฉลี่ย</th>
-                        <th className="px-4 py-3 text-center">Rate</th>
+                        <th className="px-4 py-3">{t('colRank')}</th>
+                        <th className="px-4 py-3">{t('colStaff')}</th>
+                        <th className="px-4 py-3 text-center">{t('colClaimed')}</th>
+                        <th className="px-4 py-3 text-center">{t('colCompleted')}</th>
+                        <th className="px-4 py-3 text-center">{t('colExpired')}</th>
+                        <th className="px-4 py-3 text-center">{t('colAvgTime')}</th>
+                        <th className="px-4 py-3 text-center">{t('colRate')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">

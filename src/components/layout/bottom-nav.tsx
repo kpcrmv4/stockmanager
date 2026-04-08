@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import {
   ClipboardList,
@@ -22,41 +23,42 @@ import { getModuleColors } from '@/lib/utils/module-colors';
 import type { LucideIcon } from 'lucide-react';
 
 interface NavItem {
-  label: string;
+  labelKey: string;
   href: string;
   icon: LucideIcon;
   color: string;
 }
 
-// เมนูสำหรับ owner/manager/accountant/hq — ภาพรวมอยู่ตรงกลาง (ตำแหน่งที่ 3)
+// เมนูสำหรับ owner/manager/accountant/hq
 const desktopRoleNavItems: NavItem[] = [
-  { label: 'สต๊อก', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
-  { label: 'ฝาก/เบิก', href: '/deposit', icon: Wine, color: 'emerald' },
-  { label: 'ภาพรวม', href: '/overview', icon: LayoutDashboard, color: 'violet' },
-  { label: 'แชท', href: '/chat', icon: MessageSquare, color: 'blue' },
-  { label: 'คู่มือ', href: '/guide', icon: BookOpen, color: 'sky' },
+  { labelKey: 'nav.stock', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
+  { labelKey: 'nav.depositWithdraw', href: '/deposit', icon: Wine, color: 'emerald' },
+  { labelKey: 'nav.overview', href: '/overview', icon: LayoutDashboard, color: 'violet' },
+  { labelKey: 'nav.chat', href: '/chat', icon: MessageSquare, color: 'blue' },
+  { labelKey: 'nav.guide', href: '/guide', icon: BookOpen, color: 'sky' },
 ];
 
-// เมนูสำหรับ staff — งานของฉัน ตรงกลาง (ปุ่มนูน) เป็นหน้าเริ่มต้น
+// เมนูสำหรับ staff
 const staffNavItems: NavItem[] = [
-  { label: 'ฝาก/เบิก', href: '/deposit', icon: Wine, color: 'emerald' },
-  { label: 'นับสต๊อก', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
-  { label: 'แชท', href: '/chat', icon: MessageSquare, color: 'blue' },
-  { label: 'ยืมสินค้า', href: '/borrow', icon: Repeat, color: 'rose' },
-  { label: 'คู่มือ', href: '/guide', icon: BookOpen, color: 'sky' },
+  { labelKey: 'nav.depositWithdraw', href: '/deposit', icon: Wine, color: 'emerald' },
+  { labelKey: 'nav.countStock', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
+  { labelKey: 'nav.chat', href: '/chat', icon: MessageSquare, color: 'blue' },
+  { labelKey: 'nav.borrowItem', href: '/borrow', icon: Repeat, color: 'rose' },
+  { labelKey: 'nav.guide', href: '/guide', icon: BookOpen, color: 'sky' },
 ];
 
 // เมนูสำหรับ bar
 const barNavItems: NavItem[] = [
-  { label: 'อนุมัติ', href: '/bar-approval', icon: CheckCircle, color: 'teal' },
-  { label: 'ฝาก/เบิก', href: '/deposit', icon: Wine, color: 'emerald' },
-  { label: 'แชท', href: '/chat', icon: MessageSquare, color: 'blue' },
-  { label: 'นับสต๊อก', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
-  { label: 'คู่มือ', href: '/guide', icon: BookOpen, color: 'sky' },
+  { labelKey: 'nav.approve', href: '/bar-approval', icon: CheckCircle, color: 'teal' },
+  { labelKey: 'nav.depositWithdraw', href: '/deposit', icon: Wine, color: 'emerald' },
+  { labelKey: 'nav.chat', href: '/chat', icon: MessageSquare, color: 'blue' },
+  { labelKey: 'nav.countStock', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
+  { labelKey: 'nav.guide', href: '/guide', icon: BookOpen, color: 'sky' },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
+  const t = useTranslations();
   const { user } = useAuthStore();
   const { unreadCount } = useNotificationStore();
   const chatUnread = useChatStore((s) => s.totalUnread);
@@ -70,7 +72,6 @@ export function BottomNav() {
       ? barNavItems
       : staffNavItems;
 
-  // Center index สำหรับ nav ที่มี 5 รายการ (ปุ่มนูนตรงกลาง)
   const centerIndex = navItems.length === 5 ? 2 : -1;
 
   return (
@@ -89,8 +90,8 @@ export function BottomNav() {
           const isNotification = item.href === '/notifications';
           const isChat = item.href === '/chat';
           const colors = getModuleColors(item.color);
+          const label = t(item.labelKey);
 
-          // ปุ่มตรงกลาง — นูนขึ้นเป็นวงกลม gradient
           if (isCenter) {
             return (
               <li key={item.href} className="flex-1">
@@ -117,14 +118,13 @@ export function BottomNav() {
                         : 'text-gray-500 dark:text-gray-400'
                     )}
                   >
-                    {item.label}
+                    {label}
                   </span>
                 </Link>
               </li>
             );
           }
 
-          // ปุ่มปกติ
           return (
             <li key={item.href} className="flex-1">
               <Link
@@ -139,7 +139,6 @@ export function BottomNav() {
               >
                 <span className="relative">
                   <Icon className="h-6 w-6" />
-                  {/* Badge แจ้งเตือน */}
                   {isNotification && unreadCount > 0 && (
                     <span
                       className={cn(
@@ -150,7 +149,6 @@ export function BottomNav() {
                       {unreadCount > 99 ? '99+' : unreadCount}
                     </span>
                   )}
-                  {/* Badge แชท */}
                   {isChat && chatUnread > 0 && (
                     <span
                       className={cn(
@@ -163,7 +161,7 @@ export function BottomNav() {
                   )}
                 </span>
                 <span className="text-[10px] font-medium leading-tight">
-                  {item.label}
+                  {label}
                 </span>
               </Link>
             </li>

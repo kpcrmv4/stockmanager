@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
+import { useTranslations } from 'next-intl';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useRealtime } from '@/hooks/use-realtime';
@@ -100,33 +101,35 @@ interface FormItem {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function relativeTime(dateStr: string): string {
+function relativeTime(dateStr: string, t: ReturnType<typeof useTranslations>): string {
   const now = Date.now();
   const diff = now - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'เมื่อสักครู่';
-  if (mins < 60) return `${mins} นาทีที่แล้ว`;
+  if (mins < 1) return t('justNow');
+  if (mins < 60) return t('minutesAgo', { count: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} ชั่วโมงที่แล้ว`;
+  if (hours < 24) return t('hoursAgo', { count: hours });
   const days = Math.floor(hours / 24);
-  return `${days} วันที่แล้ว`;
+  return t('daysAgo', { count: days });
 }
 
 function isNew(dateStr: string): boolean {
   return Date.now() - new Date(dateStr).getTime() < 5 * 60 * 1000;
 }
 
-const statusConfig: Record<
+function getStatusConfig(t: ReturnType<typeof useTranslations>): Record<
   BorrowWithDetails['status'],
   { label: string; variant: 'warning' | 'info' | 'default' | 'success' | 'danger'; step: number }
-> = {
-  pending_approval: { label: 'รออนุมัติ', variant: 'warning', step: 0 },
-  approved: { label: 'อนุมัติแล้ว', variant: 'info', step: 1 },
-  pos_adjusting: { label: 'รอตัดสต๊อก', variant: 'default', step: 2 },
-  completed: { label: 'เสร็จสิ้น', variant: 'success', step: 3 },
-  rejected: { label: 'ปฏิเสธ', variant: 'danger', step: -1 },
-  cancelled: { label: 'ยกเลิก', variant: 'danger', step: -1 },
-};
+> {
+  return {
+    pending_approval: { label: t('statusPendingApproval'), variant: 'warning', step: 0 },
+    approved: { label: t('statusApproved'), variant: 'info', step: 1 },
+    pos_adjusting: { label: t('statusPosAdjusting'), variant: 'default', step: 2 },
+    completed: { label: t('statusCompleted'), variant: 'success', step: 3 },
+    rejected: { label: t('statusRejected'), variant: 'danger', step: -1 },
+    cancelled: { label: t('statusCancelled'), variant: 'danger', step: -1 },
+  };
+}
 
 /**
  * สถานะจากมุมมองของฝั่งที่กำลังดู:
@@ -135,17 +138,18 @@ const statusConfig: Record<
 function getVisualStatus(
   borrow: BorrowWithDetails,
   currentStoreId: string,
+  t: ReturnType<typeof useTranslations>,
 ): { label: string; variant: 'warning' | 'info' | 'default' | 'success' | 'danger'; step: number } {
   const isBorrowerSide = borrow.from_store_id === currentStoreId;
   const isLenderSide = borrow.to_store_id === currentStoreId;
+  const statusConfig = getStatusConfig(t);
 
-  // ถ้าสถานะเป็น pos_adjusting แต่ฝั่งเราตัดแล้ว → แสดงเป็นเสร็จสิ้น
   if (borrow.status === 'pos_adjusting' || borrow.status === 'approved') {
     if (isBorrowerSide && borrow.borrower_pos_confirmed) {
-      return { label: 'เสร็จสิ้น (ฝั่งเรา)', variant: 'success', step: 3 };
+      return { label: t('statusOurSideDone'), variant: 'success', step: 3 };
     }
     if (isLenderSide && borrow.lender_pos_confirmed) {
-      return { label: 'เสร็จสิ้น (ฝั่งเรา)', variant: 'success', step: 3 };
+      return { label: t('statusOurSideDone'), variant: 'success', step: 3 };
     }
   }
 
@@ -160,11 +164,14 @@ const EMPTY_FORM_ITEM: FormItem = { product_name: '', category: '', quantity: ''
 
 function StatusProgressBar({
   status,
+  t,
 }: {
   status: BorrowWithDetails['status'];
+  t: ReturnType<typeof useTranslations>;
 }) {
-  const steps = ['ส่งคำขอ', 'อนุมัติ', 'ตัดสต๊อก POS', 'เสร็จสิ้น'];
+  const steps = [t('stepSendRequest'), t('stepApprove'), t('stepPosAdjust'), t('stepComplete')];
   const isRejected = status === 'rejected';
+  const statusConfig = getStatusConfig(t);
   const currentStep = statusConfig[status].step;
 
   return (
@@ -248,13 +255,15 @@ function BorrowCard({
   tab,
   currentStoreId,
   onClick,
+  t,
 }: {
   borrow: BorrowWithDetails;
   tab: 'outgoing' | 'incoming';
   currentStoreId: string;
   onClick: () => void;
+  t: ReturnType<typeof useTranslations>;
 }) {
-  const config = getVisualStatus(borrow, currentStoreId);
+  const config = getVisualStatus(borrow, currentStoreId, t);
   const otherStore =
     tab === 'outgoing' ? borrow.to_store_name : borrow.from_store_name;
   const itemsSummary = borrow.items
@@ -279,7 +288,7 @@ function BorrowCard({
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
             <Store className="h-4 w-4 shrink-0 text-teal-500" />
             <span className="font-medium truncate max-w-[180px] sm:max-w-none">
-              {otherStore || 'ไม่ทราบสาขา'}
+              {otherStore || t('unknownStore')}
             </span>
           </div>
           <Badge variant={config.variant as 'warning' | 'success' | 'danger' | 'info' | 'default'} size="sm">
@@ -289,7 +298,7 @@ function BorrowCard({
 
         {/* Items summary */}
         <p className="mt-2 text-sm text-gray-800 dark:text-gray-200 line-clamp-2">
-          <span className="font-medium text-teal-600 dark:text-teal-400">{totalItems} รายการ:</span>{' '}
+          <span className="font-medium text-teal-600 dark:text-teal-400">{t('itemCount', { count: totalItems })}</span>{' '}
           {itemsSummary}
         </p>
 
@@ -302,7 +311,7 @@ function BorrowCard({
                 {borrow.requester_name}
               </span>
             )}
-            <span>{relativeTime(borrow.created_at)}</span>
+            <span>{relativeTime(borrow.created_at, t)}</span>
           </div>
           <div className="flex items-center gap-2">
             {hasPhoto && <Camera className="h-3.5 w-3.5 text-gray-400" />}
@@ -331,12 +340,14 @@ function CreateBorrowModal({
   stores,
   currentStoreId,
   onSuccess,
+  t,
 }: {
   isOpen: boolean;
   onClose: () => void;
   stores: StoreOption[];
   currentStoreId: string;
   onSuccess: () => void;
+  t: ReturnType<typeof useTranslations>;
 }) {
   const [targetStore, setTargetStore] = useState('');
   const [items, setItems] = useState<FormItem[]>([{ ...EMPTY_FORM_ITEM }]);
@@ -453,17 +464,17 @@ function CreateBorrowModal({
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'ไม่สามารถสร้างคำขอยืมได้');
+        throw new Error(data.error || t('createError'));
       }
 
-      toast({ type: 'success', title: 'สร้างคำขอยืมสำเร็จ' });
+      toast({ type: 'success', title: t('createSuccess') });
       handleClose();
       onSuccess();
     } catch (err) {
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: err instanceof Error ? err.message : 'ลองอีกครั้ง',
+        title: t('actionError'),
+        message: err instanceof Error ? err.message : t('tryAgain'),
       });
     } finally {
       setIsSubmitting(false);
@@ -483,14 +494,14 @@ function CreateBorrowModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="สร้างคำขอยืม"
-      description="ส่งคำขอยืมสินค้าจากสาขาอื่น"
+      title={t('createBorrowTitle')}
+      description={t('createBorrowDesc')}
       size="lg"
     >
       <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-1">
         {/* Target store */}
         <Select
-          label="สาขาที่ต้องการยืม"
+          label={t('targetStore')}
           options={availableStores.map((s) => ({
             value: s.id,
             label: `${s.store_name} (${s.store_code})`,
@@ -501,13 +512,13 @@ function CreateBorrowModal({
             // Reset items when switching branch
             setItems([{ ...EMPTY_FORM_ITEM }]);
           }}
-          placeholder="เลือกสาขา"
+          placeholder={t('selectStore')}
         />
 
         {/* Items */}
         <div>
           <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            รายการสินค้า
+            {t('itemList')}
             {loadingProducts && (
               <Loader2 className="ml-2 inline h-3.5 w-3.5 animate-spin text-teal-500" />
             )}
@@ -524,7 +535,7 @@ function CreateBorrowModal({
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <span className="text-xs font-medium text-teal-600 dark:text-teal-400">
-                      รายการที่ {idx + 1}
+                      {t('itemNumber', { num: idx + 1 })}
                     </span>
                     {items.length > 1 && (
                       <button
@@ -540,7 +551,7 @@ function CreateBorrowModal({
                     {/* Product name with autocomplete */}
                     <div className="relative sm:col-span-2">
                       <Input
-                        placeholder={targetStore ? 'พิมพ์ชื่อสินค้า *' : 'เลือกสาขาก่อน *'}
+                        placeholder={targetStore ? t('productPlaceholder') : t('selectStorePlaceholder')}
                         value={item.product_name}
                         onChange={(e) => {
                           updateItem(idx, 'product_name', e.target.value);
@@ -575,20 +586,20 @@ function CreateBorrowModal({
                       )}
                     </div>
                     <Input
-                      placeholder="หมวดหมู่"
+                      placeholder={t('categoryPlaceholder')}
                       value={item.category}
                       onChange={(e) => updateItem(idx, 'category', e.target.value)}
                       disabled={!targetStore}
                     />
                     <Input
-                      placeholder="หน่วย"
+                      placeholder={t('unitPlaceholder')}
                       value={item.unit}
                       onChange={(e) => updateItem(idx, 'unit', e.target.value)}
                       disabled={!targetStore}
                     />
                     <Input
                       type="number"
-                      placeholder="จำนวน *"
+                      placeholder={t('quantityPlaceholder')}
                       min="1"
                       value={item.quantity}
                       onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
@@ -605,23 +616,23 @@ function CreateBorrowModal({
             className="mt-2 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-teal-600 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-900/20"
           >
             <Plus className="h-4 w-4" />
-            เพิ่มรายการ
+            {t('addItem')}
           </button>
         </div>
 
         {/* Notes */}
         <Textarea
-          label="หมายเหตุ"
+          label={t('notesLabel')}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="ระบุเหตุผลการยืม (ถ้ามี)"
+          placeholder={t('notesPlaceholder')}
           rows={2}
         />
       </div>
 
       <ModalFooter>
         <Button variant="outline" onClick={handleClose}>
-          ยกเลิก
+          {t('cancel')}
         </Button>
         <Button
           onClick={handleSubmit}
@@ -630,7 +641,7 @@ function CreateBorrowModal({
           icon={<Send className="h-4 w-4" />}
           className="bg-teal-500 hover:bg-teal-600 active:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600"
         >
-          ส่งคำขอยืม
+          {t('submitBorrow')}
         </Button>
       </ModalFooter>
     </Modal>
@@ -647,15 +658,17 @@ function BorrowDetailSheet({
   currentStoreId,
   onClose,
   onAction,
+  t,
 }: {
   borrow: BorrowWithDetails;
   tab: 'outgoing' | 'incoming';
   currentStoreId: string;
   onClose: () => void;
   onAction: () => void;
+  t: ReturnType<typeof useTranslations>;
 }) {
   const { user } = useAuthStore();
-  const config = getVisualStatus(borrow, currentStoreId);
+  const config = getVisualStatus(borrow, currentStoreId, t);
 
   const [isActing, setIsActing] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -680,14 +693,14 @@ function BorrowDetailSheet({
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'ดำเนินการไม่สำเร็จ');
+        throw new Error(data.error || t('actionError'));
       }
       onAction();
     } catch (err) {
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: err instanceof Error ? err.message : 'ลองอีกครั้ง',
+        title: t('actionError'),
+        message: err instanceof Error ? err.message : t('tryAgain'),
       });
     } finally {
       setIsActing(false);
@@ -696,37 +709,37 @@ function BorrowDetailSheet({
 
   const handleApprove = () => {
     if (!lenderPhoto) {
-      toast({ type: 'warning', title: 'กรุณาแนบรูปถ่ายก่อนอนุมัติ' });
+      toast({ type: 'warning', title: t('approvePhotoRequired') });
       return;
     }
     const approvedItems = borrow.items.map((i) => ({
       itemId: i.id,
       approvedQuantity: approvedQtys[i.id] ?? i.quantity,
     }));
-    toast({ type: 'success', title: 'อนุมัติคำขอยืมแล้ว' });
+    toast({ type: 'success', title: t('approveSuccess') });
     patchBorrow({ action: 'approve', lenderPhotoUrl: lenderPhoto, approvedItems });
   };
 
   const handleReject = () => {
     if (!rejectionReason.trim()) {
-      toast({ type: 'warning', title: 'กรุณาระบุเหตุผลการปฏิเสธ' });
+      toast({ type: 'warning', title: t('rejectReasonRequired') });
       return;
     }
-    toast({ type: 'warning', title: 'ปฏิเสธคำขอยืมแล้ว' });
+    toast({ type: 'warning', title: t('rejectSuccess') });
     patchBorrow({ action: 'reject', reason: rejectionReason.trim() });
   };
 
   const handleConfirmPos = (side: 'borrower' | 'lender') => {
     if (!posBillUrl) {
-      toast({ type: 'warning', title: 'กรุณาแนบรูป POS bill ก่อนยืนยัน' });
+      toast({ type: 'warning', title: t('posBillRequired') });
       return;
     }
-    toast({ type: 'success', title: 'ยืนยันตัดสต๊อก POS แล้ว' });
+    toast({ type: 'success', title: t('posConfirmSuccess') });
     patchBorrow({ action: 'confirm_pos', side, posBillUrl });
   };
 
   const handleCancel = () => {
-    toast({ type: 'warning', title: 'ยกเลิกคำขอยืมแล้ว' });
+    toast({ type: 'warning', title: t('cancelSuccess') });
     patchBorrow({ action: 'cancel' });
   };
 
@@ -773,7 +786,7 @@ function BorrowDetailSheet({
                 </span>
               </div>
               <h2 className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">
-                รายละเอียดการยืม
+                {t('borrowDetail')}
               </h2>
             </div>
             <button
@@ -785,21 +798,21 @@ function BorrowDetailSheet({
           </div>
 
           {/* Status Progress */}
-          <StatusProgressBar status={borrow.status} />
+          <StatusProgressBar status={borrow.status} t={t} />
 
           {/* Store info */}
           <div className="flex items-center gap-3 rounded-xl bg-teal-50 p-4 dark:bg-teal-900/10">
             <div className="flex items-center gap-2 text-sm">
               <Building2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
               <span className="font-medium text-gray-800 dark:text-gray-200">
-                {borrow.from_store_name || 'ไม่ทราบ'}
+                {borrow.from_store_name || t('unknownBranch')}
               </span>
             </div>
             <ArrowRightLeft className="h-4 w-4 text-teal-500" />
             <div className="flex items-center gap-2 text-sm">
               <Store className="h-4 w-4 text-teal-600 dark:text-teal-400" />
               <span className="font-medium text-gray-800 dark:text-gray-200">
-                {borrow.to_store_name || 'ไม่ทราบ'}
+                {borrow.to_store_name || t('unknownBranch')}
               </span>
             </div>
           </div>
@@ -807,14 +820,14 @@ function BorrowDetailSheet({
           {/* Requester */}
           {borrow.requester_name && (
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              ผู้ขอ: <span className="font-medium text-gray-700 dark:text-gray-300">{borrow.requester_name}</span>
+              {t('requester')} <span className="font-medium text-gray-700 dark:text-gray-300">{borrow.requester_name}</span>
             </div>
           )}
 
           {/* Items list */}
           <div>
             <h3 className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-              รายการสินค้า ({borrow.items.length})
+              {t('itemListLabel', { count: borrow.items.length })}
             </h3>
             <div className="space-y-2">
               {borrow.items.map((item) => (
@@ -838,10 +851,10 @@ function BorrowDetailSheet({
                   <div className="text-right">
                     {item.approved_quantity != null && item.approved_quantity !== item.quantity ? (
                       <div>
-                        <span className="text-xs text-gray-400 line-through">ขอ {item.quantity}</span>
+                        <span className="text-xs text-gray-400 line-through">{t('requestedQty', { qty: item.quantity })}</span>
                         <div>
                           <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
-                            ได้ {item.approved_quantity}
+                            {t('approvedQty', { qty: item.approved_quantity })}
                           </span>
                           {item.unit && (
                             <span className="ml-1 text-xs text-gray-400">{item.unit}</span>
@@ -868,7 +881,7 @@ function BorrowDetailSheet({
           {borrow.notes && (
             <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                หมายเหตุ
+                {t('notesTitle')}
               </p>
               <p className="text-sm text-gray-700 dark:text-gray-300">{borrow.notes}</p>
             </div>
@@ -877,13 +890,13 @@ function BorrowDetailSheet({
           {/* Photos */}
           <div className="space-y-3">
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              รูปถ่าย
+              {t('photos')}
             </h3>
 
             {/* Borrower photo */}
             <div>
               <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                ฝั่งผู้ยืม
+                {t('borrowerSide')}
               </p>
               {isBorrowerSide && (borrow.status === 'approved' || borrow.status === 'pos_adjusting') ? (
                 <PhotoUpload
@@ -895,13 +908,13 @@ function BorrowDetailSheet({
               ) : borrowerPhoto ? (
                 <img
                   src={borrowerPhoto}
-                  alt="รูปฝั่งผู้ยืม"
+                  alt={t('borrowerPhoto')}
                   className="max-h-40 rounded-lg object-cover"
                 />
               ) : (
                 <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                   <Image className="h-4 w-4" />
-                  ยังไม่มีรูป
+                  {t('noPhoto')}
                 </div>
               )}
             </div>
@@ -909,7 +922,7 @@ function BorrowDetailSheet({
             {/* Lender photo */}
             <div>
               <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                ฝั่งผู้ให้ยืม
+                {t('lenderSide')}
               </p>
               {isLenderSide && (borrow.status === 'pending_approval' || borrow.status === 'approved' || borrow.status === 'pos_adjusting') ? (
                 <PhotoUpload
@@ -921,13 +934,13 @@ function BorrowDetailSheet({
               ) : lenderPhoto ? (
                 <img
                   src={lenderPhoto}
-                  alt="รูปฝั่งผู้ให้ยืม"
+                  alt={t('lenderPhoto')}
                   className="max-h-40 rounded-lg object-cover"
                 />
               ) : (
                 <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                   <Image className="h-4 w-4" />
-                  ยังไม่มีรูป
+                  {t('noPhoto')}
                 </div>
               )}
             </div>
@@ -938,11 +951,11 @@ function BorrowDetailSheet({
             <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
               <div className="flex items-center gap-2 text-sm font-medium text-red-700 dark:text-red-400">
                 <XCircle className="h-4 w-4" />
-                ปฏิเสธแล้ว
+                {t('rejected')}
               </div>
               {borrow.rejection_reason && (
                 <p className="mt-1 text-sm text-red-600 dark:text-red-300">
-                  เหตุผล: {borrow.rejection_reason}
+                  {t('rejectionReason', { reason: borrow.rejection_reason })}
                 </p>
               )}
               {borrow.rejected_at && (
@@ -958,7 +971,7 @@ function BorrowDetailSheet({
             <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 dark:border-orange-800 dark:bg-orange-900/20">
               <div className="flex items-center gap-2 text-sm font-medium text-orange-700 dark:text-orange-400">
                 <XCircle className="h-4 w-4" />
-                ยกเลิกแล้ว
+                {t('cancelled')}
               </div>
             </div>
           )}
@@ -968,7 +981,7 @@ function BorrowDetailSheet({
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
               <div className="flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
                 <CheckCircle2 className="h-4 w-4" />
-                เสร็จสิ้นแล้ว
+                {t('completedStatus')}
               </div>
               {borrow.completed_at && (
                 <p className="mt-1 text-xs text-emerald-500 dark:text-emerald-400">
@@ -978,7 +991,7 @@ function BorrowDetailSheet({
               <div className="mt-2 space-y-1 text-xs text-emerald-600 dark:text-emerald-400">
                 <div className="flex items-center gap-1.5">
                   <Check className="h-3 w-3" />
-                  ฝั่งผู้ยืมตัดสต๊อกแล้ว
+                  {t('borrowerPosConfirmed')}
                   {borrow.borrower_pos_confirmed_at && (
                     <span className="text-emerald-400">
                       ({formatThaiDateTime(borrow.borrower_pos_confirmed_at)})
@@ -987,7 +1000,7 @@ function BorrowDetailSheet({
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Check className="h-3 w-3" />
-                  ฝั่งผู้ให้ยืมตัดสต๊อกแล้ว
+                  {t('lenderPosConfirmed')}
                   {borrow.lender_pos_confirmed_at && (
                     <span className="text-emerald-400">
                       ({formatThaiDateTime(borrow.lender_pos_confirmed_at)})
@@ -1008,14 +1021,14 @@ function BorrowDetailSheet({
               {/* Approved qty per item */}
               <div>
                 <h3 className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  ระบุจำนวนที่อนุมัติ
+                  {t('specifyApprovedQty')}
                 </h3>
                 <div className="space-y-2">
                   {borrow.items.map((item) => (
                     <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{item.product_name}</p>
-                        <p className="text-xs text-gray-400">ขอ {item.quantity} {item.unit || ''}</p>
+                        <p className="text-xs text-gray-400">{t('requestedQty', { qty: item.quantity })} {item.unit || ''}</p>
                       </div>
                       <input
                         type="number"
@@ -1038,7 +1051,7 @@ function BorrowDetailSheet({
                     onClick={handleApprove}
                     isLoading={isActing}
                   >
-                    อนุมัติ
+                    {t('approve')}
                   </Button>
                   <Button
                     className="flex-1"
@@ -1046,13 +1059,13 @@ function BorrowDetailSheet({
                     icon={<XCircle className="h-4 w-4" />}
                     onClick={() => setShowRejectInput(true)}
                   >
-                    ปฏิเสธ
+                    {t('reject')}
                   </Button>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <Textarea
-                    placeholder="ระบุเหตุผลการปฏิเสธ..."
+                    placeholder={t('rejectReasonPlaceholder')}
                     value={rejectionReason}
                     onChange={(e) => setRejectionReason(e.target.value)}
                     rows={2}
@@ -1066,7 +1079,7 @@ function BorrowDetailSheet({
                         setRejectionReason('');
                       }}
                     >
-                      ยกเลิก
+                      {t('cancel')}
                     </Button>
                     <Button
                       variant="danger"
@@ -1076,7 +1089,7 @@ function BorrowDetailSheet({
                       isLoading={isActing}
                       disabled={!rejectionReason.trim()}
                     >
-                      ยืนยันปฏิเสธ
+                      {t('confirmReject')}
                     </Button>
                   </div>
                 </div>
@@ -1091,7 +1104,7 @@ function BorrowDetailSheet({
                 <>
                   <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
                     <Clock className="h-4 w-4" />
-                    รออนุมัติจากสาขา {borrow.to_store_name || ''}
+                    {t('waitingApproval', { store: borrow.to_store_name || '' })}
                   </div>
                   <Button
                     className="w-full"
@@ -1100,7 +1113,7 @@ function BorrowDetailSheet({
                     onClick={handleCancel}
                     isLoading={isActing}
                   >
-                    ยกเลิกคำขอยืม
+                    {t('cancelBorrow')}
                   </Button>
                 </>
               )}
@@ -1116,7 +1129,7 @@ function BorrowDetailSheet({
                   {borrow.lender_pos_confirmed ? (
                     <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
                       <CheckCircle2 className="h-4 w-4" />
-                      ฝั่งผู้ให้ยืม ({borrow.to_store_name}) ตัดสต๊อกแล้ว
+                      {t('lenderPosConfirmedMsg', { store: borrow.to_store_name || '' })}
                     </div>
                   ) : (
                     <>
@@ -1124,7 +1137,7 @@ function BorrowDetailSheet({
                         value={posBillUrl}
                         onChange={setPosBillUrl}
                         folder="borrows/pos-bills"
-                        label="รูป POS bill (ฝั่งผู้ให้ยืม)"
+                        label={t('posBillLender')}
                         compact
                       />
                       <Button
@@ -1134,7 +1147,7 @@ function BorrowDetailSheet({
                         isLoading={isActing}
                         disabled={!posBillUrl}
                       >
-                        ยืนยันตัดสต๊อก POS (ฝั่งผู้ให้ยืม)
+                        {t('confirmPosLender')}
                       </Button>
                     </>
                   )}
@@ -1147,7 +1160,7 @@ function BorrowDetailSheet({
                   {borrow.borrower_pos_confirmed ? (
                     <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
                       <CheckCircle2 className="h-4 w-4" />
-                      ฝั่งผู้ยืม ({borrow.from_store_name}) ตัดสต๊อกแล้ว
+                      {t('borrowerPosConfirmedMsg', { store: borrow.from_store_name || '' })}
                     </div>
                   ) : (
                     <>
@@ -1155,7 +1168,7 @@ function BorrowDetailSheet({
                         value={posBillUrl}
                         onChange={setPosBillUrl}
                         folder="borrows/pos-bills"
-                        label="รูป POS bill (ฝั่งผู้ยืม)"
+                        label={t('posBillBorrower')}
                         compact
                       />
                       <Button
@@ -1165,7 +1178,7 @@ function BorrowDetailSheet({
                         isLoading={isActing}
                         disabled={!posBillUrl}
                       >
-                        ยืนยันตัดสต๊อก POS (ฝั่งผู้ยืม)
+                        {t('confirmPosBorrower')}
                       </Button>
                     </>
                   )}
@@ -1186,6 +1199,7 @@ function BorrowDetailSheet({
 export default function BorrowPage() {
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
+  const t = useTranslations('borrow');
 
   const [activeTab, setActiveTab] = useState<'outgoing' | 'incoming'>('outgoing');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -1327,18 +1341,18 @@ export default function BorrowPage() {
 
   // Sub-tab definitions per main tab
   const outgoingSubTabs = [
-    { key: 'all', label: 'ทั้งหมด' },
-    { key: 'pending_approval', label: 'รออนุมัติ' },
-    { key: 'pos_waiting', label: 'รอตัดสต๊อก' },
-    { key: 'completed', label: 'ยืมสำเร็จ' },
-    { key: 'cancelled_rejected', label: 'ยกเลิก' },
+    { key: 'all', label: t('subAll') },
+    { key: 'pending_approval', label: t('subPendingApproval') },
+    { key: 'pos_waiting', label: t('subPosWaiting') },
+    { key: 'completed', label: t('subCompleted') },
+    { key: 'cancelled_rejected', label: t('subCancelled') },
   ];
   const incomingSubTabs = [
-    { key: 'all', label: 'ทั้งหมด' },
-    { key: 'pending_approval', label: 'รออนุมัติ' },
-    { key: 'pos_waiting', label: 'รอตัดสต๊อก' },
-    { key: 'completed', label: 'เสร็จสิ้น' },
-    { key: 'cancelled_rejected', label: 'ยกเลิก' },
+    { key: 'all', label: t('subAll') },
+    { key: 'pending_approval', label: t('subPendingApproval') },
+    { key: 'pos_waiting', label: t('subPosWaiting') },
+    { key: 'completed', label: t('subCompletedIncoming') },
+    { key: 'cancelled_rejected', label: t('subCancelled') },
   ];
   const subTabs = activeTab === 'outgoing' ? outgoingSubTabs : incomingSubTabs;
 
@@ -1371,7 +1385,7 @@ export default function BorrowPage() {
       {/* ----------------------------------------------------------------- */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          ยืมสินค้า
+          {t('title')}
         </h1>
         {currentStoreName && (
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -1394,7 +1408,7 @@ export default function BorrowPage() {
                 {pendingCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                รออนุมัติ
+                {t('pendingApprovalCount')}
               </p>
             </div>
           </div>
@@ -1409,7 +1423,7 @@ export default function BorrowPage() {
                 {posWaitingCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                รอตัดสต๊อก POS
+                {t('posWaitingCount')}
               </p>
             </div>
           </div>
@@ -1431,8 +1445,8 @@ export default function BorrowPage() {
           )}
         >
           <Send className="h-4 w-4" />
-          <span className="sm:hidden">ขอยืม</span>
-          <span className="hidden sm:inline">รายการขอยืม</span>
+          <span className="sm:hidden">{t('tabOutgoing')}</span>
+          <span className="hidden sm:inline">{t('tabOutgoingFull')}</span>
         </button>
         <button
           type="button"
@@ -1445,8 +1459,8 @@ export default function BorrowPage() {
           )}
         >
           <Package className="h-4 w-4" />
-          <span className="sm:hidden">ให้ยืม</span>
-          <span className="hidden sm:inline">รายการให้ยืม</span>
+          <span className="sm:hidden">{t('tabIncoming')}</span>
+          <span className="hidden sm:inline">{t('tabIncomingFull')}</span>
         </button>
       </div>
 
@@ -1493,12 +1507,12 @@ export default function BorrowPage() {
       ) : filteredBorrows.length === 0 ? (
         <EmptyState
           icon={ArrowRightLeft}
-          title={statusFilter === 'all' ? 'ยังไม่มีรายการ' : `ไม่มีรายการ "${subTabs.find((s) => s.key === statusFilter)?.label}"`}
+          title={statusFilter === 'all' ? t('noItems') : t('noItemsFiltered', { label: subTabs.find((s) => s.key === statusFilter)?.label || '' })}
           description={
             activeTab === 'outgoing' && statusFilter === 'all'
-              ? 'คุณยังไม่ได้สร้างคำขอยืมสินค้า'
+              ? t('noOutgoingDesc')
               : activeTab === 'incoming' && statusFilter === 'all'
-                ? 'ยังไม่มีสาขาอื่นขอยืมสินค้าจากคุณ'
+                ? t('noIncomingDesc')
                 : undefined
           }
           action={
@@ -1508,7 +1522,7 @@ export default function BorrowPage() {
                 onClick={() => setShowCreateModal(true)}
                 className="bg-teal-500 hover:bg-teal-600 active:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600"
               >
-                สร้างคำขอยืม
+                {t('createBorrow')}
               </Button>
             ) : undefined
           }
@@ -1522,6 +1536,7 @@ export default function BorrowPage() {
               tab={activeTab}
               currentStoreId={currentStoreId!}
               onClick={() => setSelectedBorrow(borrow)}
+              t={t}
             />
           ))}
         </div>
@@ -1538,7 +1553,7 @@ export default function BorrowPage() {
         >
           <Plus className="h-6 w-6 sm:h-5 sm:w-5" />
           <span className="hidden sm:inline text-sm font-medium">
-            สร้างคำขอยืม
+            {t('createBorrow')}
           </span>
         </button>
       )}
@@ -1553,6 +1568,7 @@ export default function BorrowPage() {
           stores={stores}
           currentStoreId={currentStoreId}
           onSuccess={fetchBorrows}
+          t={t}
         />
       )}
 
@@ -1566,6 +1582,7 @@ export default function BorrowPage() {
           currentStoreId={currentStoreId}
           onClose={() => setSelectedBorrow(null)}
           onAction={handleDetailAction}
+          t={t}
         />
       )}
     </div>

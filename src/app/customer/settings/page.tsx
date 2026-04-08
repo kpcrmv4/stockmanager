@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { Bell, MessageCircle, Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -27,6 +28,7 @@ export default function CustomerSettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const t = useTranslations('customer.settings');
 
   useEffect(() => {
     loadPrefs();
@@ -104,25 +106,25 @@ export default function CustomerSettingsPage() {
 
   return (
     <div className="px-4 py-4">
-      <h2 className="text-lg font-bold text-gray-900">ตั้งค่า</h2>
-      <p className="mt-0.5 text-sm text-gray-500">จัดการการแจ้งเตือนของคุณ</p>
+      <h2 className="text-lg font-bold text-gray-900">{t('title')}</h2>
+      <p className="mt-0.5 text-sm text-gray-500">{t('subtitle')}</p>
 
       {/* Channels */}
       <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm">
         <div className="border-b border-gray-100 px-4 py-3">
-          <h3 className="text-sm font-semibold text-gray-900">ช่องทางการแจ้งเตือน</h3>
+          <h3 className="text-sm font-semibold text-gray-900">{t('channels')}</h3>
         </div>
         <ToggleRow
           icon={<Bell className="h-4 w-4 text-indigo-500" />}
-          label="Push Notification"
-          description="รับแจ้งเตือนผ่านแอปบนมือถือ"
+          label={t('pushNotification')}
+          description={t('pushDescription')}
           checked={prefs.pwa_enabled}
           onChange={() => togglePref('pwa_enabled')}
         />
         <ToggleRow
           icon={<MessageCircle className="h-4 w-4 text-[#06C755]" />}
-          label="LINE Notification"
-          description="รับแจ้งเตือนผ่าน LINE"
+          label={t('lineNotification')}
+          description={t('lineDescription')}
           checked={prefs.line_enabled}
           onChange={() => togglePref('line_enabled')}
           isLast
@@ -132,29 +134,29 @@ export default function CustomerSettingsPage() {
       {/* Types */}
       <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm">
         <div className="border-b border-gray-100 px-4 py-3">
-          <h3 className="text-sm font-semibold text-gray-900">ประเภทการแจ้งเตือน</h3>
+          <h3 className="text-sm font-semibold text-gray-900">{t('notificationTypes')}</h3>
         </div>
         <ToggleRow
-          label="ฝากเหล้าสำเร็จ"
-          description="เมื่อการฝากเหล้าได้รับการยืนยัน"
+          label={t('depositConfirmed')}
+          description={t('depositConfirmedDesc')}
           checked={prefs.notify_deposit_confirmed}
           onChange={() => togglePref('notify_deposit_confirmed')}
         />
         <ToggleRow
-          label="เบิกเหล้าสำเร็จ"
-          description="เมื่อเบิกเหล้าเรียบร้อย"
+          label={t('withdrawalCompleted')}
+          description={t('withdrawalCompletedDesc')}
           checked={prefs.notify_withdrawal_completed}
           onChange={() => togglePref('notify_withdrawal_completed')}
         />
         <ToggleRow
-          label="เหล้าใกล้หมดอายุ"
-          description="แจ้งเตือนก่อนเหล้าหมดอายุ"
+          label={t('expiryWarning')}
+          description={t('expiryWarningDesc')}
           checked={prefs.notify_expiry_warning}
           onChange={() => togglePref('notify_expiry_warning')}
         />
         <ToggleRow
-          label="โปรโมชั่น"
-          description="รับข่าวสารโปรโมชั่นจากร้าน"
+          label={t('promotions')}
+          description={t('promotionsDesc')}
           checked={prefs.notify_promotions}
           onChange={() => togglePref('notify_promotions')}
           isLast
@@ -165,13 +167,13 @@ export default function CustomerSettingsPage() {
       {saveStatus === 'success' && (
         <div className="mt-3 flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700">
           <CheckCircle2 className="h-4 w-4" />
-          บันทึกสำเร็จ
+          {t('saveSuccess')}
         </div>
       )}
       {saveStatus === 'error' && (
         <div className="mt-3 flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-600">
           <AlertCircle className="h-4 w-4" />
-          เกิดข้อผิดพลาด กรุณาลองใหม่
+          {t('saveError')}
         </div>
       )}
 
@@ -186,7 +188,7 @@ export default function CustomerSettingsPage() {
         ) : (
           <Save className="h-4 w-4" />
         )}
-        {isSaving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
+        {isSaving ? t('saving') : t('saveSettings')}
       </button>
     </div>
   );

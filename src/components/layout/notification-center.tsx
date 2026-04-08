@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   Bell,
   CheckCircle,
@@ -25,25 +26,6 @@ import type { Notification } from '@/types/database';
 
 interface NotificationCenterProps {
   className?: string;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getTimeAgo(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffMs = now - then;
-  const diffMin = Math.floor(diffMs / 60_000);
-  const diffHour = Math.floor(diffMs / 3_600_000);
-  const diffDay = Math.floor(diffMs / 86_400_000);
-
-  if (diffMin < 1) return 'เมื่อสักครู่';
-  if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`;
-  if (diffHour < 24) return `${diffHour} ชั่วโมงที่แล้ว`;
-  if (diffDay < 7) return `${diffDay} วันที่แล้ว`;
-  return formatThaiDate(dateStr);
 }
 
 function getNotificationIcon(
@@ -82,34 +64,24 @@ function getNotificationIcon(
   }
 }
 
-/**
- * สีพื้นหลังของแถว notification ตามกลุ่มข้อความ
- */
 function getNotificationRowBg(type: string | null): string {
   switch (type) {
-    // กลุ่มฝากเหล้า (สีม่วง)
     case 'new_deposit':
     case 'deposit_confirmed':
       return 'bg-purple-50/60 dark:bg-purple-900/10';
-    // กลุ่มรอรับเข้าระบบ (สีส้ม)
     case 'deposit_received':
       return 'bg-amber-50/60 dark:bg-amber-900/10';
-    // กลุ่มเบิกเหล้า (สีฟ้า)
     case 'withdrawal_request':
     case 'withdrawal_completed':
       return 'bg-blue-50/60 dark:bg-blue-900/10';
-    // กลุ่มสต๊อก (สีม่วงเข้ม)
     case 'stock_alert':
     case 'explanation_submitted':
       return 'bg-indigo-50/60 dark:bg-indigo-900/10';
-    // กลุ่มอนุมัติ (สีเขียว/แดง)
     case 'approval_request':
     case 'approval_result':
       return 'bg-emerald-50/60 dark:bg-emerald-900/10';
-    // กลุ่มหมดอายุ (สีส้ม)
     case 'deposit_expiry':
       return 'bg-orange-50/60 dark:bg-orange-900/10';
-    // กลุ่มโปรโมชั่น (สีชมพู)
     case 'promotion':
       return 'bg-pink-50/60 dark:bg-pink-900/10';
     default:
@@ -117,18 +89,29 @@ function getNotificationRowBg(type: string | null): string {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 export function NotificationCenter({ className }: NotificationCenterProps) {
   const router = useRouter();
+  const t = useTranslations();
   const { markRead, markAllRead } = useNotifications();
   const { notifications, unreadCount } = useNotificationStore();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
+  function getTimeAgo(dateStr: string): string {
+    const now = Date.now();
+    const then = new Date(dateStr).getTime();
+    const diffMs = now - then;
+    const diffMin = Math.floor(diffMs / 60_000);
+    const diffHour = Math.floor(diffMs / 3_600_000);
+    const diffDay = Math.floor(diffMs / 86_400_000);
+
+    if (diffMin < 1) return t('notifications.justNow');
+    if (diffMin < 60) return t('notifications.minutesAgo', { count: diffMin });
+    if (diffHour < 24) return t('notifications.hoursAgo', { count: diffHour });
+    if (diffDay < 7) return t('notifications.daysAgo', { count: diffDay });
+    return formatThaiDate(dateStr);
+  }
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -139,7 +122,6 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Close on Escape
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') setOpen(false);
@@ -154,8 +136,6 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
     if (!notification.read) {
       markRead(notification.id);
     }
-
-    // Navigate — prefer data.url if available, otherwise map by type
     const data = notification.data;
     const url = resolveNotificationUrl(notification.type, data);
     router.push(url);
@@ -168,7 +148,6 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
-      {/* Bell trigger button */}
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
@@ -177,7 +156,7 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
           'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800',
           'transition-colors duration-150'
         )}
-        aria-label="การแจ้งเตือน"
+        aria-label={t('notifications.title')}
         aria-expanded={open}
         aria-haspopup="true"
       >
@@ -194,7 +173,6 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
         )}
       </button>
 
-      {/* Dropdown panel */}
       {open && (
         <div
           className={cn(
@@ -206,10 +184,9 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
           )}
           role="menu"
         >
-          {/* Header */}
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-              การแจ้งเตือน
+              {t('notifications.title')}
             </h3>
             {unreadCount > 0 && (
               <button
@@ -217,18 +194,16 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
                 onClick={handleMarkAllRead}
                 className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
               >
-                อ่านทั้งหมด
+                {t('notifications.markAllRead')}
               </button>
             )}
           </div>
 
-          {/* Notification list */}
           <div className="max-h-96 overflow-y-auto">
             {notifications.length === 0 ? (
-              /* Empty state */
               <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-gray-500">
                 <BellOff className="mb-2 h-10 w-10" />
-                <p className="text-sm">ไม่มีการแจ้งเตือน</p>
+                <p className="text-sm">{t('notifications.empty')}</p>
               </div>
             ) : (
               notifications.slice(0, 20).map((notification) => {
@@ -251,7 +226,6 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
                     )}
                     role="menuitem"
                   >
-                    {/* Icon */}
                     <div
                       className={cn(
                         'flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
@@ -261,7 +235,6 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
                       <Icon className={cn('h-4 w-4', color)} />
                     </div>
 
-                    {/* Content */}
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-gray-900 dark:text-white">
                         {notification.title}
@@ -276,7 +249,6 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
                       </p>
                     </div>
 
-                    {/* Unread indicator */}
                     {!notification.read && (
                       <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
                     )}
@@ -286,7 +258,6 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
             )}
           </div>
 
-          {/* Footer */}
           {notifications.length > 0 && (
             <div className="border-t border-gray-200 dark:border-gray-700">
               <button
@@ -301,7 +272,7 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
                   'transition-colors'
                 )}
               >
-                ดูทั้งหมด
+                {t('notifications.viewAll')}
               </button>
             </div>
           )}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   ArrowLeft,
   Camera,
@@ -19,6 +20,7 @@ function DepositContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { lineUserId, displayName, mode, isLoading: authLoading, error: authError } = useCustomerAuth();
+  const t = useTranslations('customer.deposit');
 
   const storeId = searchParams.get('storeId');
   const token = searchParams.get('token');
@@ -128,13 +130,13 @@ function DepositContent() {
 
     // Validate file type
     if (!ACCEPTED_TYPES.includes(file.type) && !file.name.toLowerCase().endsWith('.heic')) {
-      setError('รองรับเฉพาะไฟล์ JPEG, PNG, WebP, HEIC เท่านั้น');
+      setError(t('errorFileType'));
       return;
     }
 
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
-      setError('ไฟล์ต้องมีขนาดไม่เกิน 10MB');
+      setError(t('errorFileSize'));
       return;
     }
 
@@ -171,7 +173,7 @@ function DepositContent() {
       const data = await res.json();
       setPhotoUrl(data.url);
     } catch {
-      setError('ไม่สามารถอัปโหลดรูปได้ กรุณาลองใหม่');
+      setError(t('errorUpload'));
       setPhotoPreview((prev) => {
         if (prev) URL.revokeObjectURL(prev);
         return null;
@@ -185,7 +187,7 @@ function DepositContent() {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  }, [token]);
+  }, [token, t]);
 
   const removePhoto = useCallback(() => {
     setPhotoUrl(null);
@@ -199,12 +201,12 @@ function DepositContent() {
     e.preventDefault();
 
     if (!customerName.trim()) {
-      setError('กรุณากรอกชื่อลูกค้า');
+      setError(t('errorNameRequired'));
       return;
     }
 
     if (!customerPhone.trim()) {
-      setError('กรุณากรอกเบอร์โทร');
+      setError(t('errorPhoneRequired'));
       return;
     }
 
@@ -237,7 +239,7 @@ function DepositContent() {
 
       setSuccess(true);
     } catch {
-      setError('ไม่สามารถส่งคำขอได้ กรุณาลองใหม่');
+      setError(t('errorSubmit'));
     } finally {
       setIsSubmitting(false);
     }
@@ -270,14 +272,14 @@ function DepositContent() {
           <CheckCircle2 className="h-8 w-8 text-[#06C755]" />
         </div>
         <h2 className="text-lg font-bold text-gray-900">
-          ส่งคำขอฝากเหล้าสำเร็จ
+          {t('successTitle')}
         </h2>
-        <p className="text-sm text-gray-500">รอพนักงานตรวจรับ</p>
+        <p className="text-sm text-gray-500">{t('successSubtitle')}</p>
         <button
           onClick={() => router.push('/customer')}
           className="mt-2 rounded-full bg-[#06C755] px-8 py-2.5 text-sm font-semibold text-white active:bg-[#05a849]"
         >
-          กลับหน้าหลัก
+          {t('goHome')}
         </button>
       </div>
     );
@@ -291,12 +293,12 @@ function DepositContent() {
         className="mb-4 flex items-center gap-1 text-sm text-gray-500"
       >
         <ArrowLeft className="h-4 w-4" />
-        กลับ
+        {t('back')}
       </button>
 
-      <h2 className="text-lg font-bold text-gray-900">ฝากเหล้า</h2>
+      <h2 className="text-lg font-bold text-gray-900">{t('title')}</h2>
       <p className="mt-0.5 text-sm text-gray-500">
-        กรอกข้อมูลและถ่ายรูปเหล้าที่ต้องการฝาก
+        {t('subtitle')}
       </p>
 
       {/* Error */}
@@ -312,13 +314,13 @@ function DepositContent() {
         {/* Customer name */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-gray-700">
-            ชื่อลูกค้า <span className="text-red-500">*</span>
+            {t('customerName')} <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
-            placeholder="ชื่อ-นามสกุล"
+            placeholder={t('customerNamePlaceholder')}
             required
             className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/20"
           />
@@ -327,13 +329,13 @@ function DepositContent() {
         {/* Phone */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-gray-700">
-            เบอร์โทร <span className="text-red-500">*</span>
+            {t('phone')} <span className="text-red-500">*</span>
           </label>
           <input
             type="tel"
             value={customerPhone}
             onChange={(e) => setCustomerPhone(e.target.value)}
-            placeholder="08x-xxx-xxxx"
+            placeholder={t('phonePlaceholder')}
             required
             className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/20"
           />
@@ -342,13 +344,13 @@ function DepositContent() {
         {/* Table number */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-gray-700">
-            หมายเลขโต๊ะ
+            {t('tableNumber')}
           </label>
           <input
             type="text"
             value={tableNumber}
             onChange={(e) => setTableNumber(e.target.value)}
-            placeholder="เช่น โต๊ะ 5 (ไม่บังคับ)"
+            placeholder={t('tablePlaceholder')}
             className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/20"
           />
         </div>
@@ -356,7 +358,7 @@ function DepositContent() {
         {/* Photo upload */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-gray-700">
-            รูปถ่ายเหล้า
+            {t('photo')}
           </label>
 
           {/* Hidden file input */}
@@ -374,7 +376,7 @@ function DepositContent() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={photoPreview}
-                alt="รูปถ่ายเหล้า"
+                alt={t('photoAlt')}
                 className="h-48 w-full rounded-xl border border-gray-200 object-cover"
               />
               {isUploading && (
@@ -393,7 +395,7 @@ function DepositContent() {
               )}
               {photoUrl && !isUploading && (
                 <div className="absolute bottom-2 left-2 rounded-full bg-green-500 px-2 py-0.5 text-xs font-medium text-white">
-                  อัปโหลดแล้ว
+                  {t('uploaded')}
                 </div>
               )}
             </div>
@@ -404,9 +406,9 @@ function DepositContent() {
               className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 py-8 text-gray-400 transition-colors active:border-[#06C755] active:text-[#06C755]"
             >
               <Camera className="h-8 w-8" />
-              <span className="text-sm">ถ่ายรูป / เลือกจากแกลเลอรี</span>
+              <span className="text-sm">{t('takePhoto')}</span>
               <span className="text-xs text-gray-300">
-                JPEG, PNG, WebP, HEIC (สูงสุด 10MB)
+                {t('photoFormats')}
               </span>
             </button>
           )}
@@ -415,12 +417,12 @@ function DepositContent() {
         {/* Notes */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-gray-700">
-            หมายเหตุ
+            {t('notes')}
           </label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)"
+            placeholder={t('notesPlaceholder')}
             rows={3}
             className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/20"
           />
@@ -437,7 +439,7 @@ function DepositContent() {
           ) : (
             <Camera className="h-4 w-4" />
           )}
-          {isSubmitting ? 'กำลังส่งคำขอ...' : 'ส่งคำขอฝากเหล้า'}
+          {isSubmitting ? t('submitting') : t('submit')}
         </button>
       </form>
     </div>

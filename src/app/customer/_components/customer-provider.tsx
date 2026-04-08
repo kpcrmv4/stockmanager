@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 interface CustomerAuth {
   lineUserId: string | null;
@@ -37,6 +38,7 @@ const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || '';
 export function CustomerProvider({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
+  const t = useTranslations('customer.provider');
 
   const [auth, setAuth] = useState<CustomerAuth>({
     lineUserId: null,
@@ -66,7 +68,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
             avatarUrl: null,
             mode: null,
             isLoading: false,
-            error: 'ลิงก์หมดอายุหรือไม่ถูกต้อง กรุณาขอลิงก์ใหม่จาก LINE',
+            error: t('linkExpired'),
           });
           return;
         }
@@ -88,7 +90,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
           avatarUrl: null,
           mode: null,
           isLoading: false,
-          error: 'เกิดข้อผิดพลาดในการตรวจสอบลิงก์',
+          error: t('linkError'),
         });
         return;
       }
@@ -145,7 +147,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
           avatarUrl: null,
           mode: null,
           isLoading: false,
-          error: 'ไม่สามารถเชื่อมต่อ LINE ได้ กรุณาลองใหม่',
+          error: t('lineConnectError'),
         });
         return;
       }
@@ -160,7 +162,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
       avatarUrl: null,
       mode: null,
       isLoading: false,
-      error: 'กรุณาเปิดลิงก์จาก LINE เพื่อเข้าใช้งาน',
+      error: t('openFromLine'),
     });
   }
 

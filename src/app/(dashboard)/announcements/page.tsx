@@ -25,6 +25,7 @@ import {
   Tag,
   Calendar,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface Announcement {
   id: string;
@@ -42,19 +43,20 @@ interface Announcement {
   store?: { store_name: string } | null;
 }
 
-const typeConfig: Record<string, { label: string; variant: 'success' | 'info' | 'warning' }> = {
-  promotion: { label: 'โปรโมชั่น', variant: 'success' },
-  announcement: { label: 'ประกาศ', variant: 'info' },
-  event: { label: 'กิจกรรม', variant: 'warning' },
-};
-
-const tabs = [
-  { id: 'all', label: 'ทั้งหมด' },
-  { id: 'active', label: 'กำลังแสดง' },
-  { id: 'inactive', label: 'ปิดแสดง' },
-];
-
 export default function AnnouncementsPage() {
+  const t = useTranslations('announcements');
+
+  const typeConfig: Record<string, { label: string; variant: 'success' | 'info' | 'warning' }> = {
+    promotion: { label: t('typePromotion'), variant: 'success' },
+    announcement: { label: t('typeAnnouncement'), variant: 'info' },
+    event: { label: t('typeEvent'), variant: 'warning' },
+  };
+
+  const tabs = [
+    { id: 'all', label: t('tabAll') },
+    { id: 'active', label: t('tabActive') },
+    { id: 'inactive', label: t('tabInactive') },
+  ];
   const router = useRouter();
   const { currentStoreId } = useAppStore();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -97,17 +99,17 @@ export default function AnnouncementsPage() {
       .eq('id', id);
 
     if (!error) {
-      toast({ type: 'success', title: currentActive ? 'ปิดแสดงประกาศ' : 'เปิดแสดงประกาศ' });
+      toast({ type: 'success', title: currentActive ? t('hideSuccess') : t('showSuccess') });
       loadAnnouncements();
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('ต้องการลบประกาศนี้?')) return;
+    if (!confirm(t('confirmDelete'))) return;
     const supabase = createClient();
     const { error } = await supabase.from('announcements').delete().eq('id', id);
     if (!error) {
-      toast({ type: 'success', title: 'ลบประกาศสำเร็จ' });
+      toast({ type: 'success', title: t('deleteSuccess') });
       loadAnnouncements();
     }
   };
@@ -117,13 +119,13 @@ export default function AnnouncementsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ประกาศ/โปรโมชั่น</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            จัดการประกาศและโปรโมชั่นสำหรับลูกค้า
+            {t('subtitle')}
           </p>
         </div>
         <Button icon={<Plus className="h-4 w-4" />} onClick={() => router.push('/announcements/new')}>
-          สร้างประกาศ
+          {t('createNew')}
         </Button>
       </div>
 
@@ -138,11 +140,11 @@ export default function AnnouncementsPage() {
       ) : announcements.length === 0 ? (
         <EmptyState
           icon={Megaphone}
-          title="ไม่มีประกาศ"
-          description="สร้างประกาศหรือโปรโมชั่นเพื่อส่งถึงลูกค้า"
+          title={t('noAnnouncements')}
+          description={t('noAnnouncementsDesc')}
           action={
             <Button icon={<Plus className="h-4 w-4" />} onClick={() => router.push('/announcements/new')}>
-              สร้างประกาศ
+              {t('createNew')}
             </Button>
           }
         />
@@ -171,11 +173,11 @@ export default function AnnouncementsPage() {
                             {item.title}
                           </h3>
                           <Badge variant={config.variant}>{config.label}</Badge>
-                          {!item.active && <Badge variant="default">ปิดแสดง</Badge>}
+                          {!item.active && <Badge variant="default">{t('hidden')}</Badge>}
                           {item.send_push && item.push_sent_at && (
                             <Badge variant="info">
                               <Bell className="mr-1 h-3 w-3" />
-                              ส่ง Push แล้ว
+                              {t('pushSent')}
                             </Badge>
                           )}
                         </div>
@@ -193,7 +195,7 @@ export default function AnnouncementsPage() {
                           ) : (
                             <span className="flex items-center gap-1">
                               <Tag className="h-3 w-3" />
-                              ทุกสาขา
+                              {t('allBranches')}
                             </span>
                           )}
                           <span className="flex items-center gap-1">
@@ -209,21 +211,21 @@ export default function AnnouncementsPage() {
                         <button
                           onClick={() => toggleActive(item.id, item.active)}
                           className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
-                          title={item.active ? 'ปิดแสดง' : 'เปิดแสดง'}
+                          title={item.active ? t('hideToggle') : t('showToggle')}
                         >
                           {item.active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                         <button
                           onClick={() => router.push(`/announcements/${item.id}`)}
                           className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
-                          title="แก้ไข"
+                          title={t('edit')}
                         >
                           <Edit2 className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(item.id)}
                           className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
-                          title="ลบ"
+                          title={t('deleteLabel')}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

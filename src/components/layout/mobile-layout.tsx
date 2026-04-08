@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   X,
   LogOut,
@@ -31,10 +32,10 @@ import { getModuleColors } from '@/lib/utils/module-colors';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { getModulesForRole } from '@/lib/modules/registry';
-import { ROLE_LABELS } from '@/types/roles';
 import { TopBar } from './top-bar';
 import { BottomNav } from './bottom-nav';
 import { StoreSwitcher } from './store-switcher';
+import { LanguageSwitcher } from './language-switcher';
 import type { Store } from '@/types/database';
 import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
@@ -69,28 +70,26 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const t = useTranslations();
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useAppStore();
 
   const modules = useMemo(() => (user ? getModulesForRole(user.role) : []), [user?.role]);
 
-  // จัดกลุ่มเมนูตาม group (เหมือน sidebar desktop)
   const groupedModules = useMemo(() => {
-    const groups: { name: string; items: typeof modules }[] = [];
+    const groups: { nameKey: string; items: typeof modules }[] = [];
     const seen = new Set<string>();
     for (const mod of modules) {
-      if (!seen.has(mod.group)) {
-        seen.add(mod.group);
-        groups.push({ name: mod.group, items: [] });
+      if (!seen.has(mod.groupKey)) {
+        seen.add(mod.groupKey);
+        groups.push({ nameKey: mod.groupKey, items: [] });
       }
-      groups.find((g) => g.name === mod.group)!.items.push(mod);
+      groups.find((g) => g.nameKey === mod.groupKey)!.items.push(mod);
     }
     return groups;
   }, [modules]);
 
-  // Chat room view ต้องการ full-height ไม่มี padding/bottom nav
   const isChatRoom = /^\/chat\/[^/]+/.test(pathname);
-  // Performance pages จัดการ padding เองเพื่อใช้พื้นที่เต็มจอ
   const isFullWidthPage = pathname.startsWith('/performance');
 
   function handleLogout() {
@@ -124,7 +123,6 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
         {children}
       </main>
 
-      {/* Bottom Navigation — ซ่อนในหน้าแชทห้อง */}
       {!isChatRoom && <BottomNav />}
 
       {/* Drawer Overlay */}
@@ -157,7 +155,7 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
             type="button"
             onClick={() => setDrawerOpen(false)}
             className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-            aria-label="ปิดเมนู"
+            aria-label={t('nav.closeMenu')}
           >
             <X className="h-5 w-5" />
           </button>
@@ -168,14 +166,13 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
           <StoreSwitcher stores={stores} />
         </div>
 
-        {/* เมนูทั้งหมด — แบ่งหมวดหมู่เหมือน sidebar */}
+        {/* เมนูทั้งหมด */}
         {user && (
           <nav className="min-h-0 flex-1 overflow-y-auto p-3">
             {groupedModules.map((group, gi) => (
-              <div key={group.name} className={cn(gi > 0 && 'mt-3')}>
-                {/* ชื่อหมวดหมู่ */}
+              <div key={group.nameKey} className={cn(gi > 0 && 'mt-3')}>
                 <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                  {group.name}
+                  {t(group.nameKey)}
                 </p>
                 <ul className="space-y-0.5">
                   {group.items.map((mod) => {
@@ -206,14 +203,14 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
                             )}
                           />
                           <div className="min-w-0 flex-1">
-                            <span className="text-sm font-medium">{mod.name}</span>
+                            <span className="text-sm font-medium">{t(mod.nameKey)}</span>
                             <p className={cn(
                               'truncate text-[11px] leading-tight',
                               isActive
                                 ? 'opacity-70'
                                 : 'text-gray-400 dark:text-gray-500'
                             )}>
-                              {mod.description}
+                              {t(mod.descriptionKey)}
                             </p>
                           </div>
                         </Link>
@@ -228,6 +225,9 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
 
         {/* Drawer Footer */}
         <div className="border-t border-gray-200 p-4 dark:border-gray-800">
+          {/* สลับภาษา */}
+          <LanguageSwitcher className="min-h-[44px] w-full" />
+
           {/* สลับ Dark Mode */}
           <button
             type="button"
@@ -239,7 +239,7 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
             ) : (
               <Sun className="h-5 w-5" />
             )}
-            <span>{theme === 'light' ? 'โหมดมืด' : 'โหมดสว่าง'}</span>
+            <span>{theme === 'light' ? t('nav.darkMode') : t('nav.lightMode')}</span>
           </button>
 
           {/* ข้อมูลผู้ใช้ + ออกจากระบบ */}
@@ -253,13 +253,13 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
                   {user.displayName ?? user.username}
                 </p>
                 <span className="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                  {ROLE_LABELS[user.role]}
+                  {t(`roles.${user.role}`)}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={handleLogout}
-                title="ออกจากระบบ"
+                title={t('auth.logout')}
                 className="shrink-0 rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
               >
                 <LogOut className="h-4 w-4" />

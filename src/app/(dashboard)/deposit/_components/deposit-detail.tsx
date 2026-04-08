@@ -49,6 +49,7 @@ import {
   Send,
 } from 'lucide-react';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { useTranslations } from 'next-intl';
 import { notifyChatWithdrawalCompleted, notifyChatWithdrawalRequest, sendChatBotMessage, syncChatActionCardStatus } from '@/lib/chat/bot-client';
 import { notifyChatTransferBatch, notifyChatTransferSubmitted } from '@/lib/chat/transfer-bot-client';
 import { notifyStaff } from '@/lib/notifications/client';
@@ -118,22 +119,22 @@ const withdrawalVariantMap: Record<string, 'default' | 'success' | 'warning' | '
   rejected: 'danger',
 };
 
-// Status timeline order — main deposit lifecycle
-const statusTimeline = [
-  { key: 'pending_confirm', label: 'รอยืนยัน', icon: Clock },
-  { key: 'in_store', label: 'อยู่ในร้าน', icon: Wine },
-  { key: 'pending_withdrawal', label: 'รอเบิก', icon: Package },
-  { key: 'withdrawn', label: 'เบิกแล้ว', icon: CheckCircle2 },
+// Status timeline keys — labels resolved via i18n in component
+const statusTimelineKeys = [
+  { key: 'pending_confirm', labelKey: 'detail.statusPendingConfirm', icon: Clock },
+  { key: 'in_store', labelKey: 'detail.statusInStore', icon: Wine },
+  { key: 'pending_withdrawal', labelKey: 'detail.statusPendingWithdrawal', icon: Package },
+  { key: 'withdrawn', labelKey: 'detail.statusWithdrawn', icon: CheckCircle2 },
 ];
 
-// Expired → transfer lifecycle (separate branch from main timeline)
-const expiredTimeline = [
-  { key: 'expired', label: 'หมดอายุ', icon: XCircle },
-  { key: 'transfer_pending', label: 'รอนำส่ง HQ', icon: Truck },
-  { key: 'transferred_out', label: 'โอนคลังกลางแล้ว', icon: Warehouse },
+const expiredTimelineKeys = [
+  { key: 'expired', labelKey: 'detail.statusExpired', icon: XCircle },
+  { key: 'transfer_pending', labelKey: 'detail.statusTransferPending', icon: Truck },
+  { key: 'transferred_out', labelKey: 'detail.statusTransferredOut', icon: Warehouse },
 ];
 
 export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' }: DepositDetailProps) {
+  const t = useTranslations('deposit');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const [deposit, setDeposit] = useState<Deposit>(initialDeposit);
@@ -272,18 +273,18 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     : 0;
 
   // Determine current timeline step
-  const currentStatusIndex = statusTimeline.findIndex((s) => s.key === deposit.status);
+  const currentStatusIndex = statusTimelineKeys.findIndex((s) => s.key === deposit.status);
   const effectiveIndex = deposit.status === 'expired' || deposit.status === 'transfer_pending' || deposit.status === 'transferred_out' ? -1 : currentStatusIndex;
 
   const handleBarConfirm = async () => {
     if (!user || !currentStoreId) return;
     const percent = parseFloat(barConfirmPercent);
     if (isNaN(percent) || percent < 0 || percent > 100) {
-      toast({ type: 'error', title: 'กรุณาระบุ % คงเหลือให้ถูกต้อง (0-100)' });
+      toast({ type: 'error', title: t('detail.errorPercentRange') });
       return;
     }
     if (!barConfirmPhoto) {
-      toast({ type: 'error', title: 'กรุณาถ่ายรูปยืนยัน' });
+      toast({ type: 'error', title: t('detail.errorPhotoRequired') });
       return;
     }
 
@@ -307,7 +308,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       .eq('id', deposit.id);
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถยืนยันได้' });
+      toast({ type: 'error', title: t('detail.error'), message: t('detail.errorCannotConfirm') });
       setIsSubmitting(false);
       return;
     }
@@ -339,7 +340,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     notifyStaff({
       storeId: currentStoreId,
       type: 'deposit_confirmed',
-      title: 'ฝากเหล้ายืนยันแล้ว',
+      title: t('detail.depositConfirmed'),
       body: `${displayName} ยืนยันรับฝาก ${deposit.product_name} — ${deposit.customer_name} (${deposit.deposit_code})`,
       data: { deposit_code: deposit.deposit_code },
       excludeUserId: user.id,
@@ -355,7 +356,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       completedByName: displayName,
     });
 
-    toast({ type: 'success', title: 'ยืนยันรับเข้าระบบแล้ว' });
+    toast({ type: 'success', title: t('detail.confirmSuccess') });
     setShowBarConfirmModal(false);
     setBarConfirmPercent('');
     setBarConfirmQty('');
@@ -369,11 +370,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     if (!user || !currentStoreId) return;
     const qty = parseFloat(withdrawQty);
     if (isNaN(qty) || qty <= 0) {
-      toast({ type: 'error', title: 'กรุณาระบุจำนวนที่ถูกต้อง' });
+      toast({ type: 'error', title: t('detail.errorInvalidQty') });
       return;
     }
     if (qty > deposit.remaining_qty) {
-      toast({ type: 'error', title: 'จำนวนเกินกว่าที่คงเหลือ', message: `คงเหลือ ${formatNumber(deposit.remaining_qty)} หน่วย` });
+      toast({ type: 'error', title: t('detail.errorExceedsRemaining'), message: t('detail.remainingUnits', { qty: formatNumber(deposit.remaining_qty) }) });
       return;
     }
 
@@ -393,7 +394,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     });
 
     if (withdrawalError) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถสร้างรายการเบิกได้' });
+      toast({ type: 'error', title: t('detail.error'), message: t('detail.errorCreateWithdrawal') });
       setIsSubmitting(false);
       return;
     }
@@ -404,7 +405,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       .update({ status: 'pending_withdrawal' })
       .eq('id', deposit.id);
 
-    toast({ type: 'success', title: 'สร้างคำขอเบิกแล้ว', message: 'รอ Bar อนุมัติในแชท' });
+    toast({ type: 'success', title: t('detail.withdrawalRequestCreated'), message: t('detail.waitingBarApproval') });
 
     // Send action card to chat + push notification for Bar approval
     if (currentStoreId) {
@@ -420,7 +421,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       notifyStaff({
         storeId: currentStoreId,
         type: 'withdrawal_request',
-        title: 'มีคำขอเบิกเหล้า',
+        title: t('detail.notifyWithdrawalRequest'),
         body: `${deposit.customer_name} ขอเบิก ${deposit.product_name} x${qty} (${deposit.deposit_code})`,
         data: { deposit_code: deposit.deposit_code },
         excludeUserId: user?.id,
@@ -447,7 +448,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       .eq('id', deposit.id);
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถเปลี่ยนสถานะได้' });
+      toast({ type: 'error', title: t('detail.error'), message: t('detail.errorChangeStatus') });
     } else {
       // Audit log
       await logAudit({
@@ -471,14 +472,14 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         await supabase.from('notifications').insert({
           user_id: deposit.line_user_id,
           store_id: currentStoreId,
-          title: 'รายการฝากเหล้าหมดอายุ',
+          title: t('detail.depositExpiredNotify'),
           body: `รายการ ${deposit.deposit_code} (${deposit.product_name}) หมดอายุแล้ว`,
           type: 'deposit_expired',
           data: { deposit_id: deposit.id, deposit_code: deposit.deposit_code },
         });
       }
 
-      toast({ type: 'warning', title: 'เปลี่ยนสถานะเป็นหมดอายุแล้ว' });
+      toast({ type: 'warning', title: t('detail.markedExpired') });
     }
 
     setShowExpiryModal(false);
@@ -504,7 +505,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       .eq('id', deposit.id);
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถปฏิเสธรายการได้' });
+      toast({ type: 'error', title: t('detail.error'), message: t('detail.errorReject') });
     } else {
       await logAudit({
         store_id: currentStoreId,
@@ -520,7 +521,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         },
         changed_by: user.id,
       });
-      toast({ type: 'success', title: 'ปฏิเสธรายการฝากเหล้าสำเร็จ' });
+      toast({ type: 'success', title: t('detail.rejectSuccess') });
     }
 
     setShowRejectModal(false);
@@ -550,7 +551,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       .eq('id', deposit.id);
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถเปลี่ยนสถานะ VIP ได้' });
+      toast({ type: 'error', title: t('detail.error'), message: t('detail.errorToggleVip') });
     } else {
       await logAudit({
         store_id: currentStoreId,
@@ -570,8 +571,8 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       });
       toast({
         type: 'success',
-        title: newIsVip ? 'เปลี่ยนเป็น VIP แล้ว' : 'ยกเลิก VIP แล้ว',
-        message: newIsVip ? 'ไม่มีวันหมดอายุ' : 'กรุณาตั้งค่าวันหมดอายุใหม่',
+        title: newIsVip ? t('detail.vipEnabled') : t('detail.vipDisabled'),
+        message: newIsVip ? t('detail.noExpiryDate') : t('detail.pleaseSetExpiry'),
       });
     }
 
@@ -595,9 +596,9 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       .eq('id', deposit.id);
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถโอนรายการได้' });
+      toast({ type: 'error', title: t('detail.error'), message: t('detail.errorTransfer') });
     } else {
-      toast({ type: 'success', title: 'โอนรายการฝากเหล้าสำเร็จ' });
+      toast({ type: 'success', title: t('detail.transferSuccess') });
     }
 
     setShowTransferModal(false);
@@ -623,7 +624,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         .single();
 
       if (!centralStore) {
-        toast({ type: 'error', title: 'ไม่พบคลังกลาง', message: 'กรุณาตั้งค่าคลังกลางก่อน' });
+        toast({ type: 'error', title: t('detail.noHQ'), message: t('detail.noHQMessage') });
         setIsSubmitting(false);
         return;
       }
@@ -634,7 +635,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         .select('store_name')
         .eq('id', currentStoreId)
         .single();
-      const storeName = storeData?.store_name || 'สาขา';
+      const storeName = storeData?.store_name || t('detail.branch');
 
       // Generate transfer code
       const transferCode = await generateTransferCode(supabase);
@@ -680,7 +681,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       });
 
       // Notify store chat
-      const submitterName = user.displayName || user.username || 'พนักงาน';
+      const submitterName = user.displayName || user.username || t('detail.staff');
       notifyChatTransferSubmitted(currentStoreId, {
         transfer_code: transferCode,
         deposit_count: 1,
@@ -711,13 +712,13 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         });
       }
 
-      toast({ type: 'success', title: 'ส่งโอนคลังกลางสำเร็จ', message: `รหัสโอน: ${transferCode}` });
+      toast({ type: 'success', title: t('detail.transferHqSuccess'), message: t('detail.transferCode', { code: transferCode }) });
       setShowTransferHqModal(false);
       setTransferHqNotes('');
       setTransferHqPhoto(null);
       refreshDeposit();
     } catch (err) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: err instanceof Error ? err.message : 'ไม่สามารถส่งโอนได้' });
+      toast({ type: 'error', title: t('detail.error'), message: err instanceof Error ? err.message : t('detail.errorCannotTransfer') });
     } finally {
       setIsSubmitting(false);
     }
@@ -727,7 +728,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     if (!user || !currentStoreId) return;
     const days = parseInt(extendDays);
     if (isNaN(days) || days <= 0) {
-      toast({ type: 'error', title: 'กรุณาระบุจำนวนวันที่ถูกต้อง' });
+      toast({ type: 'error', title: t('detail.errorInvalidDays') });
       return;
     }
 
@@ -743,7 +744,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       .eq('id', deposit.id);
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถขยายวันหมดอายุได้' });
+      toast({ type: 'error', title: t('detail.error'), message: t('detail.errorExtendExpiry') });
     } else {
       await logAudit({
         store_id: currentStoreId,
@@ -762,8 +763,8 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       });
       toast({
         type: 'success',
-        title: 'ขยายวันหมดอายุสำเร็จ',
-        message: `ขยายเพิ่ม ${days} วัน`,
+        title: t('detail.extendExpirySuccess'),
+        message: t('detail.extendedDays', { days }),
       });
     }
 
@@ -810,12 +811,12 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     });
 
     if (error) {
-      toast({ type: 'error', title: 'ไม่สามารถส่งคำสั่งพิมพ์ได้', message: error.message });
+      toast({ type: 'error', title: t('detail.errorPrint'), message: error.message });
     } else {
       toast({
         type: 'success',
-        title: jobType === 'receipt' ? 'ส่งพิมพ์ใบรับฝากแล้ว' : 'ส่งพิมพ์ป้ายขวดแล้ว',
-        message: 'รอเครื่องพิมพ์ที่บาร์ดำเนินการ',
+        title: jobType === 'receipt' ? t('detail.printReceiptSent') : t('detail.printLabelSent'),
+        message: t('detail.waitingPrinter'),
       });
     }
 
@@ -840,7 +841,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
         >
           <ArrowLeft className="h-4 w-4" />
-          กลับหน้ารายการ
+          {t('detail.backToList')}
         </button>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -875,7 +876,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
           <AlertTriangle className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
           <p className="text-sm font-medium text-red-700 dark:text-red-300">
-            รายการนี้จะหมดอายุใน {expiryDays} วัน กรุณาแจ้งลูกค้า
+            {t('detail.expiringWarning', { days: expiryDays })}
           </p>
         </div>
       )}
@@ -883,7 +884,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       {/* Photo Gallery */}
       {(deposit.customer_photo_url || deposit.received_photo_url || deposit.confirm_photo_url || deposit.photo_url) && (
         <Card padding="none">
-          <CardHeader title="รูปถ่าย" />
+          <CardHeader title={t('detail.photos')} />
           <CardContent>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {/* รูปหลัก (จากลูกค้า) — customer_photo_url preferred, photo_url as legacy fallback */}
@@ -892,11 +893,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   <div className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
                     <img
                       src={deposit.customer_photo_url || deposit.photo_url!}
-                      alt="รูปหลัก (จากลูกค้า)"
+                      alt="Customer photo"
                       className="h-full w-full object-cover"
                     />
                   </div>
-                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปหลัก (จากลูกค้า)</p>
+                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">{t('detail.photoCustomer')}</p>
                 </div>
               )}
               {/* Show legacy photo_url separately only if both exist */}
@@ -905,11 +906,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   <div className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
                     <img
                       src={deposit.photo_url}
-                      alt="รูปเพิ่มเติม"
+                      alt="Additional photo"
                       className="h-full w-full object-cover"
                     />
                   </div>
-                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปเพิ่มเติม</p>
+                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">{t('detail.photoAdditional')}</p>
                 </div>
               )}
               {deposit.received_photo_url && (
@@ -917,11 +918,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   <div className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
                     <img
                       src={deposit.received_photo_url}
-                      alt="รูปรับเข้าร้าน (Staff)"
+                      alt="Received photo"
                       className="h-full w-full object-cover"
                     />
                   </div>
-                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปรับเข้าร้าน</p>
+                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">{t('detail.photoReceived')}</p>
                 </div>
               )}
               {deposit.confirm_photo_url && (
@@ -929,11 +930,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   <div className="relative aspect-square overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
                     <img
                       src={deposit.confirm_photo_url}
-                      alt="รูปยืนยัน (Bar)"
+                      alt="Confirmed photo"
                       className="h-full w-full object-cover"
                     />
                   </div>
-                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">รูปยืนยัน (Bar)</p>
+                  <p className="text-center text-xs text-gray-500 dark:text-gray-400">{t('detail.photoConfirm')}</p>
                 </div>
               )}
             </div>
@@ -945,21 +946,21 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Left: Deposit Info */}
         <Card padding="none">
-          <CardHeader title="ข้อมูลการฝาก" />
+          <CardHeader title={t('detail.depositInfo')} />
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-start gap-3">
                   <Hash className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">รหัสฝาก</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('detail.depositCode')}</p>
                     <p className="font-mono font-medium text-gray-900 dark:text-white">{deposit.deposit_code}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <User className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">ลูกค้า</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('detail.customer')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">{deposit.customer_name}</p>
                   </div>
                 </div>
@@ -969,7 +970,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 <div className="flex items-start gap-3">
                   <Phone className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">เบอร์โทรศัพท์</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('detail.phone')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">{deposit.customer_phone}</p>
                   </div>
                 </div>
@@ -979,7 +980,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 <div className="flex items-start gap-3">
                   <Wine className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">สินค้า</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('detail.product')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">{deposit.product_name}</p>
                     {deposit.category && (
                       <p className="text-xs text-gray-500 dark:text-gray-400">{deposit.category}</p>
@@ -989,7 +990,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 <div className="flex items-start gap-3">
                   <Package className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">จำนวน</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('detail.quantity')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">
                       {formatNumber(deposit.remaining_qty)} / {formatNumber(deposit.quantity)}
                     </p>
@@ -1000,7 +1001,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
               {/* Remaining bar */}
               <div>
                 <div className="mb-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                  <span>คงเหลือ</span>
+                  <span>{t('detail.remaining')}</span>
                   <span>{remainingPercent}%</span>
                 </div>
                 <div className="h-2.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
@@ -1023,7 +1024,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   <div className="flex items-start gap-3">
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">โต๊ะ</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('detail.table')}</p>
                       <p className="font-medium text-gray-900 dark:text-white">{deposit.table_number}</p>
                     </div>
                   </div>
@@ -1031,7 +1032,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 <div className="flex items-start gap-3">
                   <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">วันที่ฝาก</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('detail.depositDate')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">
                       {formatThaiDate(deposit.created_at)}
                     </p>
@@ -1044,9 +1045,9 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   <>
                     <Crown className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">สถานะ VIP</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('detail.vipStatus')}</p>
                       <p className="font-medium text-amber-600 dark:text-amber-400">
-                        ไม่มีวันหมดอายุ
+                        {t('detail.noExpiryDate')}
                       </p>
                     </div>
                   </>
@@ -1054,7 +1055,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   <>
                     <Clock className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">วันหมดอายุ</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t("detail.expiryDate")}</p>
                       <p className={cn(
                         'font-medium',
                         isExpiringSoon || isExpired
@@ -1064,11 +1065,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                         {formatThaiDate(deposit.expiry_date)}
                         {expiryDays !== null && expiryDays > 0 && (
                           <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                            (เหลือ {expiryDays} วัน)
+                            {t("detail.daysLeft", { days: expiryDays })}
                           </span>
                         )}
                         {isExpired && (
-                          <span className="ml-1 text-xs text-red-500">(หมดอายุแล้ว)</span>
+                          <span className="ml-1 text-xs text-red-500">{t("detail.expiredLabel")}</span>
                         )}
                       </p>
                     </div>
@@ -1077,8 +1078,8 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   <>
                     <Clock className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">วันหมดอายุ</p>
-                      <p className="font-medium text-gray-400 dark:text-gray-500">ไม่ระบุ</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t("detail.expiryDate")}</p>
+                      <p className="font-medium text-gray-400 dark:text-gray-500">{t("detail.unspecified")}</p>
                     </div>
                   </>
                 )}
@@ -1088,7 +1089,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 <div className="flex items-start gap-3">
                   <FileText className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">หมายเหตุ</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t("detail.notes")}</p>
                     <p className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
                       {deposit.notes}
                     </p>
@@ -1101,7 +1102,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 <div className="flex items-start gap-3">
                   <User className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">พนักงานรับฝาก (Staff)</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t("detail.receivedByStaff")}</p>
                     <p className="font-medium text-gray-900 dark:text-white">{receivedByName}</p>
                   </div>
                 </div>
@@ -1110,7 +1111,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">บาร์ยืนยัน (Bar)</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t("detail.confirmedByBar")}</p>
                     <p className="font-medium text-gray-900 dark:text-white">{confirmedByName}</p>
                   </div>
                 </div>
@@ -1123,10 +1124,10 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         <div className="space-y-6">
           {/* Status Timeline */}
           <Card padding="none">
-            <CardHeader title="สถานะการฝาก" />
+            <CardHeader title={t("detail.depositStatus")} />
             <CardContent>
               <div className="space-y-0">
-                {statusTimeline.map((step, index) => {
+                {statusTimelineKeys.map((step, index) => {
                   const StepIcon = step.icon;
                   const isActive = step.key === deposit.status;
                   const isPast = effectiveIndex >= 0 && index < effectiveIndex;
@@ -1158,7 +1159,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                             )}
                           />
                         </div>
-                        {index < statusTimeline.length - 1 && (
+                        {index < statusTimelineKeys.length - 1 && (
                           <div
                             className={cn(
                               'h-8 w-0.5',
@@ -1182,11 +1183,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                                 : 'text-gray-400 dark:text-gray-500'
                           )}
                         >
-                          {step.label}
+                          {t(step.labelKey)}
                         </p>
                         {isCurrent && (
                           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                            สถานะปัจจุบัน
+                            {t('detail.currentStatus')}
                           </p>
                         )}
                       </div>
@@ -1197,9 +1198,9 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 {/* Expired branch timeline */}
                 {(deposit.status === 'expired' || deposit.status === 'transfer_pending' || deposit.status === 'transferred_out') && (
                   <div className="mt-1">
-                    {expiredTimeline.map((step, index) => {
+                    {expiredTimelineKeys.map((step, index) => {
                       const StepIcon = step.icon;
-                      const expiredIndex = expiredTimeline.findIndex((s) => s.key === deposit.status);
+                      const expiredIndex = expiredTimelineKeys.findIndex((s) => s.key === deposit.status);
                       const isPast = index < expiredIndex;
                       const isCurrent = index === expiredIndex;
 
@@ -1247,7 +1248,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                                 )}
                               />
                             </div>
-                            {index < expiredTimeline.length - 1 && (
+                            {index < expiredTimelineKeys.length - 1 && (
                               <div
                                 className={cn(
                                   'h-8 w-0.5',
@@ -1267,11 +1268,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                                   : 'text-gray-400 dark:text-gray-500'
                               )}
                             >
-                              {step.label}
+                              {t(step.labelKey)}
                             </p>
                             {isCurrent && (
                               <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                สถานะปัจจุบัน
+                                {t('detail.currentStatus')}
                               </p>
                             )}
                           </div>
@@ -1287,7 +1288,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           {/* การดำเนินการ — consolidated action card */}
           {user && user.role !== 'customer' && (canBarConfirm || canRejectDeposit || canWithdraw || canMarkExpired || canTransferToHq || canExtendExpiry || canToggleVip) && (
             <Card padding="none">
-              <CardHeader title="การดำเนินการ" />
+              <CardHeader title={t("detail.actions")} />
               <CardContent>
                 <div className="space-y-2">
                   {/* ยืนยันรับเข้าระบบ (Bar) */}
@@ -1301,7 +1302,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                         setShowBarConfirmModal(true);
                       }}
                     >
-                      ยืนยันรับเข้าระบบ
+                      {t("detail.confirmReceive")}
                     </Button>
                   )}
                   {/* ปฏิเสธรับฝาก */}
@@ -1312,7 +1313,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       icon={<XCircle className="h-4 w-4 text-red-500" />}
                       onClick={() => setShowRejectModal(true)}
                     >
-                      ปฏิเสธรับฝาก
+                      {t("detail.rejectDeposit")}
                     </Button>
                   )}
                   {/* เบิกเหล้า */}
@@ -1323,7 +1324,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       icon={<Minus className="h-4 w-4" />}
                       onClick={() => setShowWithdrawModal(true)}
                     >
-                      เบิกเหล้า
+                      {t("detail.withdraw")}
                     </Button>
                   )}
                   {/* เปลี่ยนเป็น VIP */}
@@ -1335,7 +1336,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       onClick={handleToggleVip}
                       isLoading={isSubmitting}
                     >
-                      {deposit.is_vip ? 'ยกเลิก VIP' : 'เปลี่ยนเป็น VIP'}
+                      {deposit.is_vip ? t("detail.cancelVip") : t("detail.setVip")}
                     </Button>
                   )}
                   {/* ขยายวันหมดอายุ */}
@@ -1346,7 +1347,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       icon={<CalendarPlus className="h-4 w-4" />}
                       onClick={() => setShowExtendExpiryModal(true)}
                     >
-                      ขยายวันหมดอายุ
+                      {t("detail.extendExpiry")}
                     </Button>
                   )}
                   {/* ทำเครื่องหมายหมดอายุ */}
@@ -1357,7 +1358,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       icon={<AlertTriangle className="h-4 w-4" />}
                       onClick={() => setShowExpiryModal(true)}
                     >
-                      ทำเครื่องหมายหมดอายุ
+                      {t("detail.markExpired")}
                     </Button>
                   )}
                   {/* โอนคลังกลาง (เฉพาะ expired) */}
@@ -1368,7 +1369,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       icon={<Warehouse className="h-5 w-5" />}
                       onClick={() => setShowTransferHqModal(true)}
                     >
-                      โอนคลังกลาง
+                      {t("detail.transferToHQ")}
                     </Button>
                   )}
                 </div>
@@ -1378,7 +1379,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
 
           {/* Print Actions */}
           <Card padding="none">
-            <CardHeader title="พิมพ์เอกสาร" />
+            <CardHeader title={t("detail.printDocuments")} />
             <CardContent>
               <div className="space-y-2">
                 <Button
@@ -1387,7 +1388,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   icon={<Printer className="h-4 w-4" />}
                   onClick={() => { setPrintPreviewType('receipt'); setShowPrintPreview(true); }}
                 >
-                  พิมพ์ใบรับฝาก
+                  {t("detail.printReceipt")}
                 </Button>
                 <Button
                   className="min-h-[44px] w-full justify-center"
@@ -1395,7 +1396,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   icon={<Tag className="h-4 w-4" />}
                   onClick={() => { setPrintPreviewType('label'); setShowPrintPreview(true); }}
                 >
-                  พิมพ์ป้ายขวด
+                  {t("detail.printLabel")}
                 </Button>
               </div>
             </CardContent>
@@ -1406,8 +1407,8 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       {/* Withdrawal History */}
       <Card padding="none">
         <CardHeader
-          title="ประวัติการเบิก"
-          description={`${withdrawals.length} รายการ`}
+          title={t("detail.withdrawHistory")}
+          description={`${withdrawals.length} ${t("detail.entries")}`}
         />
         {isLoadingWithdrawals ? (
           <div className="flex items-center justify-center py-8">
@@ -1417,8 +1418,8 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           <div className="px-5 pb-5">
             <EmptyState
               icon={History}
-              title="ยังไม่มีประวัติการเบิก"
-              description="ยังไม่มีรายการเบิกเหล้าสำหรับการฝากนี้"
+              title={t("detail.noWithdrawHistory")}
+              description={t("detail.noWithdrawHistoryDesc")}
             />
           </div>
         ) : (
@@ -1428,7 +1429,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      เบิก {formatNumber(w.actual_qty ?? w.requested_qty)} หน่วย
+                      {t("detail.withdrawUnits", { qty: formatNumber(w.actual_qty ?? w.requested_qty) })}
                     </p>
                     <Badge variant={withdrawalVariantMap[w.status] || 'default'} size="sm">
                       {WITHDRAWAL_STATUS_LABELS[w.status] || w.status}
@@ -1446,7 +1447,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 <div className="text-right text-sm">
                   {w.actual_qty !== null && w.actual_qty !== w.requested_qty && (
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      ขอเบิก: {formatNumber(w.requested_qty)}
+                      {t("detail.requestedQty")}: {formatNumber(w.requested_qty)}
                     </p>
                   )}
                 </div>
@@ -1464,29 +1465,29 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           setWithdrawQty('');
           setWithdrawNotes('');
         }}
-        title="เบิกเหล้า"
-        description={`${deposit.product_name} - คงเหลือ ${formatNumber(deposit.remaining_qty)} หน่วย`}
+        title={t("detail.withdrawTitle")}
+        description={`${deposit.product_name} - ${t("detail.remaining")} ${formatNumber(deposit.remaining_qty)} ${t("detail.units")}`}
         size="md"
       >
         <div className="space-y-4">
           <Input
-            label="จำนวนที่ต้องการเบิก"
+            label={t("detail.withdrawQtyLabel")}
             type="number"
             value={withdrawQty}
             onChange={(e) => setWithdrawQty(e.target.value)}
             placeholder="0"
-            hint={`สูงสุด ${formatNumber(deposit.remaining_qty)} หน่วย`}
+            hint={`${t("detail.max")} ${formatNumber(deposit.remaining_qty)} ${t("detail.units")}`}
             error={
               withdrawQty && parseFloat(withdrawQty) > deposit.remaining_qty
-                ? `เกินจำนวนคงเหลือ (${formatNumber(deposit.remaining_qty)})`
+                ? t("detail.exceedsRemaining", { qty: formatNumber(deposit.remaining_qty) })
                 : undefined
             }
           />
           <Textarea
-            label="หมายเหตุ"
+            label={t("detail.notesLabel")}
             value={withdrawNotes}
             onChange={(e) => setWithdrawNotes(e.target.value)}
-            placeholder="หมายเหตุเพิ่มเติม (ไม่บังคับ)"
+            placeholder={t("detail.notesPlaceholder")}
             rows={3}
           />
         </div>
@@ -1499,7 +1500,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
               setWithdrawNotes('');
             }}
           >
-            ยกเลิก
+            {t("detail.cancelBtn")}
           </Button>
           <Button
             onClick={handleWithdrawal}
@@ -1507,7 +1508,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             disabled={!withdrawQty || parseFloat(withdrawQty) <= 0 || parseFloat(withdrawQty) > deposit.remaining_qty}
             icon={<Minus className="h-4 w-4" />}
           >
-            ยืนยันเบิก
+            {t("detail.confirmWithdraw")}
           </Button>
         </ModalFooter>
       </Modal>
@@ -1519,15 +1520,15 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           setShowExpiryModal(false);
           setExpiryNotifyCustomer(false);
         }}
-        title="ทำเครื่องหมายหมดอายุ"
-        description="ต้องการเปลี่ยนสถานะรายการนี้เป็นหมดอายุหรือไม่?"
+        title={t("detail.markExpiredTitle")}
+        description={t("detail.markExpiredDesc")}
         size="sm"
       >
         <div className="space-y-4">
           <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-            <p className="font-medium">คำเตือน</p>
+            <p className="font-medium">{t("detail.warning")}</p>
             <p className="mt-1">
-              การทำเครื่องหมายหมดอายุจะไม่สามารถเบิกเหล้าได้อีก กรุณาตรวจสอบก่อนดำเนินการ
+              {t("detail.markExpiredWarning")}
             </p>
           </div>
           {deposit.line_user_id && (
@@ -1539,9 +1540,9 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
               />
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">แจ้งเตือนลูกค้า</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{t("detail.notifyCustomer")}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  ส่งการแจ้งเตือนไปยังลูกค้าว่ารายการฝากหมดอายุแล้ว
+                  {t("detail.notifyCustomerDesc")}
                 </p>
               </div>
             </label>
@@ -1552,7 +1553,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             setShowExpiryModal(false);
             setExpiryNotifyCustomer(false);
           }}>
-            ยกเลิก
+            {t("detail.cancelBtn")}
           </Button>
           <Button
             variant="danger"
@@ -1560,7 +1561,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             isLoading={isSubmitting}
             icon={<AlertTriangle className="h-4 w-4" />}
           >
-            ยืนยันหมดอายุ
+            {t("detail.confirmExpired")}
           </Button>
         </ModalFooter>
       </Modal>
@@ -1572,34 +1573,34 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           setShowTransferModal(false);
           setTransferNotes('');
         }}
-        title="โอนรายการฝากเหล้า"
-        description="โอนรายการฝากเหล้าออกจากร้าน"
+        title={t("detail.transferTitle")}
+        description={t("detail.transferDesc")}
         size="md"
       >
         <div className="space-y-4">
           <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">สินค้า</span>
+                <span className="text-gray-500 dark:text-gray-400">{t("detail.product")}</span>
                 <span className="font-medium text-gray-900 dark:text-white">{deposit.product_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">ลูกค้า</span>
+                <span className="text-gray-500 dark:text-gray-400">{t("detail.customer")}</span>
                 <span className="font-medium text-gray-900 dark:text-white">{deposit.customer_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">คงเหลือ</span>
+                <span className="text-gray-500 dark:text-gray-400">{t("detail.remaining")}</span>
                 <span className="font-medium text-gray-900 dark:text-white">
-                  {formatNumber(deposit.remaining_qty)} หน่วย
+                  {formatNumber(deposit.remaining_qty)} {t("detail.units")}
                 </span>
               </div>
             </div>
           </div>
           <Textarea
-            label="หมายเหตุการโอน"
+            label={t("detail.transferNotesLabel")}
             value={transferNotes}
             onChange={(e) => setTransferNotes(e.target.value)}
-            placeholder="ระบุเหตุผลหรือปลายทางในการโอน"
+            placeholder={t("detail.transferNotesPlaceholder")}
             rows={3}
           />
         </div>
@@ -1611,14 +1612,14 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
               setTransferNotes('');
             }}
           >
-            ยกเลิก
+            {t("detail.cancelBtn")}
           </Button>
           <Button
             onClick={handleTransfer}
             isLoading={isSubmitting}
             icon={<ArrowRightLeft className="h-4 w-4" />}
           >
-            ยืนยันโอน
+            {t("detail.confirmTransfer")}
           </Button>
         </ModalFooter>
       </Modal>
@@ -1631,44 +1632,44 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           setTransferHqNotes('');
           setTransferHqPhoto(null);
         }}
-        title="โอนคลังกลาง"
-        description="ส่งรายการหมดอายุไปคลังกลาง (HQ)"
+        title={t("detail.transferToHQTitle")}
+        description={t("detail.transferToHQDesc")}
         size="md"
       >
         <div className="space-y-4">
           <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">สินค้า</span>
+                <span className="text-gray-500 dark:text-gray-400">{t("detail.product")}</span>
                 <span className="font-medium text-gray-900 dark:text-white">{deposit.product_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">ลูกค้า</span>
+                <span className="text-gray-500 dark:text-gray-400">{t("detail.customer")}</span>
                 <span className="font-medium text-gray-900 dark:text-white">{deposit.customer_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">คงเหลือ</span>
+                <span className="text-gray-500 dark:text-gray-400">{t("detail.remaining")}</span>
                 <span className="font-medium text-gray-900 dark:text-white">
-                  {formatNumber(deposit.remaining_qty)} หน่วย
+                  {formatNumber(deposit.remaining_qty)} {t("detail.units")}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">รหัสฝาก</span>
+                <span className="text-gray-500 dark:text-gray-400">{t("detail.depositCode")}</span>
                 <span className="font-mono text-xs text-gray-700 dark:text-gray-300">{deposit.deposit_code}</span>
               </div>
             </div>
           </div>
           <PhotoUpload
-            label="ถ่ายรูปสินค้า (จำเป็น)"
+            label={t("detail.photoRequired")}
             value={transferHqPhoto}
             onChange={setTransferHqPhoto}
             folder="transfer-photos"
           />
           <Textarea
-            label="หมายเหตุ"
+            label={t("detail.notesLabel")}
             value={transferHqNotes}
             onChange={(e) => setTransferHqNotes(e.target.value)}
-            placeholder="ระบุหมายเหตุ (ถ้ามี)"
+            placeholder={t("detail.notesOptionalPlaceholder")}
             rows={2}
           />
         </div>
@@ -1681,7 +1682,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
               setTransferHqPhoto(null);
             }}
           >
-            ยกเลิก
+            {t("detail.cancelBtn")}
           </Button>
           <Button
             onClick={handleTransferToHq}
@@ -1690,12 +1691,12 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             icon={<Warehouse className="h-4 w-4" />}
             className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
           >
-            ยืนยันโอนคลังกลาง
+            {t("detail.confirmTransferHQ")}
           </Button>
         </ModalFooter>
         {!transferHqPhoto && (
           <p className="px-6 pb-4 text-center text-xs text-red-500">
-            กรุณาถ่ายรูปสินค้าก่อนยืนยัน
+            {t("detail.photoRequiredWarning")}
           </p>
         )}
       </Modal>
@@ -1707,21 +1708,21 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           setShowRejectModal(false);
           setRejectReason('');
         }}
-        title="ปฏิเสธรับฝากเหล้า"
+        title={t("detail.rejectDepositTitle")}
         description={`${deposit.product_name} — ${deposit.customer_name}`}
         size="md"
       >
         <div className="space-y-4">
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
             <p className="text-sm text-red-700 dark:text-red-400">
-              การปฏิเสธจะยกเลิกรายการฝากนี้ กรุณาระบุเหตุผล
+              {t("detail.rejectWarning")}
             </p>
           </div>
           <Textarea
-            label="เหตุผลที่ปฏิเสธ (จำเป็น)"
+            label={t("detail.rejectReasonLabel")}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="เช่น สินค้าไม่ตรงกับที่แจ้ง, ขวดแตก ฯลฯ"
+            placeholder={t("detail.rejectReasonPlaceholder")}
             rows={3}
           />
         </div>
@@ -1733,7 +1734,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
               setRejectReason('');
             }}
           >
-            ยกเลิก
+            {t("detail.cancelBtn")}
           </Button>
           <Button
             onClick={handleRejectDeposit}
@@ -1742,7 +1743,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             icon={<XCircle className="h-4 w-4" />}
             className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
           >
-            ยืนยันปฏิเสธ
+            {t("detail.confirmReject")}
           </Button>
         </ModalFooter>
       </Modal>
@@ -1754,7 +1755,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           setShowExtendExpiryModal(false);
           setExtendDays('30');
         }}
-        title="ขยายวันหมดอายุ"
+        title={t("detail.extendExpiryTitle")}
         description={deposit.product_name}
         size="md"
       >
@@ -1762,15 +1763,15 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">วันหมดอายุปัจจุบัน</span>
+                <span className="text-gray-500 dark:text-gray-400">{t("detail.currentExpiry")}</span>
                 <span className="font-medium text-gray-900 dark:text-white">
-                  {deposit.expiry_date ? formatThaiDate(deposit.expiry_date) : 'ไม่ระบุ'}
+                  {deposit.expiry_date ? formatThaiDate(deposit.expiry_date) : t('detail.unspecified')}
                 </span>
               </div>
             </div>
           </div>
           <Input
-            label="จำนวนวันที่ต้องการขยาย"
+            label={t("detail.extendDaysLabel")}
             type="number"
             value={extendDays}
             onChange={(e) => setExtendDays(e.target.value)}
@@ -1782,7 +1783,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       new Date(deposit.expiry_date).getTime() + parseInt(extendDays) * 86400000
                     ).toISOString()
                   )}`
-                : 'ระบุจำนวนวันที่ต้องการขยาย'
+                : 't("detail.extendDaysHint")'
             }
           />
         </div>
@@ -1794,7 +1795,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
               setExtendDays('30');
             }}
           >
-            ยกเลิก
+            {t("detail.cancelBtn")}
           </Button>
           <Button
             onClick={handleExtendExpiry}
@@ -1802,7 +1803,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             disabled={!extendDays || parseInt(extendDays) <= 0}
             icon={<CalendarPlus className="h-4 w-4" />}
           >
-            ยืนยันขยาย
+            {t("detail.confirmExtend")}
           </Button>
         </ModalFooter>
       </Modal>
@@ -1811,33 +1812,33 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       <Modal
         isOpen={showPrintPreview}
         onClose={() => setShowPrintPreview(false)}
-        title={printPreviewType === 'receipt' ? 'พิมพ์ใบรับฝาก' : 'พิมพ์ป้ายขวด'}
-        description="ตรวจสอบข้อมูลก่อนส่งพิมพ์"
+        title={printPreviewType === 'receipt' ? t("detail.printReceiptTitle") : t("detail.printLabelTitle")}
+        description={t("detail.printPreviewDesc")}
         size="md"
       >
         <div className="space-y-4">
           <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">รหัสฝาก</span>
+                <span className="text-gray-500 dark:text-gray-400">{t("detail.depositCode")}</span>
                 <span className="font-mono font-medium text-gray-900 dark:text-white">{deposit.deposit_code}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">ลูกค้า</span>
+                <span className="text-gray-500 dark:text-gray-400">{t("detail.customer")}</span>
                 <span className="font-medium text-gray-900 dark:text-white">{deposit.customer_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">สินค้า</span>
+                <span className="text-gray-500 dark:text-gray-400">{t("detail.product")}</span>
                 <span className="font-medium text-gray-900 dark:text-white">{deposit.product_name}</span>
               </div>
               {deposit.category && (
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">หมวดหมู่</span>
+                  <span className="text-gray-500 dark:text-gray-400">{t("detail.category")}</span>
                   <span className="font-medium text-gray-900 dark:text-white">{deposit.category}</span>
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-gray-500 dark:text-gray-400">จำนวน / คงเหลือ</span>
+                <span className="text-gray-500 dark:text-gray-400">{t("detail.qtyRemaining")}</span>
                 <span className="font-medium text-gray-900 dark:text-white">
                   {formatNumber(deposit.quantity)} / {formatNumber(deposit.remaining_qty)}
                 </span>
@@ -1850,7 +1851,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
               )}
               {receivedByName && (
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">พนักงานรับฝาก</span>
+                  <span className="text-gray-500 dark:text-gray-400">{t("detail.receivedBy")}</span>
                   <span className="font-medium text-gray-900 dark:text-white">{receivedByName}</span>
                 </div>
               )}
@@ -1861,10 +1862,10 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-center dark:border-indigo-800 dark:bg-indigo-900/20">
               <Tag className="mx-auto h-8 w-8 text-indigo-500" />
               <p className="mt-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
-                จะพิมพ์ป้ายขวด {deposit.remaining_qty || 1} ใบ
+                {t("detail.willPrintLabels", { count: deposit.remaining_qty || 1 })}
               </p>
               <p className="text-xs text-indigo-500 dark:text-indigo-400">
-                (1 ใบต่อ 1 ขวด)
+                {t("detail.onePerBottle")}
               </p>
             </div>
           )}
@@ -1874,7 +1875,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             variant="outline"
             onClick={() => setShowPrintPreview(false)}
           >
-            ยกเลิก
+            {t("detail.cancelBtn")}
           </Button>
           <Button
             onClick={() => {
@@ -1884,7 +1885,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             isLoading={printPreviewType === 'receipt' ? isPrintingReceipt : isPrintingLabel}
             icon={printPreviewType === 'receipt' ? <Printer className="h-4 w-4" /> : <Tag className="h-4 w-4" />}
           >
-            ยืนยันพิมพ์
+            {t("detail.confirmPrint")}
           </Button>
         </ModalFooter>
       </Modal>
@@ -1898,22 +1899,22 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           setBarConfirmQty('');
           setBarConfirmPhoto(null);
         }}
-        title="ยืนยันรับเข้าระบบ"
+        title={t("detail.barConfirmTitle")}
         description={`${deposit.deposit_code} — ${deposit.product_name} (${deposit.customer_name})`}
         size="md"
       >
         <div className="space-y-4">
           <Input
-            label="จำนวน (แก้ไขได้)"
+            label={t("detail.qtyEditable")}
             type="number"
             value={barConfirmQty}
             onChange={(e) => setBarConfirmQty(e.target.value)}
             placeholder={String(deposit.quantity)}
-            hint={`จำนวนเดิม: ${formatNumber(deposit.quantity)}`}
+            hint={`${t("detail.originalQty")}: ${formatNumber(deposit.quantity)}`}
           />
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              % คงเหลือ <span className="text-red-500">*</span>
+              {t("detail.remainingPercent")} <span className="text-red-500">*</span>
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -1922,24 +1923,24 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 max="100"
                 value={barConfirmPercent}
                 onChange={(e) => setBarConfirmPercent(e.target.value)}
-                placeholder="เช่น 100"
+                placeholder={t("detail.percentPlaceholder")}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               />
               <span className="shrink-0 text-sm font-medium text-gray-500">%</span>
             </div>
             {barConfirmPercent && (parseFloat(barConfirmPercent) < 0 || parseFloat(barConfirmPercent) > 100) && (
-              <p className="mt-1 text-xs text-red-500">กรุณาระบุค่า 0-100</p>
+              <p className="mt-1 text-xs text-red-500">{t("detail.errorPercentRange")}</p>
             )}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              ถ่ายรูปยืนยัน <span className="text-red-500">*</span>
+              {t("detail.confirmPhoto")} <span className="text-red-500">*</span>
             </label>
             <PhotoUpload
               value={barConfirmPhoto}
               onChange={setBarConfirmPhoto}
               folder="deposits"
-              placeholder="ถ่ายรูปเหล้าเพื่อยืนยัน"
+              placeholder={t("detail.confirmPhotoPlaceholder")}
               required
             />
           </div>
@@ -1954,7 +1955,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
               setBarConfirmPhoto(null);
             }}
           >
-            ยกเลิก
+            {t("detail.cancelBtn")}
           </Button>
           <Button
             onClick={handleBarConfirm}
@@ -1968,7 +1969,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             }
             icon={<ShieldCheck className="h-4 w-4" />}
           >
-            ยืนยันรับเข้าระบบ
+            {t("detail.confirmReceive")}
           </Button>
         </ModalFooter>
       </Modal>

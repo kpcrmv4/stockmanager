@@ -5,8 +5,10 @@ import { Bell, Check, CheckCheck } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useNotificationStore } from '@/stores/notification-store';
 import { formatThaiDateTime } from '@/lib/utils/format';
+import { useTranslations } from 'next-intl';
 
 export function NotificationBell() {
+  const t = useTranslations('notificationBell');
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationStore();
@@ -40,7 +42,7 @@ export function NotificationBell() {
           {/* Header */}
           <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-700">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-              การแจ้งเตือน
+              {t('title')}
               {unreadCount > 0 && (
                 <span className="ml-2 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
                   {unreadCount}
@@ -53,7 +55,7 @@ export function NotificationBell() {
                 className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
               >
                 <CheckCheck className="h-3.5 w-3.5" />
-                อ่านทั้งหมด
+                {t('markAllRead')}
               </button>
             )}
           </div>
@@ -63,7 +65,7 @@ export function NotificationBell() {
             {notifications.length === 0 ? (
               <div className="flex flex-col items-center gap-1 py-8 text-gray-400">
                 <Bell className="h-8 w-8" />
-                <p className="text-sm">ไม่มีการแจ้งเตือน</p>
+                <p className="text-sm">{t('empty')}</p>
               </div>
             ) : (
               notifications.slice(0, 20).map((notif) => (

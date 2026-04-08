@@ -20,28 +20,17 @@ import {
   Settings,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'รอพิมพ์',
-  printing: 'กำลังพิมพ์',
-  completed: 'พิมพ์แล้ว',
-  failed: 'ล้มเหลว',
-};
 
 const STATUS_VARIANTS: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   printing: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
   failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-};
-
-const JOB_TYPE_LABELS: Record<string, string> = {
-  receipt: 'ใบรับ',
-  label: 'ป้ายขวด',
 };
 
 const DASHED_LINE = '--------------------------------';
@@ -52,9 +41,22 @@ const MAX_RECENT_JOBS = 20;
 // ---------------------------------------------------------------------------
 
 export default function PrintListenerPage() {
+  const t = useTranslations('printListener');
   const supabase = useRef(createClient()).current;
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
+
+  const STATUS_LABELS: Record<string, string> = {
+    pending: t('statusPending'),
+    printing: t('statusPrinting'),
+    completed: t('statusCompleted'),
+    failed: t('statusFailed'),
+  };
+
+  const JOB_TYPE_LABELS: Record<string, string> = {
+    receipt: t('jobTypeReceipt'),
+    label: t('jobTypeLabel'),
+  };
 
   const [connected, setConnected] = useState(false);
   const [storeName, setStoreName] = useState<string>('');
@@ -166,7 +168,7 @@ export default function PrintListenerPage() {
           ),
         );
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ';
+        const message = err instanceof Error ? err.message : t('unknownError');
         await updateJobStatus(job.id, 'failed', message);
         setRecentJobs((prev) =>
           prev.map((j) =>
@@ -253,7 +255,7 @@ export default function PrintListenerPage() {
         <div className="text-center">
           <Printer className="mx-auto mb-3 h-12 w-12 text-gray-300 dark:text-gray-600" />
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            กรุณาเลือกสาขาก่อนเริ่มใช้งาน Print Listener
+            {t('selectStoreBefore')}
           </p>
         </div>
       </div>
@@ -375,7 +377,7 @@ export default function PrintListenerPage() {
               Print Listener
             </h1>
             <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-              ระบบรับงานพิมพ์อัตโนมัติ
+              {t('subtitle')}
             </p>
           </div>
 
@@ -386,7 +388,7 @@ export default function PrintListenerPage() {
               className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
             >
               <Settings className="h-4 w-4" />
-              ตั้งค่า
+              {t('settings')}
             </Link>
 
           {/* Connection Status */}
@@ -401,12 +403,12 @@ export default function PrintListenerPage() {
             {connected ? (
               <>
                 <Wifi className="h-4 w-4" />
-                เชื่อมต่อแล้ว
+                {t('connected')}
               </>
             ) : (
               <>
                 <WifiOff className="h-4 w-4" />
-                ไม่ได้เชื่อมต่อ
+                {t('disconnected')}
               </>
             )}
           </div>
@@ -417,7 +419,7 @@ export default function PrintListenerPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {/* Store Name */}
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">สาขา</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('branch')}</p>
             <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
               {storeName || '-'}
             </p>
@@ -425,7 +427,7 @@ export default function PrintListenerPage() {
 
           {/* Connection */}
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">สถานะ</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('status')}</p>
             <p
               className={cn(
                 'mt-1 text-lg font-semibold',
@@ -434,13 +436,13 @@ export default function PrintListenerPage() {
                   : 'text-red-600 dark:text-red-400',
               )}
             >
-              {connected ? 'กำลังรอรับงาน' : 'ขาดการเชื่อมต่อ'}
+              {connected ? t('waitingForJobs') : t('connectionLost')}
             </p>
           </div>
 
           {/* Completed Count */}
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">พิมพ์สำเร็จ</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('printSuccess')}</p>
             <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
               {formatNumber(jobCounts.completed)}
             </p>
@@ -448,7 +450,7 @@ export default function PrintListenerPage() {
 
           {/* Failed Count */}
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">ล้มเหลว / รอพิมพ์</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('failedPending')}</p>
             <p className="mt-1 text-lg font-semibold text-red-600 dark:text-red-400">
               {formatNumber(jobCounts.failed)}
               <span className="mx-1 text-gray-300 dark:text-gray-600">/</span>
@@ -464,7 +466,7 @@ export default function PrintListenerPage() {
           <div className="flex items-center gap-3 rounded-xl bg-blue-50 p-4 dark:bg-blue-900/20">
             <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
             <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-              กำลังพิมพ์ {activePrintJob ? JOB_TYPE_LABELS[activePrintJob.job_type] : ''}...
+              {t('printing', { type: activePrintJob ? JOB_TYPE_LABELS[activePrintJob.job_type] : '' })}
             </span>
           </div>
         )}
@@ -473,14 +475,14 @@ export default function PrintListenerPage() {
         <div className="rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-              งานพิมพ์ล่าสุด
+              {t('recentJobs')}
             </h2>
             <button
               onClick={fetchRecentJobs}
               className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              รีเฟรช
+              {t('refresh')}
             </button>
           </div>
 
@@ -488,7 +490,7 @@ export default function PrintListenerPage() {
             <div className="flex flex-col items-center justify-center py-16">
               <Printer className="mb-3 h-12 w-12 text-gray-300 dark:text-gray-600" />
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                ยังไม่มีงานพิมพ์
+                {t('noJobs')}
               </p>
             </div>
           ) : (
@@ -524,13 +526,13 @@ export default function PrintListenerPage() {
                           : (job.payload as PrintPayload).deposit_code}
                         <span className="ml-2 font-normal text-gray-500 dark:text-gray-400">
                           {job.job_type === 'transfer'
-                            ? `${(job.payload as TransferPrintPayload).items?.length || 0} รายการ`
+                            ? t('itemsCount', { count: (job.payload as TransferPrintPayload).items?.length || 0 })
                             : (job.payload as PrintPayload).customer_name}
                         </span>
                       </p>
                       <p className="truncate text-xs text-gray-400 dark:text-gray-500">
                         {job.job_type === 'transfer'
-                          ? 'ใบนำส่งคลังกลาง'
+                          ? t('hqTransferSlip')
                           : (job.payload as PrintPayload).product_name}
                       </p>
                     </div>
@@ -562,7 +564,7 @@ export default function PrintListenerPage() {
                         ) : (
                           <RotateCcw className="h-3.5 w-3.5" />
                         )}
-                        พิมพ์ซ้ำ
+                        {t('reprint')}
                       </button>
                     )}
                   </div>
@@ -606,6 +608,7 @@ function ReceiptContent({
   settings: ReceiptSettings | null;
   storeName: string;
 }) {
+  const t = useTranslations('printListener');
   return (
     <div>
       {/* Store Name */}
@@ -625,7 +628,7 @@ function ReceiptContent({
 
       {/* Title */}
       <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '14px', margin: '4px 0' }}>
-        ใบรับฝากเหล้า
+        {t('receiptTitle')}
       </div>
 
       {/* Deposit Code */}
@@ -646,37 +649,37 @@ function ReceiptContent({
 
       {/* Customer info */}
       <div style={{ margin: '6px 0' }}>
-        <ReceiptRow label="ชื่อลูกค้า:" value={payload.customer_name} bold />
+        <ReceiptRow label={t('customerName')} value={payload.customer_name} bold />
         {payload.customer_phone && (
-          <ReceiptRow label="เบอร์โทร:" value={payload.customer_phone} />
+          <ReceiptRow label={t('phone')} value={payload.customer_phone} />
         )}
         {payload.table_number && (
-          <ReceiptRow label="โต๊ะ:" value={payload.table_number} />
+          <ReceiptRow label={t('table')} value={payload.table_number} />
         )}
       </div>
 
       {/* Product info */}
       <div style={{ margin: '6px 0' }}>
-        <ReceiptRow label="สินค้า:" value={payload.product_name} bold />
-        {payload.category && <ReceiptRow label="หมวด:" value={payload.category} />}
+        <ReceiptRow label={t('product')} value={payload.product_name} bold />
+        {payload.category && <ReceiptRow label={t('category')} value={payload.category} />}
         <ReceiptRow
-          label="จำนวน:"
+          label={t('quantity')}
           value={`${formatNumber(payload.remaining_qty)} / ${formatNumber(payload.quantity)}`}
         />
       </div>
 
       {/* Dates */}
       <div style={{ margin: '6px 0' }}>
-        <ReceiptRow label="วันที่ฝาก:" value={formatThaiDate(payload.created_at)} />
+        <ReceiptRow label={t('depositDate')} value={formatThaiDate(payload.created_at)} />
         {payload.expiry_date && (
-          <ReceiptRow label="วันหมดอายุ:" value={formatThaiDate(payload.expiry_date)} />
+          <ReceiptRow label={t('expiryDate')} value={formatThaiDate(payload.expiry_date)} />
         )}
       </div>
 
       {/* Received by */}
       {payload.received_by_name && (
         <div style={{ margin: '6px 0' }}>
-          <ReceiptRow label="ผู้รับฝาก:" value={payload.received_by_name} />
+          <ReceiptRow label={t('receivedBy')} value={payload.received_by_name} />
         </div>
       )}
 
@@ -702,10 +705,10 @@ function ReceiptContent({
           <div style={{ textAlign: 'center', letterSpacing: '-1px', margin: '4px 0' }}>{DASHED_LINE}</div>
           <div style={{ fontSize: '11px', margin: '4px 0', lineHeight: 1.5 }}>
             <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '2px' }}>
-              ตรวจสอบข้อมูลเหล้าฝาก:
+              {t('checkDepositInfo')}
             </div>
-            <div>1. สแกน QR Code เพิ่มเพื่อน</div>
-            <div>2. พิมพ์รหัสฝากในแชท</div>
+            <div>{t('scanQr')}</div>
+            <div>{t('typeCode')}</div>
             <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px', margin: '2px 0' }}>
               &quot;{payload.deposit_code}&quot;
             </div>
@@ -721,7 +724,7 @@ function ReceiptContent({
       )}
 
       {/* Thank you */}
-      <div style={{ textAlign: 'center', margin: '6px 0 4px' }}>ขอบคุณที่ใช้บริการ</div>
+      <div style={{ textAlign: 'center', margin: '6px 0 4px' }}>{t('thankYou')}</div>
     </div>
   );
 }
@@ -737,6 +740,7 @@ function LabelContent({
   payload: PrintPayload;
   storeName: string;
 }) {
+  const t = useTranslations('printListener');
   return (
     <div>
       {/* Store */}
@@ -761,18 +765,18 @@ function LabelContent({
       <hr style={{ border: 'none', borderTop: '0.5px solid #999', margin: '1mm 0' }} />
 
       {/* Customer */}
-      <LabelRow label="ลูกค้า:" value={payload.customer_name} />
+      <LabelRow label={t('labelCustomer')} value={payload.customer_name} />
 
       {/* Product */}
-      <LabelRow label="สินค้า:" value={payload.product_name} />
+      <LabelRow label={t('labelProduct')} value={payload.product_name} />
 
       {/* Expiry */}
       {payload.expiry_date && (
-        <LabelRow label="หมดอายุ:" value={formatThaiDate(payload.expiry_date)} />
+        <LabelRow label={t('labelExpiry')} value={formatThaiDate(payload.expiry_date)} />
       )}
 
       {/* Deposit date */}
-      <LabelRow label="วันที่ฝาก:" value={formatThaiDate(payload.created_at)} />
+      <LabelRow label={t('labelDepositDate')} value={formatThaiDate(payload.created_at)} />
     </div>
   );
 }
@@ -832,6 +836,7 @@ function TransferReceiptContent({
   payload: TransferPrintPayload;
   storeName: string;
 }) {
+  const tr = useTranslations('printStation.transferReceipt');
   const items = payload.items || [];
   const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
@@ -842,20 +847,20 @@ function TransferReceiptContent({
       </div>
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
       <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '14px', margin: '4px 0' }}>
-        ใบนำส่งเหล้าคลังกลาง
+        {tr('title')}
       </div>
       <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '18px', margin: '4px 0', letterSpacing: '1px' }}>
         {payload.transfer_code}
       </div>
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
       <div style={{ margin: '6px 0' }}>
-        <ReceiptRow label="วันที่:" value={formatThaiDateTime(payload.created_at)} />
-        <ReceiptRow label="สาขา:" value={payload.store_name} bold />
-        <ReceiptRow label="จำนวนรวม:" value={`${formatNumber(totalQty)} (${items.length} รายการ)`} bold />
+        <ReceiptRow label={tr('date')} value={formatThaiDateTime(payload.created_at)} />
+        <ReceiptRow label={tr('branch')} value={payload.store_name} bold />
+        <ReceiptRow label={tr('totalQuantity')} value={`${formatNumber(totalQty)} (${items.length})`} bold />
       </div>
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
       <div style={{ margin: '6px 0' }}>
-        <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>รายการ:</div>
+        <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{tr('itemsList')}</div>
         {items.map((item, idx) => (
           <div key={idx} style={{ marginBottom: '4px', paddingBottom: '4px', borderBottom: idx < items.length - 1 ? '1px dotted #ccc' : 'none' }}>
             <div style={{ fontWeight: 'bold' }}>{idx + 1}. {item.product_name}</div>
@@ -864,7 +869,7 @@ function TransferReceiptContent({
               <span>{item.deposit_code || ''}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-              <span>จำนวน: {formatNumber(item.quantity)}</span>
+              <span>{tr('quantity')} {formatNumber(item.quantity)}</span>
               {item.category && <span>({item.category})</span>}
             </div>
           </div>
@@ -872,23 +877,23 @@ function TransferReceiptContent({
       </div>
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
       {payload.notes && (
-        <div style={{ margin: '6px 0', fontSize: '11px' }}>หมายเหตุ: {payload.notes}</div>
+        <div style={{ margin: '6px 0', fontSize: '11px' }}>{tr('notes')} {payload.notes}</div>
       )}
       <div style={{ margin: '16px 0 6px' }}>
-        <ReceiptRow label="ผู้นำส่ง:" value={payload.submitted_by_name} bold />
+        <ReceiptRow label={tr('submittedBy')} value={payload.submitted_by_name} bold />
         <div style={{ margin: '4px 0 16px' }}>
-          <span>ลงชื่อ: </span>
+          <span>{tr('signature')} </span>
           <span style={{ borderBottom: '1px solid #000', display: 'inline-block', width: '180px' }}>&nbsp;</span>
         </div>
-        <ReceiptRow label="ผู้รับ (HQ):" value="_______________" />
+        <ReceiptRow label={tr('receiverHQ')} value="_______________" />
         <div style={{ margin: '4px 0' }}>
-          <span>ลงชื่อ: </span>
+          <span>{tr('signature')} </span>
           <span style={{ borderBottom: '1px solid #000', display: 'inline-block', width: '180px' }}>&nbsp;</span>
         </div>
       </div>
       <div style={{ textAlign: 'center', letterSpacing: '-1px' }}>{DASHED_LINE}</div>
       <div style={{ textAlign: 'center', fontSize: '11px', margin: '4px 0' }}>
-        เอกสารนี้ใช้เป็นหลักฐานการนำส่งเหล้า
+        {tr('documentNote')}
       </div>
     </div>
   );

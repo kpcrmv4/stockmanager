@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
@@ -175,10 +177,10 @@ interface GroupConfig {
 const GROUP_CONFIGS: GroupConfig[] = [
   {
     key: 'new',
-    label: 'สินค้าใหม่',
+    label: 'new',
     icon: Plus,
     badgeVariant: 'info',
-    badgeLabel: 'ใหม่',
+    badgeLabel: 'new',
     ringColor: 'ring-blue-200 dark:ring-blue-800',
     headerBg: 'bg-blue-50 dark:bg-blue-900/20',
     headerText: 'text-blue-700 dark:text-blue-300',
@@ -191,10 +193,10 @@ const GROUP_CONFIGS: GroupConfig[] = [
   },
   {
     key: 'matched',
-    label: 'ตรงกับระบบ',
+    label: 'matched',
     icon: CheckCircle2,
     badgeVariant: 'success',
-    badgeLabel: 'ตรงกัน',
+    badgeLabel: 'matched',
     ringColor: 'ring-emerald-200 dark:ring-emerald-800',
     headerBg: 'bg-emerald-50 dark:bg-emerald-900/20',
     headerText: 'text-emerald-700 dark:text-emerald-300',
@@ -207,7 +209,7 @@ const GROUP_CONFIGS: GroupConfig[] = [
   },
   {
     key: 'zero_qty',
-    label: 'จำนวน = 0',
+    label: 'zeroQty',
     icon: XCircle,
     badgeVariant: 'default',
     badgeLabel: 'qty = 0',
@@ -223,6 +225,17 @@ const GROUP_CONFIGS: GroupConfig[] = [
   },
 ];
 
+const GROUP_LABEL_MAP: Record<string, string> = {
+  new: 'txtUpload.newProducts',
+  matched: 'txtUpload.matchedSystem',
+  zeroQty: 'txtUpload.zeroQty',
+};
+
+const GROUP_BADGE_MAP: Record<string, string> = {
+  new: 'txtUpload.badgeNew',
+  matched: 'txtUpload.badgeMatched',
+};
+
 function GroupedPreview({
   classifiedItems,
   previewStats,
@@ -230,6 +243,7 @@ function GroupedPreview({
   classifiedItems: ClassifiedItem[];
   previewStats: { matched: number; new: number; zero: number };
 }) {
+  const t = useTranslations('stock');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     new: false,
     matched: false,
@@ -279,7 +293,7 @@ function GroupedPreview({
               <div className="flex items-center gap-2.5">
                 <Icon className={cn('h-4.5 w-4.5', group.headerText)} />
                 <span className={cn('text-sm font-semibold', group.headerText)}>
-                  {group.label}
+                  {t(GROUP_LABEL_MAP[group.label] || group.label)}
                 </span>
                 <span
                   className={cn(
@@ -310,19 +324,19 @@ function GroupedPreview({
                           #
                         </th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          รหัส
+                          {t('txtUpload.codeCol')}
                         </th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          ชื่อสินค้า
+                          {t('txtUpload.productNameCol')}
                         </th>
                         <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          จำนวน
+                          {t('txtUpload.quantityCol')}
                         </th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          หน่วย
+                          {t('txtUpload.unitCol')}
                         </th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          หมวด
+                          {t('txtUpload.categoryCol')}
                         </th>
                       </tr>
                     </thead>
@@ -345,7 +359,7 @@ function GroupedPreview({
                             {item.existing_name &&
                               item.existing_name !== item.product_name && (
                                 <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                                  ระบบ: {item.existing_name}
+                                  {t('txtUpload.systemLabel')}: {item.existing_name}
                                 </p>
                               )}
                           </td>
@@ -388,7 +402,7 @@ function GroupedPreview({
                           {item.existing_name &&
                             item.existing_name !== item.product_name && (
                               <p className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500">
-                                ระบบ: {item.existing_name}
+                                {t('txtUpload.systemLabel')}: {item.existing_name}
                               </p>
                             )}
                         </div>
@@ -413,6 +427,7 @@ function GroupedPreview({
 const UPLOAD_ROLES = ['owner', 'manager', 'accountant'];
 
 export default function TxtUploadPage() {
+  const t = useTranslations('stock');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -422,8 +437,8 @@ export default function TxtUploadPage() {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
         <Upload className="h-10 w-10 text-gray-300 dark:text-gray-600" />
-        <p className="text-sm text-gray-500 dark:text-gray-400">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</p>
-        <a href="/stock" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">กลับหน้าสต๊อก</a>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{t('txtUpload.noPermission')}</p>
+        <a href="/stock" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">{t('txtUpload.backToStock')}</a>
       </div>
     );
   }
@@ -530,8 +545,8 @@ export default function TxtUploadPage() {
         console.error('Error classifying items:', error);
         toast({
           type: 'error',
-          title: 'เกิดข้อผิดพลาด',
-          message: 'ไม่สามารถตรวจสอบรายการสินค้าจากระบบได้',
+          title: t('txtUpload.errorTitle'),
+          message: t('txtUpload.errorClassify'),
         });
       } finally {
         setLoading(false);
@@ -546,8 +561,8 @@ export default function TxtUploadPage() {
       if (!file.name.toLowerCase().endsWith('.txt')) {
         toast({
           type: 'error',
-          title: 'ไฟล์ไม่ถูกต้อง',
-          message: 'กรุณาอัพโหลดไฟล์ .txt เท่านั้น',
+          title: t('txtUpload.invalidFile'),
+          message: t('txtUpload.onlyTxtAllowed'),
         });
         return;
       }
@@ -563,7 +578,7 @@ export default function TxtUploadPage() {
 
         if (items.length === 0) {
           setParseErrors([
-            'ไม่พบข้อมูลสินค้าในไฟล์ กรุณาตรวจสอบรูปแบบไฟล์ (tab-separated: รหัส, ชื่อ, จำนวน, หน่วย, หมวด)',
+            t('txtUpload.noDataInFile'),
           ]);
           setParsing(false);
           return;
@@ -587,13 +602,13 @@ export default function TxtUploadPage() {
         const noNameItems = items.filter((i) => !i.product_name);
         if (noNameItems.length > 0) {
           errors.push(
-            `${noNameItems.length} รายการไม่มีชื่อสินค้า`
+            t('txtUpload.noNameWarning', { count: noNameItems.length })
           );
         }
         const noUnitItems = items.filter((i) => !i.unit);
         if (noUnitItems.length > 0) {
           errors.push(
-            `${noUnitItems.length} รายการไม่มีหน่วยนับ`
+            t('txtUpload.noUnitWarning', { count: noUnitItems.length })
           );
         }
         setParseErrors(errors);
@@ -604,8 +619,8 @@ export default function TxtUploadPage() {
         console.error('Error reading file:', error);
         toast({
           type: 'error',
-          title: 'อ่านไฟล์ไม่สำเร็จ',
-          message: 'ไม่สามารถอ่านข้อมูลจากไฟล์ได้ ลองใหม่อีกครั้ง',
+          title: t('txtUpload.readFileFailed'),
+          message: t('txtUpload.readFileFailedMsg'),
         });
       } finally {
         setParsing(false);
@@ -650,8 +665,8 @@ export default function TxtUploadPage() {
     if (!currentStoreId) {
       toast({
         type: 'error',
-        title: 'ไม่พบร้านค้า',
-        message: 'กรุณาเลือกร้านค้าก่อนบันทึก',
+        title: t('txtUpload.noStore'),
+        message: t('txtUpload.selectStoreFirst'),
       });
       return;
     }
@@ -695,8 +710,8 @@ export default function TxtUploadPage() {
 
       toast({
         type: 'success',
-        title: 'บันทึกสำเร็จ',
-        message: `นำเข้าข้อมูล ${result.summary.total_items} รายการเรียบร้อย`,
+        title: t('txtUpload.saveSuccess'),
+        message: t('txtUpload.saveSuccessMsg', { count: result.summary.total_items }),
       });
 
       // Upload original TXT file to Supabase Storage (non-blocking)
@@ -748,15 +763,14 @@ export default function TxtUploadPage() {
           if (compareResult.compared) {
             toast({
               type: 'success',
-              title: 'เปรียบเทียบอัตโนมัติสำเร็จ',
-              message: `ตรง ${compareResult.summary?.match || 0} | เกินเกณฑ์ ${compareResult.summary?.over_tolerance || 0} รายการ`,
+              title: t('txtUpload.autoCompareSuccess'),
+              message: t('txtUpload.autoCompareSuccessMsg', { match: compareResult.summary?.match || 0, overTolerance: compareResult.summary?.over_tolerance || 0 }),
             });
           } else if (compareResult.reason === 'no_manual') {
             toast({
               type: 'info',
-              title: 'รอข้อมูลนับ Manual',
-              message:
-                'ยังไม่มีข้อมูลนับ Manual — ระบบจะเปรียบเทียบอัตโนมัติเมื่อ staff บันทึกการนับ',
+              title: t('txtUpload.waitingManual'),
+              message: t('txtUpload.waitingManualMsg'),
             });
           }
 
@@ -767,17 +781,16 @@ export default function TxtUploadPage() {
           ) {
             toast({
               type: 'warning',
-              title: 'พบรายการที่ staff ยังไม่ได้นับ',
-              message: `มี ${compareResult.missingItems.length} รายการจาก POS ที่ยังไม่มีใน Manual — จะแจ้งให้ staff นับเพิ่ม`,
+              title: t('txtUpload.missingManualItems'),
+              message: t('txtUpload.missingManualItemsMsg', { count: compareResult.missingItems.length }),
             });
           }
         } catch (err) {
           console.error('Auto-compare error:', err);
           toast({
             type: 'warning',
-            title: 'เปรียบเทียบอัตโนมัติล้มเหลว',
-            message:
-              'สามารถเปรียบเทียบด้วยตนเองได้ที่หน้าผลเปรียบเทียบ',
+            title: t('txtUpload.autoCompareFailed'),
+            message: t('txtUpload.autoCompareFailedMsg'),
           });
         } finally {
           setComparingAuto(false);
@@ -787,11 +800,11 @@ export default function TxtUploadPage() {
       console.error('Error saving TXT data:', error);
       toast({
         type: 'error',
-        title: 'บันทึกไม่สำเร็จ',
+        title: t('txtUpload.saveFailed'),
         message:
           error instanceof Error
             ? error.message
-            : 'เกิดข้อผิดพลาดในการบันทึกข้อมูล',
+            : t('txtUpload.saveFailedMsg'),
       });
     } finally {
       setSaving(false);
@@ -837,11 +850,10 @@ export default function TxtUploadPage() {
             </div>
             <div>
               <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                วันนี้มีข้อมูล POS อัพโหลดแล้ว
+                {t('txtUpload.duplicateWarningTitle')}
               </p>
               <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
-                วันที่ {formatThaiDate(businessDate)} มีข้อมูล POS ในระบบแล้ว
-                หากอัพโหลดอีกครั้งจะ<span className="font-semibold">แทนที่ข้อมูลเดิม</span>
+                {t('txtUpload.duplicateWarningDetail', { date: formatThaiDate(businessDate) })}
               </p>
             </div>
           </div>
@@ -900,13 +912,13 @@ export default function TxtUploadPage() {
           <div>
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
               {isDragActive
-                ? 'ปล่อยไฟล์เพื่ออัพโหลด'
+                ? t('txtUpload.dropToUpload')
                 : parsing
-                  ? 'กำลังอ่านไฟล์...'
-                  : 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือกไฟล์'}
+                  ? t('txtUpload.readingFile')
+                  : t('txtUpload.dragOrClick')}
             </p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              รองรับไฟล์ .txt (Tab-separated) ทั้ง UTF-8 และ Windows-874
+              {t('txtUpload.supportedFormats')}
             </p>
           </div>
         </div>
@@ -914,11 +926,11 @@ export default function TxtUploadPage() {
 
       {/* File format guide */}
       <Card>
-        <CardHeader title="รูปแบบไฟล์ที่รองรับ" />
+        <CardHeader title={t('txtUpload.fileFormatTitle')} />
         <CardContent>
           <div className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              ไฟล์ .txt แบบ Tab-separated (คั่นด้วย Tab) ตามรูปแบบ:
+              {t('txtUpload.fileFormatDesc')}
             </p>
             <div className="overflow-x-auto rounded-lg bg-gray-50 p-3 dark:bg-gray-900/50">
               <code className="whitespace-pre text-xs text-gray-700 dark:text-gray-300">
@@ -930,19 +942,19 @@ export default function TxtUploadPage() {
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
               <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                คอลัมน์ 1: รหัสสินค้า
+                {t('txtUpload.col1')}
               </span>
               <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                คอลัมน์ 2: ชื่อสินค้า
+                {t('txtUpload.col2')}
               </span>
               <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                คอลัมน์ 3: จำนวน
+                {t('txtUpload.col3')}
               </span>
               <span className="rounded-full bg-purple-50 px-2 py-0.5 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                คอลัมน์ 4: หน่วย
+                {t('txtUpload.col4')}
               </span>
               <span className="rounded-full bg-pink-50 px-2 py-0.5 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400">
-                คอลัมน์ 5: หมวดหมู่
+                {t('txtUpload.col5')}
               </span>
             </div>
           </div>
@@ -965,7 +977,7 @@ export default function TxtUploadPage() {
               {fileName}
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {parsedItems.length} รายการ -- {formatThaiDate(businessDate)}
+              {t('txtUpload.fileItemCount', { count: parsedItems.length, date: formatThaiDate(businessDate) })}
             </p>
           </div>
         </div>
@@ -975,7 +987,7 @@ export default function TxtUploadPage() {
           icon={<Trash2 className="h-4 w-4" />}
           onClick={handleReset}
         >
-          เปลี่ยนไฟล์
+          {t('txtUpload.changeFile')}
         </Button>
       </div>
 
@@ -986,11 +998,10 @@ export default function TxtUploadPage() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
             <div>
               <p className="text-sm font-medium text-red-800 dark:text-red-300">
-                วันนี้มีการอัพโหลดข้อมูล POS แล้ว
+                {t('txtUpload.duplicatePreviewTitle')}
               </p>
               <p className="text-xs text-red-700 dark:text-red-400">
-                วันที่ {formatThaiDate(businessDate)} มีข้อมูล POS อยู่แล้ว
-                การบันทึกจะแทนที่ข้อมูลเดิม
+                {t('txtUpload.duplicatePreviewDetail', { date: formatThaiDate(businessDate) })}
               </p>
             </div>
           </div>
@@ -1004,7 +1015,7 @@ export default function TxtUploadPage() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             <div className="space-y-1">
               <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                พบข้อสังเกต
+                {t('txtUpload.parseWarnings')}
               </p>
               {parseErrors.map((err, i) => (
                 <p
@@ -1026,7 +1037,7 @@ export default function TxtUploadPage() {
             {previewStats.matched}
           </p>
           <p className="text-[10px] text-emerald-600 dark:text-emerald-500">
-            ตรงกับระบบ
+            {t('txtUpload.matchedSystem')}
           </p>
         </div>
         <div className="rounded-xl bg-blue-50 px-3 py-3 text-center dark:bg-blue-900/20">
@@ -1034,7 +1045,7 @@ export default function TxtUploadPage() {
             {previewStats.new}
           </p>
           <p className="text-[10px] text-blue-600 dark:text-blue-500">
-            สินค้าใหม่
+            {t('txtUpload.newProducts')}
           </p>
         </div>
         <div className="rounded-xl bg-gray-100 px-3 py-3 text-center dark:bg-gray-700">
@@ -1042,7 +1053,7 @@ export default function TxtUploadPage() {
             {previewStats.zero}
           </p>
           <p className="text-[10px] text-gray-500 dark:text-gray-400">
-            จำนวน = 0
+            {t('txtUpload.zeroQty')}
           </p>
         </div>
       </div>
@@ -1050,7 +1061,7 @@ export default function TxtUploadPage() {
       {/* Options */}
       <div className="space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
         <p className="text-sm font-medium text-gray-900 dark:text-white">
-          ตัวเลือก
+          {t('txtUpload.options')}
         </p>
         <label className="flex items-center gap-3 text-sm">
           <input
@@ -1060,7 +1071,7 @@ export default function TxtUploadPage() {
             className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700"
           />
           <span className="text-gray-700 dark:text-gray-300">
-            รวมสินค้า qty = 0
+            {t('txtUpload.includeZeroQty')}
           </span>
         </label>
         <label className="flex items-center gap-3 text-sm">
@@ -1071,7 +1082,7 @@ export default function TxtUploadPage() {
             className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700"
           />
           <span className="text-gray-700 dark:text-gray-300">
-            เปรียบเทียบอัตโนมัติหลังบันทึก
+            {t('txtUpload.autoCompareAfterSave')}
           </span>
         </label>
       </div>
@@ -1086,7 +1097,7 @@ export default function TxtUploadPage() {
             <span className="font-medium text-gray-900 dark:text-white">
               {classifiedItems.length}
             </span>{' '}
-            รายการ
+            {t('txtUpload.itemsLabel')}
           </div>
           <div className="flex gap-2">
             <Button
@@ -1095,7 +1106,7 @@ export default function TxtUploadPage() {
               icon={<RotateCcw className="h-4 w-4" />}
               onClick={handleReset}
             >
-              เริ่มใหม่
+              {t('txtUpload.startOver')}
             </Button>
             <Button
               size="sm"
@@ -1109,7 +1120,7 @@ export default function TxtUploadPage() {
                 }
               }}
             >
-              {duplicateWarning ? 'บันทึกทับข้อมูลเดิม' : 'บันทึกข้อมูล'}
+              {duplicateWarning ? t('txtUpload.overwriteSave') : t('txtUpload.saveData')}
             </Button>
           </div>
         </div>
@@ -1124,11 +1135,10 @@ export default function TxtUploadPage() {
                 <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
               </div>
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                ยืนยันอัพโหลดซ้ำ?
+                {t('txtUpload.confirmOverwrite')}
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                วันที่ {formatThaiDate(businessDate)} มีข้อมูล POS อยู่แล้ว
-                การบันทึกจะ<span className="font-semibold text-amber-600 dark:text-amber-400">แทนที่ข้อมูลเดิม</span>ทั้งหมด
+                {t('txtUpload.overwriteConfirmDetail', { date: formatThaiDate(businessDate) })}
               </p>
               <div className="mt-2 flex w-full gap-3">
                 <Button
@@ -1137,7 +1147,7 @@ export default function TxtUploadPage() {
                   className="flex-1"
                   onClick={() => setShowOverwriteConfirm(false)}
                 >
-                  ยกเลิก
+                  {t('txtUpload.cancel')}
                 </Button>
                 <Button
                   size="sm"
@@ -1148,7 +1158,7 @@ export default function TxtUploadPage() {
                     handleSave();
                   }}
                 >
-                  ยืนยันแทนที่
+                  {t('txtUpload.confirmReplace')}
                 </Button>
               </div>
             </div>
@@ -1164,21 +1174,21 @@ export default function TxtUploadPage() {
 
     const resultCards = [
       {
-        label: 'ทั้งหมด',
+        label: t('txtUpload.totalLabel'),
         value: summary.total_items,
         bg: 'bg-blue-50 dark:bg-blue-900/20',
         text: 'text-blue-700 dark:text-blue-400',
         subText: 'text-blue-600 dark:text-blue-500',
       },
       {
-        label: 'ตรงกัน',
+        label: t('txtUpload.matchedLabel'),
         value: summary.matched,
         bg: 'bg-emerald-50 dark:bg-emerald-900/20',
         text: 'text-emerald-700 dark:text-emerald-400',
         subText: 'text-emerald-600 dark:text-emerald-500',
       },
       {
-        label: 'เพิ่มใหม่',
+        label: t('txtUpload.newAdded'),
         value: summary.new_added,
         bg: 'bg-indigo-50 dark:bg-indigo-900/20',
         text: 'text-indigo-700 dark:text-indigo-400',
@@ -1192,14 +1202,14 @@ export default function TxtUploadPage() {
         subText: 'text-gray-500 dark:text-gray-400',
       },
       {
-        label: 'ปิดใช้งาน',
+        label: t('txtUpload.deactivated'),
         value: summary.deactivated,
         bg: 'bg-red-50 dark:bg-red-900/20',
         text: 'text-red-700 dark:text-red-400',
         subText: 'text-red-600 dark:text-red-500',
       },
       {
-        label: 'เปิดใช้งานใหม่',
+        label: t('txtUpload.reactivated'),
         value: summary.reactivated,
         bg: 'bg-amber-50 dark:bg-amber-900/20',
         text: 'text-amber-700 dark:text-amber-400',
@@ -1216,10 +1226,10 @@ export default function TxtUploadPage() {
           </div>
           <div>
             <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
-              นำเข้าข้อมูลสำเร็จ
+              {t('txtUpload.importSuccess')}
             </p>
             <p className="text-xs text-emerald-700 dark:text-emerald-400">
-              ไฟล์ {fileName} -- {formatThaiDate(businessDate)}
+              {t('txtUpload.fileImported', { file: fileName, date: formatThaiDate(businessDate) })}
             </p>
           </div>
         </div>
@@ -1241,14 +1251,14 @@ export default function TxtUploadPage() {
 
         {/* Detail breakdown */}
         <Card>
-          <CardHeader title="สรุปผลการนำเข้า" />
+          <CardHeader title={t('txtUpload.importSummary')} />
           <CardContent>
             <div className="space-y-3">
               {summary.new_added > 0 && (
                 <div className="flex items-start gap-2">
                   <Plus className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" />
                   <p className="text-sm text-gray-700 dark:text-gray-300">
-                    เพิ่มสินค้าใหม่ {summary.new_added} รายการ เข้าสู่ระบบอัตโนมัติ
+                    {t('txtUpload.newAddedDetail', { count: summary.new_added })}
                   </p>
                 </div>
               )}
@@ -1256,7 +1266,7 @@ export default function TxtUploadPage() {
                 <div className="flex items-start gap-2">
                   <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
                   <p className="text-sm text-gray-700 dark:text-gray-300">
-                    ปิดใช้งาน {summary.deactivated} รายการ (จำนวน = 0)
+                    {t('txtUpload.deactivatedDetail', { count: summary.deactivated })}
                   </p>
                 </div>
               )}
@@ -1264,7 +1274,7 @@ export default function TxtUploadPage() {
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                   <p className="text-sm text-gray-700 dark:text-gray-300">
-                    เปิดใช้งานใหม่ {summary.reactivated} รายการ (มีจำนวนเข้ามา)
+                    {t('txtUpload.reactivatedDetail', { count: summary.reactivated })}
                   </p>
                 </div>
               )}
@@ -1272,7 +1282,7 @@ export default function TxtUploadPage() {
                 summary.deactivated === 0 &&
                 summary.reactivated === 0 && (
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    ไม่มีการเปลี่ยนแปลงสินค้าในระบบ
+                    {t('txtUpload.noChanges')}
                   </p>
                 )}
             </div>
@@ -1284,14 +1294,14 @@ export default function TxtUploadPage() {
           <div className="flex items-center gap-2 rounded-xl bg-indigo-50 p-4 dark:bg-indigo-900/20">
             <Loader2 className="h-4 w-4 animate-spin text-indigo-600 dark:text-indigo-400" />
             <span className="text-sm text-indigo-700 dark:text-indigo-300">
-              กำลังเปรียบเทียบอัตโนมัติ...
+              {t('txtUpload.autoComparing')}
             </span>
           </div>
         )}
 
         {autoCompareResult?.compared && (
           <Card>
-            <CardHeader title="ผลเปรียบเทียบอัตโนมัติ" />
+            <CardHeader title={t('txtUpload.autoCompareResultTitle')} />
             <CardContent>
               <div className="grid grid-cols-3 gap-2">
                 <div className="rounded-lg bg-emerald-50 px-3 py-2 text-center dark:bg-emerald-900/20">
@@ -1299,7 +1309,7 @@ export default function TxtUploadPage() {
                     {autoCompareResult.summary?.match || 0}
                   </p>
                   <p className="text-[10px] text-emerald-600 dark:text-emerald-500">
-                    ตรงกัน
+                    {t('txtUpload.matchedLabel')}
                   </p>
                 </div>
                 <div className="rounded-lg bg-amber-50 px-3 py-2 text-center dark:bg-amber-900/20">
@@ -1307,7 +1317,7 @@ export default function TxtUploadPage() {
                     {autoCompareResult.summary?.within_tolerance || 0}
                   </p>
                   <p className="text-[10px] text-amber-600 dark:text-amber-500">
-                    ภายในเกณฑ์
+                    {t('txtUpload.withinTolerance')}
                   </p>
                 </div>
                 <div className="rounded-lg bg-red-50 px-3 py-2 text-center dark:bg-red-900/20">
@@ -1315,7 +1325,7 @@ export default function TxtUploadPage() {
                     {autoCompareResult.summary?.over_tolerance || 0}
                   </p>
                   <p className="text-[10px] text-red-600 dark:text-red-500">
-                    เกินเกณฑ์
+                    {t('txtUpload.overTolerance')}
                   </p>
                 </div>
               </div>
@@ -1324,8 +1334,8 @@ export default function TxtUploadPage() {
                   <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                     <p className="text-xs text-amber-700 dark:text-amber-400">
-                      พบ {autoCompareResult.missingItems.length} รายการจาก POS
-                      ที่ staff ยังไม่ได้นับ — แจ้งให้นับเพิ่มแล้ว
+                      {t('txtUpload.foundMissingItems', { count: autoCompareResult.missingItems.length })}
+                      {t('txtUpload.staffNotCountedYet')}
                     </p>
                   </div>
                 )}
@@ -1338,8 +1348,8 @@ export default function TxtUploadPage() {
             <AlertTriangle className="h-4 w-4 text-blue-500" />
             <span className="text-sm text-blue-700 dark:text-blue-300">
               {autoCompareResult.reason === 'no_manual'
-                ? 'ยังไม่มีข้อมูลนับ Manual — ระบบจะเปรียบเทียบอัตโนมัติเมื่อ staff บันทึกการนับ'
-                : 'ไม่สามารถเปรียบเทียบอัตโนมัติได้'}
+                ? t('txtUpload.waitingManualMsg')
+                : t('txtUpload.cannotAutoCompare')}
             </span>
           </div>
         )}
@@ -1353,7 +1363,7 @@ export default function TxtUploadPage() {
               className="w-full"
               icon={<BarChart3 className="h-5 w-5" />}
             >
-              ดูผลเปรียบเทียบ
+              {t('txtUpload.viewComparison')}
               <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           </a>
@@ -1364,7 +1374,7 @@ export default function TxtUploadPage() {
                 size="lg"
                 icon={<FileText className="h-5 w-5" />}
               >
-                ดูไฟล์ต้นฉบับ
+                {t('txtUpload.viewOriginalFile')}
               </Button>
             </a>
           )}
@@ -1374,7 +1384,7 @@ export default function TxtUploadPage() {
             icon={<RotateCcw className="h-5 w-5" />}
             onClick={handleReset}
           >
-            อัพโหลดไฟล์ใหม่
+            {t('txtUpload.uploadNewFile')}
           </Button>
         </div>
       </>
@@ -1404,13 +1414,13 @@ export default function TxtUploadPage() {
               <ArrowLeft className="h-5 w-5" />
             </a>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              นำเข้าข้อมูล TXT
+              {t('txtUpload.title')}
             </h1>
           </div>
           <p className="mt-0.5 ml-9 text-sm text-gray-500 dark:text-gray-400">
-            {step === 'upload' && 'อัพโหลดไฟล์ .txt จากระบบ POS'}
-            {step === 'preview' && `ตรวจสอบข้อมูลก่อนบันทึก -- ${formatThaiDate(businessDate)}`}
-            {step === 'result' && 'ผลการนำเข้าข้อมูล'}
+            {step === 'upload' && t('txtUpload.stepUploadDesc')}
+            {step === 'preview' && t('txtUpload.stepPreviewDesc', { date: formatThaiDate(businessDate) })}
+            {step === 'result' && t('txtUpload.stepResultDesc')}
           </p>
         </div>
       </div>
@@ -1418,9 +1428,9 @@ export default function TxtUploadPage() {
       {/* Step indicator */}
       <div className="flex items-center gap-2">
         {[
-          { key: 'upload', label: 'อัพโหลด' },
-          { key: 'preview', label: 'ตรวจสอบ' },
-          { key: 'result', label: 'ผลลัพธ์' },
+          { key: 'upload', label: t('txtUpload.stepUpload') },
+          { key: 'preview', label: t('txtUpload.stepPreview') },
+          { key: 'result', label: t('txtUpload.stepResult') },
         ].map((s, idx) => (
           <div key={s.key} className="flex items-center gap-2">
             {idx > 0 && (

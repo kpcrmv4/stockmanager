@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils/cn';
@@ -26,6 +27,7 @@ function WithdrawContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const depositId = searchParams.get('depositId');
+  const t = useTranslations('customer.withdraw');
 
   const [deposit, setDeposit] = useState<DepositInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -82,7 +84,7 @@ function WithdrawContent() {
 
     const qty = parseFloat(requestedQty);
     if (qty <= 0 || qty > deposit.remaining_qty) {
-      setError(`จำนวนต้องอยู่ระหว่าง 1-${deposit.remaining_qty}`);
+      setError(t('errorQtyRange', { max: deposit.remaining_qty }));
       return;
     }
 
@@ -95,7 +97,7 @@ function WithdrawContent() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      setError('กรุณาเข้าสู่ระบบ');
+      setError(t('errorLogin'));
       setIsSubmitting(false);
       return;
     }
@@ -108,7 +110,7 @@ function WithdrawContent() {
 
     // On blocked days, only take_home is allowed
     if (blockedInfo?.blocked && withdrawalType !== 'take_home') {
-      setError('วันนี้ไม่สามารถเบิกเหล้าใช้ในร้านได้ กรุณาเลือก "เบิกกลับบ้าน"');
+      setError(t('errorBlockedDay'));
       setIsSubmitting(false);
       return;
     }
@@ -127,7 +129,7 @@ function WithdrawContent() {
     });
 
     if (insertError) {
-      setError('ไม่สามารถส่งคำขอเบิกได้ กรุณาลองใหม่');
+      setError(t('errorSubmit'));
     } else {
       await supabase
         .from('deposits')
@@ -152,13 +154,13 @@ function WithdrawContent() {
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
           <Package className="h-8 w-8 text-[#06C755]" />
         </div>
-        <h2 className="text-lg font-bold text-gray-900">ส่งคำขอเบิกสำเร็จ</h2>
-        <p className="text-sm text-gray-500">รอการอนุมัติจากทางร้าน</p>
+        <h2 className="text-lg font-bold text-gray-900">{t('successTitle')}</h2>
+        <p className="text-sm text-gray-500">{t('successSubtitle')}</p>
         <button
           onClick={() => router.push('/customer')}
           className="mt-2 rounded-full bg-[#06C755] px-8 py-2.5 text-sm font-semibold text-white active:bg-[#05a849]"
         >
-          กลับหน้าหลัก
+          {t('goHome')}
         </button>
       </div>
     );
@@ -168,12 +170,12 @@ function WithdrawContent() {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 px-6 text-gray-400">
         <Package className="h-12 w-12" />
-        <p className="text-sm">ไม่พบข้อมูลการฝาก หรือรายการนี้ไม่สามารถเบิกได้</p>
+        <p className="text-sm">{t('notFound')}</p>
         <button
           onClick={() => router.push('/customer')}
           className="rounded-full border border-gray-300 px-6 py-2 text-sm font-medium text-gray-600"
         >
-          กลับหน้าหลัก
+          {t('goHome')}
         </button>
       </div>
     );
@@ -187,17 +189,17 @@ function WithdrawContent() {
         className="mb-4 flex items-center gap-1 text-sm text-gray-500"
       >
         <ArrowLeft className="h-4 w-4" />
-        กลับ
+        {t('back')}
       </button>
 
-      <h2 className="text-lg font-bold text-gray-900">ขอเบิกเหล้า</h2>
+      <h2 className="text-lg font-bold text-gray-900">{t('title')}</h2>
       <p className="mt-0.5 text-sm text-gray-500">{deposit.deposit_code}</p>
 
       {/* Deposit Info */}
       <div className="mt-4 rounded-2xl bg-green-50 p-4">
         <p className="font-semibold text-gray-900">{deposit.product_name}</p>
         <p className="mt-1 text-sm text-gray-600">
-          คงเหลือ: {formatNumber(deposit.remaining_qty)} | {deposit.store?.store_name}
+          {t('remaining', { qty: formatNumber(deposit.remaining_qty), store: deposit.store?.store_name || '' })}
         </p>
       </div>
 
@@ -216,10 +218,10 @@ function WithdrawContent() {
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
             <div>
               <p className="text-sm font-semibold text-amber-800">
-                วันนี้ไม่สามารถเบิกเหล้าใช้ในร้านได้
+                {t('blockedDayTitle')}
               </p>
               <p className="mt-1 text-xs text-amber-700">
-                สามารถเบิกกลับบ้านได้เท่านั้น
+                {t('blockedDaySubtitle')}
               </p>
             </div>
           </div>
@@ -230,7 +232,7 @@ function WithdrawContent() {
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
         {/* Withdrawal type selector */}
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">ประเภทการเบิก</label>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('withdrawalType')}</label>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -245,7 +247,7 @@ function WithdrawContent() {
               )}
             >
               <Wine className="h-4 w-4" />
-              เบิกใช้ในร้าน
+              {t('inStore')}
             </button>
             <button
               type="button"
@@ -258,13 +260,13 @@ function WithdrawContent() {
               )}
             >
               <Home className="h-4 w-4" />
-              เบิกกลับบ้าน
+              {t('takeHome')}
             </button>
           </div>
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">จำนวนที่ต้องการเบิก</label>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('quantity')}</label>
           <input
             type="number"
             value={requestedQty}
@@ -273,26 +275,26 @@ function WithdrawContent() {
             required
             className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/20"
           />
-          <p className="mt-1 text-xs text-gray-400">สูงสุด {formatNumber(deposit.remaining_qty)}</p>
+          <p className="mt-1 text-xs text-gray-400">{t('maxQty', { qty: formatNumber(deposit.remaining_qty) })}</p>
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">หมายเลขโต๊ะ</label>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('tableNumber')}</label>
           <input
             type="text"
             value={tableNumber}
             onChange={(e) => setTableNumber(e.target.value)}
-            placeholder="เช่น โต๊ะ 5"
+            placeholder={t('tablePlaceholder')}
             className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/20"
           />
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">หมายเหตุ</label>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('notes')}</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"
+            placeholder={t('notesPlaceholder')}
             rows={3}
             className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/20"
           />
@@ -308,7 +310,7 @@ function WithdrawContent() {
           ) : (
             <Package className="h-4 w-4" />
           )}
-          {isSubmitting ? 'กำลังส่งคำขอ...' : 'ส่งคำขอเบิก'}
+          {isSubmitting ? t('submitting') : t('submit')}
         </button>
       </form>
     </div>

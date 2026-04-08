@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
@@ -40,12 +42,7 @@ interface StoreOption {
 
 type ImportTable = 'deposits' | 'deposit_history' | 'withdrawals' | 'transfers';
 
-const TABLE_OPTIONS: { value: ImportTable; label: string }[] = [
-  { value: 'deposits', label: '① Deposits (รายการฝากที่ยังอยู่)' },
-  { value: 'deposit_history', label: '② Deposit History (เบิกหมด/หมดอายุ/โอน)' },
-  { value: 'withdrawals', label: '③ Withdrawals (ประวัติเบิก)' },
-  { value: 'transfers', label: '④ Transfer Requests (โอนคลังกลาง)' },
-];
+// TABLE_OPTIONS moved inside component to use i18n
 
 interface ParsedRow {
   _valid: boolean;
@@ -181,7 +178,15 @@ function parseTransferDepositIds(raw: string): string[] {
 // ---------------------------------------------------------------------------
 
 export default function ImportDepositsPage() {
+  const t = useTranslations('settings');
   const { user } = useAuthStore();
+
+  const TABLE_OPTIONS: { value: ImportTable; label: string }[] = [
+    { value: 'deposits', label: t('importDeposits.tableDeposits') },
+    { value: 'deposit_history', label: t('importDeposits.tableDepositHistory') },
+    { value: 'withdrawals', label: t('importDeposits.tableWithdrawals') },
+    { value: 'transfers', label: t('importDeposits.tableTransfers') },
+  ];
 
   // Step
   const [step, setStep] = useState<'config' | 'preview' | 'result'>('config');
@@ -292,7 +297,7 @@ export default function ImportDepositsPage() {
             const dep = depositMap.get(code);
             return {
               _valid: !!dep,
-              _issue: dep ? undefined : `ไม่พบ deposit: ${code}`,
+              _issue: dep ? undefined : t('importDeposits.depositNotFound', { code }),
               _linked: !!dep,
               _depositUUID: dep?.id,
               _depositProductName: dep?.product_name,
@@ -308,7 +313,7 @@ export default function ImportDepositsPage() {
             _issue:
               linkedCount === ids.length
                 ? undefined
-                : `เชื่อมได้ ${linkedCount}/${ids.length}`,
+                : t('importDeposits.linkedPartial', { linked: linkedCount, total: ids.length }),
             _linked: linkedCount === ids.length,
             _subRows: subRows,
           };
@@ -325,7 +330,7 @@ export default function ImportDepositsPage() {
             _valid: row._valid && !!dep,
             _issue: dep
               ? row._issue
-              : `ไม่พบ deposit_code "${code}" ในร้านนี้`,
+              : t('importDeposits.depositCodeNotFound', { code }),
           };
         }
       });
@@ -341,7 +346,7 @@ export default function ImportDepositsPage() {
         !file.name.endsWith('.txt') &&
         !file.name.endsWith('.tsv')
       ) {
-        toast({ type: 'error', title: 'รองรับเฉพาะไฟล์ .csv, .txt, .tsv' });
+        toast({ type: 'error', title: t('importDeposits.unsupportedFile') });
         return;
       }
       setParsing(true);
@@ -352,7 +357,7 @@ export default function ImportDepositsPage() {
         const { headers, rows } = parseCSV(text);
 
         if (headers.length === 0 || rows.length === 0) {
-          toast({ type: 'error', title: 'ไฟล์ว่างเปล่าหรือไม่มีข้อมูล' });
+          toast({ type: 'error', title: t('importDeposits.emptyFile') });
           setParsing(false);
           return;
         }
@@ -376,10 +381,10 @@ export default function ImportDepositsPage() {
               const cn = raw.customer_name || '';
               if (!pn) {
                 _valid = false;
-                _issue = 'ไม่มีชื่อสินค้า';
+                _issue = t('importDeposits.noProductName');
               } else if (!cn) {
                 _valid = false;
-                _issue = 'ไม่มีชื่อลูกค้า';
+                _issue = t('importDeposits.noCustomerName');
               }
             } else if (importTable === 'deposit_history') {
               const pn = raw.product_name || '';
@@ -387,23 +392,23 @@ export default function ImportDepositsPage() {
               const code = raw.deposit_code || '';
               if (!code) {
                 _valid = false;
-                _issue = 'ไม่มี deposit_code';
+                _issue = t('importDeposits.noDepositCode');
               } else if (!pn) {
                 _valid = false;
-                _issue = 'ไม่มีชื่อสินค้า';
+                _issue = t('importDeposits.noProductName');
               } else if (!cn) {
                 _valid = false;
-                _issue = 'ไม่มีชื่อลูกค้า';
+                _issue = t('importDeposits.noCustomerName');
               }
             } else if (importTable === 'withdrawals') {
               if (!raw.deposit_code) {
                 _valid = false;
-                _issue = 'ไม่มี deposit_code';
+                _issue = t('importDeposits.noDepositCode');
               }
             } else if (importTable === 'transfers') {
               if (!raw.deposit_ids && !raw.deposit_code) {
                 _valid = false;
-                _issue = 'ไม่มี deposit_ids';
+                _issue = t('importDeposits.noDepositIds');
               }
             }
 
@@ -412,7 +417,7 @@ export default function ImportDepositsPage() {
 
         const invalidCount = parsed.filter((r) => !r._valid).length;
         if (invalidCount > 0) {
-          warnings.push(`${invalidCount} แถวมีข้อมูลไม่ครบ`);
+          warnings.push(t('importDeposits.incompleteRows', { count: invalidCount }));
         }
 
         if (importTable === 'deposits') {
@@ -420,9 +425,7 @@ export default function ImportDepositsPage() {
             (r) => (r.raw.status || '').toLowerCase().trim() === 'cancelled'
           ).length;
           if (cancelledCount > 0) {
-            warnings.push(
-              `${cancelledCount} แถวมีสถานะ "cancelled" (จะข้าม)`
-            );
+            warnings.push(t('importDeposits.cancelledRows', { count: cancelledCount }));
           }
         }
 
@@ -434,7 +437,7 @@ export default function ImportDepositsPage() {
           });
           const parts = Object.entries(statusCounts).map(([s, c]) => `${s}: ${c}`);
           if (parts.length > 0) {
-            warnings.push(`สถานะ: ${parts.join(', ')}`);
+            warnings.push(t('importDeposits.statusSummary', { summary: parts.join(', ') }));
           }
         }
 
@@ -454,14 +457,12 @@ export default function ImportDepositsPage() {
                 r.raw.deposit_code ||
                 r.raw.deposit_ids
             ).length;
-            warnings.push(
-              `เชื่อมโยง deposit สำเร็จ ${linked}/${total} รายการ`
-            );
+            warnings.push(t('importDeposits.linkedSuccess', { linked, total }));
             const unlinked = resolved.filter(
-              (r) => r._issue?.includes('ไม่พบ')
+              (r) => r._linked === false
             ).length;
             if (unlinked > 0) {
-              warnings.push(`${unlinked} แถวไม่พบ deposit ในร้านนี้ (จะข้าม)`);
+              warnings.push(t('importDeposits.unlinkedRows', { count: unlinked }));
             }
             setParsedRows(resolved);
             setParseWarnings([...warnings]);
@@ -475,7 +476,7 @@ export default function ImportDepositsPage() {
         setParseWarnings(warnings);
         setStep('preview');
       } catch {
-        toast({ type: 'error', title: 'ไม่สามารถอ่านไฟล์ได้' });
+        toast({ type: 'error', title: t('importDeposits.cannotReadFile') });
       } finally {
         setParsing(false);
       }
@@ -524,7 +525,7 @@ export default function ImportDepositsPage() {
         const codeIdx = headers.indexOf('deposit_code');
 
         if (idIdx === -1 || codeIdx === -1) {
-          toast({ type: 'error', title: 'ไฟล์อ้างอิงต้องมีคอลัมน์ deposit_id และ deposit_code' });
+          toast({ type: 'error', title: t('importDeposits.refFileMissingColumns') });
           return;
         }
 
@@ -538,7 +539,7 @@ export default function ImportDepositsPage() {
 
         setReferenceMap(map);
         setReferenceFileName(file.name);
-        toast({ type: 'success', title: `โหลดไฟล์อ้างอิงแล้ว (${map.size} รายการ)` });
+        toast({ type: 'success', title: t('importDeposits.refFileLoaded', { count: map.size }) });
       };
       reader.readAsText(file);
     },
@@ -689,7 +690,7 @@ export default function ImportDepositsPage() {
         const { error } = await supabase.from('deposits').insert(records);
         if (error) {
           errorList.push(
-            `แถว ${i + 1}-${i + batch.length}: ${error.message}`
+            t('importDeposits.rowError', { from: i + 1, to: i + batch.length, error: error.message })
           );
           skippedCount += batch.length;
         } else {
@@ -739,7 +740,7 @@ export default function ImportDepositsPage() {
         const { error } = await supabase.from('deposits').insert(records);
         if (error) {
           errorList.push(
-            `แถว ${i + 1}-${i + batch.length}: ${error.message}`
+            t('importDeposits.rowError', { from: i + 1, to: i + batch.length, error: error.message })
           );
           skippedCount += batch.length;
         } else {
@@ -783,7 +784,7 @@ export default function ImportDepositsPage() {
         const { error } = await supabase.from('withdrawals').insert(records);
         if (error) {
           errorList.push(
-            `แถว ${i + 1}-${i + batch.length}: ${error.message}`
+            t('importDeposits.rowError', { from: i + 1, to: i + batch.length, error: error.message })
           );
           skippedCount += batch.length;
         } else {
@@ -806,7 +807,7 @@ export default function ImportDepositsPage() {
       const toStoreId = centralStore?.id;
       if (!toStoreId) {
         errorList.push(
-          'ไม่พบร้านคลังกลาง (is_central) ในระบบ — กรุณาสร้างร้านคลังกลางก่อน'
+          t('importDeposits.noCentralStore')
         );
       } else {
         for (let i = 0; i < allSubRows.length; i += BATCH) {
@@ -839,7 +840,7 @@ export default function ImportDepositsPage() {
             .select('id, deposit_id, from_store_id, product_name, quantity, requested_by, confirm_photo_url, notes, status');
           if (error) {
             errorList.push(
-              `แถว ${i + 1}-${i + batch.length}: ${error.message}`
+              t('importDeposits.rowError', { from: i + 1, to: i + batch.length, error: error.message })
             );
             skippedCount += batch.length;
           } else {
@@ -927,19 +928,19 @@ export default function ImportDepositsPage() {
         label: string;
       }
     > = {
-      in_store: { variant: 'success', label: 'ในร้าน' },
-      pending_confirm: { variant: 'warning', label: 'รอยืนยัน' },
-      pending_withdrawal: { variant: 'info', label: 'รอเบิก' },
-      withdrawn: { variant: 'default', label: 'เบิกแล้ว' },
-      expired: { variant: 'danger', label: 'หมดอายุ' },
-      transfer_pending: { variant: 'warning', label: 'รอนำส่ง HQ' },
-      transferred_out: { variant: 'info', label: 'โอนคลัง' },
-      cancelled: { variant: 'default', label: 'ยกเลิก' },
-      pending: { variant: 'warning', label: 'รอ' },
-      approved: { variant: 'info', label: 'อนุมัติ' },
-      completed: { variant: 'success', label: 'เสร็จสิ้น' },
-      rejected: { variant: 'danger', label: 'ปฏิเสธ' },
-      confirmed: { variant: 'success', label: 'ยืนยันแล้ว' },
+      in_store: { variant: 'success', label: t('importDeposits.statusInStore') },
+      pending_confirm: { variant: 'warning', label: t('importDeposits.statusPendingConfirm') },
+      pending_withdrawal: { variant: 'info', label: t('importDeposits.statusPendingWithdrawal') },
+      withdrawn: { variant: 'default', label: t('importDeposits.statusWithdrawn') },
+      expired: { variant: 'danger', label: t('importDeposits.statusExpired') },
+      transfer_pending: { variant: 'warning', label: t('importDeposits.statusTransferPending') },
+      transferred_out: { variant: 'info', label: t('importDeposits.statusTransferredOut') },
+      cancelled: { variant: 'default', label: t('importDeposits.statusCancelled') },
+      pending: { variant: 'warning', label: t('importDeposits.statusPending') },
+      approved: { variant: 'info', label: t('importDeposits.statusApproved') },
+      completed: { variant: 'success', label: t('importDeposits.statusCompleted') },
+      rejected: { variant: 'danger', label: t('importDeposits.statusRejected') },
+      confirmed: { variant: 'success', label: t('importDeposits.statusConfirmed') },
     };
     const cfg = map[status] || {
       variant: 'default' as const,
@@ -956,13 +957,13 @@ export default function ImportDepositsPage() {
     if (row._linked === true)
       return (
         <Badge variant="success" size="sm">
-          เชื่อมแล้ว
+          {t('importDeposits.linked')}
         </Badge>
       );
     if (row._linked === false)
       return (
         <Badge variant="danger" size="sm">
-          ไม่พบ
+          {t('importDeposits.notFound')}
         </Badge>
       );
     return null;
@@ -992,22 +993,10 @@ export default function ImportDepositsPage() {
   };
 
   const columnGuideNotes: Record<ImportTable, string> = {
-    deposits: `* deposit_id เดิมจะไม่ใช้ — ระบบสร้าง UUID ใหม่
-* store_id จะถูกแทนที่ด้วย UUID ร้านที่เลือก
-* is_vip = TRUE → ไม่มีวันหมดอายุ (VIP)
-* สถานะ "cancelled" จะถูกข้าม`,
-    deposit_history: `* ข้อมูลจาก Deposit_History (ระบบเดิมลบจาก Deposits เมื่อเบิกหมด/หมดอายุ)
-* จะถูก import เข้า deposits table เดียวกัน โดย remaining_qty = 0
-* final_status: fully_withdrawn → withdrawn, expired → expired, transferred → transferred_out
-* ต้อง import ก่อน Withdrawals เพื่อให้ deposit_code ครบ`,
-    withdrawals: `* deposit_code จะถูกใช้ค้นหา UUID ของ deposit ในร้านที่เลือก
-* ต้อง Import Deposits + Deposit History ก่อน ไม่งั้นจะ resolve ไม่ได้
-* status เดิมจะ map เป็น "completed" ถ้าไม่ตรง`,
-    transfers: `* transfer_code จะถูกบันทึกตามไฟล์ (เช่น TRF-2026-0001) — ใช้ group batch
-* deposit_ids รองรับ JSON array (["uuid1","uuid2"]) หรือ comma-separated
-* ถ้าเป็น UUID เดิม → ใช้ "ไฟล์ Deposits อ้างอิง" map เป็น deposit_code
-* to_store_id จะใช้ร้านคลังกลาง (is_central) อัตโนมัติ
-* ต้อง Import Deposits + Deposit History ก่อน`,
+    deposits: t('importDeposits.guideNotesDeposits'),
+    deposit_history: t('importDeposits.guideNotesHistory'),
+    withdrawals: t('importDeposits.guideNotesWithdrawals'),
+    transfers: t('importDeposits.guideNotesTransfers'),
   };
 
   // =====================================================================
@@ -1023,7 +1012,7 @@ export default function ImportDepositsPage() {
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
         >
           <ArrowLeft className="h-4 w-4" />
-          กลับหน้าตั้งค่า
+          {t('importDeposits.backToSettings')}
         </a>
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-900/20">
@@ -1031,10 +1020,10 @@ export default function ImportDepositsPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              นำเข้าข้อมูลฝากเหล้า
+              {t('importDeposits.title')}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Import ข้อมูลจาก Google Sheet (CSV) เข้าสู่ระบบใหม่
+              {t('importDeposits.subtitle')}
             </p>
           </div>
         </div>
@@ -1048,48 +1037,36 @@ export default function ImportDepositsPage() {
           {/* Import Order Hint */}
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
             <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
-              ลำดับการ Import ที่ถูกต้อง
+              {t('importDeposits.importOrderTitle')}
             </p>
             <ol className="mt-2 space-y-1 text-xs text-blue-700 dark:text-blue-400">
-              <li>
-                <strong>① Deposits</strong> — รายการฝากที่ยังอยู่ (active,
-                pending, partial withdrawal)
-              </li>
-              <li>
-                <strong>② Deposit History</strong> — รายการที่เบิกหมด/หมดอายุ/โอนแล้ว
-                (ระบบเดิมลบออกจาก Deposits)
-              </li>
-              <li>
-                <strong>③ Withdrawals</strong> — ใช้ deposit_code ค้นหา UUID
-                (ต้อง import ①+② ก่อน)
-              </li>
-              <li>
-                <strong>④ Transfers</strong> — ใช้ deposit_ids ค้นหา UUID
-                + ส่งไปคลังกลาง
-              </li>
+              <li>{t('importDeposits.importOrder1')}</li>
+              <li>{t('importDeposits.importOrder2')}</li>
+              <li>{t('importDeposits.importOrder3')}</li>
+              <li>{t('importDeposits.importOrder4')}</li>
             </ol>
           </div>
 
           {/* Store & Table selector */}
           <Card padding="none">
             <CardHeader
-              title="ตั้งค่าการนำเข้า"
-              description="เลือกร้านปลายทางและประเภทข้อมูล"
+              title={t('importDeposits.configTitle')}
+              description={t('importDeposits.configDesc')}
             />
             <CardContent>
               <div className="space-y-4">
                 <Select
-                  label="ร้านปลายทาง *"
+                  label={t('importDeposits.targetStoreLabel')}
                   options={stores.map((s) => ({
                     value: s.id,
-                    label: `${s.store_name} (${s.store_code})${s.is_central ? ' — คลังกลาง' : ''}`,
+                    label: `${s.store_name} (${s.store_code})${s.is_central ? ` — ${t('importDeposits.centralLabel')}` : ''}`,
                   }))}
                   value={selectedStoreId}
                   onChange={(e) => setSelectedStoreId(e.target.value)}
-                  placeholder="เลือกร้าน"
+                  placeholder={t('importDeposits.selectStore')}
                 />
                 <Select
-                  label="ประเภทข้อมูล"
+                  label={t('importDeposits.dataTypeLabel')}
                   options={TABLE_OPTIONS}
                   value={importTable}
                   onChange={(e) =>
@@ -1102,12 +1079,11 @@ export default function ImportDepositsPage() {
                   <div className="rounded-lg bg-amber-50 p-3 text-sm dark:bg-amber-900/10">
                     <p className="font-medium text-amber-700 dark:text-amber-400">
                       {importTable === 'withdrawals'
-                        ? 'Withdrawals ต้อง Import Deposits + Deposit History เข้าร้านนี้ก่อน'
-                        : 'Transfers ต้อง Import Deposits + Deposit History เข้าร้านนี้ก่อน'}
+                        ? t('importDeposits.withdrawalsRequireDeposits')
+                        : t('importDeposits.transfersRequireDeposits')}
                     </p>
                     <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-500">
-                      ระบบจะใช้ deposit_code ค้นหา UUID ของ deposit อัตโนมัติ
-                      — ถ้าไม่พบจะข้ามแถวนั้น
+                      {t('importDeposits.resolveNote')}
                     </p>
                   </div>
                 )}
@@ -1115,11 +1091,10 @@ export default function ImportDepositsPage() {
                 {importTable === 'deposit_history' && (
                   <div className="rounded-lg bg-blue-50 p-3 text-sm dark:bg-blue-900/10">
                     <p className="font-medium text-blue-700 dark:text-blue-400">
-                      Deposit History = รายการที่ระบบเดิมลบออกจาก Deposits แล้ว
+                      {t('importDeposits.historyExplanationTitle')}
                     </p>
                     <p className="mt-0.5 text-xs text-blue-600 dark:text-blue-500">
-                      เบิกหมด (fully_withdrawn), หมดอายุ (expired), โอนคลัง (transferred)
-                      — จะถูก import เข้า deposits table เดียวกันโดย remaining_qty = 0
+                      {t('importDeposits.historyExplanationDesc')}
                     </p>
                   </div>
                 )}
@@ -1127,11 +1102,10 @@ export default function ImportDepositsPage() {
                 {importTable === 'transfers' && !centralStore && (
                   <div className="rounded-lg bg-red-50 p-3 text-sm dark:bg-red-900/10">
                     <p className="font-medium text-red-700 dark:text-red-400">
-                      ไม่พบร้านคลังกลาง (is_central) ในระบบ
+                      {t('importDeposits.noCentralStoreTitle')}
                     </p>
                     <p className="mt-0.5 text-xs text-red-600 dark:text-red-500">
-                      กรุณาสร้างร้านคลังกลางในหน้าตั้งค่าก่อน Import
-                      Transfers
+                      {t('importDeposits.noCentralStoreDesc')}
                     </p>
                   </div>
                 )}
@@ -1139,10 +1113,10 @@ export default function ImportDepositsPage() {
                 {importTable === 'transfers' && (
                   <div className="rounded-lg border border-dashed border-indigo-300 bg-indigo-50 p-3 text-sm dark:border-indigo-700 dark:bg-indigo-900/10">
                     <p className="font-medium text-indigo-700 dark:text-indigo-400">
-                      ไฟล์ Deposits อ้างอิง (ถ้า deposit_ids เป็น UUID เดิม)
+                      {t('importDeposits.refFileTitle')}
                     </p>
                     <p className="mt-0.5 text-xs text-indigo-600 dark:text-indigo-500">
-                      ใช้ map old deposit_id → deposit_code ให้ระบบค้นหาได้
+                      {t('importDeposits.refFileDesc')}
                     </p>
                     <div className="mt-2 flex items-center gap-2">
                       <input
@@ -1161,12 +1135,12 @@ export default function ImportDepositsPage() {
                         className="rounded-lg bg-indigo-100 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400"
                       >
                         <Upload className="mr-1 inline h-3.5 w-3.5" />
-                        เลือกไฟล์อ้างอิง
+                        {t('importDeposits.selectRefFile')}
                       </button>
                       {referenceFileName && (
                         <span className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400">
                           <CheckCircle2 className="h-3.5 w-3.5" />
-                          {referenceFileName} ({referenceMap.size} รายการ)
+                          {referenceFileName} ({t('importDeposits.refFileCount', { count: referenceMap.size })})
                         </span>
                       )}
                     </div>
@@ -1176,10 +1150,10 @@ export default function ImportDepositsPage() {
                 {selectedStore && (
                   <div className="rounded-lg bg-violet-50 p-3 text-sm dark:bg-violet-900/10">
                     <p className="font-medium text-violet-700 dark:text-violet-400">
-                      ข้อมูลจะถูก import เข้าร้าน: {selectedStore.store_name}
+                      {t('importDeposits.importTarget', { name: selectedStore.store_name })}
                     </p>
                     <p className="mt-0.5 text-xs text-violet-600 dark:text-violet-500">
-                      store_id เดิมในไฟล์จะถูกแทนที่ด้วย UUID:{' '}
+                      {t('importDeposits.importTargetNote')}{' '}
                       {selectedStoreId.slice(0, 8)}...
                     </p>
                   </div>
@@ -1196,7 +1170,7 @@ export default function ImportDepositsPage() {
             onClick={() =>
               selectedStoreId
                 ? fileInputRef.current?.click()
-                : toast({ type: 'warning', title: 'กรุณาเลือกร้านก่อน' })
+                : toast({ type: 'warning', title: t('importDeposits.selectStoreFirst') })
             }
             className={cn(
               'cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors',
@@ -1238,13 +1212,13 @@ export default function ImportDepositsPage() {
               <div>
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {isDragActive
-                    ? 'ปล่อยไฟล์เพื่ออัพโหลด'
+                    ? t('importDeposits.dropToUpload')
                     : parsing
-                      ? 'กำลังอ่านไฟล์...'
-                      : 'ลากไฟล์ CSV มาวาง หรือ คลิกเพื่อเลือกไฟล์'}
+                      ? t('importDeposits.readingFile')
+                      : t('importDeposits.dragOrClick')}
                 </p>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  รองรับ .csv, .txt, .tsv — Export จาก Google Sheets ได้เลย
+                  {t('importDeposits.supportedFormats')}
                 </p>
               </div>
             </div>
@@ -1253,7 +1227,7 @@ export default function ImportDepositsPage() {
           {/* Format guide */}
           <Card>
             <CardHeader
-              title={`คอลัมน์ที่รองรับ (${TABLE_OPTIONS.find((t) => t.value === importTable)?.label.split('(')[0].replace(/①|②|③/g, '').trim() || importTable})`}
+              title={t('importDeposits.supportedColumns', { table: TABLE_OPTIONS.find((opt) => opt.value === importTable)?.label || importTable })}
             />
             <CardContent>
               <div className="flex flex-wrap gap-1.5 text-[11px]">
@@ -1285,10 +1259,10 @@ export default function ImportDepositsPage() {
               <Loader2 className="h-5 w-5 animate-spin text-violet-600 dark:text-violet-400" />
               <div>
                 <p className="text-sm font-medium text-violet-800 dark:text-violet-300">
-                  กำลังเชื่อมโยง deposit_code → UUID...
+                  {t('importDeposits.resolving')}
                 </p>
                 <p className="text-xs text-violet-600 dark:text-violet-500">
-                  ค้นหา deposit ที่ตรงกันในร้าน {selectedStore?.store_name}
+                  {t('importDeposits.resolvingDesc', { name: selectedStore?.store_name || '' })}
                 </p>
               </div>
             </div>
@@ -1305,12 +1279,7 @@ export default function ImportDepositsPage() {
                   {fileName}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {parsedRows.length} แถว →{' '}
-                  {TABLE_OPTIONS.find((t) => t.value === importTable)
-                    ?.label.split('(')[0]
-                    .replace(/①|②|③/g, '')
-                    .trim()}{' '}
-                  → ร้าน {selectedStore?.store_name}
+                  {t('importDeposits.fileInfo', { rows: parsedRows.length, table: TABLE_OPTIONS.find((opt) => opt.value === importTable)?.label || importTable, store: selectedStore?.store_name || '' })}
                 </p>
               </div>
             </div>
@@ -1320,7 +1289,7 @@ export default function ImportDepositsPage() {
               icon={<Trash2 className="h-4 w-4" />}
               onClick={handleReset}
             >
-              เปลี่ยนไฟล์
+              {t('importDeposits.changeFile')}
             </Button>
           </div>
 
@@ -1331,7 +1300,7 @@ export default function ImportDepositsPage() {
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                    ข้อสังเกต
+                    {t('importDeposits.warnings')}
                   </p>
                   {parseWarnings.map((w, i) => (
                     <p
@@ -1354,7 +1323,7 @@ export default function ImportDepositsPage() {
                   {stats.valid}
                 </p>
                 <p className="text-[10px] text-emerald-600 dark:text-emerald-500">
-                  จะ Import
+                  {t('importDeposits.willImport')}
                 </p>
               </div>
               <div className="rounded-xl bg-red-50 px-3 py-3 text-center dark:bg-red-900/20">
@@ -1362,7 +1331,7 @@ export default function ImportDepositsPage() {
                   {stats.invalid + stats.skipped}
                 </p>
                 <p className="text-[10px] text-red-600 dark:text-red-500">
-                  ข้าม
+                  {t('importDeposits.skip')}
                 </p>
               </div>
               {importTable === 'deposits' ? (
@@ -1372,7 +1341,7 @@ export default function ImportDepositsPage() {
                       {stats.inStore}
                     </p>
                     <p className="text-[10px] text-blue-600 dark:text-blue-500">
-                      ในร้าน
+                      {t('importDeposits.inStore')}
                     </p>
                   </div>
                   <div className="rounded-xl bg-gray-50 px-3 py-3 text-center dark:bg-gray-800">
@@ -1380,7 +1349,7 @@ export default function ImportDepositsPage() {
                       {stats.expired + stats.withdrawn}
                     </p>
                     <p className="text-[10px] text-gray-600 dark:text-gray-500">
-                      หมดอายุ/เบิก
+                      {t('importDeposits.expiredWithdrawn')}
                     </p>
                   </div>
                 </>
@@ -1391,7 +1360,7 @@ export default function ImportDepositsPage() {
                       {stats.withdrawn}
                     </p>
                     <p className="text-[10px] text-gray-600 dark:text-gray-500">
-                      เบิกหมด
+                      {t('importDeposits.fullyWithdrawn')}
                     </p>
                   </div>
                   <div className="rounded-xl bg-amber-50 px-3 py-3 text-center dark:bg-amber-900/20">
@@ -1399,7 +1368,7 @@ export default function ImportDepositsPage() {
                       {stats.expired + stats.unlinked}
                     </p>
                     <p className="text-[10px] text-amber-600 dark:text-amber-500">
-                      หมดอายุ/โอน
+                      {t('importDeposits.expiredTransferred')}
                     </p>
                   </div>
                 </>
@@ -1412,7 +1381,7 @@ export default function ImportDepositsPage() {
                   {stats.valid}
                 </p>
                 <p className="text-[10px] text-emerald-600 dark:text-emerald-500">
-                  จะ Import
+                  {t('importDeposits.willImport')}
                 </p>
               </div>
               <div className="rounded-xl bg-red-50 px-3 py-3 text-center dark:bg-red-900/20">
@@ -1420,7 +1389,7 @@ export default function ImportDepositsPage() {
                   {stats.invalid}
                 </p>
                 <p className="text-[10px] text-red-600 dark:text-red-500">
-                  ข้าม
+                  {t('importDeposits.skip')}
                 </p>
               </div>
               <div className="rounded-xl bg-blue-50 px-3 py-3 text-center dark:bg-blue-900/20">
@@ -1428,7 +1397,7 @@ export default function ImportDepositsPage() {
                   {stats.linked}
                 </p>
                 <p className="text-[10px] text-blue-600 dark:text-blue-500">
-                  เชื่อมโยงสำเร็จ
+                  {t('importDeposits.linkedSuccessLabel')}
                 </p>
               </div>
               <div className="rounded-xl bg-amber-50 px-3 py-3 text-center dark:bg-amber-900/20">
@@ -1436,7 +1405,7 @@ export default function ImportDepositsPage() {
                   {stats.unlinked}
                 </p>
                 <p className="text-[10px] text-amber-600 dark:text-amber-500">
-                  ไม่พบ Deposit
+                  {t('importDeposits.depositNotFoundLabel')}
                 </p>
               </div>
             </div>
@@ -1444,7 +1413,7 @@ export default function ImportDepositsPage() {
 
           {/* Detected columns */}
           <div className="text-xs text-gray-500 dark:text-gray-400">
-            คอลัมน์ที่พบ: {csvHeaders.join(', ')}
+            {t('importDeposits.detectedColumns')}: {csvHeaders.join(', ')}
           </div>
 
           {/* ── Preview Table: Deposits ── */}
@@ -1459,28 +1428,28 @@ export default function ImportDepositsPage() {
                           #
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          รหัส
+                          {t('importDeposits.colCode')}
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          ลูกค้า
+                          {t('importDeposits.colCustomer')}
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          สินค้า
+                          {t('importDeposits.colProduct')}
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          หมวด
+                          {t('importDeposits.colCategory')}
                         </th>
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          จำนวน
+                          {t('importDeposits.colQty')}
                         </th>
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          เหลือ
+                          {t('importDeposits.colRemaining')}
                         </th>
                         <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
-                          สถานะ
+                          {t('importDeposits.colStatus')}
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          หมดอายุ
+                          {t('importDeposits.colExpiry')}
                         </th>
                       </tr>
                     </thead>
@@ -1632,25 +1601,25 @@ export default function ImportDepositsPage() {
                           #
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          รหัส
+                          {t('importDeposits.colCode')}
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          ลูกค้า
+                          {t('importDeposits.colCustomer')}
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          สินค้า
+                          {t('importDeposits.colProduct')}
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          หมวด
+                          {t('importDeposits.colCategory')}
                         </th>
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          จำนวนเดิม
+                          {t('importDeposits.colOriginalQty')}
                         </th>
                         <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
-                          สถานะ
+                          {t('importDeposits.colStatus')}
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          วันที่
+                          {t('importDeposits.colDate')}
                         </th>
                       </tr>
                     </thead>
@@ -1775,19 +1744,19 @@ export default function ImportDepositsPage() {
                           Deposit Code
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          ลูกค้า
+                          {t('importDeposits.colCustomer')}
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          สินค้า (จาก Deposit)
+                          {t('importDeposits.colProductFromDeposit')}
                         </th>
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          ขอเบิก
+                          {t('importDeposits.colRequestedQty')}
                         </th>
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          เบิกจริง
+                          {t('importDeposits.colActualQty')}
                         </th>
                         <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
-                          เชื่อมโยง
+                          {t('importDeposits.colLinked')}
                         </th>
                       </tr>
                     </thead>
@@ -1901,16 +1870,16 @@ export default function ImportDepositsPage() {
                           Deposit IDs
                         </th>
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
-                          จำนวน
+                          {t('importDeposits.colQty')}
                         </th>
                         <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
-                          สถานะ
+                          {t('importDeposits.colStatus')}
                         </th>
                         <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
-                          เชื่อมโยง
+                          {t('importDeposits.colLinked')}
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-                          โน้ต
+                          {t('importDeposits.colNotes')}
                         </th>
                       </tr>
                     </thead>
@@ -2066,10 +2035,10 @@ export default function ImportDepositsPage() {
                 <span className="font-medium text-gray-900 dark:text-white">
                   {stats.valid}
                 </span>{' '}
-                รายการที่จะ Import
+                {t('importDeposits.itemsToImport')}
                 {stats.invalid + stats.skipped > 0 && (
                   <span className="ml-2 text-red-500">
-                    ({stats.invalid + stats.skipped} ข้าม)
+                    ({t('importDeposits.skippedCount', { count: stats.invalid + stats.skipped })})
                   </span>
                 )}
               </div>
@@ -2080,7 +2049,7 @@ export default function ImportDepositsPage() {
                   icon={<RotateCcw className="h-4 w-4" />}
                   onClick={handleReset}
                 >
-                  เริ่มใหม่
+                  {t('importDeposits.startOver')}
                 </Button>
                 <Button
                   size="sm"
@@ -2089,7 +2058,7 @@ export default function ImportDepositsPage() {
                   onClick={handleImport}
                   disabled={stats.valid === 0 || resolving}
                 >
-                  Import {stats.valid} รายการ
+                  {t('importDeposits.importCount', { count: stats.valid })}
                 </Button>
               </div>
             </div>
@@ -2111,11 +2080,10 @@ export default function ImportDepositsPage() {
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                      Import สำเร็จ!
+                      {t('importDeposits.importSuccess')}
                     </h2>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      นำเข้า {importResult.success} รายการเข้าร้าน{' '}
-                      {selectedStore?.store_name}
+                      {t('importDeposits.importSuccessMsg', { count: importResult.success, store: selectedStore?.store_name || '' })}
                     </p>
                   </div>
                 </>
@@ -2126,11 +2094,10 @@ export default function ImportDepositsPage() {
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                      Import บางส่วนสำเร็จ
+                      {t('importDeposits.importPartial')}
                     </h2>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      สำเร็จ {importResult.success} | ข้าม{' '}
-                      {importResult.skipped}
+                      {t('importDeposits.importPartialMsg', { success: importResult.success, skipped: importResult.skipped })}
                     </p>
                   </div>
                 </>
@@ -2142,7 +2109,7 @@ export default function ImportDepositsPage() {
                     {importResult.success}
                   </p>
                   <p className="text-xs text-emerald-600 dark:text-emerald-500">
-                    สำเร็จ
+                    {t('importDeposits.resultSuccess')}
                   </p>
                 </div>
                 <div className="rounded-xl bg-gray-50 p-3 text-center dark:bg-gray-800">
@@ -2150,7 +2117,7 @@ export default function ImportDepositsPage() {
                     {importResult.skipped}
                   </p>
                   <p className="text-xs text-gray-600 dark:text-gray-500">
-                    ข้าม
+                    {t('importDeposits.skip')}
                   </p>
                 </div>
               </div>
@@ -2158,7 +2125,7 @@ export default function ImportDepositsPage() {
               {importResult.errors.length > 0 && (
                 <div className="w-full max-w-sm rounded-lg border border-red-200 bg-red-50 p-3 text-left dark:border-red-800 dark:bg-red-900/20">
                   <p className="mb-1 text-xs font-medium text-red-700 dark:text-red-400">
-                    ข้อผิดพลาด:
+                    {t('importDeposits.errors')}:
                   </p>
                   {importResult.errors.map((err, i) => (
                     <p
@@ -2173,13 +2140,13 @@ export default function ImportDepositsPage() {
 
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" onClick={handleReset}>
-                  Import เพิ่ม
+                  {t('importDeposits.importMore')}
                 </Button>
                 <Button
                   onClick={() => (window.location.href = '/deposit')}
                   icon={<Wine className="h-4 w-4" />}
                 >
-                  ไปหน้าฝากเหล้า
+                  {t('importDeposits.goToDeposit')}
                 </Button>
               </div>
             </div>

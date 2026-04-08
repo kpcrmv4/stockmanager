@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
@@ -56,6 +58,7 @@ const roleBadgeVariants: Record<string, 'info' | 'success' | 'warning' | 'danger
 
 export default function UsersPage() {
   const { user: currentUser } = useAuthStore();
+  const t = useTranslations('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [stores, setStores] = useState<StoreOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -119,15 +122,15 @@ export default function UsersPage() {
       const result = await res.json();
 
       if (!res.ok) {
-        toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: result.error || 'ไม่สามารถสร้างผู้ใช้ได้' });
+        toast({ type: 'error', title: t('error'), message: result.error || t('createFailed') });
       } else {
-        toast({ type: 'success', title: 'สร้างผู้ใช้สำเร็จ' });
+        toast({ type: 'success', title: t('createSuccess') });
         setShowCreateModal(false);
         resetForm();
         loadUsers();
       }
     } catch {
-      toast({ type: 'error', title: 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้' });
+      toast({ type: 'error', title: t('networkError') });
     }
     setIsSubmitting(false);
   };
@@ -140,7 +143,7 @@ export default function UsersPage() {
       .eq('id', userId);
 
     if (!error) {
-      toast({ type: 'success', title: currentActive ? 'ปิดใช้งานผู้ใช้' : 'เปิดใช้งานผู้ใช้' });
+      toast({ type: 'success', title: currentActive ? t('deactivated') : t('activated') });
       loadUsers();
     }
   };
@@ -165,13 +168,13 @@ export default function UsersPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">จัดการผู้ใช้</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            จัดการพนักงานและกำหนดสิทธิ์การเข้าถึง
+            {t('subtitle')}
           </p>
         </div>
         <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreateModal(true)}>
-          เพิ่มผู้ใช้
+          {t('addUser')}
         </Button>
       </div>
 
@@ -182,7 +185,7 @@ export default function UsersPage() {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="ค้นหาผู้ใช้..."
+          placeholder={t('searchPlaceholder')}
           className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
         />
       </div>
@@ -195,8 +198,8 @@ export default function UsersPage() {
       ) : filteredUsers.length === 0 ? (
         <EmptyState
           icon={Users}
-          title="ไม่พบผู้ใช้"
-          description="เพิ่มผู้ใช้เพื่อเริ่มจัดการทีม"
+          title={t('noUsers')}
+          description={t('noUsersDesc')}
         />
       ) : (
         <div className="space-y-3">
@@ -216,10 +219,10 @@ export default function UsersPage() {
                       <Badge variant={roleBadgeVariants[u.role] || 'default'}>
                         {ROLE_LABELS[u.role] || u.role}
                       </Badge>
-                      {!u.active && <Badge variant="danger">ปิดใช้งาน</Badge>}
+                      {!u.active && <Badge variant="danger">{t('disabled')}</Badge>}
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      @{u.username} | สร้างเมื่อ {formatThaiDate(u.created_at)}
+                      @{u.username} | {t('createdAt')} {formatThaiDate(u.created_at)}
                     </p>
                     {u.stores && u.stores.length > 0 && (
                       <div className="mt-1 flex items-center gap-1 text-xs text-gray-400">
@@ -241,7 +244,7 @@ export default function UsersPage() {
                           ? 'text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20'
                           : 'text-gray-400 hover:bg-emerald-50 hover:text-emerald-500 dark:hover:bg-emerald-900/20'
                       )}
-                      title={u.active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                      title={u.active ? t('deactivate') : t('activate')}
                     >
                       {u.active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
                     </button>
@@ -260,47 +263,47 @@ export default function UsersPage() {
           setShowCreateModal(false);
           resetForm();
         }}
-        title="เพิ่มผู้ใช้ใหม่"
+        title={t('addNewUser')}
         size="lg"
       >
         <div className="space-y-4">
           <Input
-            label="ชื่อผู้ใช้"
+            label={t('username')}
             value={formUsername}
             onChange={(e) => setFormUsername(e.target.value)}
-            placeholder="เช่น somchai"
-            hint="ใช้ภาษาอังกฤษ ตัวเลข หรือขีดล่าง"
+            placeholder={t('usernamePlaceholder')}
+            hint={t('usernameHint')}
           />
           <Input
-            label="รหัสผ่าน"
+            label={t('password')}
             type="password"
             value={formPassword}
             onChange={(e) => setFormPassword(e.target.value)}
-            placeholder="กำหนดรหัสผ่าน"
+            placeholder={t('passwordPlaceholder')}
           />
           <Input
-            label="ชื่อที่แสดง"
+            label={t('displayName')}
             value={formDisplayName}
             onChange={(e) => setFormDisplayName(e.target.value)}
-            placeholder="เช่น สมชาย (ไม่บังคับ)"
+            placeholder={t('displayNamePlaceholder')}
           />
           <Select
-            label="ตำแหน่ง"
+            label={t('role')}
             value={formRole}
             onChange={(e) => setFormRole(e.target.value)}
             options={[
-              { value: 'staff', label: 'พนักงาน (Staff)' },
-              { value: 'bar', label: 'หัวหน้าบาร์ (Bar)' },
-              { value: 'manager', label: 'ผู้จัดการ (Manager)' },
-              { value: 'accountant', label: 'บัญชี (Accountant)' },
-              { value: 'hq', label: 'พนักงานคลังกลาง (HQ)' },
+              { value: 'staff', label: t('roleStaff') },
+              { value: 'bar', label: t('roleBar') },
+              { value: 'manager', label: t('roleManager') },
+              { value: 'accountant', label: t('roleAccountant') },
+              { value: 'hq', label: t('roleHQ') },
             ]}
           />
           <Select
-            label="สาขา"
+            label={t('branch')}
             value={formStoreId}
             onChange={(e) => setFormStoreId(e.target.value)}
-            placeholder="เลือกสาขา"
+            placeholder={t('selectBranch')}
             options={stores.map((s) => ({ value: s.id, label: s.store_name }))}
           />
         </div>
@@ -312,7 +315,7 @@ export default function UsersPage() {
               resetForm();
             }}
           >
-            ยกเลิก
+            {t('cancel')}
           </Button>
           <Button
             onClick={handleCreateUser}
@@ -320,7 +323,7 @@ export default function UsersPage() {
             disabled={!formUsername || !formPassword}
             icon={<Plus className="h-4 w-4" />}
           >
-            สร้างผู้ใช้
+            {t('createUser')}
           </Button>
         </ModalFooter>
       </Modal>

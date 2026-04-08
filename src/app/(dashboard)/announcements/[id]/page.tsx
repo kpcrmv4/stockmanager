@@ -25,6 +25,7 @@ import {
   Bell,
 } from 'lucide-react';
 import { toBangkokISO } from '@/lib/utils/date';
+import { useTranslations } from 'next-intl';
 
 interface StoreOption {
   id: string;
@@ -32,6 +33,7 @@ interface StoreOption {
 }
 
 export default function EditAnnouncementPage() {
+  const t = useTranslations('announcements');
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
@@ -76,7 +78,7 @@ export default function EditAnnouncementPage() {
       .single();
 
     if (error || !data) {
-      toast({ type: 'error', title: 'ไม่พบประกาศ', message: 'ไม่สามารถโหลดข้อมูลประกาศได้' });
+      toast({ type: 'error', title: t('notFound'), message: t('notFoundMsg') });
       router.push('/announcements');
       return;
     }
@@ -123,16 +125,16 @@ export default function EditAnnouncementPage() {
       .eq('id', id);
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถบันทึกประกาศได้' });
+      toast({ type: 'error', title: t('saveError'), message: t('saveErrorMsg') });
     } else {
-      toast({ type: 'success', title: 'บันทึกสำเร็จ', message: 'อัปเดตประกาศเรียบร้อยแล้ว' });
+      toast({ type: 'success', title: t('saveSuccess'), message: t('saveSuccessMsg') });
       router.push('/announcements');
     }
     setIsSaving(false);
   };
 
   const handleDelete = async () => {
-    if (!confirm('ต้องการลบประกาศนี้หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้')) return;
+    if (!confirm(t('confirmDeleteFull'))) return;
 
     setIsDeleting(true);
     const supabase = createClient();
@@ -140,9 +142,9 @@ export default function EditAnnouncementPage() {
     const { error } = await supabase.from('announcements').delete().eq('id', id);
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด', message: 'ไม่สามารถลบประกาศได้' });
+      toast({ type: 'error', title: t('deleteError'), message: t('deleteErrorMsg') });
     } else {
-      toast({ type: 'success', title: 'ลบสำเร็จ', message: 'ลบประกาศเรียบร้อยแล้ว' });
+      toast({ type: 'success', title: t('deleteSuccessFull'), message: t('deleteSuccessMsg') });
       router.push('/announcements');
     }
     setIsDeleting(false);
@@ -157,11 +159,11 @@ export default function EditAnnouncementPage() {
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
         >
           <ArrowLeft className="h-4 w-4" />
-          กลับ
+          {t('back')}
         </button>
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-          <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">กำลังโหลดข้อมูลประกาศ...</p>
+          <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">{t('loadingAnnouncement')}</p>
         </div>
       </div>
     );
@@ -175,19 +177,19 @@ export default function EditAnnouncementPage() {
         className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
       >
         <ArrowLeft className="h-4 w-4" />
-        กลับ
+        {t('back')}
       </button>
 
       {/* Page Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">แก้ไขประกาศ</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('editTitle')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            แก้ไขรายละเอียดประกาศหรือโปรโมชั่น
+            {t('editSubtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500 dark:text-gray-400">สถานะ:</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">{t('statusLabel')}</span>
           <button
             type="button"
             onClick={() => setActive(!active)}
@@ -202,7 +204,7 @@ export default function EditAnnouncementPage() {
             />
           </button>
           <span className={`text-sm font-medium ${active ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400'}`}>
-            {active ? 'เปิดแสดง' : 'ปิดแสดง'}
+            {active ? t('showToggle') : t('hideToggle')}
           </span>
         </div>
       </div>
@@ -210,60 +212,60 @@ export default function EditAnnouncementPage() {
       <form onSubmit={handleSave}>
         {/* Announcement Details */}
         <Card padding="none">
-          <CardHeader title="รายละเอียดประกาศ" />
+          <CardHeader title={t('detailsSection')} />
           <CardContent className="space-y-4">
             <Input
-              label="หัวข้อ"
+              label={t('fieldTitle')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="เช่น โปรโมชั่นต้อนรับปีใหม่"
+              placeholder={t('fieldTitlePlaceholder')}
               required
             />
 
             <Textarea
-              label="เนื้อหา"
+              label={t('fieldBody')}
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="รายละเอียดประกาศ..."
+              placeholder={t('fieldBodyPlaceholder')}
               rows={4}
             />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Select
-                label="ประเภท"
+                label={t('fieldType')}
                 value={type}
                 onChange={(e) => setType(e.target.value)}
                 options={[
-                  { value: 'promotion', label: 'โปรโมชั่น' },
-                  { value: 'announcement', label: 'ประกาศ' },
-                  { value: 'event', label: 'กิจกรรม' },
+                  { value: 'promotion', label: t('typePromotion') },
+                  { value: 'announcement', label: t('typeAnnouncement') },
+                  { value: 'event', label: t('typeEvent') },
                 ]}
               />
               <Select
-                label="กลุ่มเป้าหมาย"
+                label={t('fieldTargetAudience')}
                 value={targetAudience}
                 onChange={(e) => setTargetAudience(e.target.value)}
                 options={[
-                  { value: 'customer', label: 'ลูกค้า' },
-                  { value: 'staff', label: 'พนักงาน' },
-                  { value: 'all', label: 'ทั้งหมด' },
+                  { value: 'customer', label: t('targetCustomer') },
+                  { value: 'staff', label: t('targetStaff') },
+                  { value: 'all', label: t('targetAll') },
                 ]}
               />
             </div>
 
             <Select
-              label="สาขา"
+              label={t('fieldBranch')}
               value={storeId}
               onChange={(e) => setStoreId(e.target.value)}
               options={[
-                { value: '', label: 'ทุกสาขา' },
+                { value: '', label: t('allBranches') },
                 ...stores.map((s) => ({ value: s.id, label: s.store_name })),
               ]}
             />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input
-                label="วันที่เริ่มแสดง"
+                label={t('fieldStartDateEdit')}
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
@@ -271,12 +273,12 @@ export default function EditAnnouncementPage() {
                 required
               />
               <Input
-                label="วันที่หยุดแสดง (ไม่บังคับ)"
+                label={t('fieldEndDateEdit')}
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 leftIcon={<Calendar className="h-4 w-4" />}
-                hint="ปล่อยว่างหากไม่มีวันหมดอายุ"
+                hint={t('fieldEndDateHint')}
               />
             </div>
 
@@ -285,8 +287,8 @@ export default function EditAnnouncementPage() {
               value={imageUrl || null}
               onChange={(url) => setImageUrl(url || '')}
               folder="announcements"
-              label="รูปภาพ (ไม่บังคับ)"
-              placeholder="อัปโหลดรูปภาพประกาศ"
+              label={t('fieldImage')}
+              placeholder={t('fieldImagePlaceholder')}
               maxSizeMB={5}
             />
 
@@ -296,10 +298,10 @@ export default function EditAnnouncementPage() {
                 <Send className="h-4 w-4 text-indigo-500" />
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    ส่ง Push Notification ทันที
+                    {t('sendPushNow')}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    ส่งแจ้งเตือนไปยังลูกค้าที่เปิดรับ
+                    {t('sendPushDesc')}
                   </p>
                 </div>
               </div>
@@ -329,12 +331,12 @@ export default function EditAnnouncementPage() {
             isLoading={isDeleting}
             icon={<Trash2 className="h-4 w-4" />}
           >
-            ลบประกาศ
+            {t('deleteButton')}
           </Button>
 
           <div className="flex items-center gap-3">
             <Button variant="outline" type="button" onClick={() => router.back()}>
-              ยกเลิก
+              {t('cancel')}
             </Button>
             <Button
               type="submit"
@@ -342,7 +344,7 @@ export default function EditAnnouncementPage() {
               disabled={!title.trim()}
               icon={<Save className="h-4 w-4" />}
             >
-              บันทึก
+              {t('save')}
             </Button>
           </div>
         </div>

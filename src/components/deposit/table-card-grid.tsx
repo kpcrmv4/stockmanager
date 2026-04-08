@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Wine } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Badge } from '@/components/ui/badge';
+import { useTranslations } from 'next-intl';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,37 +39,48 @@ export interface TableGroup {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const UNSPECIFIED_TABLE = 'ไม่ระบุโต๊ะ';
-
 /**
- * Returns a human-readable Thai relative time string.
+ * Returns time difference values for relative time display.
  */
-export function timeAgo(dateStr: string): string {
+export function timeAgoParts(dateStr: string): { type: 'justNow' | 'minutes' | 'hours' | 'days'; count: number } {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
   const diffMs = now - then;
 
-  if (diffMs < 0) return 'เมื่อสักครู่';
+  if (diffMs < 0) return { type: 'justNow', count: 0 };
 
   const diffMin = Math.floor(diffMs / 60_000);
   const diffHr = Math.floor(diffMs / 3_600_000);
   const diffDay = Math.floor(diffMs / 86_400_000);
 
-  if (diffMin < 1) return 'เมื่อสักครู่';
-  if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`;
-  if (diffHr < 24) return `${diffHr} ชั่วโมงที่แล้ว`;
-  return `${diffDay} วันที่แล้ว`;
+  if (diffMin < 1) return { type: 'justNow', count: 0 };
+  if (diffMin < 60) return { type: 'minutes', count: diffMin };
+  if (diffHr < 24) return { type: 'hours', count: diffHr };
+  return { type: 'days', count: diffDay };
+}
+
+/**
+ * Returns a human-readable Thai relative time string (legacy compat).
+ */
+export function timeAgo(dateStr: string): string {
+  const parts = timeAgoParts(dateStr);
+  switch (parts.type) {
+    case 'justNow': return 'เมื่อสักครู่';
+    case 'minutes': return `${parts.count} นาทีที่แล้ว`;
+    case 'hours': return `${parts.count} ชั่วโมงที่แล้ว`;
+    case 'days': return `${parts.count} วันที่แล้ว`;
+  }
 }
 
 /**
  * Group items by their tableNumber and sort groups so numbered tables come
  * first (ascending numerically) and the "unspecified" group comes last.
  */
-export function groupByTable(items: TableCardItem[]): TableGroup[] {
+export function groupByTable(items: TableCardItem[], unspecifiedLabel = 'No table'): TableGroup[] {
   const map = new Map<string, TableCardItem[]>();
 
   for (const item of items) {
-    const key = item.tableNumber ?? UNSPECIFIED_TABLE;
+    const key = item.tableNumber ?? unspecifiedLabel;
     const group = map.get(key);
     if (group) {
       group.push(item);
@@ -82,8 +94,8 @@ export function groupByTable(items: TableCardItem[]): TableGroup[] {
   );
 
   groups.sort((a, b) => {
-    const aIsUnspecified = a.tableNumber === UNSPECIFIED_TABLE;
-    const bIsUnspecified = b.tableNumber === UNSPECIFIED_TABLE;
+    const aIsUnspecified = a.tableNumber === unspecifiedLabel;
+    const bIsUnspecified = b.tableNumber === unspecifiedLabel;
 
     if (aIsUnspecified && !bIsUnspecified) return 1;
     if (!aIsUnspecified && bIsUnspecified) return -1;
@@ -116,12 +128,15 @@ function isRecent(dateStr: string): boolean {
 function TableCardTile({
   group,
   onItemClick,
+  t,
 }: {
   group: TableGroup;
   onItemClick: (item: TableCardItem) => void;
+  t: ReturnType<typeof useTranslations<'deposit'>>;
 }) {
   const { tableNumber, items } = group;
-  const isUnspecified = tableNumber === UNSPECIFIED_TABLE;
+  const unspecifiedTable = t('tableCard.unspecifiedTable');
+  const isUnspecified = tableNumber === unspecifiedTable;
 
   // Counts
   const depositCount = items.filter(
@@ -138,7 +153,7 @@ function TableCardTile({
   );
   const customerLabel =
     uniqueCustomers.length > 1
-      ? `${uniqueCustomers[0]} และอีก ${uniqueCustomers.length - 1} คน`
+      ? t('tableCard.andMore', { name: uniqueCustomers[0], count: uniqueCustomers.length - 1 })
       : uniqueCustomers[0];
 
   // Check if any item was created recently (< 5 min)
@@ -148,6 +163,16 @@ function TableCardTile({
   const latestCreatedAt = items.reduce((latest, i) =>
     new Date(i.createdAt) > new Date(latest.createdAt) ? i : latest,
   ).createdAt;
+
+  // Relative time with i18n
+  const timeParts = timeAgoParts(latestCreatedAt);
+  const timeLabel = timeParts.type === 'justNow'
+    ? t('tableCard.justNow')
+    : timeParts.type === 'minutes'
+      ? t('tableCard.minutesAgo', { count: timeParts.count })
+      : timeParts.type === 'hours'
+        ? t('tableCard.hoursAgo', { count: timeParts.count })
+        : t('tableCard.daysAgo', { count: timeParts.count });
 
   return (
     <button
@@ -180,12 +205,12 @@ function TableCardTile({
       <div className="flex flex-wrap items-center justify-center gap-1">
         {depositCount > 0 && (
           <Badge variant="success" size="sm">
-            ฝาก{depositCount > 1 ? ` ${depositCount}` : ''}
+            {depositCount > 1 ? t('tableCard.depositBadgeCount', { count: depositCount }) : t('tableCard.depositBadge')}
           </Badge>
         )}
         {withdrawalCount > 0 && (
           <Badge variant="danger" size="sm">
-            เบิก{withdrawalCount > 1 ? ` ${withdrawalCount}` : ''}
+            {withdrawalCount > 1 ? t('tableCard.withdrawBadgeCount', { count: withdrawalCount }) : t('tableCard.withdrawBadge')}
           </Badge>
         )}
       </div>
@@ -196,7 +221,7 @@ function TableCardTile({
           {customerLabel}
         </p>
         <p className="mt-0.5 text-[10px] text-gray-400">
-          {timeAgo(latestCreatedAt)}
+          {timeLabel}
         </p>
       </div>
     </button>
@@ -231,9 +256,12 @@ export function TableCardGrid({
   items,
   onItemClick,
   isLoading = false,
-  emptyMessage = 'ยังไม่มีรายการ',
+  emptyMessage,
 }: TableCardGridProps) {
-  const groups = useMemo(() => groupByTable(items), [items]);
+  const t = useTranslations('deposit');
+  const resolvedEmptyMessage = emptyMessage ?? t('tableCard.noItems');
+  const unspecifiedLabel = t('tableCard.unspecifiedTable');
+  const groups = useMemo(() => groupByTable(items, unspecifiedLabel), [items, unspecifiedLabel]);
 
   // Loading state
   if (isLoading) {
@@ -251,7 +279,7 @@ export function TableCardGrid({
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-gray-400">
         <Wine className="h-12 w-12 stroke-[1.5]" />
-        <p className="text-sm">{emptyMessage}</p>
+        <p className="text-sm">{resolvedEmptyMessage}</p>
       </div>
     );
   }
@@ -263,6 +291,7 @@ export function TableCardGrid({
           key={group.tableNumber}
           group={group}
           onItemClick={onItemClick}
+          t={t}
         />
       ))}
     </div>

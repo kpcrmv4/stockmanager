@@ -20,6 +20,7 @@ import {
   FileText,
   Image as ImageIcon,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils/cn';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
@@ -104,6 +105,8 @@ type TabId = 'pending' | 'received' | 'withdrawn';
 
 export default function HqWarehousePage() {
   const { user } = useAuthStore();
+  const t = useTranslations('hqWarehouse');
+  const unknownBranch = t('unknownBranch');
   const [stores, setStores] = useState<Store[]>([]);
   const mountedRef = useRef(true);
 
@@ -248,7 +251,7 @@ export default function HqWarehousePage() {
         id: t.id,
         transfer_code: t.transfer_code || t.id.slice(0, 8).toUpperCase(),
         from_store_id: t.from_store_id,
-        from_store_name: storeMap.get(t.from_store_id) || 'ไม่ทราบ',
+        from_store_name: storeMap.get(t.from_store_id) || unknownBranch,
         deposit_id: t.deposit_id,
         product_name: t.product_name,
         customer_name: depositInfo?.customer_name || null,
@@ -353,7 +356,7 @@ export default function HqWarehousePage() {
 
     const items: HqDepositItem[] = data.map((d) => ({
       ...d,
-      from_store_name: storeMap.get(d.from_store_id || '') || 'ไม่ทราบ',
+      from_store_name: storeMap.get(d.from_store_id || '') || unknownBranch,
       received_by_name: d.received_by ? (userMap.get(d.received_by) || null) : null,
       withdrawn_by_name: null,
     }));
@@ -390,7 +393,7 @@ export default function HqWarehousePage() {
 
     const items: HqDepositItem[] = data.map((d) => ({
       ...d,
-      from_store_name: storeMap.get(d.from_store_id || '') || 'ไม่ทราบ',
+      from_store_name: storeMap.get(d.from_store_id || '') || unknownBranch,
       received_by_name: d.received_by ? (userMap.get(d.received_by) || null) : null,
       withdrawn_by_name: d.withdrawn_by ? (userMap.get(d.withdrawn_by) || null) : null,
     }));
@@ -553,7 +556,7 @@ export default function HqWarehousePage() {
     setIsRefreshing(true);
     try {
       await loadAllData();
-      toast({ type: 'success', title: 'โหลดข้อมูลใหม่แล้ว' });
+      toast({ type: 'success', title: t('refreshSuccess') });
     } finally {
       setIsRefreshing(false);
     }
@@ -613,13 +616,13 @@ export default function HqWarehousePage() {
           .eq('id', selectedTransfer.deposit_id);
       }
 
-      toast({ type: 'success', title: 'รับสินค้าเข้าคลังเรียบร้อย' });
+      toast({ type: 'success', title: t('receiveSuccess') });
 
       // ส่ง system message กลับไปห้องสาขาต้นทาง
       notifyChatTransferReceived(selectedTransfer.from_store_id, {
         transfer_code: selectedTransfer.transfer_code,
         item_count: 1,
-        received_by_name: user.displayName || user.username || 'พนักงาน HQ',
+        received_by_name: user.displayName || user.username || 'HQ Staff',
       });
 
       setShowConfirmModal(false);
@@ -627,7 +630,7 @@ export default function HqWarehousePage() {
       await loadAllData();
     } catch (err) {
       console.error('Confirm error:', err);
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาดในการรับสินค้า' });
+      toast({ type: 'error', title: t('receiveError') });
     } finally {
       setConfirmSubmitting(false);
     }
@@ -661,13 +664,13 @@ export default function HqWarehousePage() {
           .eq('status', 'transfer_pending');
       }
 
-      toast({ type: 'success', title: 'ปฏิเสธการโอนเรียบร้อย' });
+      toast({ type: 'success', title: t('rejectSuccess') });
 
       // ส่ง system message กลับไปห้องสาขาต้นทาง
       notifyChatTransferRejected(rejectingTransfer.from_store_id, {
         transfer_code: rejectingTransfer.transfer_code,
-        product_name: rejectingTransfer.product_name || 'สินค้า',
-        rejected_by_name: user?.displayName || user?.username || 'พนักงาน HQ',
+        product_name: rejectingTransfer.product_name || 'Product',
+        rejected_by_name: user?.displayName || user?.username || 'HQ Staff',
         reason: rejectReason.trim(),
       });
 
@@ -675,7 +678,7 @@ export default function HqWarehousePage() {
       setRejectingTransfer(null);
       await loadAllData();
     } catch {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาดในการปฏิเสธ' });
+      toast({ type: 'error', title: t('rejectError') });
     } finally {
       setRejectSubmitting(false);
     }
@@ -737,13 +740,13 @@ export default function HqWarehousePage() {
         }
       }
 
-      toast({ type: 'success', title: 'รับสินค้าทั้งหมดเรียบร้อย', message: `รับ ${batchConfirmGroup.items.length} รายการ (${batchConfirmGroup.transfer_code})` });
+      toast({ type: 'success', title: t('receiveAllSuccess'), message: t('receiveAllSuccessMsg', { count: batchConfirmGroup.items.length, code: batchConfirmGroup.transfer_code }) });
 
       // ส่ง system message กลับไปห้องสาขาต้นทาง
       notifyChatTransferReceived(batchConfirmGroup.items[0].from_store_id, {
         transfer_code: batchConfirmGroup.transfer_code,
         item_count: batchConfirmGroup.items.length,
-        received_by_name: user?.displayName || user?.username || 'พนักงาน HQ',
+        received_by_name: user?.displayName || user?.username || 'HQ Staff',
       });
 
       setShowBatchConfirmModal(false);
@@ -751,7 +754,7 @@ export default function HqWarehousePage() {
       await loadAllData();
     } catch (err) {
       console.error('Batch confirm error:', err);
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาดในการรับสินค้า' });
+      toast({ type: 'error', title: t('receiveError') });
     } finally {
       setBatchConfirmSubmitting(false);
     }
@@ -781,16 +784,16 @@ export default function HqWarehousePage() {
 
       if (error) throw error;
 
-      toast({ type: 'success', title: 'จำหน่ายออกเรียบร้อย' });
+      toast({ type: 'success', title: t('withdrawSuccess') });
 
       // ส่ง system message ไปห้อง HQ + ห้องสาขาต้นทาง
       const centralId = centralStoreIds[0];
       if (centralId) {
         notifyChatHqWithdrawal(centralId, {
-          product_name: selectedHqDeposit.product_name || 'สินค้า',
+          product_name: selectedHqDeposit.product_name || 'Product',
           customer_name: selectedHqDeposit.customer_name,
           from_store_name: selectedHqDeposit.from_store_name,
-          withdrawn_by_name: user?.displayName || user?.username || 'พนักงาน HQ',
+          withdrawn_by_name: user?.displayName || user?.username || 'HQ Staff',
           notes: withdrawNotes || null,
         });
       }
@@ -799,7 +802,7 @@ export default function HqWarehousePage() {
       setSelectedHqDeposit(null);
       await loadAllData();
     } catch {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาดในการจำหน่ายออก' });
+      toast({ type: 'error', title: t('withdrawError') });
     } finally {
       setWithdrawSubmitting(false);
     }
@@ -810,9 +813,9 @@ export default function HqWarehousePage() {
   // ==========================================
 
   const tabs: { id: TabId; label: string; icon: typeof Clock; count: number; color: string }[] = [
-    { id: 'pending', label: 'รอรับ', icon: Clock, count: summary.pending, color: 'yellow' },
-    { id: 'received', label: 'รับแล้ว', icon: Package, count: summary.received, color: 'green' },
-    { id: 'withdrawn', label: 'จำหน่ายออก', icon: BoxSelect, count: summary.withdrawn, color: 'gray' },
+    { id: 'pending', label: t('tabPending'), icon: Clock, count: summary.pending, color: 'yellow' },
+    { id: 'received', label: t('tabReceived'), icon: Package, count: summary.received, color: 'green' },
+    { id: 'withdrawn', label: t('tabWithdrawn'), icon: BoxSelect, count: summary.withdrawn, color: 'gray' },
   ];
 
   // ==========================================
@@ -826,9 +829,9 @@ export default function HqWarehousePage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
             <Warehouse className="h-8 w-8 text-orange-600 dark:text-orange-400" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">ยังไม่มีคลังกลาง</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('noCentralStore')}</h2>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            กรุณาตั้งค่าสาขาคลังกลาง (is_central) ในหน้าตั้งค่าร้านค้าก่อน
+            {t('noCentralStoreDesc')}
           </p>
         </div>
       </div>
@@ -850,9 +853,9 @@ export default function HqWarehousePage() {
                 <Warehouse className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="text-xl font-bold tracking-tight">Headquarters Inventory</h1>
+                <h1 className="text-xl font-bold tracking-tight">{t('title')}</h1>
                 <p className="text-sm text-orange-100">
-                  คลังกลาง — {centralStores.map((s) => s.store_name).join(', ')}
+                  {t('subtitle', { stores: centralStores.map((s) => s.store_name).join(', ') })}
                 </p>
               </div>
             </div>
@@ -920,14 +923,14 @@ export default function HqWarehousePage() {
             >
               <span className="flex items-center gap-2">
                 <StoreIcon className="h-4 w-4" />
-                สรุปรายสาขา
+                {t('branchSummary')}
               </span>
               {showBranchSummary ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             {showBranchSummary && (
               <div className="mt-2 rounded-lg bg-white p-3 shadow-sm dark:bg-gray-900">
                 {branchSummaryData.length === 0 ? (
-                  <p className="py-2 text-center text-sm text-gray-400">ไม่มีข้อมูลสาขา</p>
+                  <p className="py-2 text-center text-sm text-gray-400">{t('noBranchData')}</p>
                 ) : (
                   <div className="space-y-2">
                     {branchSummaryData.map((branch) => (
@@ -936,12 +939,12 @@ export default function HqWarehousePage() {
                         <div className="flex gap-2 text-xs">
                           {branch.pending > 0 && (
                             <span className="rounded-full bg-yellow-100 px-2 py-1 font-bold text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
-                              รอรับ: {branch.pending}
+                              {t('pendingLabel', { count: branch.pending })}
                             </span>
                           )}
                           {branch.received > 0 && (
                             <span className="rounded-full bg-green-100 px-2 py-1 font-bold text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                              รับแล้ว: {branch.received}
+                              {t('receivedLabel', { count: branch.received })}
                             </span>
                           )}
                         </div>
@@ -999,7 +1002,7 @@ export default function HqWarehousePage() {
             onChange={(e) => setFilterBranch(e.target.value)}
             className="flex-1 rounded-lg border px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
           >
-            <option value="">ทุกสาขา</option>
+            <option value="">{t('allBranches')}</option>
             {branchStores.map((store) => (
               <option key={store.id} value={store.id}>{store.store_name}</option>
             ))}
@@ -1010,7 +1013,7 @@ export default function HqWarehousePage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ค้นหาชื่อเหล้า, ลูกค้า..."
+              placeholder={t('searchPlaceholder')}
               className="w-full rounded-lg border py-2 pl-9 pr-4 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
             />
           </div>
@@ -1022,7 +1025,7 @@ export default function HqWarehousePage() {
         {loading ? (
           <div className="rounded-lg bg-white p-8 text-center shadow dark:bg-gray-900">
             <Loader2 className="mx-auto h-10 w-10 animate-spin text-orange-500" />
-            <p className="mt-4 text-gray-500 dark:text-gray-400">กำลังโหลดข้อมูล...</p>
+            <p className="mt-4 text-gray-500 dark:text-gray-400">{t('loadingData')}</p>
           </div>
         ) : (
           <>
@@ -1034,13 +1037,13 @@ export default function HqWarehousePage() {
                     <Clock className="h-6 w-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold">รายการรอรับจากสาขา</h3>
-                    <p className="text-sm text-yellow-100">กดยืนยันเพื่อรับสินค้าเข้าคลัง</p>
+                    <h3 className="text-lg font-bold">{t('pendingHeader')}</h3>
+                    <p className="text-sm text-yellow-100">{t('pendingHeaderDesc')}</p>
                   </div>
                 </div>
 
                 {filteredPending.length === 0 ? (
-                  <EmptyState message="ไม่มีรายการรอรับ" />
+                  <EmptyState message={t('noPendingItems')} />
                 ) : (
                   pendingByBatch.map((batch) => {
                     const isExpanded = expandedBranches.has(batch.transfer_code);
@@ -1055,7 +1058,7 @@ export default function HqWarehousePage() {
                             <span className="font-mono text-sm font-bold text-orange-600 dark:text-orange-400">{batch.transfer_code}</span>
                             <span className="text-xs text-gray-500 dark:text-gray-400">({batch.from_store_name})</span>
                             <span className="rounded-full bg-yellow-500 px-2 py-0.5 text-xs font-bold text-white">
-                              {batch.items.length} รายการ
+                              {t('itemCount', { count: batch.items.length })}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -1070,7 +1073,7 @@ export default function HqWarehousePage() {
                             onClick={() => openBatchConfirmModal(batch)}
                             className="w-full rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 py-2.5 text-sm font-bold text-white shadow-md transition hover:from-green-600 hover:to-emerald-700"
                           >
-                            <Check className="mr-1 inline h-4 w-4" /> รับสินค้าทั้งหมด ({batch.items.length} รายการ)
+                            <Check className="mr-1 inline h-4 w-4" /> {t('receiveAll', { count: batch.items.length })}
                           </button>
                         </div>
 
@@ -1082,7 +1085,7 @@ export default function HqWarehousePage() {
                                 <div className="p-4">
                                   <div className="mb-3 flex items-start justify-between">
                                     <div>
-                                      <p className="font-medium text-gray-900 dark:text-white">{transfer.product_name || 'ไม่ระบุ'}</p>
+                                      <p className="font-medium text-gray-900 dark:text-white">{transfer.product_name || t('unspecified')}</p>
                                       {transfer.customer_name && (
                                         <p className="text-sm text-gray-500 dark:text-gray-400">{transfer.customer_name}</p>
                                       )}
@@ -1092,10 +1095,10 @@ export default function HqWarehousePage() {
                                     </div>
                                     <div className="text-right">
                                       <p className="text-lg font-bold text-gray-700 dark:text-gray-200">
-                                        {transfer.quantity || 1} <span className="text-sm font-normal text-gray-500">ขวด</span>
+                                        {transfer.quantity || 1} <span className="text-sm font-normal text-gray-500">{t('bottles')}</span>
                                       </p>
                                       {transfer.requested_by_name && (
-                                        <p className="text-xs text-gray-400">โดย: {transfer.requested_by_name}</p>
+                                        <p className="text-xs text-gray-400">{t('requestedBy', { name: transfer.requested_by_name })}</p>
                                       )}
                                     </div>
                                   </div>
@@ -1107,7 +1110,7 @@ export default function HqWarehousePage() {
                                         onClick={() => setViewingPhoto(transfer.photo_url)}
                                         className="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400"
                                       >
-                                        <ImageIcon className="h-3.5 w-3.5" /> รูปนำส่งจากสาขา
+                                        <ImageIcon className="h-3.5 w-3.5" /> {t('transferPhotoFromBranch')}
                                       </button>
                                     </div>
                                   )}
@@ -1118,13 +1121,13 @@ export default function HqWarehousePage() {
                                       onClick={() => { setSelectedTransfer(transfer); setShowDetailModal(true); }}
                                       className="flex-1 rounded-lg bg-blue-100 py-2.5 text-sm font-medium text-blue-700 transition hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400"
                                     >
-                                      <Eye className="mr-1 inline h-4 w-4" /> ดูรายละเอียด
+                                      <Eye className="mr-1 inline h-4 w-4" /> {t('viewDetail')}
                                     </button>
                                     <button
                                       onClick={() => openConfirmModal(transfer)}
                                       className="flex-1 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 py-2.5 text-sm font-bold text-white shadow-md transition hover:from-green-600 hover:to-emerald-700"
                                     >
-                                      <Check className="mr-1 inline h-4 w-4" /> รับสินค้า
+                                      <Check className="mr-1 inline h-4 w-4" /> {t('receiveItem')}
                                     </button>
                                     <button
                                       onClick={() => openRejectModal(transfer)}
@@ -1153,30 +1156,30 @@ export default function HqWarehousePage() {
                     <Package className="h-6 w-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold">สินค้าในคลัง</h3>
-                    <p className="text-sm text-green-100">รายการที่รับแล้ว (อยู่ในคลัง)</p>
+                    <h3 className="text-lg font-bold">{t('receivedHeader')}</h3>
+                    <p className="text-sm text-green-100">{t('receivedHeaderDesc')}</p>
                   </div>
                 </div>
 
                 {filteredReceived.length === 0 ? (
-                  <EmptyState message="ไม่มีสินค้าในคลัง" />
+                  <EmptyState message={t('noReceivedItems')} />
                 ) : (
                   filteredReceived.map((item) => (
                     <div key={item.id} className="rounded-xl border-l-4 border-green-500 bg-white p-4 shadow-md dark:bg-gray-900">
                       <div className="mb-2 flex items-start justify-between">
                         <div>
-                          <p className="font-bold text-gray-800 dark:text-gray-100">{item.product_name || 'ไม่ระบุ'}</p>
+                          <p className="font-bold text-gray-800 dark:text-gray-100">{item.product_name || t('unspecified')}</p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">{item.customer_name || '-'}</p>
                           <p className="mt-1 text-xs text-gray-400">
-                            จาก: {item.from_store_name}
-                            {item.deposit_code && <> &bull; รหัส: {item.deposit_code}</>}
+                            {t('fromBranch', { name: item.from_store_name })}
+                            {item.deposit_code && <> &bull; {t('code', { code: item.deposit_code })}</>}
                           </p>
                         </div>
                         <div className="text-right">
                           <span className="text-lg font-bold text-green-600">{item.quantity || 1}</span>
-                          <span className="ml-1 text-sm text-gray-500">ขวด</span>
+                          <span className="ml-1 text-sm text-gray-500">{t('bottles')}</span>
                           <p className="mt-1 text-xs text-gray-400">
-                            รับ: {formatThaiDateTime(item.received_at)}
+                            {t('receivedAt', { date: formatThaiDateTime(item.received_at) })}
                           </p>
                         </div>
                       </div>
@@ -1186,7 +1189,7 @@ export default function HqWarehousePage() {
                             onClick={() => openWithdrawModal(item)}
                             className="flex-1 rounded-lg bg-gradient-to-r from-orange-500 to-amber-600 py-2 text-sm font-medium text-white shadow transition hover:from-orange-600 hover:to-amber-700"
                           >
-                            <BoxSelect className="mr-1 inline h-4 w-4" /> จำหน่ายออก
+                            <BoxSelect className="mr-1 inline h-4 w-4" /> {t('withdrawItem')}
                           </button>
                         )}
                         {item.received_photo_url && (
@@ -1212,8 +1215,8 @@ export default function HqWarehousePage() {
                     <BoxSelect className="h-6 w-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold">ประวัติจำหน่ายออก</h3>
-                    <p className="text-sm text-gray-200">รายการที่จำหน่ายออกแล้ว</p>
+                    <h3 className="text-lg font-bold">{t('withdrawnHeader')}</h3>
+                    <p className="text-sm text-gray-200">{t('withdrawnHeaderDesc')}</p>
                   </div>
                 </div>
 
@@ -1230,32 +1233,32 @@ export default function HqWarehousePage() {
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300'
                       )}
                     >
-                      {filter === 'today' ? 'วันนี้' : filter === 'week' ? '7 วัน' : 'ทั้งหมด'}
+                      {filter === 'today' ? t('filterToday') : filter === 'week' ? t('filter7Days') : t('filterAllTime')}
                     </button>
                   ))}
                 </div>
 
                 {filteredWithdrawn.length === 0 ? (
-                  <EmptyState message="ไม่มีประวัติจำหน่ายออก" />
+                  <EmptyState message={t('noWithdrawnItems')} />
                 ) : (
                   filteredWithdrawn.map((item) => (
                     <div key={item.id} className="rounded-xl border-l-4 border-gray-400 bg-white p-4 shadow-sm dark:bg-gray-900">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="font-medium text-gray-800 dark:text-gray-100">{item.product_name || 'ไม่ระบุ'}</p>
+                          <p className="font-medium text-gray-800 dark:text-gray-100">{item.product_name || t('unspecified')}</p>
                           <p className="text-sm text-gray-500 dark:text-gray-400">{item.customer_name || '-'}</p>
-                          <p className="mt-1 text-xs text-gray-400">จาก: {item.from_store_name}</p>
+                          <p className="mt-1 text-xs text-gray-400">{t('fromBranch', { name: item.from_store_name })}</p>
                         </div>
                         <div className="text-right">
                           <span className="text-lg font-bold text-gray-600">{item.quantity || 1}</span>
-                          <span className="ml-1 text-sm text-gray-400">ขวด</span>
+                          <span className="ml-1 text-sm text-gray-400">{t('bottles')}</span>
                           {item.withdrawn_at && (
                             <p className="mt-1 text-xs text-gray-400">
-                              จำหน่าย: {formatThaiDateTime(item.withdrawn_at)}
+                              {t('withdrawnAt', { date: formatThaiDateTime(item.withdrawn_at) })}
                             </p>
                           )}
                           {item.withdrawn_by_name && (
-                            <p className="text-xs text-gray-400">โดย: {item.withdrawn_by_name}</p>
+                            <p className="text-xs text-gray-400">{t('withdrawnBy', { name: item.withdrawn_by_name })}</p>
                           )}
                         </div>
                       </div>
@@ -1283,7 +1286,7 @@ export default function HqWarehousePage() {
                   <FileText className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold">รายละเอียดการโอน</h2>
+                  <h2 className="text-xl font-bold">{t('transferDetailTitle')}</h2>
                   <p className="text-sm text-blue-100">{selectedTransfer.transfer_code}</p>
                 </div>
               </div>
@@ -1295,43 +1298,43 @@ export default function HqWarehousePage() {
           <div className="p-5">
             <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl bg-gray-50 p-4 text-sm dark:bg-gray-800">
               <div>
-                <span className="text-gray-500">สาขาต้นทาง:</span>
+                <span className="text-gray-500">{t('originBranch')}</span>
                 <p className="font-medium dark:text-gray-200">{selectedTransfer.from_store_name}</p>
               </div>
               <div>
-                <span className="text-gray-500">วันที่โอน:</span>
+                <span className="text-gray-500">{t('transferDate')}</span>
                 <p className="font-medium dark:text-gray-200">{formatThaiDateTime(selectedTransfer.created_at)}</p>
               </div>
               <div>
-                <span className="text-gray-500">ผู้นำส่ง:</span>
+                <span className="text-gray-500">{t('submitter')}</span>
                 <p className="font-medium dark:text-gray-200">{selectedTransfer.requested_by_name || '-'}</p>
               </div>
               <div>
-                <span className="text-gray-500">สถานะ:</span>
-                <p className="font-medium text-yellow-600">รอรับ</p>
+                <span className="text-gray-500">{t('statusLabel')}</span>
+                <p className="font-medium text-yellow-600">{t('statusPending')}</p>
               </div>
               {selectedTransfer.product_name && (
                 <div>
-                  <span className="text-gray-500">ชื่อเหล้า:</span>
+                  <span className="text-gray-500">{t('productName')}</span>
                   <p className="font-medium dark:text-gray-200">{selectedTransfer.product_name}</p>
                 </div>
               )}
               {selectedTransfer.customer_name && (
                 <div>
-                  <span className="text-gray-500">ลูกค้า:</span>
+                  <span className="text-gray-500">{t('customerName')}</span>
                   <p className="font-medium dark:text-gray-200">{selectedTransfer.customer_name}</p>
                 </div>
               )}
               {selectedTransfer.quantity && (
                 <div>
-                  <span className="text-gray-500">จำนวน:</span>
-                  <p className="font-medium dark:text-gray-200">{selectedTransfer.quantity} ขวด</p>
+                  <span className="text-gray-500">{t('quantityLabel')}</span>
+                  <p className="font-medium dark:text-gray-200">{selectedTransfer.quantity} {t('bottles')}</p>
                 </div>
               )}
             </div>
             {selectedTransfer.notes && (
               <div className="mb-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-800">
-                <span className="text-sm text-gray-500">หมายเหตุ:</span>
+                <span className="text-sm text-gray-500">{t('notesLabel')}</span>
                 <p className="text-sm dark:text-gray-200">{selectedTransfer.notes}</p>
               </div>
             )}
@@ -1341,7 +1344,7 @@ export default function HqWarehousePage() {
                   onClick={() => setViewingPhoto(selectedTransfer.photo_url)}
                   className="w-full rounded-xl bg-blue-100 py-3 text-sm font-medium text-blue-700 transition hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400"
                 >
-                  <ImageIcon className="mr-2 inline h-4 w-4" /> ดูรูปที่แนบ
+                  <ImageIcon className="mr-2 inline h-4 w-4" /> {t('viewAttachedPhoto')}
                 </button>
               </div>
             )}
@@ -1350,19 +1353,19 @@ export default function HqWarehousePage() {
                 onClick={() => setShowDetailModal(false)}
                 className="flex-1 rounded-xl bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
               >
-                ปิด
+                {t('close')}
               </button>
               <button
                 onClick={() => { setShowDetailModal(false); openRejectModal(selectedTransfer); }}
                 className="rounded-xl bg-red-100 px-4 py-3 font-semibold text-red-600 transition hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
               >
-                <X className="mr-1 inline h-4 w-4" /> ปฏิเสธ
+                <X className="mr-1 inline h-4 w-4" /> {t('reject')}
               </button>
               <button
                 onClick={() => { setShowDetailModal(false); openConfirmModal(selectedTransfer); }}
                 className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 font-semibold text-white shadow-lg transition hover:from-green-600 hover:to-emerald-700"
               >
-                <Check className="mr-1 inline h-4 w-4" /> รับสินค้า
+                <Check className="mr-1 inline h-4 w-4" /> {t('receiveItem')}
               </button>
             </div>
           </div>
@@ -1380,7 +1383,7 @@ export default function HqWarehousePage() {
                     <Check className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold">รับสินค้าเข้าคลัง</h2>
+                    <h2 className="text-xl font-bold">{t('receiveToWarehouse')}</h2>
                     <p className="text-sm text-green-100">{selectedTransfer.transfer_code}</p>
                   </div>
                 </div>
@@ -1388,19 +1391,19 @@ export default function HqWarehousePage() {
               <div className="p-5">
                 <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl bg-gray-50 p-4 text-sm dark:bg-gray-800">
                   <div>
-                    <span className="text-gray-500">สาขา:</span>
+                    <span className="text-gray-500">{t('branchLabel')}</span>
                     <p className="font-medium dark:text-gray-200">{selectedTransfer.from_store_name}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">ชื่อเหล้า:</span>
+                    <span className="text-gray-500">{t('productName')}</span>
                     <p className="font-medium dark:text-gray-200">{selectedTransfer.product_name || '-'}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">จำนวน:</span>
-                    <p className="font-medium dark:text-gray-200">{selectedTransfer.quantity || 1} ขวด</p>
+                    <span className="text-gray-500">{t('quantityLabel')}</span>
+                    <p className="font-medium dark:text-gray-200">{selectedTransfer.quantity || 1} {t('bottles')}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">ลูกค้า:</span>
+                    <span className="text-gray-500">{t('customerName')}</span>
                     <p className="font-medium dark:text-gray-200">{selectedTransfer.customer_name || '-'}</p>
                   </div>
                 </div>
@@ -1411,7 +1414,7 @@ export default function HqWarehousePage() {
                       onClick={() => setViewingPhoto(selectedTransfer.photo_url)}
                       className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-3 font-semibold text-white shadow-lg transition hover:from-blue-600 hover:to-indigo-700"
                     >
-                      <ImageIcon className="h-4 w-4" /> ดูรูปจากสาขา
+                      <ImageIcon className="h-4 w-4" /> {t('viewBranchPhoto')}
                     </button>
                   </div>
                 )}
@@ -1421,13 +1424,13 @@ export default function HqWarehousePage() {
                     onClick={() => setShowConfirmModal(false)}
                     className="flex-1 rounded-xl bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
                   >
-                    ยกเลิก
+                    {t('cancel')}
                   </button>
                   <button
                     onClick={() => setConfirmStep(2)}
                     className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 font-semibold text-white shadow-lg transition hover:from-green-600 hover:to-emerald-700"
                   >
-                    ถัดไป &rarr;
+                    {t('nextStep')}
                   </button>
                 </div>
               </div>
@@ -1440,8 +1443,8 @@ export default function HqWarehousePage() {
                     <Camera className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold">ถ่ายรูปยืนยัน</h2>
-                    <p className="text-sm text-blue-100">ถ่ายรูปสินค้าที่ได้รับ</p>
+                    <h2 className="text-xl font-bold">{t('takeConfirmPhoto')}</h2>
+                    <p className="text-sm text-blue-100">{t('takeConfirmPhotoDesc')}</p>
                   </div>
                 </div>
               </div>
@@ -1450,13 +1453,13 @@ export default function HqWarehousePage() {
                   value={confirmPhotoUrl}
                   onChange={setConfirmPhotoUrl}
                   folder="hq-received"
-                  label="แนบรูปยืนยันการรับ"
+                  label={t('attachConfirmPhoto')}
                   required
-                  placeholder="ถ่ายรูปสินค้าที่ได้รับ"
+                  placeholder={t('photoReceivedProduct')}
                 />
 
                 <div className="mt-4">
-                  <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">ผู้รับ</label>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">{t('receiverLabel')}</label>
                   <input
                     type="text"
                     readOnly
@@ -1466,12 +1469,12 @@ export default function HqWarehousePage() {
                 </div>
 
                 <div className="mt-4">
-                  <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">หมายเหตุ (ถ้ามี)</label>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">{t('notesOptional')}</label>
                   <textarea
                     value={confirmNotes}
                     onChange={(e) => setConfirmNotes(e.target.value)}
                     rows={2}
-                    placeholder="ระบุหมายเหตุ..."
+                    placeholder={t('notesPlaceholder')}
                     className="w-full resize-none rounded-xl border-2 border-gray-200 px-4 py-3 transition focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                   />
                 </div>
@@ -1481,7 +1484,7 @@ export default function HqWarehousePage() {
                     onClick={() => setConfirmStep(1)}
                     className="flex-1 rounded-xl bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
                   >
-                    &larr; ย้อนกลับ
+                    {t('goBack')}
                   </button>
                   <button
                     onClick={submitConfirmTransfer}
@@ -1489,16 +1492,16 @@ export default function HqWarehousePage() {
                     className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 font-semibold text-white shadow-lg transition hover:from-green-600 hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {confirmSubmitting ? (
-                      <><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> กำลังบันทึก...</>
+                      <><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> {t('saving')}</>
                     ) : (
-                      <><Check className="mr-1 inline h-4 w-4" /> ยืนยันรับ</>
+                      <><Check className="mr-1 inline h-4 w-4" /> {t('confirmReceive')}</>
                     )}
                   </button>
                 </div>
                 {!confirmPhotoUrl && (
                   <p className="mt-2 text-center text-sm text-red-500">
                     <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
-                    กรุณาแนบรูปก่อนยืนยัน
+                    {t('photoRequired')}
                   </p>
                 )}
               </div>
@@ -1516,7 +1519,7 @@ export default function HqWarehousePage() {
                 <BoxSelect className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-xl font-bold">จำหน่ายสินค้าออก</h2>
+                <h2 className="text-xl font-bold">{t('withdrawTitle')}</h2>
                 <p className="text-sm text-orange-100">{selectedHqDeposit.product_name || ''}</p>
               </div>
             </div>
@@ -1524,25 +1527,25 @@ export default function HqWarehousePage() {
           <div className="p-5">
             <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl bg-gray-50 p-4 text-sm dark:bg-gray-800">
               <div>
-                <span className="text-gray-500">ชื่อเหล้า:</span>
+                <span className="text-gray-500">{t('productName')}</span>
                 <p className="font-medium dark:text-gray-200">{selectedHqDeposit.product_name || '-'}</p>
               </div>
               <div>
-                <span className="text-gray-500">จำนวน:</span>
-                <p className="font-medium dark:text-gray-200">{selectedHqDeposit.quantity || 1} ขวด</p>
+                <span className="text-gray-500">{t('quantityLabel')}</span>
+                <p className="font-medium dark:text-gray-200">{selectedHqDeposit.quantity || 1} {t('bottles')}</p>
               </div>
               <div>
-                <span className="text-gray-500">ลูกค้า:</span>
+                <span className="text-gray-500">{t('customerName')}</span>
                 <p className="font-medium dark:text-gray-200">{selectedHqDeposit.customer_name || '-'}</p>
               </div>
               <div>
-                <span className="text-gray-500">จากสาขา:</span>
+                <span className="text-gray-500">{t('fromBranchField')}</span>
                 <p className="font-medium dark:text-gray-200">{selectedHqDeposit.from_store_name}</p>
               </div>
             </div>
 
             <div className="mb-4">
-              <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">ผู้จำหน่าย</label>
+              <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">{t('dispenserLabel')}</label>
               <input
                 type="text"
                 readOnly
@@ -1552,12 +1555,12 @@ export default function HqWarehousePage() {
             </div>
 
             <div className="mb-4">
-              <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">หมายเหตุ (ถ้ามี)</label>
+              <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">{t('notesOptional')}</label>
               <textarea
                 value={withdrawNotes}
                 onChange={(e) => setWithdrawNotes(e.target.value)}
                 rows={2}
-                placeholder="ระบุหมายเหตุ..."
+                placeholder={t('notesPlaceholder')}
                 className="w-full resize-none rounded-xl border-2 border-gray-200 px-4 py-3 transition focus:border-orange-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
               />
             </div>
@@ -1567,7 +1570,7 @@ export default function HqWarehousePage() {
                 onClick={() => setShowWithdrawModal(false)}
                 className="flex-1 rounded-xl bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
               >
-                ยกเลิก
+                {t('cancel')}
               </button>
               <button
                 onClick={submitWithdraw}
@@ -1575,9 +1578,9 @@ export default function HqWarehousePage() {
                 className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 py-3 font-semibold text-white shadow-lg transition hover:from-orange-600 hover:to-amber-700 disabled:opacity-50"
               >
                 {withdrawSubmitting ? (
-                  <><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> กำลังบันทึก...</>
+                  <><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> {t('saving')}</>
                 ) : (
-                  <><Check className="mr-1 inline h-4 w-4" /> ยืนยันจำหน่ายออก</>
+                  <><Check className="mr-1 inline h-4 w-4" /> {t('confirmWithdraw')}</>
                 )}
               </button>
             </div>
@@ -1594,7 +1597,7 @@ export default function HqWarehousePage() {
                 <X className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-xl font-bold">ปฏิเสธการโอน</h2>
+                <h2 className="text-xl font-bold">{t('rejectTransferTitle')}</h2>
                 <p className="text-sm text-red-100">{rejectingTransfer.product_name || ''}</p>
               </div>
             </div>
@@ -1602,32 +1605,32 @@ export default function HqWarehousePage() {
           <div className="p-5">
             <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl bg-gray-50 p-4 text-sm dark:bg-gray-800">
               <div>
-                <span className="text-gray-500">สาขา:</span>
+                <span className="text-gray-500">{t('branchLabel')}</span>
                 <p className="font-medium dark:text-gray-200">{rejectingTransfer.from_store_name}</p>
               </div>
               <div>
-                <span className="text-gray-500">ชื่อเหล้า:</span>
+                <span className="text-gray-500">{t('productName')}</span>
                 <p className="font-medium dark:text-gray-200">{rejectingTransfer.product_name || '-'}</p>
               </div>
               <div>
-                <span className="text-gray-500">จำนวน:</span>
-                <p className="font-medium dark:text-gray-200">{rejectingTransfer.quantity || 1} ขวด</p>
+                <span className="text-gray-500">{t('quantityLabel')}</span>
+                <p className="font-medium dark:text-gray-200">{rejectingTransfer.quantity || 1} {t('bottles')}</p>
               </div>
               <div>
-                <span className="text-gray-500">ลูกค้า:</span>
+                <span className="text-gray-500">{t('customerName')}</span>
                 <p className="font-medium dark:text-gray-200">{rejectingTransfer.customer_name || '-'}</p>
               </div>
             </div>
 
             <div className="mb-4">
               <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                เหตุผลที่ปฏิเสธ <span className="text-red-500">*</span>
+                {t('rejectReasonLabel')} <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 rows={3}
-                placeholder="กรุณาระบุเหตุผลที่ปฏิเสธ..."
+                placeholder={t('rejectReasonPlaceholder')}
                 className="w-full resize-none rounded-xl border-2 border-gray-200 px-4 py-3 transition focus:border-red-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                 autoFocus
               />
@@ -1638,7 +1641,7 @@ export default function HqWarehousePage() {
                 onClick={() => { setShowRejectModal(false); setRejectingTransfer(null); }}
                 className="flex-1 rounded-xl bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
               >
-                ยกเลิก
+                {t('cancel')}
               </button>
               <button
                 onClick={submitRejectTransfer}
@@ -1646,16 +1649,16 @@ export default function HqWarehousePage() {
                 className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 py-3 font-semibold text-white shadow-lg transition hover:from-red-600 hover:to-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {rejectSubmitting ? (
-                  <><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> กำลังบันทึก...</>
+                  <><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> {t('saving')}</>
                 ) : (
-                  <><X className="mr-1 inline h-4 w-4" /> ยืนยันปฏิเสธ</>
+                  <><X className="mr-1 inline h-4 w-4" /> {t('confirmReject')}</>
                 )}
               </button>
             </div>
             {!rejectReason.trim() && (
               <p className="mt-2 text-center text-sm text-red-500">
                 <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
-                กรุณาระบุเหตุผลก่อนยืนยัน
+                {t('rejectReasonRequiredMsg')}
               </p>
             )}
           </div>
@@ -1673,29 +1676,29 @@ export default function HqWarehousePage() {
                     <Check className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold">รับสินค้าทั้งหมด</h2>
-                    <p className="text-sm text-green-100">{batchConfirmGroup.transfer_code} &bull; {batchConfirmGroup.items.length} รายการ</p>
+                    <h2 className="text-xl font-bold">{t('receiveAllTitle')}</h2>
+                    <p className="text-sm text-green-100">{batchConfirmGroup.transfer_code} &bull; {t('itemCount', { count: batchConfirmGroup.items.length })}</p>
                   </div>
                 </div>
               </div>
               <div className="p-5">
                 <div className="mb-3 rounded-xl bg-gray-50 p-3 text-sm dark:bg-gray-800">
-                  <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">จากสาขา: {batchConfirmGroup.from_store_name}</p>
-                  <p className="text-xs text-gray-400">ส่งเมื่อ: {formatThaiDateTime(batchConfirmGroup.created_at)}</p>
+                  <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t('fromBranchLabel', { name: batchConfirmGroup.from_store_name })}</p>
+                  <p className="text-xs text-gray-400">{t('sentAtLabel', { date: formatThaiDateTime(batchConfirmGroup.created_at) })}</p>
                 </div>
 
                 <div className="mb-4 max-h-60 space-y-2 overflow-y-auto">
                   {batchConfirmGroup.items.map((transfer, idx) => (
                     <div key={transfer.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
                       <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">{idx + 1}. {transfer.product_name || 'ไม่ระบุ'}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{idx + 1}. {transfer.product_name || t('unspecified')}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {transfer.customer_name || '-'}
                           {transfer.deposit_code && <span className="ml-1 font-mono text-gray-400">{transfer.deposit_code}</span>}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-gray-700 dark:text-gray-200">{transfer.quantity || 1} ขวด</span>
+                        <span className="text-sm font-bold text-gray-700 dark:text-gray-200">{transfer.quantity || 1} {t('bottles')}</span>
                         {transfer.photo_url && (
                           <button
                             onClick={() => setViewingPhoto(transfer.photo_url)}
@@ -1714,13 +1717,13 @@ export default function HqWarehousePage() {
                     onClick={() => setShowBatchConfirmModal(false)}
                     className="flex-1 rounded-xl bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
                   >
-                    ยกเลิก
+                    {t('cancel')}
                   </button>
                   <button
                     onClick={() => setBatchConfirmStep(2)}
                     className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 font-semibold text-white shadow-lg transition hover:from-green-600 hover:to-emerald-700"
                   >
-                    ถัดไป &rarr;
+                    {t('nextStep')}
                   </button>
                 </div>
               </div>
@@ -1733,8 +1736,8 @@ export default function HqWarehousePage() {
                     <Camera className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold">ถ่ายรูปยืนยัน</h2>
-                    <p className="text-sm text-blue-100">รูปเดียวใช้กับทุกรายการใน {batchConfirmGroup.transfer_code}</p>
+                    <h2 className="text-xl font-bold">{t('takeConfirmPhoto')}</h2>
+                    <p className="text-sm text-blue-100">{t('onePhotoForAll', { code: batchConfirmGroup.transfer_code })}</p>
                   </div>
                 </div>
               </div>
@@ -1743,13 +1746,13 @@ export default function HqWarehousePage() {
                   value={batchConfirmPhotoUrl}
                   onChange={setBatchConfirmPhotoUrl}
                   folder="hq-received"
-                  label="แนบรูปยืนยันการรับ"
+                  label={t('attachConfirmPhoto')}
                   required
-                  placeholder="ถ่ายรูปสินค้าที่ได้รับ"
+                  placeholder={t('photoReceivedProduct')}
                 />
 
                 <div className="mt-4">
-                  <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">ผู้รับ</label>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">{t('receiverLabel')}</label>
                   <input
                     type="text"
                     readOnly
@@ -1759,12 +1762,12 @@ export default function HqWarehousePage() {
                 </div>
 
                 <div className="mt-4">
-                  <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">หมายเหตุ (ถ้ามี)</label>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">{t('notesOptional')}</label>
                   <textarea
                     value={batchConfirmNotes}
                     onChange={(e) => setBatchConfirmNotes(e.target.value)}
                     rows={2}
-                    placeholder="ระบุหมายเหตุ..."
+                    placeholder={t('notesPlaceholder')}
                     className="w-full resize-none rounded-xl border-2 border-gray-200 px-4 py-3 transition focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                   />
                 </div>
@@ -1774,7 +1777,7 @@ export default function HqWarehousePage() {
                     onClick={() => setBatchConfirmStep(1)}
                     className="flex-1 rounded-xl bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
                   >
-                    &larr; ย้อนกลับ
+                    {t('goBack')}
                   </button>
                   <button
                     onClick={submitBatchConfirmTransfer}
@@ -1782,16 +1785,16 @@ export default function HqWarehousePage() {
                     className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 font-semibold text-white shadow-lg transition hover:from-green-600 hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {batchConfirmSubmitting ? (
-                      <><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> กำลังบันทึก...</>
+                      <><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> {t('saving')}</>
                     ) : (
-                      <><Check className="mr-1 inline h-4 w-4" /> ยืนยันรับทั้งหมด ({batchConfirmGroup.items.length} รายการ)</>
+                      <><Check className="mr-1 inline h-4 w-4" /> {t('confirmReceiveAll', { count: batchConfirmGroup.items.length })}</>
                     )}
                   </button>
                 </div>
                 {!batchConfirmPhotoUrl && (
                   <p className="mt-2 text-center text-sm text-red-500">
                     <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
-                    กรุณาแนบรูปก่อนยืนยัน
+                    {t('photoRequired')}
                   </p>
                 )}
               </div>

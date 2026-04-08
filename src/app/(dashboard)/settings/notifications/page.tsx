@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/stores/app-store';
@@ -35,6 +37,7 @@ const defaults: CustomerNotifSettings = {
 };
 
 export default function NotificationSettingsPage() {
+  const t = useTranslations('settings');
   const router = useRouter();
   const { currentStoreId } = useAppStore();
   const [settings, setSettings] = useState<CustomerNotifSettings>(defaults);
@@ -82,9 +85,9 @@ export default function NotificationSettingsPage() {
       );
 
     if (error) {
-      toast({ type: 'error', title: 'เกิดข้อผิดพลาด' });
+      toast({ type: 'error', title: t('notif.errorSaving') });
     } else {
-      toast({ type: 'success', title: 'บันทึกสำเร็จ' });
+      toast({ type: 'success', title: t('notif.saveSuccess') });
     }
     setIsSaving(false);
   };
@@ -117,19 +120,19 @@ export default function NotificationSettingsPage() {
         className="flex h-10 items-center gap-1.5 rounded-lg px-2 text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 active:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700"
       >
         <ArrowLeft className="h-5 w-5" />
-        กลับ
+        {t('notif.back')}
       </button>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ตั้งค่าแจ้งเตือนลูกค้า</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('notif.title')}</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          กำหนดว่าจะส่งแจ้งเตือนอะไรไปยังลูกค้าในสาขานี้
+          {t('notif.subtitle')}
         </p>
       </div>
 
       {/* Channels */}
       <Card padding="none">
-        <CardHeader title="ช่องทางการส่งแจ้งเตือน" />
+        <CardHeader title={t('notif.channelsTitle')} />
         <CardContent>
           <div className="flex flex-col gap-3 sm:flex-row">
             <button
@@ -160,18 +163,18 @@ export default function NotificationSettingsPage() {
 
       {/* Notification Types */}
       <Card padding="none">
-        <CardHeader title="ประเภทแจ้งเตือน" />
+        <CardHeader title={t('notif.typesTitle')} />
         <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
           <ToggleRow
-            label="แจ้งเตือนเหล้าใกล้หมดอายุ"
-            description="ส่งแจ้งเตือนอัตโนมัติเมื่อเหล้าใกล้หมดอายุ"
+            label={t('notif.expiryLabel')}
+            description={t('notif.expiryDesc')}
             checked={settings.customer_notify_expiry_enabled}
             onChange={() => toggle('customer_notify_expiry_enabled')}
           />
           {settings.customer_notify_expiry_enabled && (
             <div className="px-5 py-3">
               <Input
-                label="แจ้งเตือนก่อนหมดอายุ (วัน)"
+                label={t('notif.expiryDaysLabel')}
                 type="number"
                 value={String(settings.customer_notify_expiry_days)}
                 onChange={(e) =>
@@ -180,25 +183,25 @@ export default function NotificationSettingsPage() {
                     customer_notify_expiry_days: parseInt(e.target.value) || 7,
                   }))
                 }
-                hint="จะส่งแจ้งเตือนล่วงหน้ากี่วันก่อนหมดอายุ"
+                hint={t('notif.expiryDaysHint')}
               />
             </div>
           )}
           <ToggleRow
-            label="แจ้งเตือนฝากเหล้าสำเร็จ"
-            description="ส่งแจ้งเตือนเมื่อการฝากเหล้าได้รับการยืนยัน"
+            label={t('notif.depositLabel')}
+            description={t('notif.depositDesc')}
             checked={settings.customer_notify_deposit_enabled}
             onChange={() => toggle('customer_notify_deposit_enabled')}
           />
           <ToggleRow
-            label="แจ้งเตือนเบิกเหล้าสำเร็จ"
-            description="ส่งแจ้งเตือนเมื่อเบิกเหล้าเรียบร้อย"
+            label={t('notif.withdrawalLabel')}
+            description={t('notif.withdrawalDesc')}
             checked={settings.customer_notify_withdrawal_enabled}
             onChange={() => toggle('customer_notify_withdrawal_enabled')}
           />
           <ToggleRow
-            label="ส่งโปรโมชั่น"
-            description="อนุญาตให้ส่งโปรโมชั่นและประกาศไปยังลูกค้า"
+            label={t('notif.promotionLabel')}
+            description={t('notif.promotionDesc')}
             checked={settings.customer_notify_promotion_enabled}
             onChange={() => toggle('customer_notify_promotion_enabled')}
           />
@@ -207,11 +210,11 @@ export default function NotificationSettingsPage() {
 
       {/* LINE Staff Group Notification */}
       <Card padding="none">
-        <CardHeader title="แจ้งเตือน LINE กลุ่มพนักงาน" />
+        <CardHeader title={t('notif.lineStaffTitle')} />
         <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
           <ToggleRow
-            label="ส่งแจ้งเตือนเข้า LINE กลุ่มพนักงาน"
-            description="ส่ง LINE เมื่อมีฝากเหล้า/เบิก/สต๊อก/ยืมสินค้า (ปิดเป็นค่าเริ่มต้น เพราะใช้แชทในแอปแทน)"
+            label={t('notif.lineStaffLabel')}
+            description={t('notif.lineStaffDesc')}
             checked={settings.line_notify_enabled}
             onChange={() => toggle('line_notify_enabled')}
           />
@@ -224,7 +227,7 @@ export default function NotificationSettingsPage() {
           isLoading={isSaving}
           icon={<Save className="h-4 w-4" />}
         >
-          บันทึกการตั้งค่า
+          {t('notif.saveButton')}
         </Button>
       </div>
     </div>

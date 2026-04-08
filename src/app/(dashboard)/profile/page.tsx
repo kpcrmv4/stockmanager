@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
@@ -58,6 +60,7 @@ const defaultPrefs: NotifPrefs = {
 // ---------------------------------------------------------------------------
 
 export default function ProfilePage() {
+  const t = useTranslations('profile');
   const { user, updateUser } = useAuthStore();
   const pushSub = usePushSubscription();
 
@@ -88,11 +91,11 @@ export default function ProfilePage() {
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
     if (!allowedTypes.includes(file.type)) {
-      toast({ type: 'error', title: 'รองรับเฉพาะไฟล์ JPEG, PNG, WebP' });
+      toast({ type: 'error', title: t('avatarInvalidType') });
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
-      toast({ type: 'error', title: 'ไฟล์ใหญ่เกินไป (สูงสุด 10MB)' });
+      toast({ type: 'error', title: t('avatarFileTooLarge') });
       return;
     }
 
@@ -103,7 +106,7 @@ export default function ProfilePage() {
       formData.append('folder', 'avatars');
 
       const res = await fetch('/api/upload/photo', { method: 'POST', body: formData });
-      if (!res.ok) throw new Error('อัพโหลดไม่สำเร็จ');
+      if (!res.ok) throw new Error('Upload failed');
 
       const { url } = await res.json();
       const supabase = createClient();
@@ -115,9 +118,9 @@ export default function ProfilePage() {
       if (error) throw error;
 
       updateUser({ avatarUrl: url });
-      toast({ type: 'success', title: 'อัพเดทรูปโปรไฟล์สำเร็จ' });
+      toast({ type: 'success', title: t('avatarUploadSuccess') });
     } catch {
-      toast({ type: 'error', title: 'อัพโหลดรูปไม่สำเร็จ' });
+      toast({ type: 'error', title: t('avatarUploadFailed') });
     } finally {
       setIsUploadingAvatar(false);
       if (avatarInputRef.current) avatarInputRef.current.value = '';
@@ -143,9 +146,9 @@ export default function ProfilePage() {
 
       updateUser({ displayName: newName });
       setIsEditingNickname(false);
-      toast({ type: 'success', title: 'บันทึกชื่อเล่นสำเร็จ' });
+      toast({ type: 'success', title: t('nicknameSaveSuccess') });
     } catch {
-      toast({ type: 'error', title: 'บันทึกไม่สำเร็จ' });
+      toast({ type: 'error', title: t('nicknameSaveFailed') });
     } finally {
       setIsSavingProfile(false);
     }
@@ -205,7 +208,7 @@ export default function ProfilePage() {
 
     if (!authUser) {
       setIsSaving(false);
-      toast({ type: 'error', title: 'ไม่พบข้อมูลผู้ใช้' });
+      toast({ type: 'error', title: t('userNotFound') });
       return;
     }
 
@@ -214,9 +217,9 @@ export default function ProfilePage() {
       .upsert({ user_id: authUser.id, ...prefs }, { onConflict: 'user_id' });
 
     if (error) {
-      toast({ type: 'error', title: 'ไม่สามารถบันทึกได้', message: error.message });
+      toast({ type: 'error', title: t('saveFailed'), message: error.message });
     } else {
-      toast({ type: 'success', title: 'บันทึกการตั้งค่าสำเร็จ' });
+      toast({ type: 'success', title: t('settingsSaveSuccess') });
     }
     setIsSaving(false);
   };
@@ -242,11 +245,11 @@ export default function ProfilePage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
       if (msg === 'NOTIFICATION_DENIED') {
-        toast({ type: 'error', title: 'การแจ้งเตือนถูกบล็อก', message: 'กรุณาเปิดสิทธิ์ Notification ในการตั้งค่าเบราว์เซอร์' });
+        toast({ type: 'error', title: t('notificationBlocked'), message: t('notificationBlockedMsg') });
       } else if (msg === 'NOTIFICATION_DISMISSED') {
-        toast({ type: 'error', title: 'กรุณาอนุญาตการแจ้งเตือนเพื่อเปิดใช้งาน' });
+        toast({ type: 'error', title: t('notificationDismissed') });
       } else {
-        toast({ type: 'error', title: 'ลงทะเบียนอุปกรณ์ไม่สำเร็จ', message: 'กรุณาลองอีกครั้ง' });
+        toast({ type: 'error', title: t('deviceRegisterFailed'), message: t('pleaseTryAgain') });
       }
     }
   };
@@ -314,7 +317,7 @@ export default function ProfilePage() {
                   type="text"
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
-                  placeholder="ตั้งชื่อเล่น..."
+                  placeholder={t('setNicknamePlaceholder')}
                   className="w-40 rounded-lg border border-gray-300 px-3 py-1.5 text-center text-lg font-bold text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                   autoFocus
                   onKeyDown={(e) => {
@@ -358,7 +361,7 @@ export default function ProfilePage() {
                 onClick={() => setIsEditingNickname(true)}
                 className="text-xs text-indigo-500 hover:text-indigo-600"
               >
-                ตั้งชื่อเล่น
+                {t('setNickname')}
               </button>
             )}
           </div>
@@ -381,8 +384,8 @@ export default function ProfilePage() {
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title="ช่องทางการแจ้งเตือน"
-          description="เลือกช่องทางที่ต้องการรับแจ้งเตือน"
+          title={t('notificationChannels')}
+          description={t('notificationChannelsDesc')}
           action={
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
               <Bell className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
@@ -400,14 +403,14 @@ export default function ProfilePage() {
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {!pushSub.isSupported
-                    ? 'เบราว์เซอร์นี้ไม่รองรับ Push Notification'
+                    ? t('pushNotSupported')
                     : pushSub.isSubscribed
-                      ? 'เปิดใช้งานบนอุปกรณ์นี้แล้ว — รับแจ้งเตือนแม้ปิดแอป'
+                      ? t('pushEnabled')
                       : pushSub.permission === 'denied'
-                        ? 'ถูกบล็อกบนอุปกรณ์นี้ — กรุณาเปิดสิทธิ์ Notification ในการตั้งค่าเบราว์เซอร์'
+                        ? t('pushDenied')
                         : pushSub.permission === 'granted'
-                          ? 'ได้รับสิทธิ์แล้ว แต่ยังไม่ได้ลงทะเบียนอุปกรณ์นี้ — กดเพื่อเปิด'
-                          : 'ปิดอยู่บนอุปกรณ์นี้ — กดเพื่อเปิดรับการแจ้งเตือน'}
+                          ? t('pushGrantedNotRegistered')
+                          : t('pushDisabled')}
                 </p>
               </div>
             </div>
@@ -436,7 +439,7 @@ export default function ProfilePage() {
                   LINE Notification
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {prefs.line_enabled ? 'เปิดรับแจ้งเตือนผ่าน LINE' : 'ปิดการแจ้งเตือนผ่าน LINE'}
+                  {prefs.line_enabled ? t('lineEnabled') : t('lineDisabled')}
                 </p>
               </div>
             </div>
@@ -462,8 +465,8 @@ export default function ProfilePage() {
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title="ประเภทการแจ้งเตือน"
-          description="เลือกประเภทแจ้งเตือนที่ต้องการรับ"
+          title={t('notificationTypes')}
+          description={t('notificationTypesDesc')}
           action={
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-900/20">
               {prefs.notify_stock_alert ? (
@@ -478,8 +481,8 @@ export default function ProfilePage() {
           {/* Stock Alert — for staff/bar/manager/owner */}
           {isStaffLike && (
             <ToggleRow
-              label="แจ้งเตือนสต๊อก"
-              description="เตือนนับสต๊อก, ผลเปรียบเทียบ, ผลต่าง"
+              label={t('stockAlert')}
+              description={t('stockAlertDesc')}
               checked={prefs.notify_stock_alert}
               onChange={() => togglePref('notify_stock_alert')}
             />
@@ -488,8 +491,8 @@ export default function ProfilePage() {
           {/* Approval Request — for owner/manager */}
           {isOwnerOrManager && (
             <ToggleRow
-              label="รายการรออนุมัติ"
-              description="เมื่อมีรายการรออนุมัติ (ผลต่างสต๊อก, คำอธิบาย)"
+              label={t('approvalRequest')}
+              description={t('approvalRequestDesc')}
               checked={prefs.notify_approval_request}
               onChange={() => togglePref('notify_approval_request')}
             />
@@ -497,32 +500,32 @@ export default function ProfilePage() {
 
           {/* Deposit confirmed */}
           <ToggleRow
-            label="ฝากเหล้าสำเร็จ"
-            description="เมื่อการฝากเหล้าได้รับการยืนยัน"
+            label={t('depositConfirmed')}
+            description={t('depositConfirmedDesc')}
             checked={prefs.notify_deposit_confirmed}
             onChange={() => togglePref('notify_deposit_confirmed')}
           />
 
           {/* Withdrawal completed */}
           <ToggleRow
-            label="เบิกเหล้าสำเร็จ"
-            description="เมื่อเบิกเหล้าเรียบร้อย"
+            label={t('withdrawalCompleted')}
+            description={t('withdrawalCompletedDesc')}
             checked={prefs.notify_withdrawal_completed}
             onChange={() => togglePref('notify_withdrawal_completed')}
           />
 
           {/* Expiry warning */}
           <ToggleRow
-            label="เหล้าใกล้หมดอายุ"
-            description="แจ้งเตือนก่อนเหล้าฝากหมดอายุ"
+            label={t('expiryWarning')}
+            description={t('expiryWarningDesc')}
             checked={prefs.notify_expiry_warning}
             onChange={() => togglePref('notify_expiry_warning')}
           />
 
           {/* Promotions */}
           <ToggleRow
-            label="โปรโมชั่น"
-            description="รับข่าวสารโปรโมชั่นจากร้าน"
+            label={t('promotions')}
+            description={t('promotionsDesc')}
             checked={prefs.notify_promotions}
             onChange={() => togglePref('notify_promotions')}
           />
@@ -538,7 +541,7 @@ export default function ProfilePage() {
           isLoading={isSaving}
           icon={<Save className="h-4 w-4" />}
         >
-          บันทึกการตั้งค่า
+          {t('saveSettings')}
         </Button>
       </div>
     </div>

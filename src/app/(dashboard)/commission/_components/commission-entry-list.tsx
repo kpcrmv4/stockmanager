@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { Loader2, Trash2, Image } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
+import { useTranslations } from 'next-intl';
 import type { CommissionEntry } from '@/types/commission';
 
 function formatCurrency(n: number) {
@@ -19,6 +20,7 @@ function getCurrentMonth() {
 }
 
 export function CommissionEntryList() {
+  const t = useTranslations('commission');
   const { currentStoreId } = useAppStore();
   const { user } = useAuthStore();
   const [entries, setEntries] = useState<CommissionEntry[]>([]);
@@ -50,14 +52,14 @@ export function CommissionEntryList() {
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
   async function handleDelete(id: string) {
-    if (!confirm('ยืนยันลบรายการนี้?')) return;
+    if (!confirm(t('entryList.confirmDelete'))) return;
     const res = await fetch(`/api/commission/${id}`, { method: 'DELETE' });
     if (res.ok) {
-      toast({ type: 'success', title: 'ลบสำเร็จ' });
+      toast({ type: 'success', title: t('entryList.deleteSuccess') });
       logAudit({ store_id: currentStoreId, action_type: AUDIT_ACTIONS.COMMISSION_ENTRY_DELETED, table_name: 'commission_entries', record_id: id, changed_by: user?.id });
       fetchEntries();
     } else {
-      toast({ type: 'error', title: 'ลบไม่สำเร็จ' });
+      toast({ type: 'error', title: t('entryList.deleteFailed') });
     }
   }
 
@@ -66,17 +68,17 @@ export function CommissionEntryList() {
       <div className="flex flex-wrap items-center gap-3">
         <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white" />
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white">
-          <option value="">ทุกประเภท</option>
+          <option value="">{t('entryList.allTypes')}</option>
           <option value="ae_commission">AE Commission</option>
           <option value="bottle_commission">Bottle Commission</option>
         </select>
-        <span className="text-sm text-gray-500 dark:text-gray-400">{total} รายการ</span>
+        <span className="text-sm text-gray-500 dark:text-gray-400">{total} {t('entryList.entries')}</span>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>
       ) : entries.length === 0 ? (
-        <p className="py-8 text-center text-gray-500 dark:text-gray-400">ไม่มีรายการ</p>
+        <p className="py-8 text-center text-gray-500 dark:text-gray-400">{t('entryList.noEntries')}</p>
       ) : (
         <div className="space-y-2">
           {entries.map((entry) => {
@@ -93,18 +95,18 @@ export function CommissionEntryList() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Badge variant={isAE ? 'warning' : 'danger'} size="sm">{isAE ? 'AE' : 'Bottle'}</Badge>
-                        <Badge variant={isPaid ? 'success' : 'outline'} size="sm">{isPaid ? 'จ่ายแล้ว' : 'ยังไม่จ่าย'}</Badge>
+                        <Badge variant={isPaid ? 'success' : 'outline'} size="sm">{isPaid ? t('entryList.paid') : t('entryList.unpaid')}</Badge>
                         <span className="text-xs text-gray-400">{entry.bill_date}</span>
                         {store && <span className="text-xs text-gray-400">{store.store_code}</span>}
                       </div>
                       <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
-                        {isAE ? ae?.name || 'Unknown AE' : staff?.display_name || staff?.username || 'ไม่ระบุพนักงาน'}
+                        {isAE ? ae?.name || 'Unknown AE' : staff?.display_name || staff?.username || t('entryList.unspecifiedStaff')}
                       </p>
                       <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                         {entry.receipt_no && <span>#{entry.receipt_no}</span>}
-                        {entry.table_no && <span>โต๊ะ {entry.table_no}</span>}
-                        {isAE && entry.subtotal_amount && <span>ยอด {formatCurrency(Number(entry.subtotal_amount))}</span>}
-                        {!isAE && entry.bottle_count && <span>{entry.bottle_count} ขวด</span>}
+                        {entry.table_no && <span>{t('entryList.table')} {entry.table_no}</span>}
+                        {isAE && entry.subtotal_amount && <span>{t('entryList.subtotal')} {formatCurrency(Number(entry.subtotal_amount))}</span>}
+                        {!isAE && entry.bottle_count && <span>{entry.bottle_count} {t('entryList.bottles')}</span>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -132,7 +134,7 @@ export function CommissionEntryList() {
         </div>
       )}
 
-      <Modal isOpen={!!photoModal} onClose={() => setPhotoModal(null)} title="รูปถ่ายบิล" size="lg">
+      <Modal isOpen={!!photoModal} onClose={() => setPhotoModal(null)} title={t('entryList.receiptPhoto')} size="lg">
         {photoModal && <div className="flex justify-center"><img src={photoModal} alt="Receipt" className="max-h-[70vh] rounded-lg object-contain" /></div>}
       </Modal>
     </div>

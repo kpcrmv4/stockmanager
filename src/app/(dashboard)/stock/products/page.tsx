@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
@@ -64,6 +66,7 @@ const emptyForm: ProductForm = {
 // ---------------------------------------------------------------------------
 
 export default function ProductsPage() {
+  const t = useTranslations('stock');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
 
@@ -116,8 +119,8 @@ export default function ProductsPage() {
       console.error('Error fetching products:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถโหลดข้อมูลสินค้าได้',
+        title: t('products.errorTitle'),
+        message: t('products.errorLoadProducts'),
       });
     } finally {
       setLoading(false);
@@ -142,20 +145,20 @@ export default function ProductsPage() {
 
   const categoryOptions = useMemo(
     () => [
-      { value: 'all', label: 'ทุกหมวดหมู่' },
+      { value: 'all', label: t('products.allCategories') },
       ...categories.map((c) => ({ value: c, label: c })),
       ...(products.some((p) => !p.category)
-        ? [{ value: '__none__', label: 'ไม่ระบุหมวดหมู่' }]
+        ? [{ value: '__none__', label: t('products.noCategory') }]
         : []),
     ],
     [categories, products]
   );
 
   const activeFilterOptions = [
-    { value: 'all', label: 'ทั้งหมด' },
-    { value: 'active', label: 'เปิดใช้' },
-    { value: 'inactive', label: 'ปิดใช้' },
-    { value: 'excluded', label: 'ยกเว้นการนับ' },
+    { value: 'all', label: t('products.allStatus') },
+    { value: 'active', label: t('products.activeLabel') },
+    { value: 'inactive', label: t('products.inactiveLabel') },
+    { value: 'excluded', label: t('products.excludedLabel') },
   ];
 
   const filteredProducts = useMemo(() => {
@@ -236,10 +239,10 @@ export default function ProductsPage() {
 
   function validateForm(): boolean {
     const errors: Partial<Record<keyof ProductForm, string>> = {};
-    if (!form.product_code.trim()) errors.product_code = 'กรุณากรอกรหัสสินค้า';
-    if (!form.product_name.trim()) errors.product_name = 'กรุณากรอกชื่อสินค้า';
-    if (!form.unit.trim()) errors.unit = 'กรุณากรอกหน่วยนับ';
-    if (form.price && isNaN(Number(form.price))) errors.price = 'ราคาต้องเป็นตัวเลข';
+    if (!form.product_code.trim()) errors.product_code = t('products.requiredCode');
+    if (!form.product_name.trim()) errors.product_name = t('products.requiredName');
+    if (!form.unit.trim()) errors.unit = t('products.requiredUnit');
+    if (form.price && isNaN(Number(form.price))) errors.price = t('products.priceNumeric');
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -294,7 +297,7 @@ export default function ProductsPage() {
           changed_by: user?.id || null,
         });
 
-        toast({ type: 'success', title: 'อัปเดตสินค้าสำเร็จ' });
+        toast({ type: 'success', title: t('products.updateSuccess') });
       } else {
         // --- Create: check unique product_code in store ---
         const { data: existing } = await supabase
@@ -306,7 +309,7 @@ export default function ProductsPage() {
           .maybeSingle();
 
         if (existing) {
-          setFormErrors({ product_code: 'รหัสสินค้านี้มีอยู่แล้วในสาขานี้' });
+          setFormErrors({ product_code: t('products.duplicateCode') });
           setSaving(false);
           return;
         }
@@ -329,7 +332,7 @@ export default function ProductsPage() {
           changed_by: user?.id || null,
         });
 
-        toast({ type: 'success', title: 'เพิ่มสินค้าสำเร็จ' });
+        toast({ type: 'success', title: t('products.addSuccess') });
       }
 
       closeModal();
@@ -338,8 +341,8 @@ export default function ProductsPage() {
       console.error('Error saving product:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถบันทึกสินค้าได้',
+        title: t('products.errorTitle'),
+        message: t('products.errorSaveProduct'),
       });
     } finally {
       setSaving(false);
@@ -385,14 +388,14 @@ export default function ProductsPage() {
 
       toast({
         type: 'success',
-        title: newActive ? 'เปิดใช้สินค้าแล้ว' : 'ปิดใช้สินค้าแล้ว',
+        title: newActive ? t('products.activatedProduct') : t('products.deactivatedProduct'),
       });
     } catch (error) {
       console.error('Error toggling product:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถเปลี่ยนสถานะสินค้าได้',
+        title: t('products.errorTitle'),
+        message: t('products.errorToggleProduct'),
       });
     }
   }
@@ -436,8 +439,8 @@ export default function ProductsPage() {
 
         toast({
           type: 'info',
-          title: 'ปิดใช้สินค้าแล้ว',
-          message: 'สินค้านี้เคยถูกใช้งาน จึงถูกปิดใช้แทนการลบ',
+          title: t('products.deactivatedProduct'),
+          message: t('products.softDeleteMsg'),
         });
       } else {
         // Hard delete
@@ -450,7 +453,7 @@ export default function ProductsPage() {
 
         setProducts((prev) => prev.filter((p) => p.id !== deletingProduct.id));
 
-        toast({ type: 'success', title: 'ลบสินค้าสำเร็จ' });
+        toast({ type: 'success', title: t('products.deleteSuccess') });
       }
 
       // Audit log
@@ -471,8 +474,8 @@ export default function ProductsPage() {
       console.error('Error deleting product:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถลบสินค้าได้',
+        title: t('products.errorTitle'),
+        message: t('products.errorDeleteProduct'),
       });
     } finally {
       setDeleting(false);
@@ -508,10 +511,10 @@ export default function ProductsPage() {
           </a>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              จัดการสินค้า
+              {t('products.title')}
             </h1>
             <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-              จัดการรายการสินค้าทั้งหมดของสาขา
+              {t('products.subtitle')}
             </p>
           </div>
         </div>
@@ -522,7 +525,7 @@ export default function ProductsPage() {
             icon={<RefreshCw className="h-4 w-4" />}
             onClick={fetchProducts}
           >
-            รีเฟรช
+            {t('products.refresh')}
           </Button>
           {canEdit && (
             <>
@@ -532,14 +535,14 @@ export default function ProductsPage() {
                 icon={<Upload className="h-4 w-4" />}
                 onClick={() => setShowImportModal(true)}
               >
-                นำเข้า CSV
+                {t('products.importCSV')}
               </Button>
               <Button
                 size="sm"
                 icon={<Plus className="h-4 w-4" />}
                 onClick={openAddModal}
               >
-                เพิ่มสินค้า
+                {t('products.addProduct')}
               </Button>
             </>
           )}
@@ -549,28 +552,28 @@ export default function ProductsPage() {
       {/* ---- Stats ---- */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
         <span>
-          ทั้งหมด{' '}
+          {t('products.total')}{' '}
           <span className="font-semibold text-gray-900 dark:text-white">
             {formatNumber(stats.total)}
           </span>
         </span>
         <span className="text-gray-300 dark:text-gray-600">|</span>
         <span>
-          เปิดใช้{' '}
+          {t('products.activeLabel')}{' '}
           <span className="font-semibold text-emerald-600 dark:text-emerald-400">
             {formatNumber(stats.active)}
           </span>
         </span>
         <span className="text-gray-300 dark:text-gray-600">|</span>
         <span>
-          ปิดใช้{' '}
+          {t('products.inactiveLabel')}{' '}
           <span className="font-semibold text-gray-500 dark:text-gray-400">
             {formatNumber(stats.inactive)}
           </span>
         </span>
         <span className="text-gray-300 dark:text-gray-600">|</span>
         <span>
-          ยกเว้นการนับ{' '}
+          {t('products.excludedLabel')}{' '}
           <span className="font-semibold text-amber-600 dark:text-amber-400">
             {formatNumber(stats.excluded)}
           </span>
@@ -581,7 +584,7 @@ export default function ProductsPage() {
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="flex-1">
           <Input
-            placeholder="ค้นหารหัสหรือชื่อสินค้า..."
+            placeholder={t('products.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             leftIcon={<Search className="h-4 w-4" />}
@@ -610,11 +613,11 @@ export default function ProductsPage() {
         <Card padding="none">
           <EmptyState
             icon={Package}
-            title="ไม่พบสินค้า"
+            title={t('products.noProducts')}
             description={
               products.length === 0
-                ? 'ยังไม่มีสินค้าในสาขานี้ เริ่มเพิ่มสินค้าใหม่เลย'
-                : 'ไม่พบสินค้าที่ตรงกับเงื่อนไขการค้นหา'
+                ? t('products.noProductsInBranch')
+                : t('products.noMatchingProducts')
             }
             action={
               products.length === 0 && canEdit ? (
@@ -623,7 +626,7 @@ export default function ProductsPage() {
                   icon={<Plus className="h-4 w-4" />}
                   onClick={openAddModal}
                 >
-                  เพิ่มสินค้า
+                  {t('products.addProduct')}
                 </Button>
               ) : undefined
             }
@@ -638,15 +641,15 @@ export default function ProductsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-400">
-                      <th className="px-5 py-3">รหัส</th>
-                      <th className="px-5 py-3">ชื่อสินค้า</th>
-                      <th className="px-5 py-3">หมวดหมู่</th>
-                      <th className="px-5 py-3">ขนาด</th>
-                      <th className="px-5 py-3">หน่วย</th>
-                      <th className="px-5 py-3 text-right">ราคา</th>
-                      <th className="px-5 py-3 text-center">สถานะ</th>
+                      <th className="px-5 py-3">{t('products.codeCol')}</th>
+                      <th className="px-5 py-3">{t('products.nameCol')}</th>
+                      <th className="px-5 py-3">{t('products.categoryCol')}</th>
+                      <th className="px-5 py-3">{t('products.sizeCol')}</th>
+                      <th className="px-5 py-3">{t('products.unitCol')}</th>
+                      <th className="px-5 py-3 text-right">{t('products.priceCol')}</th>
+                      <th className="px-5 py-3 text-center">{t('products.statusCol')}</th>
                       {canEdit && (
-                        <th className="px-5 py-3 text-center">จัดการ</th>
+                        <th className="px-5 py-3 text-center">{t('products.actionsCol')}</th>
                       )}
                     </tr>
                   </thead>
@@ -682,12 +685,12 @@ export default function ProductsPage() {
                         <td className="px-5 py-3 text-center">
                           <div className="flex flex-col items-center gap-1">
                             {product.active ? (
-                              <Badge variant="success">เปิดใช้</Badge>
+                              <Badge variant="success">{t('products.activeLabel')}</Badge>
                             ) : (
-                              <Badge variant="default">ปิดใช้</Badge>
+                              <Badge variant="default">{t('products.inactiveLabel')}</Badge>
                             )}
                             {product.count_status === 'excluded' && (
-                              <Badge variant="warning">ยกเว้นนับ</Badge>
+                              <Badge variant="warning">{t('products.excludedCount')}</Badge>
                             )}
                           </div>
                         </td>
@@ -697,7 +700,7 @@ export default function ProductsPage() {
                               <button
                                 onClick={() => openEditModal(product)}
                                 className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-indigo-600 dark:hover:bg-gray-700 dark:hover:text-indigo-400"
-                                title="แก้ไข"
+                                title={t('products.editBtn')}
                               >
                                 <Pencil className="h-4 w-4" />
                               </button>
@@ -710,7 +713,7 @@ export default function ProductsPage() {
                                     : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700'
                                 )}
                                 title={
-                                  product.active ? 'ปิดใช้สินค้า' : 'เปิดใช้สินค้า'
+                                  product.active ? t('products.deactivateBtn') : t('products.activateBtn')
                                 }
                               >
                                 {product.active ? (
@@ -722,7 +725,7 @@ export default function ProductsPage() {
                               <button
                                 onClick={() => setDeletingProduct(product)}
                                 className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-                                title="ลบ"
+                                title={t('products.deleteBtn')}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -755,16 +758,16 @@ export default function ProductsPage() {
                       </span>
                       {product.active ? (
                         <Badge variant="success" size="sm">
-                          เปิดใช้
+                          {t('products.activeLabel')}
                         </Badge>
                       ) : (
                         <Badge variant="default" size="sm">
-                          ปิดใช้
+                          {t('products.inactiveLabel')}
                         </Badge>
                       )}
                       {product.count_status === 'excluded' && (
                         <Badge variant="warning" size="sm">
-                          ยกเว้นนับ
+                          {t('products.excludedCount')}
                         </Badge>
                       )}
                     </div>
@@ -824,13 +827,13 @@ export default function ProductsPage() {
       <Modal
         isOpen={showModal}
         onClose={closeModal}
-        title={editingProduct ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}
+        title={editingProduct ? t('products.editProduct') : t('products.addProduct')}
         size="md"
       >
         <div className="space-y-4">
           <Input
-            label="รหัสสินค้า"
-            placeholder="เช่น B001"
+            label={t('products.codeLabel')}
+            placeholder={t('products.codePlaceholder')}
             value={form.product_code}
             onChange={(e) =>
               setForm((f) => ({ ...f, product_code: e.target.value }))
@@ -839,8 +842,8 @@ export default function ProductsPage() {
             disabled={!!editingProduct}
           />
           <Input
-            label="ชื่อสินค้า"
-            placeholder="เช่น เบียร์ช้าง"
+            label={t('products.nameLabel')}
+            placeholder={t('products.namePlaceholder')}
             value={form.product_name}
             onChange={(e) =>
               setForm((f) => ({ ...f, product_name: e.target.value }))
@@ -849,7 +852,7 @@ export default function ProductsPage() {
           />
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              หมวดหมู่
+              {t('products.categoryLabel')}
             </label>
             <div className="relative">
               <input
@@ -861,7 +864,7 @@ export default function ProductsPage() {
                   'dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500',
                   'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500/20 dark:border-gray-600 dark:focus:border-indigo-400'
                 )}
-                placeholder="เช่น เบียร์, วิสกี้, น้ำผลไม้"
+                placeholder={t('products.categoryPlaceholder')}
                 value={form.category}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, category: e.target.value }))
@@ -876,16 +879,16 @@ export default function ProductsPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="ขนาด"
-              placeholder="เช่น 330ml"
+              label={t('products.sizeLabel')}
+              placeholder={t('products.sizePlaceholder')}
               value={form.size}
               onChange={(e) =>
                 setForm((f) => ({ ...f, size: e.target.value }))
               }
             />
             <Input
-              label="หน่วยนับ"
-              placeholder="เช่น ขวด, แก้ว, ลัง"
+              label={t('products.unitLabel')}
+              placeholder={t('products.unitPlaceholder')}
               value={form.unit}
               onChange={(e) =>
                 setForm((f) => ({ ...f, unit: e.target.value }))
@@ -894,7 +897,7 @@ export default function ProductsPage() {
             />
           </div>
           <Input
-            label="ราคา (บาท)"
+            label={t('products.priceLabel')}
             placeholder="0.00"
             type="number"
             step="0.01"
@@ -908,10 +911,10 @@ export default function ProductsPage() {
           <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 dark:border-gray-600">
             <div>
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                สถานะสินค้า
+                {t('products.productStatus')}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {form.active ? 'เปิดใช้งาน - สินค้ายังมีในระบบ' : 'ปิดใช้งาน - ซ่อนจากทุกที่'}
+                {form.active ? t('products.activeDesc') : t('products.inactiveDesc')}
               </p>
             </div>
             <button
@@ -933,12 +936,12 @@ export default function ProductsPage() {
           <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 dark:border-gray-600">
             <div>
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                สถานะการนับสต๊อก
+                {t('products.countStatus')}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {form.count_status === 'active'
-                  ? 'นับปกติ - แสดงในรายการนับสต๊อก'
-                  : 'ยกเว้นการนับ - มีในระบบแต่ไม่ต้องนับ'}
+                  ? t('products.countActiveDesc')
+                  : t('products.countExcludedDesc')}
               </p>
             </div>
             <button
@@ -970,10 +973,10 @@ export default function ProductsPage() {
         </div>
         <ModalFooter>
           <Button variant="outline" onClick={closeModal}>
-            ยกเลิก
+            {t('products.cancel')}
           </Button>
           <Button onClick={handleSave} isLoading={saving}>
-            บันทึก
+            {t('products.save')}
           </Button>
         </ModalFooter>
       </Modal>
@@ -982,25 +985,25 @@ export default function ProductsPage() {
       <Modal
         isOpen={!!deletingProduct}
         onClose={() => setDeletingProduct(null)}
-        title="ยืนยันการลบสินค้า"
+        title={t('products.confirmDelete')}
         size="sm"
       >
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          คุณต้องการลบสินค้า{' '}
+          {t('products.confirmDeleteMsg')}{' '}
           <span className="font-semibold text-gray-900 dark:text-white">
             {deletingProduct?.product_name}
           </span>{' '}
           ({deletingProduct?.product_code}) ใช่หรือไม่?
         </p>
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          หากสินค้านี้เคยถูกใช้ในการนับสต๊อก จะถูกปิดใช้งานแทนการลบถาวร
+          {t('products.softDeleteWarning')}
         </p>
         <ModalFooter>
           <Button variant="outline" onClick={() => setDeletingProduct(null)}>
-            ยกเลิก
+            {t('products.cancel')}
           </Button>
           <Button variant="danger" onClick={handleDelete} isLoading={deleting}>
-            ลบสินค้า
+            {t('products.deleteProduct')}
           </Button>
         </ModalFooter>
       </Modal>

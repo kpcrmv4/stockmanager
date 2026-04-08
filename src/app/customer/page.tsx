@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useCustomerAuth } from './_components/customer-provider';
 import { cn } from '@/lib/utils/cn';
 import { DEPOSIT_STATUS_LABELS } from '@/lib/utils/constants';
@@ -31,6 +32,7 @@ interface DepositItem {
 export default function CustomerPage() {
   const { lineUserId, displayName, mode, isLoading: authLoading, error: authError } = useCustomerAuth();
   const searchParams = useSearchParams();
+  const t = useTranslations('customer.home');
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,7 +76,7 @@ export default function CustomerPage() {
           body: JSON.stringify({ accessToken: auth.accessToken }),
         });
       } else {
-        setError('ไม่สามารถโหลดข้อมูลได้');
+        setError(t('loadError'));
         setIsLoading(false);
         return;
       }
@@ -83,14 +85,14 @@ export default function CustomerPage() {
         const data = await res.json();
         setDeposits(mapDeposits(data.deposits));
       } else {
-        setError('ไม่สามารถโหลดข้อมูลได้');
+        setError(t('loadError'));
       }
     } catch {
-      setError('ไม่สามารถโหลดข้อมูลได้');
+      setError(t('loadError'));
     }
 
     setIsLoading(false);
-  }, [lineUserId, getAuthPayload]);
+  }, [lineUserId, getAuthPayload, t]);
 
   useEffect(() => {
     if (lineUserId) {
@@ -152,7 +154,7 @@ export default function CustomerPage() {
         ),
       );
     } catch {
-      setError('ไม่สามารถส่งคำขอเบิกได้ กรุณาลองใหม่');
+      setError(t('withdrawError'));
     } finally {
       setRequestingId(null);
     }
@@ -178,11 +180,11 @@ export default function CustomerPage() {
   };
 
   const getExpiryText = (expiryDate: string | null) => {
-    if (!expiryDate) return 'ไม่มีกำหนด';
+    if (!expiryDate) return t('noExpiry');
     const days = daysUntil(expiryDate);
-    if (days <= 0) return 'หมดอายุแล้ว';
-    if (days === 1) return 'หมดอายุพรุ่งนี้';
-    return `อีก ${days} วัน`;
+    if (days <= 0) return t('expired');
+    if (days === 1) return t('expiresTomorrow');
+    return t('expiresInDays', { days });
   };
 
   const getRemainingBarColor = (percent: number) => {
@@ -200,7 +202,7 @@ export default function CustomerPage() {
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-[#06C755]" />
-          <p className="text-sm text-gray-500">กำลังโหลด...</p>
+          <p className="text-sm text-gray-500">{t('loading')}</p>
         </div>
       </div>
     );
@@ -216,7 +218,7 @@ export default function CustomerPage() {
             onClick={() => window.location.reload()}
             className="rounded-full bg-[#06C755] px-6 py-2 text-sm font-medium text-white"
           >
-            ลองใหม่
+            {t('retry')}
           </button>
         </div>
       </div>
@@ -234,10 +236,10 @@ export default function CustomerPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-white">
-              {displayName ? `สวัสดี ${displayName}` : 'เหล้าฝากของฉัน'}
+              {displayName ? t('greeting', { name: displayName }) : t('myBottles')}
             </h1>
             <p className="text-sm text-white/80">
-              {filteredDeposits.length} รายการที่ใช้งาน
+              {t('activeItems', { count: filteredDeposits.length })}
             </p>
           </div>
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
@@ -252,7 +254,7 @@ export default function CustomerPage() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ค้นหาด้วยรหัสฝากหรือชื่อเครื่องดื่ม"
+            placeholder={t('searchPlaceholder')}
             className="w-full rounded-full bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400"
           />
         </div>
@@ -272,8 +274,8 @@ export default function CustomerPage() {
             <Wine className="mb-3 h-12 w-12 text-gray-300" />
             <p className="text-sm text-gray-500">
               {searchQuery
-                ? 'ไม่พบรายการที่ค้นหา'
-                : 'ยังไม่มีรายการฝากเหล้า'}
+                ? t('noSearchResults')
+                : t('noDeposits')}
             </p>
           </div>
         ) : (
@@ -323,7 +325,7 @@ export default function CustomerPage() {
                   {/* Remaining Progress */}
                   <div className="mb-3">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-500">เหลือ</span>
+                      <span className="text-gray-500">{t('remaining')}</span>
                       <span className="font-semibold text-gray-900">
                         {formatPercent(deposit.remainingPercent)}
                       </span>
@@ -346,22 +348,22 @@ export default function CustomerPage() {
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-gray-400">
                         <Clock className="h-3.5 w-3.5" />
-                        หมดอายุ
+                        {t('expiry')}
                       </span>
                       <span className={getExpiryColor(deposit.expiryDate)}>
                         {deposit.expiryDate
                           ? `${formatThaiDate(deposit.expiryDate)} (${getExpiryText(deposit.expiryDate)})`
-                          : 'ไม่มีกำหนด'}
+                          : t('noExpiry')}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-400">ร้าน</span>
+                      <span className="text-gray-400">{t('store')}</span>
                       <span className="text-gray-700">
                         {deposit.storeName}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-400">วันที่ฝาก</span>
+                      <span className="text-gray-400">{t('depositDate')}</span>
                       <span className="text-gray-700">
                         {formatThaiDate(deposit.depositDate)}
                       </span>
@@ -374,12 +376,12 @@ export default function CustomerPage() {
                   {isPendingWithdrawal ? (
                     <div className="flex items-center justify-center gap-2 rounded-full bg-amber-50 py-2.5 text-sm font-medium text-amber-700">
                       <Clock className="h-4 w-4" />
-                      กำลังรอเบิก
+                      {t('pendingWithdrawal')}
                     </div>
                   ) : isExpired ? (
                     <div className="flex items-center justify-center gap-2 rounded-full bg-red-50 py-2.5 text-sm font-medium text-red-600">
                       <AlertCircle className="h-4 w-4" />
-                      หมดอายุแล้ว
+                      {t('expired')}
                     </div>
                   ) : (
                     <button
@@ -397,7 +399,7 @@ export default function CustomerPage() {
                       ) : (
                         <Package className="h-4 w-4" />
                       )}
-                      {isRequesting ? 'กำลังส่งคำขอ...' : 'ขอเบิกเหล้า'}
+                      {isRequesting ? t('requesting') : t('requestWithdrawal')}
                     </button>
                   )}
                 </div>

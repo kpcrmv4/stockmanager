@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -26,17 +28,18 @@ import {
   Loader2,
 } from 'lucide-react';
 
-const steps = [
-  { id: 1, label: 'ข้อมูลสาขา', icon: Store },
-  { id: 2, label: 'กลุ่ม LINE', icon: MessageCircle },
-  { id: 3, label: 'สินค้า', icon: Package },
-  { id: 4, label: 'พนักงาน', icon: Users },
-  { id: 5, label: 'แจ้งเตือน', icon: Bell },
-];
-
 export default function CreateStoreWizardPage() {
+  const t = useTranslations('settings');
   const router = useRouter();
   const { user } = useAuthStore();
+
+  const steps = [
+    { id: 1, label: t('newStore.stepStoreInfo'), icon: Store },
+    { id: 2, label: t('newStore.stepLineGroup'), icon: MessageCircle },
+    { id: 3, label: t('newStore.stepProducts'), icon: Package },
+    { id: 4, label: t('newStore.stepStaff'), icon: Users },
+    { id: 5, label: t('newStore.stepNotifications'), icon: Bell },
+  ];
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -62,7 +65,7 @@ export default function CreateStoreWizardPage() {
   const [notifyDays, setNotifyDays] = useState(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
 
   const dayLabels: Record<string, string> = {
-    Mon: 'จ', Tue: 'อ', Wed: 'พ', Thu: 'พฤ', Fri: 'ศ', Sat: 'ส', Sun: 'อา',
+    Mon: t('newStore.dayMon'), Tue: t('newStore.dayTue'), Wed: t('newStore.dayWed'), Thu: t('newStore.dayThu'), Fri: t('newStore.dayFri'), Sat: t('newStore.daySat'), Sun: t('newStore.daySun'),
   };
 
   const toggleDay = (day: string) => {
@@ -94,7 +97,7 @@ export default function CreateStoreWizardPage() {
       .single();
 
     if (storeError || !store) {
-      toast({ type: 'error', title: 'ไม่สามารถสร้างสาขาได้', message: storeError?.message });
+      toast({ type: 'error', title: t('newStore.errorCreate'), message: storeError?.message });
       setIsSubmitting(false);
       return;
     }
@@ -115,7 +118,7 @@ export default function CreateStoreWizardPage() {
 
     setIsSubmitting(false);
     setIsComplete(true);
-    toast({ type: 'success', title: 'สร้างสาขาสำเร็จ', message: `${storeName} พร้อมใช้งาน` });
+    toast({ type: 'success', title: t('newStore.createSuccess'), message: t('newStore.createSuccessMsg', { name: storeName }) });
   };
 
   if (isComplete) {
@@ -125,16 +128,16 @@ export default function CreateStoreWizardPage() {
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
             <Check className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">สร้างสาขาสำเร็จ!</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('newStore.successTitle')}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {storeName} พร้อมใช้งานแล้ว คุณสามารถเพิ่มสินค้าและพนักงานได้ในภายหลัง
+            {t('newStore.successDesc', { name: storeName })}
           </p>
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => router.push('/settings')}>
-              กลับตั้งค่า
+              {t('newStore.backToSettings')}
             </Button>
             <Button onClick={() => router.push('/')}>
-              ไปหน้าหลัก
+              {t('newStore.goHome')}
             </Button>
           </div>
         </div>
@@ -150,13 +153,13 @@ export default function CreateStoreWizardPage() {
         className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400"
       >
         <ArrowLeft className="h-4 w-4" />
-        กลับ
+        {t('newStore.back')}
       </button>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">เพิ่มสาขาใหม่</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('newStore.title')}</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          กรอกข้อมูลเพื่อสร้างสาขาใหม่ในระบบ
+          {t('newStore.subtitle')}
         </p>
       </div>
 
@@ -210,17 +213,17 @@ export default function CreateStoreWizardPage() {
           {currentStep === 1 && (
             <>
               <Input
-                label="รหัสสาขา"
+                label={t('newStore.storeCodeLabel')}
                 value={storeCode}
                 onChange={(e) => setStoreCode(e.target.value)}
-                placeholder="เช่น BKK-01"
-                hint="ใช้ตัวอักษรภาษาอังกฤษและตัวเลข"
+                placeholder={t('newStore.storeCodePlaceholder')}
+                hint={t('newStore.storeCodeHint')}
               />
               <Input
-                label="ชื่อสาขา"
+                label={t('newStore.storeNameLabel')}
                 value={storeName}
                 onChange={(e) => setStoreName(e.target.value)}
-                placeholder="เช่น ร้านสาขาสุขุมวิท"
+                placeholder={t('newStore.storeNamePlaceholder')}
               />
               <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-700">
                 <input
@@ -231,7 +234,7 @@ export default function CreateStoreWizardPage() {
                   className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                 />
                 <label htmlFor="isCentral" className="text-sm text-gray-700 dark:text-gray-300">
-                  เป็นคลังกลาง
+                  {t('newStore.isCentral')}
                 </label>
               </div>
             </>
@@ -240,31 +243,31 @@ export default function CreateStoreWizardPage() {
           {currentStep === 2 && (
             <>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                ตั้งค่ากลุ่ม LINE สำหรับรับแจ้งเตือนของสาขานี้ (เชิญ bot เข้ากลุ่ม → bot จะตอบ Group ID ให้คัดลอก)
+                {t('newStore.lineGroupDesc')}
               </p>
               <Input
-                label="กลุ่มแจ้งเตือนสต๊อก"
+                label={t('newStore.stockNotifyLabel')}
                 value={stockNotifyGroupId}
                 onChange={(e) => setStockNotifyGroupId(e.target.value)}
-                placeholder="เช่น Cxxxxxxxxxx"
-                hint="กลุ่ม LINE สำหรับแจ้งเตือนนับสต๊อก, ผลต่าง, อนุมัติ"
+                placeholder={t('newStore.lineGroupPlaceholder')}
+                hint={t('newStore.stockNotifyHint')}
               />
               <Input
-                label="กลุ่มแจ้งเตือนฝาก/เบิกเหล้า"
+                label={t('newStore.depositNotifyLabel')}
                 value={depositNotifyGroupId}
                 onChange={(e) => setDepositNotifyGroupId(e.target.value)}
-                placeholder="เช่น Cxxxxxxxxxx"
-                hint="กลุ่ม LINE สำหรับแจ้งเตือนพนักงานเรื่องฝาก/เบิกเหล้า"
+                placeholder={t('newStore.lineGroupPlaceholder')}
+                hint={t('newStore.depositNotifyHint')}
               />
               <Input
-                label="กลุ่มบาร์ยืนยันรับเหล้า"
+                label={t('newStore.barNotifyLabel')}
                 value={barNotifyGroupId}
                 onChange={(e) => setBarNotifyGroupId(e.target.value)}
-                placeholder="เช่น Cxxxxxxxxxx"
-                hint="กลุ่ม LINE สำหรับแจ้งเตือนหัวหน้าบาร์ (ไม่บังคับ)"
+                placeholder={t('newStore.lineGroupPlaceholder')}
+                hint={t('newStore.barNotifyHint')}
               />
               <p className="text-xs text-gray-400 dark:text-gray-500">
-                ข้ามขั้นตอนนี้ได้ สามารถตั้งค่าภายหลัง
+                {t('newStore.skipStep')}
               </p>
             </>
           )}
@@ -272,12 +275,12 @@ export default function CreateStoreWizardPage() {
           {currentStep === 3 && (
             <>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                เพิ่มรายการสินค้าสำหรับสาขานี้ คุณสามารถ import จากสาขาอื่นหรือเพิ่มด้วยมือ
+                {t('newStore.productsDesc')}
               </p>
               <div className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center dark:border-gray-600">
                 <Package className="h-8 w-8 text-gray-400" />
-                <p className="text-sm text-gray-500">จัดการสินค้าได้ในภายหลัง</p>
-                <p className="text-xs text-gray-400">สามารถ import CSV หรือ copy จากสาขาอื่น</p>
+                <p className="text-sm text-gray-500">{t('newStore.productsLater')}</p>
+                <p className="text-xs text-gray-400">{t('newStore.productsImportHint')}</p>
               </div>
             </>
           )}
@@ -285,12 +288,12 @@ export default function CreateStoreWizardPage() {
           {currentStep === 4 && (
             <>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                เพิ่มพนักงานสำหรับสาขานี้ หรือ assign จาก user ที่มีอยู่แล้ว
+                {t('newStore.staffDesc')}
               </p>
               <div className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center dark:border-gray-600">
                 <Users className="h-8 w-8 text-gray-400" />
-                <p className="text-sm text-gray-500">เพิ่มพนักงานได้ในภายหลัง</p>
-                <p className="text-xs text-gray-400">ไปที่ จัดการผู้ใช้ เพื่อเพิ่มพนักงาน</p>
+                <p className="text-sm text-gray-500">{t('newStore.staffLater')}</p>
+                <p className="text-xs text-gray-400">{t('newStore.staffHint')}</p>
               </div>
             </>
           )}
@@ -299,7 +302,7 @@ export default function CreateStoreWizardPage() {
             <>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  เวลาแจ้งเตือนนับสต๊อก
+                  {t('newStore.notifyTimeLabel')}
                 </label>
                 <Input
                   type="time"
@@ -309,7 +312,7 @@ export default function CreateStoreWizardPage() {
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  วันที่ต้องนับ
+                  {t('newStore.notifyDaysLabel')}
                 </label>
                 <div className="flex gap-2">
                   {Object.entries(dayLabels).map(([day, label]) => (
@@ -341,7 +344,7 @@ export default function CreateStoreWizardPage() {
           disabled={currentStep === 1}
           icon={<ArrowLeft className="h-4 w-4" />}
         >
-          ย้อนกลับ
+          {t('newStore.previous')}
         </Button>
 
         {currentStep < 5 ? (
@@ -350,7 +353,7 @@ export default function CreateStoreWizardPage() {
             disabled={currentStep === 1 && (!storeCode || !storeName)}
             icon={<ArrowRight className="h-4 w-4" />}
           >
-            ถัดไป
+            {t('newStore.next')}
           </Button>
         ) : (
           <Button
@@ -359,7 +362,7 @@ export default function CreateStoreWizardPage() {
             disabled={!storeCode || !storeName}
             icon={<Check className="h-4 w-4" />}
           >
-            สร้างสาขา
+            {t('newStore.createStore')}
           </Button>
         )}
       </div>

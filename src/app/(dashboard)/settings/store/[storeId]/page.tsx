@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -89,23 +91,24 @@ const settingsDefaults: StoreSettingsData = {
   audit_log_retention_days: null,
 };
 
-const dayLabels: Record<string, string> = {
-  Mon: 'จ',
-  Tue: 'อ',
-  Wed: 'พ',
-  Thu: 'พฤ',
-  Fri: 'ศ',
-  Sat: 'ส',
-  Sun: 'อา',
-};
-
 // ---------------------------------------------------------------------------
 // Page Component
 // ---------------------------------------------------------------------------
 
 export default function StoreDetailSettingsPage() {
+  const t = useTranslations('settings');
   const router = useRouter();
   const params = useParams();
+
+  const dayLabels: Record<string, string> = {
+    Mon: t('storeDetail.dayMon'),
+    Tue: t('storeDetail.dayTue'),
+    Wed: t('storeDetail.dayWed'),
+    Thu: t('storeDetail.dayThu'),
+    Fri: t('storeDetail.dayFri'),
+    Sat: t('storeDetail.daySat'),
+    Sun: t('storeDetail.daySun'),
+  };
   const storeId = params.storeId as string;
   const { user } = useAuthStore();
 
@@ -329,9 +332,9 @@ export default function StoreDetailSettingsPage() {
       URL.revokeObjectURL(url);
 
       setPrintServerHasAccount(true);
-      toast({ type: 'success', title: 'ดาวน์โหลดตัวติดตั้งสำเร็จ!', message: 'แตก ZIP ที่ PC สาขา แล้วรัน SETUP.bat' });
+      toast({ type: 'success', title: t('storeDetail.downloadSuccess'), message: t('storeDetail.downloadSuccessMsg') });
     } catch (error) {
-      toast({ type: 'error', title: 'ดาวน์โหลดไม่สำเร็จ', message: (error as Error).message });
+      toast({ type: 'error', title: t('storeDetail.downloadError'), message: (error as Error).message });
     } finally {
       setIsDownloadingConfig(false);
     }
@@ -367,9 +370,9 @@ export default function StoreDetailSettingsPage() {
       });
 
       if (error) throw error;
-      toast({ type: 'success', title: 'ส่งงานทดสอบพิมพ์แล้ว!', message: 'ตรวจสอบเครื่องพิมพ์' });
+      toast({ type: 'success', title: t('storeDetail.testPrintSuccess'), message: t('storeDetail.testPrintSuccessMsg') });
     } catch (error) {
-      toast({ type: 'error', title: 'ส่งงานทดสอบไม่สำเร็จ', message: (error as Error).message });
+      toast({ type: 'error', title: t('storeDetail.testPrintError'), message: (error as Error).message });
     } finally {
       setIsTestingPrint(false);
     }
@@ -381,7 +384,7 @@ export default function StoreDetailSettingsPage() {
       .from('store_settings')
       .update({ print_server_working_hours: printServerWorkingHours })
       .eq('store_id', storeId);
-    toast({ type: 'success', title: 'บันทึกเวลาทำงานแล้ว' });
+    toast({ type: 'success', title: t('storeDetail.workingHoursSaved') });
   };
 
   // ---------------------------------------------------------------------------
@@ -406,7 +409,7 @@ export default function StoreDetailSettingsPage() {
       .eq('id', storeId);
 
     if (storeError) {
-      toast({ type: 'error', title: 'ไม่สามารถบันทึกข้อมูลสาขาได้', message: storeError.message });
+      toast({ type: 'error', title: t('storeDetail.saveStoreError'), message: storeError.message });
       setIsSaving(false);
       return;
     }
@@ -450,9 +453,9 @@ export default function StoreDetailSettingsPage() {
       );
 
     if (settingsError) {
-      toast({ type: 'error', title: 'ไม่สามารถบันทึกการตั้งค่าได้', message: settingsError.message });
+      toast({ type: 'error', title: t('storeDetail.saveSettingsError'), message: settingsError.message });
     } else {
-      toast({ type: 'success', title: 'บันทึกการตั้งค่าสำเร็จ' });
+      toast({ type: 'success', title: t('storeDetail.saveSettingsSuccess') });
     }
 
     setIsSaving(false);
@@ -470,12 +473,12 @@ export default function StoreDetailSettingsPage() {
     const { error } = await supabase.from('stores').delete().eq('id', storeId);
 
     if (error) {
-      toast({ type: 'error', title: 'ไม่สามารถลบสาขาได้', message: error.message });
+      toast({ type: 'error', title: t('storeDetail.deleteStoreError'), message: error.message });
       setIsDeleting(false);
       return;
     }
 
-    toast({ type: 'success', title: 'ลบสาขาสำเร็จ' });
+    toast({ type: 'success', title: t('storeDetail.deleteStoreSuccess') });
     setShowDeleteModal(false);
     setIsDeleting(false);
     router.push('/settings');
@@ -528,7 +531,7 @@ export default function StoreDetailSettingsPage() {
           className="mb-3 flex items-center gap-1 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
         >
           <ArrowLeft className="h-4 w-4" />
-          กลับ
+          {t('storeDetail.back')}
         </button>
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-900/20">
@@ -536,7 +539,7 @@ export default function StoreDetailSettingsPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {storeName || 'ตั้งค่าสาขา'}
+              {storeName || t('storeDetail.title')}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">{storeCode}</p>
           </div>
@@ -548,8 +551,8 @@ export default function StoreDetailSettingsPage() {
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title="ข้อมูลสาขา"
-          description="ข้อมูลพื้นฐานของสาขา"
+          title={t('storeDetail.storeInfoTitle')}
+          description={t('storeDetail.storeInfoDesc')}
           action={
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
               <Store className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
@@ -558,23 +561,23 @@ export default function StoreDetailSettingsPage() {
         />
         <CardContent className="space-y-4">
           <Input
-            label="รหัสสาขา"
+            label={t('storeDetail.storeCodeLabel')}
             value={storeCode}
             readOnly
             disabled
-            hint="รหัสสาขาไม่สามารถเปลี่ยนแปลงได้"
+            hint={t('storeDetail.storeCodeHint')}
           />
           <Input
-            label="ชื่อสาขา"
+            label={t('storeDetail.storeNameLabel')}
             value={storeName}
             onChange={(e) => setStoreName(e.target.value)}
-            placeholder="เช่น ร้านสาขาสุขุมวิท"
+            placeholder={t('storeDetail.storeNamePlaceholder')}
           />
           <div className="flex items-center justify-between rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
             <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">คลังกลาง</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{t('storeDetail.centralWarehouse')}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                กำหนดให้สาขานี้เป็นคลังกลางสำหรับจัดการสต๊อก
+                {t('storeDetail.centralWarehouseDesc')}
               </p>
             </div>
             <button
@@ -599,8 +602,8 @@ export default function StoreDetailSettingsPage() {
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title="กลุ่ม LINE แจ้งเตือน"
-          description="ตั้งค่ากลุ่ม LINE สำหรับรับแจ้งเตือนของสาขานี้"
+          title={t('storeDetail.lineGroupTitle')}
+          description={t('storeDetail.lineGroupDesc')}
           action={
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
               <MessageCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -609,32 +612,32 @@ export default function StoreDetailSettingsPage() {
         />
         <CardContent className="space-y-4">
           <Input
-            label="กลุ่มแจ้งเตือนสต๊อก"
+            label={t('storeDetail.stockNotifyLabel')}
             value={stockNotifyGroupId}
             onChange={(e) => setStockNotifyGroupId(e.target.value)}
-            placeholder="เช่น Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            hint="กลุ่ม LINE สำหรับแจ้งเตือนนับสต๊อก, ผลต่าง, อนุมัติ"
+            placeholder={t('storeDetail.lineGroupPlaceholder')}
+            hint={t('storeDetail.stockNotifyHint')}
           />
           <Input
-            label="กลุ่มแจ้งเตือนฝาก/เบิกเหล้า"
+            label={t('storeDetail.depositNotifyLabel')}
             value={depositNotifyGroupId}
             onChange={(e) => setDepositNotifyGroupId(e.target.value)}
-            placeholder="เช่น Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            hint="กลุ่ม LINE สำหรับแจ้งเตือนพนักงานเมื่อมีลูกค้าฝาก/ขอเบิกเหล้า"
+            placeholder={t('storeDetail.lineGroupPlaceholder')}
+            hint={t('storeDetail.depositNotifyHint')}
           />
           <Input
-            label="กลุ่มบาร์ยืนยันรับเหล้า"
+            label={t('storeDetail.barNotifyLabel')}
             value={barNotifyGroupId}
             onChange={(e) => setBarNotifyGroupId(e.target.value)}
-            placeholder="เช่น Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            hint="กลุ่ม LINE สำหรับแจ้งเตือนหัวหน้าบาร์ให้ยืนยันรับเหล้า (ไม่บังคับ)"
+            placeholder={t('storeDetail.lineGroupPlaceholder')}
+            hint={t('storeDetail.barNotifyHint')}
           />
           {/* LINE Notify Toggle */}
           <div className="flex items-center justify-between rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
             <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">เปิดการแจ้งเตือนผ่าน LINE</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{t('storeDetail.lineNotifyToggle')}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                ปิดเพื่อหยุดส่ง LINE push ทั้งหมดของสาขานี้ (ยังคงแจ้งผ่าน PWA)
+                {t('storeDetail.lineNotifyToggleDesc')}
               </p>
             </div>
             <button
@@ -653,7 +656,7 @@ export default function StoreDetailSettingsPage() {
           </div>
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
             <p className="text-xs text-blue-700 dark:text-blue-400">
-              <strong>วิธีดู Group ID:</strong> เชิญ bot เข้ากลุ่ม LINE → bot จะตอบ Group ID ให้คัดลอกมาวางที่นี่
+              <strong>{t('storeDetail.lineGroupIdHowTo')}</strong>
             </p>
           </div>
         </CardContent>
@@ -664,8 +667,8 @@ export default function StoreDetailSettingsPage() {
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title="ตั้งค่าสต๊อก"
-          description="กำหนดเวลาแจ้งเตือนและค่าเผื่อผลต่าง"
+          title={t('storeDetail.stockSettingsTitle')}
+          description={t('storeDetail.stockSettingsDesc')}
           action={
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-900/20">
               <Settings className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -676,9 +679,9 @@ export default function StoreDetailSettingsPage() {
           {/* Daily Reminder Toggle */}
           <div className="flex items-center justify-between rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
             <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">เตือนนับสต๊อกประจำวัน</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{t('storeDetail.dailyReminderLabel')}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                ส่งแจ้งเตือนพนักงานให้นับสต๊อกอัตโนมัติ (LINE + In-App)
+                {t('storeDetail.dailyReminderDesc')}
               </p>
             </div>
             <button
@@ -699,9 +702,9 @@ export default function StoreDetailSettingsPage() {
           {/* Follow-up Toggle */}
           <div className="flex items-center justify-between rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
             <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">ติดตามรายการค้าง</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{t('storeDetail.followUpLabel')}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                ส่งแจ้งเตือนติดตามผลต่างสต๊อกและคำขอเบิกเหล้าที่ค้างนาน (ทุก 4 ชม.)
+                {t('storeDetail.followUpDesc')}
               </p>
             </div>
             <button
@@ -723,7 +726,7 @@ export default function StoreDetailSettingsPage() {
           {dailyReminderEnabled && (
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              เวลาแจ้งเตือนนับสต๊อกประจำวัน
+              {t('storeDetail.notifyTimeLabel')}
             </label>
             <Input
               type="time"
@@ -737,7 +740,7 @@ export default function StoreDetailSettingsPage() {
           {dailyReminderEnabled && (
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              วันที่ต้องนับสต๊อก
+              {t('storeDetail.notifyDaysLabel')}
             </label>
             <div className="flex flex-wrap gap-2">
               {Object.entries(dayLabels).map(([day, label]) => (
@@ -760,23 +763,23 @@ export default function StoreDetailSettingsPage() {
 
           {/* Diff tolerance */}
           <Input
-            label="ค่าเผื่อผลต่าง (%)"
+            label={t('storeDetail.diffToleranceLabel')}
             type="number"
             value={diffTolerance}
             onChange={(e) => setDiffTolerance(e.target.value)}
             placeholder="5"
-            hint="ผลต่างที่ยอมรับได้โดยไม่ต้องอธิบาย (หน่วย %)"
+            hint={t('storeDetail.diffToleranceHint')}
             min={0}
             max={100}
           />
 
           {/* Staff registration code */}
           <Input
-            label="รหัสลงทะเบียนพนักงาน"
+            label={t('storeDetail.registrationCodeLabel')}
             value={registrationCode}
             onChange={(e) => setRegistrationCode(e.target.value)}
-            placeholder="เช่น STORE-REG-2024"
-            hint="พนักงานใช้รหัสนี้ในการลงทะเบียนด้วยตัวเอง"
+            placeholder={t('storeDetail.registrationCodePlaceholder')}
+            hint={t('storeDetail.registrationCodeHint')}
           />
         </CardContent>
       </Card>
@@ -786,14 +789,14 @@ export default function StoreDetailSettingsPage() {
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title="ตั้งค่าวันห้ามเบิกเหล้า"
-          description="กำหนดวันที่ไม่สามารถเบิกเหล้าใช้ในร้านได้ (เบิกกลับบ้านได้)"
+          title={t('storeDetail.blockedDaysTitle')}
+          description={t('storeDetail.blockedDaysDesc')}
         />
         <CardContent>
           <div className="space-y-6">
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                วันที่ห้ามเบิกเหล้าในร้าน
+                {t('storeDetail.blockedDaysSelectLabel')}
               </label>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(dayLabels).map(([day, label]) => (
@@ -812,16 +815,16 @@ export default function StoreDetailSettingsPage() {
                 ))}
               </div>
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                วันที่เลือก (แดง) = ห้ามเบิกใช้ในร้าน แต่ลูกค้ายังเบิกกลับบ้านได้
+                {t('storeDetail.blockedDaysNote')}
               </p>
             </div>
 
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
               <p className="text-xs text-blue-700 dark:text-blue-300">
-                <strong>วันห้ามเบิก:</strong> ใช้วันปฏิทินจริง เช่น ตี 1 วันอาทิตย์ = วันอาทิตย์ (เบิกได้)
+                <strong>{t('storeDetail.blockedDaysCalendarNote')}</strong>
               </p>
               <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
-                <strong>หมดอายุตรงวันห้ามเบิก:</strong> ระบบจะขยายวันหมดอายุไปวันถัดไปที่เบิกได้ + เวลาปิดร้าน (จากเวลาทำงานใน Print Server) โดยอัตโนมัติ
+                <strong>{t('storeDetail.blockedDaysExpiryNote')}</strong>
               </p>
             </div>
           </div>
@@ -833,8 +836,8 @@ export default function StoreDetailSettingsPage() {
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title="ตั้งค่าแจ้งเตือนลูกค้า"
-          description="กำหนดว่าจะส่งแจ้งเตือนอะไรไปยังลูกค้า"
+          title={t('storeDetail.customerNotifTitle')}
+          description={t('storeDetail.customerNotifDesc')}
           action={
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-900/20">
               <Bell className="h-4 w-4 text-violet-600 dark:text-violet-400" />
@@ -845,7 +848,7 @@ export default function StoreDetailSettingsPage() {
         {/* Notification channels */}
         <CardContent>
           <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            ช่องทางการส่งแจ้งเตือน
+            {t('storeDetail.notifChannelsLabel')}
           </label>
           <div className="flex gap-3">
             <button
@@ -879,19 +882,19 @@ export default function StoreDetailSettingsPage() {
         <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
           {/* Expiry notification */}
           <ToggleRow
-            label="แจ้งเตือนเหล้าใกล้หมดอายุ"
-            description="ส่งแจ้งเตือนอัตโนมัติเมื่อเหล้าของลูกค้าใกล้หมดอายุ"
+            label={t('storeDetail.expiryNotifLabel')}
+            description={t('storeDetail.expiryNotifDesc')}
             checked={customerExpiryEnabled}
             onChange={() => setCustomerExpiryEnabled(!customerExpiryEnabled)}
           />
           {customerExpiryEnabled && (
             <div className="px-5 py-3">
               <Input
-                label="แจ้งเตือนก่อนหมดอายุ (วัน)"
+                label={t('storeDetail.expiryDaysLabel')}
                 type="number"
                 value={customerExpiryDays}
                 onChange={(e) => setCustomerExpiryDays(e.target.value)}
-                hint="จะส่งแจ้งเตือนล่วงหน้ากี่วันก่อนหมดอายุ"
+                hint={t('storeDetail.expiryDaysHint')}
                 min={1}
                 max={365}
               />
@@ -900,24 +903,24 @@ export default function StoreDetailSettingsPage() {
 
           {/* Withdrawal notification */}
           <ToggleRow
-            label="แจ้งเตือนเบิกเหล้าสำเร็จ"
-            description="ส่งแจ้งเตือนเมื่อเบิกเหล้าเรียบร้อย"
+            label={t('storeDetail.withdrawalNotifLabel')}
+            description={t('storeDetail.withdrawalNotifDesc')}
             checked={customerWithdrawalEnabled}
             onChange={() => setCustomerWithdrawalEnabled(!customerWithdrawalEnabled)}
           />
 
           {/* Deposit notification */}
           <ToggleRow
-            label="แจ้งเตือนฝากเหล้าสำเร็จ"
-            description="ส่งแจ้งเตือนเมื่อการฝากเหล้าได้รับการยืนยัน"
+            label={t('storeDetail.depositNotifLabel')}
+            description={t('storeDetail.depositNotifDesc')}
             checked={customerDepositEnabled}
             onChange={() => setCustomerDepositEnabled(!customerDepositEnabled)}
           />
 
           {/* Promotion notification */}
           <ToggleRow
-            label="ส่งโปรโมชั่น"
-            description="อนุญาตให้ส่งโปรโมชั่นและประกาศไปยังลูกค้า"
+            label={t('storeDetail.promotionNotifLabel')}
+            description={t('storeDetail.promotionNotifDesc')}
             checked={customerPromotionEnabled}
             onChange={() => setCustomerPromotionEnabled(!customerPromotionEnabled)}
           />
@@ -929,8 +932,8 @@ export default function StoreDetailSettingsPage() {
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title="ตั้งค่าใบเสร็จและป้ายขวด"
-          description="กำหนดรูปแบบใบรับฝากและป้ายติดขวด"
+          title={t('storeDetail.receiptTitle')}
+          description={t('storeDetail.receiptDesc')}
           action={
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-50 dark:bg-cyan-900/20">
               <Printer className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
@@ -941,27 +944,27 @@ export default function StoreDetailSettingsPage() {
           {/* Info: Print Server handles printing */}
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800/50 dark:bg-emerald-900/10">
             <p className="text-xs text-emerald-700 dark:text-emerald-400">
-              <strong>การพิมพ์:</strong> ใบฝากเหล้าและป้ายขวดจะถูกส่งไปยัง Print Server อัตโนมัติ ตั้งค่าได้ที่หัวข้อ &quot;Print Server&quot; ด้านล่าง
+              <strong>{t('storeDetail.receiptPrintNote')}</strong>
             </p>
           </div>
 
           {/* Header text */}
           <Input
-            label="ข้อความหัวใบเสร็จ"
+            label={t('storeDetail.receiptHeaderLabel')}
             value={receiptHeaderText}
             onChange={(e) => setReceiptHeaderText(e.target.value)}
-            placeholder="เช่น สาขาสุขุมวิท โทร 02-xxx-xxxx"
-            hint="แสดงใต้ชื่อร้านด้านบนสุดของใบเสร็จ"
+            placeholder={t('storeDetail.receiptHeaderPlaceholder')}
+            hint={t('storeDetail.receiptHeaderHint')}
           />
 
           {/* Copies */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">จำนวนใบรับฝาก</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">พิมพ์ตามจำนวนขวดที่รับฝากอัตโนมัติ</p>
+              <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('storeDetail.receiptCopiesLabel')}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('storeDetail.receiptCopiesDesc')}</p>
             </div>
             <Input
-              label="จำนวนป้ายขวด (ชุด)"
+              label={t('storeDetail.labelCopiesLabel')}
               type="number"
               value={labelCopies}
               onChange={(e) => setLabelCopies(e.target.value)}
@@ -974,8 +977,8 @@ export default function StoreDetailSettingsPage() {
           <div className="space-y-0 divide-y divide-gray-50 dark:divide-gray-700/50">
             <div className="flex items-center justify-between py-3">
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">แสดงโลโก้</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">แสดงโลโก้ร้านบนใบเสร็จ</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{t('storeDetail.showLogoLabel')}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('storeDetail.showLogoDesc')}</p>
               </div>
               <button
                 type="button"
@@ -993,8 +996,8 @@ export default function StoreDetailSettingsPage() {
             </div>
             <div className="flex items-center justify-between py-3">
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">แสดง QR Code</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">แสดง QR Code LINE OA บนใบเสร็จ ลูกค้าสแกนเพื่อผูกรายการฝาก</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{t('storeDetail.showQrLabel')}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('storeDetail.showQrDesc')}</p>
               </div>
               <button
                 type="button"
@@ -1016,14 +1019,14 @@ export default function StoreDetailSettingsPage() {
           {receiptShowQr && (
             <div className="space-y-4 rounded-lg border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-800/50 dark:bg-indigo-900/10">
               <p className="text-xs font-medium text-indigo-700 dark:text-indigo-400">
-                ตั้งค่า LINE OA สำหรับ QR Code บนใบเสร็จ
+                {t('storeDetail.lineOaQrTitle')}
               </p>
               <PhotoUpload
                 value={qrCodeImageUrl || null}
                 onChange={(url) => setQrCodeImageUrl(url || '')}
                 folder="qr-codes"
-                label="รูป QR Code LINE OA"
-                placeholder="อัพโหลดรูป QR Code จาก LINE Official Account Manager"
+                label={t('storeDetail.qrImageLabel')}
+                placeholder={t('storeDetail.qrImagePlaceholder')}
                 compact
               />
               <Input
@@ -1031,11 +1034,11 @@ export default function StoreDetailSettingsPage() {
                 value={lineOaId}
                 onChange={(e) => setLineOaId(e.target.value)}
                 placeholder="@mybottle"
-                hint="แสดงบนใบเสร็จเป็น LINE: @mybottle"
+                hint={t('storeDetail.lineOaIdHint')}
               />
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
                 <p className="text-xs text-blue-700 dark:text-blue-400">
-                  <strong>ระบบ LINE Claim:</strong> ลูกค้าสแกน QR Code เพิ่มเพื่อน LINE OA แล้วพิมพ์รหัสฝาก (DEP-XXXXX) ในแชท ระบบจะผูก LINE กับรายการฝากอัตโนมัติ
+                  <strong>{t('storeDetail.lineClaimNote')}</strong>
                 </p>
               </div>
             </div>
@@ -1048,8 +1051,8 @@ export default function StoreDetailSettingsPage() {
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title="Print Server (พิมพ์อัตโนมัติ)"
-          description="ตั้งค่าเครื่องพิมพ์สาขา — พิมพ์ใบฝากเหล้าและป้ายขวดแบบ silent (ไม่ต้องกดปุ่ม)"
+          title={t('storeDetail.printServerTitle')}
+          description={t('storeDetail.printServerDesc')}
           action={
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
               <Monitor className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -1072,9 +1075,7 @@ export default function StoreDetailSettingsPage() {
                   <div className="flex-1">
                     <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Online</p>
                     <p className="text-xs text-emerald-600 dark:text-emerald-500">
-                      เครื่องพิมพ์: {printServerStatus.printer_name || '-'} |
-                      PC: {printServerStatus.hostname || '-'} |
-                      วันนี้พิมพ์: {printServerStatus.jobs_printed_today || 0} ใบ
+                      {t('storeDetail.psOnlineInfo', { printer: printServerStatus.printer_name || '-', hostname: printServerStatus.hostname || '-', count: printServerStatus.jobs_printed_today || 0 })}
                     </p>
                   </div>
                 </>
@@ -1085,8 +1086,8 @@ export default function StoreDetailSettingsPage() {
                     <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Offline</p>
                     <p className="text-xs text-amber-600 dark:text-amber-500">
                       {printServerStatus.last_heartbeat
-                        ? `Heartbeat ล่าสุด: ${new Date(printServerStatus.last_heartbeat).toLocaleString('th-TH')}`
-                        : 'ยังไม่เคยเชื่อมต่อ'}
+                        ? t('storeDetail.psLastHeartbeat', { time: new Date(printServerStatus.last_heartbeat).toLocaleString('th-TH') })
+                        : t('storeDetail.psNeverConnected')}
                     </p>
                   </div>
                 </>
@@ -1096,27 +1097,27 @@ export default function StoreDetailSettingsPage() {
             <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
               <WifiOff className="h-5 w-5 text-gray-400" />
               <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">รอเชื่อมต่อ</p>
-                <p className="text-xs text-gray-500">เปิด Print Server ที่ PC สาขาเพื่อเริ่มใช้งาน</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('storeDetail.psWaiting')}</p>
+                <p className="text-xs text-gray-500">{t('storeDetail.psWaitingDesc')}</p>
               </div>
             </div>
           ) : (
             <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800/50 dark:bg-blue-900/10">
               <Printer className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               <div>
-                <p className="text-sm font-medium text-blue-700 dark:text-blue-400">ยังไม่ได้ตั้งค่า</p>
-                <p className="text-xs text-blue-600 dark:text-blue-500">กดปุ่ม &quot;ดาวน์โหลดตัวติดตั้ง&quot; เพื่อเริ่มตั้งค่าเครื่องพิมพ์</p>
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-400">{t('storeDetail.psNotConfigured')}</p>
+                <p className="text-xs text-blue-600 dark:text-blue-500">{t('storeDetail.psNotConfiguredDesc')}</p>
               </div>
             </div>
           )}
 
           {/* Printer name */}
           <Input
-            label="ชื่อเครื่องพิมพ์ (Windows)"
+            label={t('storeDetail.printerNameLabel')}
             value={printServerPrinterName}
             onChange={(e) => setPrintServerPrinterName(e.target.value)}
             placeholder="POS80"
-            hint="ชื่อเครื่องพิมพ์ตามที่ปรากฏใน Windows Settings > Printers"
+            hint={t('storeDetail.printerNameHint')}
           />
 
           {/* Working hours */}
@@ -1124,7 +1125,7 @@ export default function StoreDetailSettingsPage() {
             <div className="mb-2 flex items-center justify-between">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 <Clock className="mr-1 inline h-3.5 w-3.5" />
-                เวลาทำงาน
+                {t('storeDetail.workingHoursLabel')}
               </label>
               <button
                 type="button"
@@ -1149,7 +1150,7 @@ export default function StoreDetailSettingsPage() {
                   }}
                   className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
-                <span className="text-sm text-gray-500">ถึง</span>
+                <span className="text-sm text-gray-500">{t('storeDetail.toTime')}</span>
                 <input
                   type="time"
                   value={`${String(printServerWorkingHours.endHour).padStart(2, '0')}:${String(printServerWorkingHours.endMinute).padStart(2, '0')}`}
@@ -1160,12 +1161,12 @@ export default function StoreDetailSettingsPage() {
                   className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
                 <Button variant="outline" size="sm" onClick={handleSaveWorkingHours}>
-                  บันทึก
+                  {t('storeDetail.save')}
                 </Button>
               </div>
             )}
             {!printServerWorkingHours.enabled && (
-              <p className="text-xs text-gray-500">ปิดการตั้งเวลา — Print Server ทำงานตลอด 24 ชม.</p>
+              <p className="text-xs text-gray-500">{t('storeDetail.workingHoursDisabled')}</p>
             )}
           </div>
 
@@ -1177,7 +1178,7 @@ export default function StoreDetailSettingsPage() {
               onClick={handleDownloadConfig}
               isLoading={isDownloadingConfig}
             >
-              {printServerHasAccount ? 'ดาวน์โหลด config ใหม่' : 'ดาวน์โหลดตัวติดตั้ง'}
+              {printServerHasAccount ? t('storeDetail.downloadConfigNew') : t('storeDetail.downloadInstaller')}
             </Button>
             <Button
               variant="outline"
@@ -1185,7 +1186,7 @@ export default function StoreDetailSettingsPage() {
               onClick={handleTestPrint}
               isLoading={isTestingPrint}
             >
-              ทดสอบพิมพ์
+              {t('storeDetail.testPrint')}
             </Button>
           </div>
 
@@ -1194,16 +1195,16 @@ export default function StoreDetailSettingsPage() {
             new Date().getTime() - new Date(printServerStatus.last_heartbeat).getTime() < 120000) && (
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
               <p className="mb-3 text-sm font-semibold text-blue-700 dark:text-blue-400">
-                วิธีติดตั้ง Print Server ที่ PC สาขา
+                {t('storeDetail.psSetupGuideTitle')}
               </p>
               <div className="space-y-3">
                 {/* Step 1 */}
                 <div className="flex gap-3">
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold text-blue-800 dark:bg-blue-800 dark:text-blue-200">1</div>
                   <div>
-                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">ดาวน์โหลดตัวติดตั้ง</p>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">{t('storeDetail.psStep1Title')}</p>
                     <p className="text-xs text-blue-600 dark:text-blue-400">
-                      กดปุ่ม &quot;{printServerHasAccount ? 'ดาวน์โหลด config ใหม่' : 'ดาวน์โหลดตัวติดตั้ง'}&quot; ด้านบน จะได้ไฟล์ ZIP ที่มีทุกอย่างพร้อมแล้ว
+                      {t('storeDetail.psStep1Desc')}
                     </p>
                   </div>
                 </div>
@@ -1211,22 +1212,22 @@ export default function StoreDetailSettingsPage() {
                 <div className="flex gap-3">
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold text-blue-800 dark:bg-blue-800 dark:text-blue-200">2</div>
                   <div>
-                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">แตก ZIP แล้วรัน INSTALL.bat</p>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">{t('storeDetail.psStep2Title')}</p>
                     <p className="text-xs text-blue-600 dark:text-blue-400">
-                      แตก ZIP ที่ไหนก็ได้ แล้วคลิกขวา <code className="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-800/50">INSTALL.bat</code> → Run as administrator
+                      {t('storeDetail.psStep2Desc')}
                     </p>
                     <p className="mt-1.5 text-xs text-blue-500 dark:text-blue-500">
-                      INSTALL.bat จะทำทุกอย่างให้อัตโนมัติ:
+                      {t('storeDetail.psStep2Auto')}
                     </p>
                     <ul className="mt-1 space-y-0.5 text-xs text-blue-500 dark:text-blue-500">
-                      <li>• คัดลอกไฟล์ไปที่ <code className="rounded bg-blue-100 px-0.5 font-mono dark:bg-blue-800/50">C:\print-server</code></li>
-                      <li>• ติดตั้ง Node.js + SumatraPDF (ถ้ายังไม่มี)</li>
-                      <li>• ติดตั้ง npm packages</li>
-                      <li>• สร้าง Shortcut เปิดอัตโนมัติตอนเปิดเครื่อง</li>
-                      <li>• เริ่มต้น Print Server ทันที</li>
+                      <li>{t('storeDetail.psAutoStep1')}</li>
+                      <li>{t('storeDetail.psAutoStep2')}</li>
+                      <li>{t('storeDetail.psAutoStep3')}</li>
+                      <li>{t('storeDetail.psAutoStep4')}</li>
+                      <li>{t('storeDetail.psAutoStep5')}</li>
                     </ul>
                     <p className="mt-1.5 text-xs text-blue-500 dark:text-blue-500">
-                      หรือลงโปรแกรมเองได้ที่:
+                      {t('storeDetail.psManualInstall')}
                     </p>
                     <div className="mt-1 flex flex-wrap gap-2">
                       <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer"
@@ -1235,7 +1236,7 @@ export default function StoreDetailSettingsPage() {
                       </a>
                       <a href="https://www.sumatrapdfreader.org/download-free-pdf-viewer" target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-200 dark:bg-blue-800/50 dark:text-blue-300 dark:hover:bg-blue-800">
-                        <ExternalLink className="h-2.5 w-2.5" /> SumatraPDF (สั่งพิมพ์ PDF)
+                        <ExternalLink className="h-2.5 w-2.5" /> SumatraPDF ({t('storeDetail.psSumatraDesc')})
                       </a>
                     </div>
                   </div>
@@ -1243,17 +1244,17 @@ export default function StoreDetailSettingsPage() {
               </div>
               <div className="mt-3 rounded-lg bg-blue-100 p-2.5 dark:bg-blue-800/30">
                 <p className="text-xs text-blue-700 dark:text-blue-300">
-                  <strong>สถานะจะเปลี่ยนเป็น <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400"><Wifi className="inline h-3 w-3" /> Online</span> อัตโนมัติ</strong> เมื่อ INSTALL.bat ทำงานเสร็จ — Print Server จะเปิดเองทุกครั้งที่เปิดเครื่อง
+                  <strong>{t('storeDetail.psAutoOnlineNote')}</strong>
                 </p>
               </div>
 
               {/* Troubleshooting tips */}
               <div className="mt-3 border-t border-blue-200 pt-3 dark:border-blue-700">
-                <p className="mb-1 text-xs font-medium text-blue-700 dark:text-blue-400">แก้ปัญหาเบื้องต้น</p>
+                <p className="mb-1 text-xs font-medium text-blue-700 dark:text-blue-400">{t('storeDetail.psTroubleshootTitle')}</p>
                 <ul className="space-y-0.5 text-xs text-blue-600 dark:text-blue-400">
-                  <li>• ไม่พิมพ์ — ตรวจชื่อเครื่องพิมพ์ให้ตรงกับ Windows Settings &gt; Printers</li>
-                  <li>• ภาษาไทยเพี้ยน — ตรวจว่า PC มีฟอนต์ Tahoma ติดตั้งอยู่</li>
-                  <li>• สถานะ Offline — ดับเบิลคลิก <code className="rounded bg-blue-100 px-0.5 font-mono dark:bg-blue-800/50">C:\print-server\START-PrintServer.bat</code></li>
+                  <li>{t('storeDetail.psTroubleshoot1')}</li>
+                  <li>{t('storeDetail.psTroubleshoot2')}</li>
+                  <li>{t('storeDetail.psTroubleshoot3')}</li>
                 </ul>
               </div>
             </div>
@@ -1262,7 +1263,7 @@ export default function StoreDetailSettingsPage() {
           {/* Recent print jobs */}
           {recentPrintJobs.length > 0 && (
             <div>
-              <p className="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">งานพิมพ์ล่าสุด</p>
+              <p className="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">{t('storeDetail.recentPrintJobs')}</p>
               <div className="space-y-1">
                 {recentPrintJobs.map((job) => (
                   <div key={job.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-xs dark:bg-gray-800">
@@ -1272,7 +1273,7 @@ export default function StoreDetailSettingsPage() {
                           ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                           : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
                       }`}>
-                        {job.job_type === 'receipt' ? 'ใบฝาก' : 'แปะขวด'}
+                        {job.job_type === 'receipt' ? t('storeDetail.jobReceipt') : t('storeDetail.jobLabel')}
                       </span>
                       <span className="text-gray-600 dark:text-gray-300">
                         {(job.payload as Record<string, string>)?.deposit_code || '-'}
@@ -1286,7 +1287,7 @@ export default function StoreDetailSettingsPage() {
                         'text-gray-400'
                       }`}>
                         {job.status === 'completed' ? '✓' : job.status === 'failed' ? '✗' : job.status === 'printing' ? '⟳' : '○'}
-                        {job.status === 'completed' ? 'สำเร็จ' : job.status === 'failed' ? 'ล้มเหลว' : job.status === 'printing' ? 'กำลังพิมพ์' : 'รอ'}
+                        {job.status === 'completed' ? t('storeDetail.jobCompleted') : job.status === 'failed' ? t('storeDetail.jobFailed') : job.status === 'printing' ? t('storeDetail.jobPrinting') : t('storeDetail.jobPending')}
                       </span>
                       <span className="text-gray-400">
                         {new Date(job.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
@@ -1305,8 +1306,8 @@ export default function StoreDetailSettingsPage() {
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title="ตั้งค่า Audit Log"
-          description="กำหนดระยะเวลาเก็บ log กิจกรรม ระบบจะลบ log เก่าอัตโนมัติ"
+          title={t('storeDetail.auditLogTitle')}
+          description={t('storeDetail.auditLogDesc')}
           action={
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 dark:bg-rose-900/20">
               <ScrollText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
@@ -1316,7 +1317,7 @@ export default function StoreDetailSettingsPage() {
         <CardContent className="space-y-4">
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              เก็บ Log กิจกรรมย้อนหลัง
+              {t('storeDetail.auditLogRetention')}
             </label>
             <div className="flex gap-3">
               <button
@@ -1328,7 +1329,7 @@ export default function StoreDetailSettingsPage() {
                     : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400'
                 }`}
               >
-                7 วัน
+                {t('storeDetail.auditLog7days')}
               </button>
               <button
                 type="button"
@@ -1339,7 +1340,7 @@ export default function StoreDetailSettingsPage() {
                     : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400'
                 }`}
               >
-                30 วัน
+                {t('storeDetail.auditLog30days')}
               </button>
               <button
                 type="button"
@@ -1350,15 +1351,15 @@ export default function StoreDetailSettingsPage() {
                     : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400'
                 }`}
               >
-                ไม่ลบ
+                {t('storeDetail.auditLogNoDelete')}
               </button>
             </div>
           </div>
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
             <p className="text-xs text-amber-700 dark:text-amber-400">
               {auditLogRetentionDays
-                ? <>ระบบจะลบ log กิจกรรมที่เก่ากว่า <strong>{auditLogRetentionDays} วัน</strong> อัตโนมัติทุกวัน</>
-                : <><strong>ไม่ลบอัตโนมัติ:</strong> log กิจกรรมจะถูกเก็บไว้ตลอด</>
+                ? t('storeDetail.auditLogRetentionNote', { days: auditLogRetentionDays })
+                : <><strong>{t('storeDetail.auditLogNoDeleteNote')}</strong></>
               }
             </p>
           </div>
@@ -1374,7 +1375,7 @@ export default function StoreDetailSettingsPage() {
           isLoading={isSaving}
           icon={<Save className="h-4 w-4" />}
         >
-          บันทึกการตั้งค่า
+          {t('storeDetail.saveSettings')}
         </Button>
       </div>
 
@@ -1383,8 +1384,8 @@ export default function StoreDetailSettingsPage() {
       {/* ------------------------------------------------------------------ */}
       <Card padding="none" className="ring-red-200 dark:ring-red-800/50">
         <CardHeader
-          title="ลบสาขา"
-          description="การลบสาขาจะลบข้อมูลทั้งหมดที่เกี่ยวข้อง ไม่สามารถกู้คืนได้"
+          title={t('storeDetail.deleteStoreTitle')}
+          description={t('storeDetail.deleteStoreDesc')}
           className="border-b-red-100 dark:border-b-red-900/30"
         />
         <CardContent>
@@ -1393,7 +1394,7 @@ export default function StoreDetailSettingsPage() {
             icon={<Trash2 className="h-4 w-4" />}
             onClick={() => setShowDeleteModal(true)}
           >
-            ลบสาขานี้
+            {t('storeDetail.deleteThisStore')}
           </Button>
         </CardContent>
       </Card>
@@ -1407,19 +1408,18 @@ export default function StoreDetailSettingsPage() {
           setShowDeleteModal(false);
           setDeleteConfirmText('');
         }}
-        title="ยืนยันการลบสาขา"
-        description="คุณแน่ใจหรือไม่ว่าต้องการลบสาขานี้? การกระทำนี้ไม่สามารถย้อนกลับได้"
+        title={t('storeDetail.deleteConfirmTitle')}
+        description={t('storeDetail.deleteConfirmDesc')}
         size="sm"
       >
         <div className="space-y-4">
           <div className="rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
             <p className="text-sm text-red-700 dark:text-red-300">
-              ข้อมูลทั้งหมดของสาขา <strong>{storeName}</strong> จะถูกลบอย่างถาวร
-              รวมถึงสินค้า การนับสต๊อก และการตั้งค่าทั้งหมด
+              {t('storeDetail.deleteWarning', { name: storeName })}
             </p>
           </div>
           <Input
-            label={`พิมพ์ "${storeName}" เพื่อยืนยัน`}
+            label={t('storeDetail.deleteTypeConfirm', { name: storeName })}
             value={deleteConfirmText}
             onChange={(e) => setDeleteConfirmText(e.target.value)}
             placeholder={storeName}
@@ -1433,7 +1433,7 @@ export default function StoreDetailSettingsPage() {
               setDeleteConfirmText('');
             }}
           >
-            ยกเลิก
+            {t('storeDetail.cancel')}
           </Button>
           <Button
             variant="danger"
@@ -1442,7 +1442,7 @@ export default function StoreDetailSettingsPage() {
             disabled={deleteConfirmText !== storeName}
             icon={<Trash2 className="h-4 w-4" />}
           >
-            ลบสาขา
+            {t('storeDetail.deleteStore')}
           </Button>
         </ModalFooter>
       </Modal>

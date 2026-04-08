@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
@@ -183,7 +185,7 @@ function ChartEmptyState({ message }: { message?: string }) {
       <div className="text-center">
         <BarChart3 className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
         <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">
-          {message || 'ยังไม่มีข้อมูลในช่วงนี้'}
+          {message}
         </p>
       </div>
     </div>
@@ -194,11 +196,11 @@ function ChartEmptyState({ message }: { message?: string }) {
 // Report tabs config
 // ---------------------------------------------------------------------------
 
-const reportTabs = [
-  { id: 'overview', label: 'ภาพรวม' },
-  { id: 'stock', label: 'สต๊อก' },
-  { id: 'deposit', label: 'ฝากเหล้า' },
-  { id: 'borrow', label: 'ยืมสินค้า' },
+const REPORT_TAB_KEYS = [
+  { id: 'overview', labelKey: 'tabOverview' },
+  { id: 'stock', labelKey: 'tabStock' },
+  { id: 'deposit', labelKey: 'tabDeposit' },
+  { id: 'borrow', labelKey: 'tabBorrow' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -261,6 +263,7 @@ function extractDate(dateTimeStr: string): string {
 // ---------------------------------------------------------------------------
 
 export default function ReportsPage() {
+  const t = useTranslations('reports');
   const { user } = useAuthStore();
   const { currentStoreId, setCurrentStoreId } = useAppStore();
 
@@ -644,7 +647,7 @@ export default function ReportsPage() {
         // Popular products
         const productCounts: Record<string, number> = {};
         depositsData.forEach((d) => {
-          const name = d.product_name || 'ไม่ระบุ';
+          const name = d.product_name || t('unspecified');
           productCounts[name] = (productCounts[name] || 0) + 1;
         });
         const popular = Object.entries(productCounts)
@@ -675,7 +678,7 @@ export default function ReportsPage() {
         const weeklyArr = Object.entries(weekMap)
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([week, v]) => ({
-            week: `สัปดาห์ ${week}`,
+            week: t('weekLabel', { week }),
             deposits: v.deposits,
             withdrawals: v.withdrawals,
           }));
@@ -785,8 +788,8 @@ export default function ReportsPage() {
       console.error('Error fetching report data:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถโหลดข้อมูลรายงานได้',
+        title: t('errorOccurred'),
+        message: t('cannotLoadReportData'),
       });
     } finally {
       setLoading(false);
@@ -815,42 +818,42 @@ export default function ReportsPage() {
     let filename = '';
 
     if (activeTab === 'overview') {
-      csvContent = 'รายการ,จำนวน,แนวโน้ม(%)\n';
-      csvContent += `ฝากเหล้าใหม่,${overview.totalDeposits},${overview.depositsTrend}\n`;
-      csvContent += `เบิกเหล้า,${overview.totalWithdrawals},${overview.withdrawalsTrend}\n`;
-      csvContent += `ตรวจนับสต๊อก,${overview.totalStockChecks},${overview.stockChecksTrend}\n`;
-      csvContent += `บทลงโทษ,${overview.totalPenalties},${overview.penaltiesTrend}\n`;
+      csvContent = `${t('csvItem')},${t('csvCount')},${t('csvTrend')}\n`;
+      csvContent += `${t('newDeposits')},${overview.totalDeposits},${overview.depositsTrend}\n`;
+      csvContent += `${t('withdrawals')},${overview.totalWithdrawals},${overview.withdrawalsTrend}\n`;
+      csvContent += `${t('stockChecks')},${overview.totalStockChecks},${overview.stockChecksTrend}\n`;
+      csvContent += `${t('penalties')},${overview.totalPenalties},${overview.penaltiesTrend}\n`;
       filename = 'report-overview';
     } else if (activeTab === 'stock') {
-      csvContent = 'สินค้า,รหัส,ส่วนต่างรวม,จำนวนครั้ง\n';
+      csvContent = `${t('csvProduct')},${t('csvCode')},${t('csvTotalDiff')},${t('csvOccurrences')}\n`;
       stockReport.topDiscrepancies.forEach((item) => {
         csvContent += `"${item.productName}",${item.productCode},${item.totalDiff},${item.occurrences}\n`;
       });
       filename = 'report-stock';
     } else if (activeTab === 'deposit') {
-      csvContent = 'รายการ,จำนวน\n';
-      csvContent += `ฝากอยู่ในร้าน,${depositReport.totalActive}\n`;
-      csvContent += `ฝากใหม่ในช่วงนี้,${depositReport.newDepositsInRange}\n`;
-      csvContent += `เบิกในช่วงนี้,${depositReport.withdrawalsInRange}\n`;
-      csvContent += `ใกล้หมดอายุ,${depositReport.expiringSoon}\n`;
-      csvContent += '\nสินค้ายอดนิยม,จำนวน\n';
+      csvContent = `${t('csvItem')},${t('csvCount')}\n`;
+      csvContent += `${t('depositsInStore')},${depositReport.totalActive}\n`;
+      csvContent += `${t('newDepositsInRange')},${depositReport.newDepositsInRange}\n`;
+      csvContent += `${t('withdrawalsInRange')},${depositReport.withdrawalsInRange}\n`;
+      csvContent += `${t('expiringSoon')},${depositReport.expiringSoon}\n`;
+      csvContent += `\n${t('popularProducts')},${t('csvCount')}\n`;
       depositReport.popularProducts.forEach((item) => {
         csvContent += `"${item.productName}",${item.count}\n`;
       });
       filename = 'report-deposit';
     } else if (activeTab === 'borrow') {
-      csvContent = 'สถานะ,จำนวน\n';
-      csvContent += `คำขอทั้งหมด,${borrowReport.totalRequests}\n`;
-      csvContent += `รออนุมัติ,${borrowReport.pending}\n`;
-      csvContent += `อนุมัติ,${borrowReport.approved}\n`;
-      csvContent += `เสร็จสิ้น,${borrowReport.completed}\n`;
-      csvContent += `ปฏิเสธ,${borrowReport.rejected}\n`;
-      csvContent += `ยกเลิก,${borrowReport.cancelled}\n`;
-      csvContent += '\nสินค้ายอดนิยม,จำนวน\n';
+      csvContent = `${t('csvStatus')},${t('csvCount')}\n`;
+      csvContent += `${t('totalRequests')},${borrowReport.totalRequests}\n`;
+      csvContent += `${t('pendingApproval')},${borrowReport.pending}\n`;
+      csvContent += `${t('borrowApproved')},${borrowReport.approved}\n`;
+      csvContent += `${t('borrowCompleted')},${borrowReport.completed}\n`;
+      csvContent += `${t('borrowRejected')},${borrowReport.rejected}\n`;
+      csvContent += `${t('borrowCancelled')},${borrowReport.cancelled}\n`;
+      csvContent += `\n${t('popularProducts')},${t('csvCount')}\n`;
       borrowReport.topProducts.forEach((p) => {
         csvContent += `"${p.productName}",${p.totalQty}\n`;
       });
-      csvContent += '\nสาขา,ขอยืม,ให้ยืม\n';
+      csvContent += `\n${t('csvBranch')},${t('borrowOut')},${t('borrowIn')}\n`;
       borrowReport.byStore.forEach((s) => {
         csvContent += `"${s.storeName}",${s.outgoing},${s.incoming}\n`;
       });
@@ -870,8 +873,8 @@ export default function ReportsPage() {
 
     toast({
       type: 'success',
-      title: 'ส่งออกสำเร็จ',
-      message: `ดาวน์โหลดไฟล์ ${filename}.csv เรียบร้อย`,
+      title: t('exportSuccess'),
+      message: t('exportSuccessMsg', { filename }),
     });
   };
 
@@ -907,7 +910,7 @@ export default function ReportsPage() {
   function renderOverviewTab() {
     const cards = [
       {
-        label: 'ฝากเหล้าใหม่',
+        label: t('newDeposits'),
         value: formatNumber(overview.totalDeposits),
         trend: overview.depositsTrend,
         icon: Wine,
@@ -915,7 +918,7 @@ export default function ReportsPage() {
         textColor: 'text-indigo-600 dark:text-indigo-400',
       },
       {
-        label: 'เบิกเหล้า',
+        label: t('withdrawals'),
         value: formatNumber(overview.totalWithdrawals),
         trend: overview.withdrawalsTrend,
         icon: Package,
@@ -923,7 +926,7 @@ export default function ReportsPage() {
         textColor: 'text-emerald-600 dark:text-emerald-400',
       },
       {
-        label: 'ตรวจนับสต๊อก',
+        label: t('stockChecks'),
         value: formatNumber(overview.totalStockChecks),
         trend: overview.stockChecksTrend,
         icon: ClipboardCheck,
@@ -931,7 +934,7 @@ export default function ReportsPage() {
         textColor: 'text-blue-600 dark:text-blue-400',
       },
       {
-        label: 'บทลงโทษ',
+        label: t('penalties'),
         value: formatNumber(overview.totalPenalties),
         trend: overview.penaltiesTrend,
         icon: ShieldAlert,
@@ -980,8 +983,8 @@ export default function ReportsPage() {
         {/* Daily activity chart */}
         <Card padding="none">
           <CardHeader
-            title="กิจกรรมรายวัน"
-            description="ภาพรวมกิจกรรมทั้งหมดในช่วงเวลาที่เลือก"
+            title={t('dailyActivity')}
+            description={t('dailyActivityDesc')}
           />
           <CardContent>
             {dailyActivity.length > 0 ? (
@@ -995,7 +998,7 @@ export default function ReportsPage() {
                   <Area
                     type="monotone"
                     dataKey="deposits"
-                    name="ฝากเหล้า"
+                    name={t('chartDeposits')}
                     stroke={CHART_COLORS.indigo}
                     fill={CHART_COLORS.indigo}
                     fillOpacity={0.1}
@@ -1003,7 +1006,7 @@ export default function ReportsPage() {
                   <Area
                     type="monotone"
                     dataKey="withdrawals"
-                    name="เบิกเหล้า"
+                    name={t('chartWithdrawals')}
                     stroke={CHART_COLORS.emerald}
                     fill={CHART_COLORS.emerald}
                     fillOpacity={0.1}
@@ -1011,7 +1014,7 @@ export default function ReportsPage() {
                   <Area
                     type="monotone"
                     dataKey="stockChecks"
-                    name="นับสต๊อก"
+                    name={t('chartStockChecks')}
                     stroke={CHART_COLORS.blue}
                     fill={CHART_COLORS.blue}
                     fillOpacity={0.1}
@@ -1019,7 +1022,7 @@ export default function ReportsPage() {
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <ChartEmptyState />
+              <ChartEmptyState message={t('noDataInRange')} />
             )}
           </CardContent>
         </Card>
@@ -1030,14 +1033,14 @@ export default function ReportsPage() {
   function renderStockTab() {
     const summaryItems = [
       {
-        label: 'วันที่ตรวจนับ',
-        value: `${formatNumber(stockReport.daysChecked)} / ${formatNumber(stockReport.totalDaysInRange)} วัน`,
+        label: t('daysChecked'),
+        value: t('daysCheckedValue', { checked: formatNumber(stockReport.daysChecked), total: formatNumber(stockReport.totalDaysInRange) }),
         icon: Calendar,
         lightBg: 'bg-blue-50 dark:bg-blue-900/20',
         textColor: 'text-blue-600 dark:text-blue-400',
       },
       {
-        label: 'ส่วนต่างเฉลี่ย',
+        label: t('avgDifference'),
         value: `${stockReport.avgDiffPercent}%`,
         icon: Percent,
         lightBg:
@@ -1050,7 +1053,7 @@ export default function ReportsPage() {
             : 'text-emerald-600 dark:text-emerald-400',
       },
       {
-        label: 'รายการที่ไม่ตรง',
+        label: t('discrepancies'),
         value: formatNumber(stockReport.totalDiscrepancies),
         icon: AlertTriangle,
         lightBg: 'bg-amber-50 dark:bg-amber-900/20',
@@ -1095,8 +1098,8 @@ export default function ReportsPage() {
         {/* Stock discrepancy trend chart */}
         <Card padding="none">
           <CardHeader
-            title="แนวโน้มส่วนต่างสต๊อก"
-            description="ค่าเฉลี่ย |ส่วนต่าง| รายวัน"
+            title={t('stockDiffTrend')}
+            description={t('stockDiffTrendDesc')}
           />
           <CardContent>
             {dailyDiffs.length > 0 ? (
@@ -1111,12 +1114,12 @@ export default function ReportsPage() {
                     y={5}
                     stroke={CHART_COLORS.red}
                     strokeDasharray="5 5"
-                    label={{ value: 'เกณฑ์เตือน (5)', position: 'insideTopRight', fill: CHART_COLORS.red, fontSize: 12 }}
+                    label={{ value: t('warningThreshold'), position: 'insideTopRight', fill: CHART_COLORS.red, fontSize: 12 }}
                   />
                   <Line
                     type="monotone"
                     dataKey="avgDiff"
-                    name="ส่วนต่างเฉลี่ย"
+                    name={t('avgDifference')}
                     stroke={CHART_COLORS.amber}
                     strokeWidth={2}
                     dot={{ r: 3 }}
@@ -1125,7 +1128,7 @@ export default function ReportsPage() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <ChartEmptyState />
+              <ChartEmptyState message={t('noDataInRange')} />
             )}
           </CardContent>
         </Card>
@@ -1133,8 +1136,8 @@ export default function ReportsPage() {
         {/* Top discrepancies table */}
         <Card padding="none">
           <CardHeader
-            title="สินค้าที่มีส่วนต่างมากที่สุด"
-            description="Top 5 สินค้าที่พบส่วนต่างบ่อยในช่วงเวลาที่เลือก"
+            title={t('topDiscrepancies')}
+            description={t('topDiscrepanciesDesc')}
           />
           {stockReport.topDiscrepancies.length > 0 ? (
             <div className="overflow-x-auto">
@@ -1142,16 +1145,16 @@ export default function ReportsPage() {
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700">
                     <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      สินค้า
+                      {t('thProduct')}
                     </th>
                     <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      รหัส
+                      {t('thCode')}
                     </th>
                     <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      ส่วนต่างรวม
+                      {t('thTotalDiff')}
                     </th>
                     <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      จำนวนครั้ง
+                      {t('thOccurrences')}
                     </th>
                   </tr>
                 </thead>
@@ -1190,7 +1193,7 @@ export default function ReportsPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-right">
-                        <Badge variant="default">{formatNumber(item.occurrences)} ครั้ง</Badge>
+                        <Badge variant="default">{t('timesCount', { count: formatNumber(item.occurrences) })}</Badge>
                       </td>
                     </tr>
                   ))}
@@ -1200,7 +1203,7 @@ export default function ReportsPage() {
           ) : (
             <CardContent>
               <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
-                ยังไม่มีข้อมูลในช่วงนี้
+                {t('noDataInRange')}
               </div>
             </CardContent>
           )}
@@ -1212,28 +1215,28 @@ export default function ReportsPage() {
   function renderDepositTab() {
     const summaryCards = [
       {
-        label: 'ฝากอยู่ในร้าน',
+        label: t('depositsInStore'),
         value: formatNumber(depositReport.totalActive),
         icon: Wine,
         lightBg: 'bg-indigo-50 dark:bg-indigo-900/20',
         textColor: 'text-indigo-600 dark:text-indigo-400',
       },
       {
-        label: 'ฝากใหม่ในช่วงนี้',
+        label: t('newDepositsInRange'),
         value: formatNumber(depositReport.newDepositsInRange),
         icon: TrendingUp,
         lightBg: 'bg-emerald-50 dark:bg-emerald-900/20',
         textColor: 'text-emerald-600 dark:text-emerald-400',
       },
       {
-        label: 'เบิกในช่วงนี้',
+        label: t('withdrawalsInRange'),
         value: formatNumber(depositReport.withdrawalsInRange),
         icon: TrendingDown,
         lightBg: 'bg-blue-50 dark:bg-blue-900/20',
         textColor: 'text-blue-600 dark:text-blue-400',
       },
       {
-        label: 'ใกล้หมดอายุ',
+        label: t('expiringSoon'),
         value: formatNumber(depositReport.expiringSoon),
         icon: Clock,
         lightBg: 'bg-red-50 dark:bg-red-900/20',
@@ -1279,8 +1282,8 @@ export default function ReportsPage() {
           {/* Weekly deposit/withdrawal chart */}
           <Card padding="none">
             <CardHeader
-              title="แนวโน้มฝาก-เบิก"
-              description="จำนวนการฝากและเบิกรายสัปดาห์"
+              title={t('depositWithdrawTrend')}
+              description={t('depositWithdrawTrendDesc')}
             />
             <CardContent>
               {weeklyDeposits.length > 0 ? (
@@ -1293,20 +1296,20 @@ export default function ReportsPage() {
                     <Legend />
                     <Bar
                       dataKey="deposits"
-                      name="ฝากใหม่"
+                      name={t('chartNewDeposits')}
                       fill={CHART_COLORS.indigo}
                       radius={[4, 4, 0, 0]}
                     />
                     <Bar
                       dataKey="withdrawals"
-                      name="เบิก"
+                      name={t('chartWithdraw')}
                       fill={CHART_COLORS.emerald}
                       radius={[4, 4, 0, 0]}
                     />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <ChartEmptyState />
+                <ChartEmptyState message={t('noDataInRange')} />
               )}
             </CardContent>
           </Card>
@@ -1314,8 +1317,8 @@ export default function ReportsPage() {
           {/* Popular products */}
           <Card padding="none">
             <CardHeader
-              title="สินค้ายอดนิยม"
-              description="สินค้าที่ลูกค้าฝากบ่อยที่สุด"
+              title={t('popularProducts')}
+              description={t('popularProductsDesc')}
             />
             {depositReport.popularProducts.length > 0 ? (
               <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -1332,14 +1335,14 @@ export default function ReportsPage() {
                         {item.productName}
                       </p>
                     </div>
-                    <Badge variant="info">{formatNumber(item.count)} ขวด</Badge>
+                    <Badge variant="info">{t('bottleCount', { count: formatNumber(item.count) })}</Badge>
                   </div>
                 ))}
               </div>
             ) : (
               <CardContent>
                 <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
-                  ยังไม่มีข้อมูลในช่วงนี้
+                  {t('noDataInRange')}
                 </div>
               </CardContent>
             )}
@@ -1351,12 +1354,12 @@ export default function ReportsPage() {
 
   function renderBorrowTab() {
     const statusCards = [
-      { label: 'คำขอทั้งหมด', value: borrowReport.totalRequests, icon: Package, lightBg: 'bg-indigo-50 dark:bg-indigo-900/20', textColor: 'text-indigo-600 dark:text-indigo-400' },
-      { label: 'รออนุมัติ', value: borrowReport.pending, icon: Clock, lightBg: 'bg-amber-50 dark:bg-amber-900/20', textColor: 'text-amber-600 dark:text-amber-400' },
-      { label: 'อนุมัติ/กำลังดำเนินการ', value: borrowReport.approved, icon: CheckCircle2, lightBg: 'bg-blue-50 dark:bg-blue-900/20', textColor: 'text-blue-600 dark:text-blue-400' },
-      { label: 'เสร็จสิ้น', value: borrowReport.completed, icon: CheckCircle2, lightBg: 'bg-emerald-50 dark:bg-emerald-900/20', textColor: 'text-emerald-600 dark:text-emerald-400' },
-      { label: 'ปฏิเสธ', value: borrowReport.rejected, icon: AlertTriangle, lightBg: 'bg-red-50 dark:bg-red-900/20', textColor: 'text-red-600 dark:text-red-400' },
-      { label: 'ยกเลิก', value: borrowReport.cancelled, icon: AlertTriangle, lightBg: 'bg-gray-50 dark:bg-gray-700/30', textColor: 'text-gray-500 dark:text-gray-400' },
+      { label: t('totalRequests'), value: borrowReport.totalRequests, icon: Package, lightBg: 'bg-indigo-50 dark:bg-indigo-900/20', textColor: 'text-indigo-600 dark:text-indigo-400' },
+      { label: t('pendingApproval'), value: borrowReport.pending, icon: Clock, lightBg: 'bg-amber-50 dark:bg-amber-900/20', textColor: 'text-amber-600 dark:text-amber-400' },
+      { label: t('approvedInProgress'), value: borrowReport.approved, icon: CheckCircle2, lightBg: 'bg-blue-50 dark:bg-blue-900/20', textColor: 'text-blue-600 dark:text-blue-400' },
+      { label: t('borrowCompleted'), value: borrowReport.completed, icon: CheckCircle2, lightBg: 'bg-emerald-50 dark:bg-emerald-900/20', textColor: 'text-emerald-600 dark:text-emerald-400' },
+      { label: t('borrowRejected'), value: borrowReport.rejected, icon: AlertTriangle, lightBg: 'bg-red-50 dark:bg-red-900/20', textColor: 'text-red-600 dark:text-red-400' },
+      { label: t('borrowCancelled'), value: borrowReport.cancelled, icon: AlertTriangle, lightBg: 'bg-gray-50 dark:bg-gray-700/30', textColor: 'text-gray-500 dark:text-gray-400' },
     ];
 
     return (
@@ -1383,7 +1386,7 @@ export default function ReportsPage() {
 
         {/* Monthly chart */}
         <Card padding="none">
-          <CardHeader title="ยืมสินค้ารายเดือน" description="จำนวนคำขอและสำเร็จแยกตามเดือน" />
+          <CardHeader title={t('monthlyBorrow')} description={t('monthlyBorrowDesc')} />
           <CardContent>
             {monthlyBorrows.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
@@ -1393,12 +1396,12 @@ export default function ReportsPage() {
                   <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend />
-                  <Bar dataKey="requests" name="คำขอ" fill={CHART_COLORS.indigo} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="completed" name="สำเร็จ" fill={CHART_COLORS.emerald} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="requests" name={t('chartRequests')} fill={CHART_COLORS.indigo} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="completed" name={t('chartCompleted')} fill={CHART_COLORS.emerald} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <ChartEmptyState />
+              <ChartEmptyState message={t('noDataInRange')} />
             )}
           </CardContent>
         </Card>
@@ -1406,15 +1409,15 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* By store */}
           <Card padding="none">
-            <CardHeader title="ยืมแยกตามสาขา" description="ขอยืม (ออก) / ให้ยืม (เข้า)" />
+            <CardHeader title={t('borrowByBranch')} description={t('borrowByBranchDesc')} />
             {borrowReport.byStore.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100 dark:border-gray-700">
-                      <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">สาขา</th>
-                      <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">ขอยืม</th>
-                      <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">ให้ยืม</th>
+                      <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('thBranch')}</th>
+                      <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('borrowOut')}</th>
+                      <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('borrowIn')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
@@ -1430,14 +1433,14 @@ export default function ReportsPage() {
               </div>
             ) : (
               <CardContent>
-                <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">ยังไม่มีข้อมูลในช่วงนี้</div>
+                <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">{t('noDataInRange')}</div>
               </CardContent>
             )}
           </Card>
 
           {/* Top products */}
           <Card padding="none">
-            <CardHeader title="สินค้าที่ยืมบ่อย" description="Top 10 สินค้าตามจำนวนรวม" />
+            <CardHeader title={t('frequentBorrowProducts')} description={t('frequentBorrowProductsDesc')} />
             {borrowReport.topProducts.length > 0 ? (
               <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
                 {borrowReport.topProducts.map((item, idx) => (
@@ -1457,7 +1460,7 @@ export default function ReportsPage() {
               </div>
             ) : (
               <CardContent>
-                <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">ยังไม่มีข้อมูลในช่วงนี้</div>
+                <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">{t('noDataInRange')}</div>
               </CardContent>
             )}
           </Card>
@@ -1486,10 +1489,10 @@ export default function ReportsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            รายงาน
+            {t('title')}
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            สรุปภาพรวมข้อมูลและวิเคราะห์ผลการดำเนินงาน
+            {t('subtitle')}
           </p>
         </div>
 
@@ -1501,7 +1504,7 @@ export default function ReportsPage() {
             icon={<RefreshCw className="h-4 w-4" />}
             onClick={fetchReportData}
           >
-            รีเฟรช
+            {t('refresh')}
           </Button>
           <Button
             variant="outline"
@@ -1530,7 +1533,7 @@ export default function ReportsPage() {
         <div className="flex flex-1 flex-col gap-4 sm:flex-row sm:items-end">
           <div className="w-full sm:w-48">
             <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              วันที่เริ่มต้น
+              {t('startDate')}
             </label>
             <div className="relative">
               <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -1544,7 +1547,7 @@ export default function ReportsPage() {
           </div>
           <div className="w-full sm:w-48">
             <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              วันที่สิ้นสุด
+              {t('endDate')}
             </label>
             <div className="relative">
               <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -1562,14 +1565,14 @@ export default function ReportsPage() {
         {canSelectStore && stores.length > 0 && (
           <div className="w-full sm:w-56">
             <Select
-              label="สาขา"
+              label={t('branch')}
               options={stores.map((s) => ({ value: s.id, label: s.store_name }))}
               value={selectedStoreId}
               onChange={(e) => {
                 setSelectedStoreId(e.target.value);
                 setCurrentStoreId(e.target.value);
               }}
-              placeholder="เลือกสาขา"
+              placeholder={t('selectBranch')}
             />
           </div>
         )}
@@ -1579,7 +1582,7 @@ export default function ReportsPage() {
           <div className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2.5 dark:bg-gray-700">
             <Store className="h-4 w-4 text-gray-500 dark:text-gray-400" />
             <span className="text-sm text-gray-700 dark:text-gray-300">
-              สาขาของคุณ
+              {t('yourBranch')}
             </span>
           </div>
         )}
@@ -1588,7 +1591,7 @@ export default function ReportsPage() {
       {/* ---------------------------------------------------------------- */}
       {/* Report tabs                                                      */}
       {/* ---------------------------------------------------------------- */}
-      <Tabs tabs={reportTabs} activeTab={activeTab} onChange={setActiveTab} />
+      <Tabs tabs={REPORT_TAB_KEYS.map(tab => ({ id: tab.id, label: t(tab.labelKey) }))} activeTab={activeTab} onChange={setActiveTab} />
 
       {/* ---------------------------------------------------------------- */}
       {/* Tab content                                                      */}

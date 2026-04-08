@@ -9,6 +9,7 @@ import { useAppStore } from '@/stores/app-store';
 import { Button, Badge, Card, CardHeader, CardContent, EmptyState, toast } from '@/components/ui';
 import { formatThaiDate, formatNumber } from '@/lib/utils/format';
 import { yesterdayBangkok } from '@/lib/utils/date';
+import { useTranslations } from 'next-intl';
 import {
   Package,
   CalendarCheck,
@@ -55,6 +56,7 @@ interface RecentCheck {
 }
 
 export default function StockOverviewPage() {
+  const t = useTranslations('stock');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const [loading, setLoading] = useState(true);
@@ -296,8 +298,8 @@ export default function StockOverviewPage() {
       console.error('Error fetching stock overview:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถโหลดข้อมูลภาพรวมสต๊อกได้',
+        title: t('errorOccurred'),
+        message: t('errorLoadOverview'),
       });
     } finally {
       setLoading(false);
@@ -310,31 +312,31 @@ export default function StockOverviewPage() {
 
   const summaryCards = [
     {
-      label: 'สินค้าทั้งหมด',
+      label: t('totalProducts'),
       value: formatNumber(summary.totalProducts),
       icon: Package,
       lightBg: 'bg-blue-50 dark:bg-blue-900/20',
       textColor: 'text-blue-600 dark:text-blue-400',
     },
     {
-      label: 'นับสต๊อกล่าสุด',
+      label: t('lastStockCheck'),
       value: summary.lastCheckDate
         ? formatThaiDate(summary.lastCheckDate)
-        : 'ยังไม่เคยนับ',
+        : t('neverCounted'),
       icon: CalendarCheck,
       lightBg: 'bg-emerald-50 dark:bg-emerald-900/20',
       textColor: 'text-emerald-600 dark:text-emerald-400',
       isDate: true,
     },
     {
-      label: 'รอชี้แจง',
+      label: t('pendingExplanation'),
       value: formatNumber(summary.pendingExplanations),
       icon: AlertTriangle,
       lightBg: 'bg-amber-50 dark:bg-amber-900/20',
       textColor: 'text-amber-600 dark:text-amber-400',
     },
     {
-      label: 'รออนุมัติ',
+      label: t('pendingApproval'),
       value: formatNumber(summary.pendingApprovals),
       icon: CheckCircle2,
       lightBg: 'bg-violet-50 dark:bg-violet-900/20',
@@ -346,8 +348,8 @@ export default function StockOverviewPage() {
 
   const allQuickActions = [
     {
-      label: 'นับสต๊อก',
-      description: 'นับสต๊อกประจำวัน',
+      label: t('countStock'),
+      description: t('dailyStockCount'),
       icon: ScanLine,
       href: '/stock/daily-check',
       gradient: 'from-blue-500 to-indigo-600',
@@ -355,8 +357,8 @@ export default function StockOverviewPage() {
       staffVisible: true,
     },
     {
-      label: 'อัพโหลด POS',
-      description: 'นำเข้าข้อมูลจาก .txt',
+      label: t('uploadPOS'),
+      description: t('importFromTxt'),
       icon: Upload,
       href: '/stock/txt-upload',
       gradient: 'from-cyan-500 to-teal-600',
@@ -364,8 +366,8 @@ export default function StockOverviewPage() {
       staffVisible: false,
     },
     {
-      label: 'ดูผลเปรียบเทียบ',
-      description: 'POS vs นับจริง',
+      label: t('viewComparison'),
+      description: t('posVsManual'),
       icon: BarChart3,
       href: '/stock/comparison',
       gradient: 'from-emerald-500 to-green-600',

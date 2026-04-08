@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils/cn';
 import { ChevronUp, ChevronDown, Search } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 export interface Column<T> {
   key: string;
@@ -31,14 +32,17 @@ export function DataTable<T extends Record<string, unknown>>({
   data,
   keyExtractor,
   searchable,
-  searchPlaceholder = 'ค้นหา...',
+  searchPlaceholder,
   onSearch,
-  emptyMessage = 'ไม่พบข้อมูล',
+  emptyMessage,
   className,
   headerActions,
   onRowClick,
   isLoading,
 }: DataTableProps<T>) {
+  const t = useTranslations('dataTable');
+  const resolvedSearchPlaceholder = searchPlaceholder ?? t('searchPlaceholder');
+  const resolvedEmptyMessage = emptyMessage ?? t('noData');
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,7 +82,7 @@ export function DataTable<T extends Record<string, unknown>>({
                   setSearchQuery(e.target.value);
                   onSearch?.(e.target.value);
                 }}
-                placeholder={searchPlaceholder}
+                placeholder={resolvedSearchPlaceholder}
                 className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               />
             </div>
@@ -120,14 +124,14 @@ export function DataTable<T extends Record<string, unknown>>({
                 <td colSpan={columns.length} className="px-5 py-12 text-center text-sm text-gray-400">
                   <div className="flex items-center justify-center gap-2">
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600" />
-                    กำลังโหลด...
+                    {t('loading')}
                   </div>
                 </td>
               </tr>
             ) : sortedData.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-5 py-12 text-center text-sm text-gray-400">
-                  {emptyMessage}
+                  {resolvedEmptyMessage}
                 </td>
               </tr>
             ) : (

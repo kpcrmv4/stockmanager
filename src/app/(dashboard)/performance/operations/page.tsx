@@ -28,6 +28,7 @@ import {
   Pause,
   Radio,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,52 +66,55 @@ interface StaffWorkload {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getActionTypeLabel(type: string): string {
-  const map: Record<string, string> = {
-    deposit_claim: 'ฝากเหล้า',
-    withdrawal_claim: 'เบิกเหล้า',
-    stock_explain: 'อธิบายสต๊อก',
-    borrow_approve: 'อนุมัติยืม',
-    generic: 'ทั่วไป',
-  };
-  return map[type] || type;
-}
-
-function getPriorityConfig(priority: string) {
-  if (priority === 'urgent')
-    return {
-      label: 'ด่วน',
-      className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    };
-  if (priority === 'low')
-    return {
-      label: 'ต่ำ',
-      className: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
-    };
-  return {
-    label: 'ปกติ',
-    className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  };
-}
-
-function relativeTime(isoDate: string): string {
-  const now = Date.now();
-  const then = new Date(isoDate).getTime();
-  const diffMin = Math.floor((now - then) / (1000 * 60));
-  if (diffMin < 1) return 'เมื่อสักครู่';
-  if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`;
-  const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour} ชม.ที่แล้ว`;
-  return `${Math.floor(diffHour / 24)} วันที่แล้ว`;
-}
+// Helper functions moved inside component to access translations
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export default function OperationsPage() {
+  const t = useTranslations('performance.operations');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
+
+  function getActionTypeLabel(type: string): string {
+    const map: Record<string, string> = {
+      deposit_claim: t('actionDeposit'),
+      withdrawal_claim: t('actionWithdrawal'),
+      stock_explain: t('actionStockExplain'),
+      borrow_approve: t('actionBorrowApprove'),
+      generic: t('actionGeneric'),
+    };
+    return map[type] || type;
+  }
+
+  function getPriorityConfig(priority: string) {
+    if (priority === 'urgent')
+      return {
+        label: t('priorityUrgent'),
+        className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+      };
+    if (priority === 'low')
+      return {
+        label: t('priorityLow'),
+        className: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+      };
+    return {
+      label: t('priorityNormal'),
+      className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    };
+  }
+
+  function relativeTime(isoDate: string): string {
+    const now = Date.now();
+    const then = new Date(isoDate).getTime();
+    const diffMin = Math.floor((now - then) / (1000 * 60));
+    if (diffMin < 1) return t('justNow');
+    if (diffMin < 60) return t('minutesAgo', { count: diffMin });
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return t('hoursAgo', { count: diffHour });
+    return t('daysAgo', { count: Math.floor(diffHour / 24) });
+  }
 
   const [stores, setStores] = useState<StoreOption[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string>(currentStoreId || '');
@@ -294,10 +298,10 @@ export default function OperationsPage() {
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              สถานะงาน Real-time
+              {t('title')}
             </h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              ดูงานค้าง งานกำลังทำ และ workload พนักงาน
+              {t('subtitle')}
             </p>
           </div>
           {autoRefresh && (
@@ -316,17 +320,17 @@ export default function OperationsPage() {
           >
             {autoRefresh ? (
               <>
-                <Pause className="mr-1.5 h-4 w-4" /> หยุด Auto
+                <Pause className="mr-1.5 h-4 w-4" /> {t('stopAuto')}
               </>
             ) : (
               <>
-                <Play className="mr-1.5 h-4 w-4" /> เปิด Auto
+                <Play className="mr-1.5 h-4 w-4" /> {t('startAuto')}
               </>
             )}
           </Button>
           <Button variant="secondary" size="sm" onClick={() => { setLoading(true); fetchData(); }} disabled={loading}>
             <RefreshCw className={cn('mr-1.5 h-4 w-4', loading && 'animate-spin')} />
-            รีเฟรช
+            {t('refresh')}
           </Button>
         </div>
       </div>
@@ -337,7 +341,7 @@ export default function OperationsPage() {
           <CardContent>
             <div className="w-full sm:min-w-[180px] sm:max-w-xs">
               <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                สาขา
+                {t('branch')}
               </label>
               <Select
                 value={selectedStoreId}
@@ -374,7 +378,7 @@ export default function OperationsPage() {
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {pendingCount}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">รอรับงาน</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('waitingForTask')}</p>
                 </div>
               </div>
             </button>
@@ -396,7 +400,7 @@ export default function OperationsPage() {
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {claimedCount}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">กำลังทำ</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('inProgress')}</p>
                 </div>
               </div>
             </button>
@@ -418,7 +422,7 @@ export default function OperationsPage() {
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {overdueCount}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">เกินเวลา</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('overdue')}</p>
                 </div>
               </div>
             </button>
@@ -440,7 +444,7 @@ export default function OperationsPage() {
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {completedTodayCount}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">สำเร็จวันนี้</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('completedToday')}</p>
                 </div>
               </div>
             </button>
@@ -451,23 +455,23 @@ export default function OperationsPage() {
             <div className="lg:col-span-2">
               <Card>
                 <CardHeader
-                  title={`งานทั้งหมด (${filteredTasks.length})`}
+                  title={t('allTasks', { count: filteredTasks.length })}
                   description={
                     filter === 'all'
-                      ? 'งาน pending + claimed (ไม่รวมเสร็จแล้ว)'
+                      ? t('descAll')
                       : filter === 'pending'
-                        ? 'งานที่รอรับ'
+                        ? t('descPending')
                         : filter === 'claimed'
-                          ? 'งานที่กำลังทำ'
-                          : 'งานที่เกินเวลา'
+                          ? t('descClaimed')
+                          : t('descOverdue')
                   }
                 />
                 <CardContent>
                   {filteredTasks.length === 0 ? (
                     <div className="flex h-32 items-center justify-center text-sm text-gray-400">
                       {filter === 'overdue'
-                        ? 'ไม่มีงานเกินเวลา'
-                        : 'ไม่มีงานค้างอยู่'}
+                        ? t('noOverdue')
+                        : t('noPending')}
                     </div>
                   ) : (
                     <div className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -507,7 +511,7 @@ export default function OperationsPage() {
                                   </p>
                                 )}
                                 <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-400">
-                                  <span>สร้าง {relativeTime(task.createdAt)}</span>
+                                  <span>{t('created', { time: relativeTime(task.createdAt) })}</span>
                                   {task.claimedByName && (
                                     <span className="flex items-center gap-1">
                                       <User className="h-3 w-3" />
@@ -517,7 +521,7 @@ export default function OperationsPage() {
                                   {task.status === 'claimed' && (
                                     <span className="flex items-center gap-1">
                                       <Timer className="h-3 w-3" />
-                                      {task.minutesElapsed} / {task.timeoutMinutes} นาที
+                                      {task.minutesElapsed} / {task.timeoutMinutes} {t('minutesUnit')}
                                     </span>
                                   )}
                                 </div>
@@ -525,17 +529,17 @@ export default function OperationsPage() {
                               <div>
                                 {task.status === 'pending' && (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                                    <Clock className="h-3 w-3" /> รอรับ
+                                    <Clock className="h-3 w-3" /> {t('statusWaiting')}
                                   </span>
                                 )}
                                 {task.status === 'claimed' && !task.isOverdue && (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                                    <Zap className="h-3 w-3" /> กำลังทำ
+                                    <Zap className="h-3 w-3" /> {t('statusInProgress')}
                                   </span>
                                 )}
                                 {(task.isOverdue || task.status === 'expired') && (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                                    <AlertCircle className="h-3 w-3" /> เกินเวลา!
+                                    <AlertCircle className="h-3 w-3" /> {t('statusOverdue')}
                                   </span>
                                 )}
                               </div>
@@ -553,13 +557,13 @@ export default function OperationsPage() {
             <div>
               <Card>
                 <CardHeader
-                  title="Workload พนักงาน"
-                  description="งานที่ถืออยู่ + สำเร็จวันนี้"
+                  title={t('workloadTitle')}
+                  description={t('workloadDesc')}
                 />
                 <CardContent>
                   {workloads.length === 0 ? (
                     <div className="flex h-32 items-center justify-center text-sm text-gray-400">
-                      ไม่มีข้อมูล
+                      {t('noData')}
                     </div>
                   ) : (
                     <div className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -577,7 +581,7 @@ export default function OperationsPage() {
                                 {w.displayName}
                               </p>
                               <p className="text-xs text-gray-400">
-                                สำเร็จวันนี้: {w.completedToday}
+                                {t('completedTodayLabel', { count: w.completedToday })}
                               </p>
                             </div>
                           </div>
@@ -592,10 +596,10 @@ export default function OperationsPage() {
                                 )}
                               >
                                 <Zap className="h-3 w-3" />
-                                {w.activeTasks} งาน
+                                {w.activeTasks} {t('tasksUnit')}
                               </span>
                             ) : (
-                              <span className="text-xs text-gray-400">ว่าง</span>
+                              <span className="text-xs text-gray-400">{t('available')}</span>
                             )}
                           </div>
                         </div>

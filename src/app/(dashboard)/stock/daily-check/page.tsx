@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
@@ -46,6 +48,7 @@ interface CountEntry {
 const COUNT_ROLES = ['owner', 'manager', 'bar', 'staff'];
 
 export default function DailyCheckPage() {
+  const t = useTranslations('stock');
   const { user } = useAuthStore();
 
   // Role guard — เฉพาะ staff/bar/manager/owner
@@ -53,8 +56,8 @@ export default function DailyCheckPage() {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
         <Package className="h-10 w-10 text-gray-300 dark:text-gray-600" />
-        <p className="text-sm text-gray-500 dark:text-gray-400">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</p>
-        <a href="/stock" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">กลับหน้าสต๊อก</a>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{t('dailyCheck.noPermission')}</p>
+        <a href="/stock" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">{t('dailyCheck.backToStock')}</a>
       </div>
     );
   }
@@ -359,8 +362,8 @@ export default function DailyCheckPage() {
       console.error('Error fetching products:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถโหลดรายการสินค้าได้',
+        title: t('dailyCheck.errorTitle'),
+        message: t('dailyCheck.errorLoadProducts'),
       });
     } finally {
       setLoading(false);
@@ -434,7 +437,7 @@ export default function DailyCheckPage() {
     products.forEach((p) => {
       if (p.category) cats.add(p.category);
     });
-    const tabs = [{ id: 'all', label: 'ทั้งหมด', count: products.length }];
+    const tabs = [{ id: 'all', label: t('dailyCheck.allCategories'), count: products.length }];
     Array.from(cats)
       .sort()
       .forEach((cat) => {
@@ -537,8 +540,8 @@ export default function DailyCheckPage() {
 
       toast({
         type: 'success',
-        title: 'บันทึกสำเร็จ',
-        message: `บันทึกจำนวนนับ ${entries.length} รายการเรียบร้อย`,
+        title: t('dailyCheck.saveSuccess'),
+        message: t('dailyCheck.saveCountMsg', { count: entries.length }),
       });
 
       // Update existing counts state
@@ -557,15 +560,14 @@ export default function DailyCheckPage() {
         if (result.compared) {
           toast({
             type: 'success',
-            title: 'เปรียบเทียบอัตโนมัติสำเร็จ',
-            message: `ตรง ${result.summary?.match || 0} | เกินเกณฑ์ ${result.summary?.over_tolerance || 0} รายการ`,
+            title: t('dailyCheck.autoCompareSuccess'),
+            message: t('dailyCheck.autoCompareMsg', { match: result.summary?.match || 0, overTolerance: result.summary?.over_tolerance || 0 }),
           });
         } else if (result.reason === 'no_pos') {
           toast({
             type: 'info',
-            title: 'รอข้อมูล POS',
-            message:
-              'ยังไม่มีข้อมูล POS — ระบบจะเปรียบเทียบอัตโนมัติเมื่อได้รับข้อมูล',
+            title: t('dailyCheck.waitingPosTitle'),
+            message: t('dailyCheck.waitingPosMsg'),
           });
         }
 
@@ -584,9 +586,8 @@ export default function DailyCheckPage() {
         console.error('Auto-compare error:', err);
         toast({
           type: 'warning',
-          title: 'เปรียบเทียบอัตโนมัติล้มเหลว',
-          message:
-            'สามารถเปรียบเทียบด้วยตนเองได้ที่หน้าผลเปรียบเทียบ',
+          title: t('dailyCheck.autoCompareFailed'),
+          message: t('dailyCheck.autoCompareFailedMsg'),
         });
       } finally {
         setComparing(false);
@@ -595,8 +596,8 @@ export default function DailyCheckPage() {
       console.error('Error saving counts:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถบันทึกข้อมูลการนับได้',
+        title: t('dailyCheck.errorTitle'),
+        message: t('dailyCheck.errorSaveCounts'),
       });
     } finally {
       setSaving(false);
@@ -614,8 +615,8 @@ export default function DailyCheckPage() {
     if (unfilledCount > 0) {
       toast({
         type: 'warning',
-        title: 'กรุณากรอกให้ครบทุกรายการ',
-        message: `ยังไม่ได้กรอกจำนวนอีก ${unfilledCount} รายการ`,
+        title: t('dailyCheck.fillAllItems'),
+        message: t('dailyCheck.unfilledCount', { count: unfilledCount }),
       });
       return;
     }
@@ -653,8 +654,8 @@ export default function DailyCheckPage() {
     if (entries.length === 0) {
       toast({
         type: 'warning',
-        title: 'ไม่มีข้อมูล',
-        message: 'กรุณากรอกจำนวนนับรายการเพิ่มเติมอย่างน้อย 1 รายการ',
+        title: t('dailyCheck.noData'),
+        message: t('dailyCheck.fillSupplementaryMsg'),
       });
       return;
     }
@@ -663,8 +664,8 @@ export default function DailyCheckPage() {
     if (unfilledSup > 0) {
       toast({
         type: 'warning',
-        title: 'กรุณากรอกให้ครบทุกรายการ',
-        message: `ยังไม่ได้กรอกรายการเพิ่มเติมอีก ${unfilledSup} รายการ`,
+        title: t('dailyCheck.fillAllItems'),
+        message: t('dailyCheck.unfilledSupplementary', { count: unfilledSup }),
       });
       return;
     }
@@ -696,8 +697,8 @@ export default function DailyCheckPage() {
 
       toast({
         type: 'success',
-        title: 'บันทึกรายการเพิ่มเติมสำเร็จ',
-        message: `บันทึก ${entries.length} รายการเรียบร้อย`,
+        title: t('dailyCheck.saveSupplementarySuccess'),
+        message: t('dailyCheck.saveSupplementaryMsg', { count: entries.length }),
       });
 
       setSupplementaryItems([]);
@@ -713,8 +714,8 @@ export default function DailyCheckPage() {
       console.error('Error saving supplementary counts:', error);
       toast({
         type: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        message: 'ไม่สามารถบันทึกรายการเพิ่มเติมได้',
+        title: t('dailyCheck.errorTitle'),
+        message: t('dailyCheck.errorSaveSupplementary'),
       });
     } finally {
       setSavingSupplementary(false);
@@ -765,12 +766,11 @@ export default function DailyCheckPage() {
               <ArrowLeft className="h-5 w-5" />
             </a>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              นับสต๊อกประจำวัน
+              {t('dailyCheck.title')}
             </h1>
           </div>
           <p className="mt-0.5 ml-9 text-sm text-gray-500 dark:text-gray-400">
-            {formatThaiDate(businessDate)} — นับแล้ว {filledCount}/
-            {products.length} รายการ
+            {formatThaiDate(businessDate)} — {t('dailyCheck.countedProgress', { filled: filledCount, total: products.length })}
           </p>
         </div>
       </div>
@@ -779,8 +779,8 @@ export default function DailyCheckPage() {
       <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
         <Info className="h-3.5 w-3.5 shrink-0" />
         <span>
-          วันที่นับ: <strong>{formatThaiDate(businessDate)}</strong>{' '}
-          (เมื่อวาน — ร้านเปิดข้ามวัน) · บันทึกอัตโนมัติเมื่อกรอกแต่ละรายการ
+          {t('dailyCheck.countDateLabel')}: <strong>{formatThaiDate(businessDate)}</strong>{' '}
+          {t('dailyCheck.countDateInfo')}
         </span>
       </div>
 
@@ -788,14 +788,13 @@ export default function DailyCheckPage() {
       {supplementaryItems.length > 0 && (
         <Card>
           <CardHeader
-            title={`รายการที่ต้องนับเพิ่ม (${supplementaryItems.length})`}
+            title={t('dailyCheck.supplementaryTitle', { count: supplementaryItems.length })}
           />
           <CardContent>
             <div className="mb-3 flex items-start gap-2 rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
               <p className="text-xs text-red-700 dark:text-red-400">
-                พบ {supplementaryItems.length} รายการจาก POS
-                ที่ยังไม่ได้นับมือ — กรุณากรอกจำนวนแล้วกดบันทึก
+                {t('dailyCheck.supplementaryWarning', { count: supplementaryItems.length })}
               </p>
             </div>
             <div className="space-y-2">
@@ -845,7 +844,7 @@ export default function DailyCheckPage() {
                 isLoading={savingSupplementary}
                 onClick={handleSaveSupplementary}
               >
-                บันทึกรายการเพิ่มเติม
+                {t('dailyCheck.saveSupplementary')}
               </Button>
             </div>
           </CardContent>
@@ -857,7 +856,7 @@ export default function DailyCheckPage() {
         <div className="flex items-center gap-2 rounded-xl bg-indigo-50 p-4 dark:bg-indigo-900/20">
           <Loader2 className="h-4 w-4 animate-spin text-indigo-600 dark:text-indigo-400" />
           <span className="text-sm text-indigo-700 dark:text-indigo-300">
-            กำลังเปรียบเทียบอัตโนมัติ...
+            {t('dailyCheck.autoComparing')}
           </span>
         </div>
       )}
@@ -869,16 +868,16 @@ export default function DailyCheckPage() {
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
             <div className="flex-1">
               <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
-                เปรียบเทียบอัตโนมัติเรียบร้อย
+                {t('dailyCheck.autoCompareComplete')}
               </p>
               <div className="mt-1 flex flex-wrap gap-3 text-xs text-emerald-700 dark:text-emerald-400">
-                <span>ตรง {compareResult.summary?.match || 0}</span>
+                <span>{t('dailyCheck.match')} {compareResult.summary?.match || 0}</span>
                 <span>
-                  ภายในเกณฑ์ {compareResult.summary?.within_tolerance || 0}
+                  {t('dailyCheck.withinTolerance')} {compareResult.summary?.within_tolerance || 0}
                 </span>
                 {(compareResult.summary?.over_tolerance || 0) > 0 && (
                   <span className="font-medium text-red-600 dark:text-red-400">
-                    เกินเกณฑ์ {compareResult.summary?.over_tolerance}
+                    {t('dailyCheck.overTolerance')} {compareResult.summary?.over_tolerance}
                   </span>
                 )}
               </div>
@@ -886,7 +885,7 @@ export default function DailyCheckPage() {
                 href="/stock/comparison"
                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
               >
-                ดูผลเปรียบเทียบ
+                {t('dailyCheck.viewComparison')}
                 <ArrowRight className="h-3 w-3" />
               </a>
             </div>
@@ -901,10 +900,10 @@ export default function DailyCheckPage() {
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
             <div className="flex-1">
               <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                พบ {zeroQtyCount} รายการที่จำนวน = 0
+                {t('dailyCheck.zeroQtyWarning', { count: zeroQtyCount })}
               </p>
               <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
-                กรุณาตรวจสอบให้แน่ใจว่าจำนวนนับถูกต้อง
+                {t('dailyCheck.zeroQtyConfirmMsg')}
               </p>
               <div className="mt-3 flex gap-2">
                 <Button
@@ -912,10 +911,10 @@ export default function DailyCheckPage() {
                   variant="outline"
                   onClick={() => setShowZeroConfirm(false)}
                 >
-                  กลับไปแก้ไข
+                  {t('dailyCheck.goBackEdit')}
                 </Button>
                 <Button size="sm" onClick={doSave} isLoading={saving}>
-                  ยืนยันบันทึก
+                  {t('dailyCheck.confirmSave')}
                 </Button>
               </div>
             </div>
@@ -925,7 +924,7 @@ export default function DailyCheckPage() {
 
       {/* Search */}
       <Input
-        placeholder="ค้นหาสินค้า... (ชื่อ หรือ รหัส)"
+        placeholder={t('dailyCheck.searchProduct')}
         leftIcon={<Search className="h-4 w-4" />}
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
@@ -944,11 +943,11 @@ export default function DailyCheckPage() {
       {filteredProducts.length === 0 ? (
         <EmptyState
           icon={Package}
-          title="ไม่พบสินค้า"
+          title={t('dailyCheck.noProductFound')}
           description={
             searchQuery
-              ? 'ลองเปลี่ยนคำค้นหา หรือเลือกหมวดหมู่อื่น'
-              : 'ยังไม่มีสินค้าในระบบ'
+              ? t('dailyCheck.tryDifferentSearch')
+              : t('dailyCheck.noProductsInSystem')
           }
         />
       ) : (
@@ -1028,7 +1027,7 @@ export default function DailyCheckPage() {
                       )}
                     />
                     <span className="text-xs text-gray-400 dark:text-gray-500">
-                      {product.unit || 'ชิ้น'}
+                      {product.unit || t('dailyCheck.defaultUnit')}
                     </span>
                   </div>
                 </div>
@@ -1038,7 +1037,7 @@ export default function DailyCheckPage() {
                   <div className="mt-3">
                     <input
                       type="text"
-                      placeholder="หมายเหตุ (ถ้ามี)..."
+                      placeholder={t('dailyCheck.notesPlaceholder')}
                       value={entry?.notes || ''}
                       onChange={(e) =>
                         handleNotesChange(product.product_code, e.target.value)
@@ -1062,7 +1061,7 @@ export default function DailyCheckPage() {
               <span className="font-medium text-gray-900 dark:text-white">
                 {filledCount}
               </span>{' '}
-              / {products.length} รายการ
+              / {products.length} {t('dailyCheck.itemsLabel')}
               {zeroQtyCount > 0 && (
                 <span className="ml-2 text-amber-500">
                   ({zeroQtyCount} = 0)
@@ -1076,7 +1075,7 @@ export default function DailyCheckPage() {
                 icon={<RotateCcw className="h-4 w-4" />}
                 onClick={handleReset}
               >
-                รีเซ็ต
+                {t('dailyCheck.reset')}
               </Button>
               <Button
                 size="sm"
@@ -1084,7 +1083,7 @@ export default function DailyCheckPage() {
                 isLoading={saving || comparing}
                 onClick={handleSave}
               >
-                เสร็จสิ้น ({filledCount}/{products.length})
+                {t('dailyCheck.finish', { filled: filledCount, total: products.length })}
               </Button>
             </div>
           </div>

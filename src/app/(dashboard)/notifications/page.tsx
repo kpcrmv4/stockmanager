@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useNotificationStore } from '@/stores/notification-store';
@@ -72,6 +74,7 @@ function getNotificationIcon(
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const t = useTranslations('notificationsPage');
   const { markRead, markAllRead } = useNotifications();
   const { notifications, unreadCount } = useNotificationStore();
 
@@ -99,11 +102,11 @@ export default function NotificationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            การแจ้งเตือน
+            {t('title')}
           </h1>
           {unreadCount > 0 && (
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              ยังไม่ได้อ่าน {unreadCount} รายการ
+              {t('unreadCount', { count: unreadCount })}
             </p>
           )}
         </div>
@@ -114,7 +117,7 @@ export default function NotificationsPage() {
             icon={<CheckCheck className="h-4 w-4" />}
             onClick={markAllRead}
           >
-            อ่านทั้งหมด
+            {t('markAllRead')}
           </Button>
         )}
       </div>
@@ -123,8 +126,8 @@ export default function NotificationsPage() {
       {notifications.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          title="ไม่มีการแจ้งเตือน"
-          description="การแจ้งเตือนของคุณจะปรากฏที่นี่"
+          title={t('empty')}
+          description={t('emptyDesc')}
         />
       ) : (
         <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
@@ -181,7 +184,7 @@ export default function NotificationsPage() {
                         markRead(notif.id);
                       }}
                       className="mt-1.5 shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-                      title="อ่านแล้ว"
+                      title={t('markRead')}
                     >
                       <Check className="h-4 w-4" />
                     </div>
