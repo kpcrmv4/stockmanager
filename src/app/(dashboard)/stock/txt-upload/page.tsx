@@ -934,10 +934,10 @@ export default function TxtUploadPage() {
             </p>
             <div className="overflow-x-auto rounded-lg bg-gray-50 p-3 dark:bg-gray-900/50">
               <code className="whitespace-pre text-xs text-gray-700 dark:text-gray-300">
-                {`รหัส\tชื่อสินค้า\tจำนวน\tหน่วย\tหมวด\n`}
-                {`B001\tเบียร์ช้าง\t24\tขวด\tเบียร์\n`}
-                {`W001\tไวน์แดง\t5\tขวด\tไวน์\n`}
-                {`S001\tเหล้าขาว\t0\tขวด\tสุรา`}
+                {`${t('txtUpload.codeCol')}\t${t('txtUpload.productNameCol')}\t${t('txtUpload.quantityCol')}\t${t('txtUpload.unitCol')}\t${t('txtUpload.categoryCol')}\n`}
+                {`B001\t${t('txtUpload.sampleBeer')}\t24\t${t('txtUpload.sampleBottle')}\t${t('txtUpload.sampleBeerCat')}\n`}
+                {`W001\t${t('txtUpload.sampleWine')}\t5\t${t('txtUpload.sampleBottle')}\t${t('txtUpload.sampleWineCat')}\n`}
+                {`S001\t${t('txtUpload.sampleSpirit')}\t0\t${t('txtUpload.sampleBottle')}\t${t('txtUpload.sampleSpiritCat')}`}
               </code>
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
