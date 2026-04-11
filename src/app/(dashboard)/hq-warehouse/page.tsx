@@ -19,6 +19,8 @@ import {
   AlertTriangle,
   FileText,
   Image as ImageIcon,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils/cn';
@@ -144,6 +146,13 @@ export default function HqWarehousePage() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawNotes, setWithdrawNotes] = useState('');
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
+
+  // Received tab: view mode + multi-select
+  const [receivedViewMode, setReceivedViewMode] = useState<'card' | 'table'>('card');
+  const [selectedReceivedIds, setSelectedReceivedIds] = useState<Set<string>>(new Set());
+  const [showBulkWithdrawModal, setShowBulkWithdrawModal] = useState(false);
+  const [bulkWithdrawNotes, setBulkWithdrawNotes] = useState('');
+  const [bulkWithdrawSubmitting, setBulkWithdrawSubmitting] = useState(false);
 
   // Batch Confirm Modal State (receive all items in a batch)
   const [showBatchConfirmModal, setShowBatchConfirmModal] = useState(false);
@@ -766,6 +775,120 @@ export default function HqWarehousePage() {
     setShowWithdrawModal(true);
   };
 
+  // ----- Multi-select helpers for received tab -----
+  const canWithdraw = user?.role === 'owner' || user?.role === 'hq';
+
+  const toggleReceivedSelection = (id: string) => {
+    setSelectedReceivedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearReceivedSelection = () => setSelectedReceivedIds(new Set());
+
+  // Selected items (derived from current filtered list to avoid stale refs)
+  const selectedReceivedItems = useMemo(
+    () => filteredReceived.filter((i) => selectedReceivedIds.has(i.id)),
+    [filteredReceived, selectedReceivedIds],
+  );
+
+  const allFilteredReceivedSelected =
+    filteredReceived.length > 0 &&
+    filteredReceived.every((i) => selectedReceivedIds.has(i.id));
+
+  const toggleSelectAllReceived = () => {
+    if (allFilteredReceivedSelected) {
+      clearReceivedSelection();
+    } else {
+      setSelectedReceivedIds(new Set(filteredReceived.map((i) => i.id)));
+    }
+  };
+
+  // Clear selection when leaving the received tab or when the filtered set changes
+  useEffect(() => {
+    if (activeTab !== 'received') clearReceivedSelection();
+  }, [activeTab]);
+
+  useEffect(() => {
+    // Drop any selected ids that no longer exist in the filtered view
+    setSelectedReceivedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const validIds = new Set(filteredReceived.map((i) => i.id));
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (validIds.has(id)) next.add(id);
+        else changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [filteredReceived]);
+
+  const openBulkWithdrawModal = () => {
+    if (selectedReceivedItems.length === 0) return;
+    setBulkWithdrawNotes('');
+    setShowBulkWithdrawModal(true);
+  };
+
+  const submitBulkWithdraw = async () => {
+    if (selectedReceivedItems.length === 0 || !user) return;
+    setBulkWithdrawSubmitting(true);
+
+    try {
+      const supabase = createClient();
+      const nowIso = new Date().toISOString();
+      const ids = selectedReceivedItems.map((i) => i.id);
+
+      const { error } = await supabase
+        .from('hq_deposits')
+        .update({
+          status: 'withdrawn',
+          withdrawn_by: user.id,
+          withdrawal_notes: bulkWithdrawNotes || null,
+          withdrawn_at: nowIso,
+        })
+        .in('id', ids);
+
+      if (error) throw error;
+
+      toast({
+        type: 'success',
+        title: t('bulkWithdrawSuccess'),
+        message: t('bulkWithdrawSuccessMsg', { count: selectedReceivedItems.length }),
+      });
+
+      // ส่ง system message ให้ทุกสาขาต้นทางที่เกี่ยวข้อง (deduped)
+      const centralId = centralStoreIds[0];
+      if (centralId) {
+        const announced = new Set<string>();
+        for (const item of selectedReceivedItems) {
+          const key = `${item.from_store_id || ''}:${item.product_name || ''}`;
+          if (announced.has(key)) continue;
+          announced.add(key);
+          notifyChatHqWithdrawal(centralId, {
+            product_name: item.product_name || 'Product',
+            customer_name: item.customer_name,
+            from_store_name: item.from_store_name,
+            withdrawn_by_name: user?.displayName || user?.username || 'HQ Staff',
+            notes: bulkWithdrawNotes || null,
+          });
+        }
+      }
+
+      setShowBulkWithdrawModal(false);
+      clearReceivedSelection();
+      await loadAllData();
+    } catch (err) {
+      console.error('Bulk withdraw error:', err);
+      toast({ type: 'error', title: t('withdrawError') });
+    } finally {
+      setBulkWithdrawSubmitting(false);
+    }
+  };
+
   const submitWithdraw = async () => {
     if (!selectedHqDeposit || !user) return;
     setWithdrawSubmitting(true);
@@ -1150,59 +1273,259 @@ export default function HqWarehousePage() {
 
             {/* Tab: Received */}
             {activeTab === 'received' && (
-              <div className="space-y-4">
+              <div className="space-y-4 pb-20">
                 <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 p-4 text-white">
                   <div className="rounded-xl bg-white/20 p-3">
                     <Package className="h-6 w-6" />
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-lg font-bold">{t('receivedHeader')}</h3>
                     <p className="text-sm text-green-100">{t('receivedHeaderDesc')}</p>
                   </div>
                 </div>
 
+                {/* Toolbar: select-all + view mode toggle */}
+                {filteredReceived.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 shadow-sm dark:bg-gray-900">
+                    {canWithdraw ? (
+                      <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={allFilteredReceivedSelected}
+                          onChange={toggleSelectAllReceived}
+                          className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-gray-600"
+                        />
+                        <span>
+                          {selectedReceivedIds.size > 0
+                            ? t('selectedCount', { count: selectedReceivedIds.size })
+                            : t('selectAll')}
+                        </span>
+                      </label>
+                    ) : (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {t('itemCount', { count: filteredReceived.length })}
+                      </span>
+                    )}
+
+                    <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-0.5 dark:bg-gray-800">
+                      <button
+                        onClick={() => setReceivedViewMode('card')}
+                        className={cn(
+                          'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition',
+                          receivedViewMode === 'card'
+                            ? 'bg-white text-orange-600 shadow-sm dark:bg-gray-700 dark:text-orange-400'
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400',
+                        )}
+                        title={t('viewModeCard')}
+                      >
+                        <LayoutGrid className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">{t('viewModeCard')}</span>
+                      </button>
+                      <button
+                        onClick={() => setReceivedViewMode('table')}
+                        className={cn(
+                          'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition',
+                          receivedViewMode === 'table'
+                            ? 'bg-white text-orange-600 shadow-sm dark:bg-gray-700 dark:text-orange-400'
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400',
+                        )}
+                        title={t('viewModeTable')}
+                      >
+                        <List className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">{t('viewModeTable')}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {filteredReceived.length === 0 ? (
                   <EmptyState message={t('noReceivedItems')} />
-                ) : (
-                  filteredReceived.map((item) => (
-                    <div key={item.id} className="rounded-xl border-l-4 border-green-500 bg-white p-4 shadow-md dark:bg-gray-900">
-                      <div className="mb-2 flex items-start justify-between">
-                        <div>
-                          <p className="font-bold text-gray-800 dark:text-gray-100">{item.product_name || t('unspecified')}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{item.customer_name || '-'}</p>
-                          <p className="mt-1 text-xs text-gray-400">
-                            {t('fromBranch', { name: item.from_store_name })}
-                            {item.deposit_code && <> &bull; {t('code', { code: item.deposit_code })}</>}
-                          </p>
+                ) : receivedViewMode === 'card' ? (
+                  filteredReceived.map((item) => {
+                    const isSelected = selectedReceivedIds.has(item.id);
+                    return (
+                      <div
+                        key={item.id}
+                        className={cn(
+                          'rounded-xl border-l-4 bg-white p-4 shadow-md transition dark:bg-gray-900',
+                          isSelected
+                            ? 'border-orange-500 ring-2 ring-orange-300 dark:ring-orange-700'
+                            : 'border-green-500',
+                        )}
+                      >
+                        <div className="mb-2 flex items-start gap-3">
+                          {canWithdraw && (
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleReceivedSelection(item.id)}
+                              className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-gray-600"
+                            />
+                          )}
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="font-bold text-gray-800 dark:text-gray-100">{item.product_name || t('unspecified')}</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">{item.customer_name || '-'}</p>
+                                <p className="mt-1 text-xs text-gray-400">
+                                  {t('fromBranch', { name: item.from_store_name })}
+                                  {item.deposit_code && <> &bull; {t('code', { code: item.deposit_code })}</>}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-lg font-bold text-green-600">{item.quantity || 1}</span>
+                                <span className="ml-1 text-sm text-gray-500">{t('bottles')}</span>
+                                <p className="mt-1 text-xs text-gray-400">
+                                  {t('receivedAt', { date: formatThaiDateTime(item.received_at) })}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <span className="text-lg font-bold text-green-600">{item.quantity || 1}</span>
-                          <span className="ml-1 text-sm text-gray-500">{t('bottles')}</span>
-                          <p className="mt-1 text-xs text-gray-400">
-                            {t('receivedAt', { date: formatThaiDateTime(item.received_at) })}
-                          </p>
+                        <div className="mt-3 flex gap-2">
+                          {canWithdraw && (
+                            <button
+                              onClick={() => openWithdrawModal(item)}
+                              className="flex-1 rounded-lg bg-gradient-to-r from-orange-500 to-amber-600 py-2 text-sm font-medium text-white shadow transition hover:from-orange-600 hover:to-amber-700"
+                            >
+                              <BoxSelect className="mr-1 inline h-4 w-4" /> {t('withdrawItem')}
+                            </button>
+                          )}
+                          {item.received_photo_url && (
+                            <button
+                              onClick={() => setViewingPhoto(item.received_photo_url)}
+                              className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"
+                            >
+                              <ImageIcon className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
-                      <div className="mt-3 flex gap-2">
-                        {(user?.role === 'owner' || user?.role === 'hq') && (
-                          <button
-                            onClick={() => openWithdrawModal(item)}
-                            className="flex-1 rounded-lg bg-gradient-to-r from-orange-500 to-amber-600 py-2 text-sm font-medium text-white shadow transition hover:from-orange-600 hover:to-amber-700"
-                          >
-                            <BoxSelect className="mr-1 inline h-4 w-4" /> {t('withdrawItem')}
-                          </button>
-                        )}
-                        {item.received_photo_url && (
-                          <button
-                            onClick={() => setViewingPhoto(item.received_photo_url)}
-                            className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"
-                          >
-                            <ImageIcon className="h-4 w-4" />
-                          </button>
-                        )}
+                    );
+                  })
+                ) : (
+                  <div className="overflow-hidden rounded-xl bg-white shadow-sm dark:bg-gray-900">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-400">
+                            {canWithdraw && (
+                              <th className="px-3 py-2.5">
+                                <input
+                                  type="checkbox"
+                                  checked={allFilteredReceivedSelected}
+                                  onChange={toggleSelectAllReceived}
+                                  className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-gray-600"
+                                />
+                              </th>
+                            )}
+                            <th className="px-3 py-2.5">{t('colProduct')}</th>
+                            <th className="px-3 py-2.5">{t('colCustomer')}</th>
+                            <th className="hidden px-3 py-2.5 md:table-cell">{t('colBranch')}</th>
+                            <th className="px-3 py-2.5 text-right">{t('colQty')}</th>
+                            <th className="hidden px-3 py-2.5 md:table-cell">{t('colReceivedAt')}</th>
+                            <th className="px-3 py-2.5 text-right">{t('colActions')}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                          {filteredReceived.map((item) => {
+                            const isSelected = selectedReceivedIds.has(item.id);
+                            return (
+                              <tr
+                                key={item.id}
+                                className={cn(
+                                  'transition-colors',
+                                  isSelected
+                                    ? 'bg-orange-50 dark:bg-orange-900/20'
+                                    : 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                                )}
+                              >
+                                {canWithdraw && (
+                                  <td className="px-3 py-2.5">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => toggleReceivedSelection(item.id)}
+                                      className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-gray-600"
+                                    />
+                                  </td>
+                                )}
+                                <td className="px-3 py-2.5">
+                                  <p className="font-medium text-gray-900 dark:text-white">{item.product_name || t('unspecified')}</p>
+                                  {item.deposit_code && (
+                                    <p className="font-mono text-[10px] text-gray-400">{item.deposit_code}</p>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2.5 text-gray-700 dark:text-gray-300">
+                                  {item.customer_name || '-'}
+                                </td>
+                                <td className="hidden px-3 py-2.5 text-gray-600 dark:text-gray-400 md:table-cell">
+                                  {item.from_store_name}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2.5 text-right font-bold text-green-600">
+                                  {item.quantity || 1} <span className="text-xs font-normal text-gray-400">{t('bottles')}</span>
+                                </td>
+                                <td className="hidden px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 md:table-cell">
+                                  {formatThaiDateTime(item.received_at)}
+                                </td>
+                                <td className="px-3 py-2.5 text-right">
+                                  <div className="inline-flex items-center gap-1">
+                                    {item.received_photo_url && (
+                                      <button
+                                        onClick={() => setViewingPhoto(item.received_photo_url)}
+                                        className="rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                                        title={t('viewAttachedPhoto')}
+                                      >
+                                        <ImageIcon className="h-4 w-4" />
+                                      </button>
+                                    )}
+                                    {canWithdraw && (
+                                      <button
+                                        onClick={() => openWithdrawModal(item)}
+                                        className="rounded-md bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 transition hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400"
+                                      >
+                                        <BoxSelect className="mr-0.5 inline h-3.5 w-3.5" />
+                                        {t('withdrawItem')}
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sticky bulk action bar when items are selected */}
+                {canWithdraw && selectedReceivedIds.size > 0 && (
+                  <div className="fixed inset-x-0 bottom-0 z-40 border-t border-orange-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm dark:border-orange-900/50 dark:bg-gray-900/95">
+                    <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+                      <div className="text-sm text-gray-600 dark:text-gray-300">
+                        <span className="font-bold text-orange-600 dark:text-orange-400">
+                          {selectedReceivedIds.size}
+                        </span>{' '}
+                        {t('itemsSelected')}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={clearReceivedSelection}
+                          className="rounded-lg bg-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
+                        >
+                          {t('clearSelection')}
+                        </button>
+                        <button
+                          onClick={openBulkWithdrawModal}
+                          className="rounded-lg bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2 text-sm font-bold text-white shadow transition hover:from-orange-600 hover:to-amber-700"
+                        >
+                          <BoxSelect className="mr-1 inline h-4 w-4" />
+                          {t('withdrawSelected', { count: selectedReceivedIds.size })}
+                        </button>
                       </div>
                     </div>
-                  ))
+                  </div>
                 )}
               </div>
             )}
@@ -1581,6 +1904,92 @@ export default function HqWarehousePage() {
                   <><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> {t('saving')}</>
                 ) : (
                   <><Check className="mr-1 inline h-4 w-4" /> {t('confirmWithdraw')}</>
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Bulk Withdraw Modal */}
+      {showBulkWithdrawModal && selectedReceivedItems.length > 0 && (
+        <Modal onClose={() => setShowBulkWithdrawModal(false)}>
+          <div className="rounded-t-2xl bg-gradient-to-r from-orange-500 to-amber-600 p-5 text-white">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-white/20 p-2">
+                <BoxSelect className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">{t('bulkWithdrawTitle')}</h2>
+                <p className="text-sm text-orange-100">
+                  {t('bulkWithdrawSubtitle', { count: selectedReceivedItems.length })}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-5">
+            <div className="mb-4 max-h-60 space-y-2 overflow-y-auto rounded-xl bg-gray-50 p-3 dark:bg-gray-800">
+              {selectedReceivedItems.map((item, idx) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                      {idx + 1}. {item.product_name || t('unspecified')}
+                    </p>
+                    <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                      {item.customer_name || '-'} &bull; {item.from_store_name}
+                    </p>
+                  </div>
+                  <span className="ml-2 shrink-0 text-sm font-bold text-gray-700 dark:text-gray-200">
+                    {item.quantity || 1} {t('bottles')}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                {t('dispenserLabel')}
+              </label>
+              <input
+                type="text"
+                readOnly
+                value={user?.displayName || user?.username || ''}
+                className="w-full rounded-xl border-2 border-gray-200 bg-gray-100 px-4 py-3 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                {t('notesOptional')}
+              </label>
+              <textarea
+                value={bulkWithdrawNotes}
+                onChange={(e) => setBulkWithdrawNotes(e.target.value)}
+                rows={2}
+                placeholder={t('notesPlaceholder')}
+                className="w-full resize-none rounded-xl border-2 border-gray-200 px-4 py-3 transition focus:border-orange-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowBulkWithdrawModal(false)}
+                className="flex-1 rounded-xl bg-gray-200 py-3 font-semibold text-gray-700 transition hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={submitBulkWithdraw}
+                disabled={bulkWithdrawSubmitting}
+                className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 py-3 font-semibold text-white shadow-lg transition hover:from-orange-600 hover:to-amber-700 disabled:opacity-50"
+              >
+                {bulkWithdrawSubmitting ? (
+                  <><Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> {t('saving')}</>
+                ) : (
+                  <><Check className="mr-1 inline h-4 w-4" /> {t('confirmBulkWithdraw', { count: selectedReceivedItems.length })}</>
                 )}
               </button>
             </div>

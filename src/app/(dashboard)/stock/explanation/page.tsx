@@ -187,7 +187,11 @@ export default function ExplanationPage() {
           storeId: currentStoreId!,
           type: 'explanation_submitted',
           title: t('explanation.notifyOwnerTitle'),
-          body: `${comparison.product_name} - ส่วนต่าง ${formatNumber(comparison.difference ?? 0)} (${formatPercent(comparison.diff_percent ?? 0)})`,
+          body: t('explanation.notifyOwnerBody', {
+            name: comparison.product_name || '',
+            diff: formatNumber(comparison.difference ?? 0),
+            percent: formatPercent(comparison.diff_percent ?? 0),
+          }),
           data: {
             comparison_id: comparisonId,
             product_name: comparison.product_name,

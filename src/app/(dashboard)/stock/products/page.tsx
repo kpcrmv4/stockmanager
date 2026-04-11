@@ -989,11 +989,10 @@ export default function ProductsPage() {
         size="sm"
       >
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          {t('products.confirmDeleteMsg')}{' '}
-          <span className="font-semibold text-gray-900 dark:text-white">
-            {deletingProduct?.product_name}
-          </span>{' '}
-          ({deletingProduct?.product_code}) ใช่หรือไม่?
+          {t('products.confirmDeleteMsg', {
+            name: deletingProduct?.product_name || '',
+            code: deletingProduct?.product_code || '',
+          })}
         </p>
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
           {t('products.softDeleteWarning')}

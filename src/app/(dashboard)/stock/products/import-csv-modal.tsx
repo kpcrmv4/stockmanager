@@ -413,7 +413,7 @@ export function ImportCSVModal({
                 {fileName}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {rows.length} รายการ
+                {t('importCsv.rowCount', { count: rows.length })}
               </p>
             </div>
           </div>
