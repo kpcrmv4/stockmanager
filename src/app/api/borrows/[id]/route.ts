@@ -15,12 +15,11 @@ import { sendBotMessage } from '@/lib/chat/bot';
 // ---------------------------------------------------------------------------
 
 interface PatchBody {
-  action: 'approve' | 'reject' | 'confirm_pos' | 'upload_photo' | 'cancel';
+  action: 'approve' | 'reject' | 'mark_received' | 'upload_photo' | 'cancel';
   lenderPhotoUrl?: string;
   reason?: string;
   side?: 'borrower' | 'lender';
   photoUrl?: string;
-  posBillUrl?: string;
   approvedItems?: { itemId: string; approvedQuantity: number }[];
 }
 
@@ -405,160 +404,120 @@ export async function PATCH(
     }
 
     // =====================================================================
-    // ACTION: confirm_pos
+    // ACTION: mark_received (borrower confirms the items were received)
     // =====================================================================
-    if (action === 'confirm_pos') {
-      const { side } = body;
-
-      if (!side || (side !== 'borrower' && side !== 'lender')) {
+    // This replaces the old "confirm_pos" flow. The borrower takes a photo
+    // of the received items and submits it — that single action completes
+    // the borrow. No POS bill or per-side POS confirmation is required.
+    if (action === 'mark_received') {
+      if (!body.photoUrl || typeof body.photoUrl !== 'string') {
         return NextResponse.json(
-          { error: 'side must be "borrower" or "lender"' },
+          { error: 'photoUrl is required' },
           { status: 400 },
         );
       }
 
+      // Accept both 'approved' and legacy 'pos_adjusting' as valid starting
+      // points so in-flight records from the old flow can still complete.
       if (borrow.status !== 'approved' && borrow.status !== 'pos_adjusting') {
         return NextResponse.json(
-          { error: 'Borrow must be approved before confirming POS' },
+          { error: 'Borrow must be approved before marking as received' },
           { status: 400 },
         );
       }
 
       const now = new Date().toISOString();
 
-      // Build update payload based on side
-      const updatePayload: Record<string, unknown> = {
-        updated_at: now,
-      };
-
-      if (side === 'borrower') {
-        if (borrow.borrower_pos_confirmed) {
-          return NextResponse.json(
-            { error: 'Borrower POS already confirmed' },
-            { status: 400 },
-          );
-        }
-        updatePayload.borrower_pos_confirmed = true;
-        updatePayload.borrower_pos_confirmed_by = user.id;
-        updatePayload.borrower_pos_confirmed_at = now;
-        if (body.posBillUrl) updatePayload.borrower_pos_bill_url = body.posBillUrl;
-      } else {
-        if (borrow.lender_pos_confirmed) {
-          return NextResponse.json(
-            { error: 'Lender POS already confirmed' },
-            { status: 400 },
-          );
-        }
-        updatePayload.lender_pos_confirmed = true;
-        updatePayload.lender_pos_confirmed_by = user.id;
-        updatePayload.lender_pos_confirmed_at = now;
-        if (body.posBillUrl) updatePayload.lender_pos_bill_url = body.posBillUrl;
-      }
-
-      // Determine if both sides will be confirmed after this update
-      const borrowerConfirmed =
-        side === 'borrower' ? true : !!borrow.borrower_pos_confirmed;
-      const lenderConfirmed =
-        side === 'lender' ? true : !!borrow.lender_pos_confirmed;
-      const bothConfirmed = borrowerConfirmed && lenderConfirmed;
-
-      if (bothConfirmed) {
-        updatePayload.status = 'completed';
-        updatePayload.completed_at = now;
-      } else if (borrow.status === 'approved') {
-        // Move to pos_adjusting once the first side confirms
-        updatePayload.status = 'pos_adjusting';
-      }
-
       const { data: updatedBorrow, error: updateError } = await serviceClient
         .from('borrows')
-        .update(updatePayload)
+        .update({
+          status: 'completed',
+          borrower_photo_url: body.photoUrl,
+          completed_at: now,
+          updated_at: now,
+        })
         .eq('id', id)
         .select('*')
         .single();
 
       if (updateError || !updatedBorrow) {
-        console.error('[Borrows] Confirm POS error:', updateError);
+        console.error('[Borrows] Mark received error:', updateError);
         return NextResponse.json(
-          { error: 'Failed to confirm POS' },
+          { error: 'Failed to mark as received' },
           { status: 500 },
         );
       }
 
-      // Fetch context
+      // Fetch context for notifications
       const ctx = await fetchBorrowContext(serviceClient, updatedBorrow);
 
-      // If both sides confirmed => completed
-      if (bothConfirmed) {
-        const flexItems = ctx.items.map((i) => ({
-          product_name: i.product_name,
-          quantity: i.quantity,
-          unit: i.unit || undefined,
-        }));
+      const flexItems = ctx.items.map((i) => ({
+        product_name: i.product_name,
+        quantity: i.quantity,
+        unit: i.unit || undefined,
+      }));
 
-        // Notify both stores (in-app + PWA push)
-        try {
-          await Promise.allSettled([
-            notifyStoreStaff({
-              storeId: updatedBorrow.from_store_id,
-              type: 'approval_request',
-              title: 'ยืมสินค้าเสร็จสมบูรณ์',
-              body: `การยืมสินค้าระหว่าง ${ctx.fromStore?.store_name || 'สาขา'} กับ ${ctx.toStore?.store_name || 'สาขา'} เสร็จสมบูรณ์แล้ว`,
-              data: { borrowId: id },
-            }),
-            notifyStoreStaff({
-              storeId: updatedBorrow.to_store_id,
-              type: 'approval_request',
-              title: 'ยืมสินค้าเสร็จสมบูรณ์',
-              body: `การยืมสินค้าระหว่าง ${ctx.fromStore?.store_name || 'สาขา'} กับ ${ctx.toStore?.store_name || 'สาขา'} เสร็จสมบูรณ์แล้ว`,
-              data: { borrowId: id },
-            }),
-          ]);
-        } catch (err) {
-          console.error('[Borrows] Failed to notify completion:', err);
-        }
+      // Notify both stores (in-app + PWA push)
+      try {
+        await Promise.allSettled([
+          notifyStoreStaff({
+            storeId: updatedBorrow.from_store_id,
+            type: 'approval_request',
+            title: 'ยืมสินค้าเสร็จสมบูรณ์',
+            body: `ยืนยันรับสินค้าจาก ${ctx.toStore?.store_name || 'สาขา'} เรียบร้อย`,
+            data: { borrowId: id },
+            excludeUserId: user.id,
+          }),
+          notifyStoreStaff({
+            storeId: updatedBorrow.to_store_id,
+            type: 'approval_request',
+            title: 'ยืมสินค้าเสร็จสมบูรณ์',
+            body: `${ctx.fromStore?.store_name || 'สาขา'} ยืนยันรับสินค้าเรียบร้อย`,
+            data: { borrowId: id },
+          }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to notify completion:', err);
+      }
 
-        // Chat bot — system message to both stores
-        try {
-          const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
-          const msg = `🎉 ยืมสินค้าเสร็จสมบูรณ์ — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nทั้งสองฝั่งยืนยันตัดสต๊อก POS แล้ว`;
+      // Chat bot — system message to both stores
+      try {
+        const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
+        const msg = `🎉 ยืมสินค้าเสร็จสมบูรณ์ — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nยืนยันรับสินค้าโดย: ${currentUserName}`;
 
-          await Promise.allSettled([
-            sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
-            sendBotMessage({ storeId: updatedBorrow.to_store_id, type: 'system', content: msg }),
-          ]);
-        } catch (err) {
-          console.error('[Borrows] Failed to send chat message (completed):', err);
-        }
+        await Promise.allSettled([
+          sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
+          sendBotMessage({ storeId: updatedBorrow.to_store_id, type: 'system', content: msg }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to send chat message (completed):', err);
+      }
 
-        // LINE push to both stores
-        try {
-          const completedFlex = borrowCompletedFlex({
-            from_store_name: ctx.fromStore?.store_name || 'Unknown',
-            to_store_name: ctx.toStore?.store_name || 'Unknown',
-            items: flexItems,
-          });
+      // LINE push to both stores
+      try {
+        const completedFlex = borrowCompletedFlex({
+          from_store_name: ctx.fromStore?.store_name || 'Unknown',
+          to_store_name: ctx.toStore?.store_name || 'Unknown',
+          items: flexItems,
+        });
 
-          await Promise.allSettled([
-            sendLineToStore(ctx.fromStore, completedFlex),
-            sendLineToStore(ctx.toStore, completedFlex),
-          ]);
-        } catch (err) {
-          console.error('[Borrows] Failed to send LINE completion:', err);
-        }
+        await Promise.allSettled([
+          sendLineToStore(ctx.fromStore, completedFlex),
+          sendLineToStore(ctx.toStore, completedFlex),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to send LINE completion:', err);
       }
 
       // Audit log
       await serviceClient.from('audit_logs').insert({
-        store_id: side === 'borrower' ? updatedBorrow.from_store_id : updatedBorrow.to_store_id,
-        action_type: 'BORROW_POS_CONFIRMED',
+        store_id: updatedBorrow.from_store_id,
+        action_type: 'BORROW_MARKED_RECEIVED',
         table_name: 'borrows',
         new_value: {
           borrow_id: id,
-          side,
-          confirmed_by: user.id,
-          confirmer_name: currentUserName,
-          both_confirmed: bothConfirmed,
+          received_by: user.id,
+          receiver_name: currentUserName,
         },
         changed_by: user.id,
       });

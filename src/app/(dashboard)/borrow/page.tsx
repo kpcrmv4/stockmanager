@@ -121,39 +121,25 @@ function getStatusConfig(t: ReturnType<typeof useTranslations>): Record<
   BorrowWithDetails['status'],
   { label: string; variant: 'warning' | 'info' | 'default' | 'success' | 'danger'; step: number }
 > {
+  // 3-step flow: ส่งคำขอ (0) → อนุมัติ (1) → เสร็จ (2)
+  // `pos_adjusting` kept for backward compat with legacy records — treated
+  // the same as `approved` in the new flow.
   return {
     pending_approval: { label: t('statusPendingApproval'), variant: 'warning', step: 0 },
-    approved: { label: t('statusApproved'), variant: 'info', step: 1 },
-    pos_adjusting: { label: t('statusPosAdjusting'), variant: 'default', step: 2 },
-    completed: { label: t('statusCompleted'), variant: 'success', step: 3 },
+    approved: { label: t('statusWaitingReceive'), variant: 'info', step: 1 },
+    pos_adjusting: { label: t('statusWaitingReceive'), variant: 'info', step: 1 },
+    completed: { label: t('statusCompleted'), variant: 'success', step: 2 },
     rejected: { label: t('statusRejected'), variant: 'danger', step: -1 },
     cancelled: { label: t('statusCancelled'), variant: 'danger', step: -1 },
   };
 }
 
-/**
- * สถานะจากมุมมองของฝั่งที่กำลังดู:
- * ถ้าฝั่งเราตัด POS แล้ว → แสดงเป็น "เสร็จสิ้น" แม้อีกฝั่งยังไม่ได้ทำ
- */
 function getVisualStatus(
   borrow: BorrowWithDetails,
-  currentStoreId: string,
+  _currentStoreId: string,
   t: ReturnType<typeof useTranslations>,
 ): { label: string; variant: 'warning' | 'info' | 'default' | 'success' | 'danger'; step: number } {
-  const isBorrowerSide = borrow.from_store_id === currentStoreId;
-  const isLenderSide = borrow.to_store_id === currentStoreId;
-  const statusConfig = getStatusConfig(t);
-
-  if (borrow.status === 'pos_adjusting' || borrow.status === 'approved') {
-    if (isBorrowerSide && borrow.borrower_pos_confirmed) {
-      return { label: t('statusOurSideDone'), variant: 'success', step: 3 };
-    }
-    if (isLenderSide && borrow.lender_pos_confirmed) {
-      return { label: t('statusOurSideDone'), variant: 'success', step: 3 };
-    }
-  }
-
-  return statusConfig[borrow.status];
+  return getStatusConfig(t)[borrow.status];
 }
 
 const EMPTY_FORM_ITEM: FormItem = { product_name: '', category: '', quantity: '', unit: '' };
@@ -169,7 +155,7 @@ function StatusProgressBar({
   status: BorrowWithDetails['status'];
   t: ReturnType<typeof useTranslations>;
 }) {
-  const steps = [t('stepSendRequest'), t('stepApprove'), t('stepPosAdjust'), t('stepComplete')];
+  const steps = [t('stepSendRequest'), t('stepApprove'), t('stepComplete')];
   const isRejected = status === 'rejected';
   const statusConfig = getStatusConfig(t);
   const currentStep = statusConfig[status].step;
@@ -675,7 +661,7 @@ function BorrowDetailSheet({
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [borrowerPhoto, setBorrowerPhoto] = useState<string | null>(borrow.borrower_photo_url);
   const [lenderPhoto, setLenderPhoto] = useState<string | null>(borrow.lender_photo_url);
-  const [posBillUrl, setPosBillUrl] = useState<string | null>(null);
+  const [receivePhoto, setReceivePhoto] = useState<string | null>(null);
   const [approvedQtys, setApprovedQtys] = useState<Record<string, number>>(
     () => Object.fromEntries(borrow.items.map((i) => [i.id, i.approved_quantity ?? i.quantity]))
   );
@@ -729,13 +715,13 @@ function BorrowDetailSheet({
     patchBorrow({ action: 'reject', reason: rejectionReason.trim() });
   };
 
-  const handleConfirmPos = (side: 'borrower' | 'lender') => {
-    if (!posBillUrl) {
-      toast({ type: 'warning', title: t('posBillRequired') });
+  const handleMarkReceived = () => {
+    if (!receivePhoto) {
+      toast({ type: 'warning', title: t('receivePhotoRequired') });
       return;
     }
-    toast({ type: 'success', title: t('posConfirmSuccess') });
-    patchBorrow({ action: 'confirm_pos', side, posBillUrl });
+    toast({ type: 'success', title: t('markReceivedSuccess') });
+    patchBorrow({ action: 'mark_received', photoUrl: receivePhoto });
   };
 
   const handleCancel = () => {
@@ -893,19 +879,12 @@ function BorrowDetailSheet({
               {t('photos')}
             </h3>
 
-            {/* Borrower photo */}
+            {/* Borrower photo — read-only display (upload handled by mark_received action section) */}
             <div>
               <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
                 {t('borrowerSide')}
               </p>
-              {isBorrowerSide && (borrow.status === 'approved' || borrow.status === 'pos_adjusting') ? (
-                <PhotoUpload
-                  value={borrowerPhoto}
-                  onChange={(url) => handlePhotoUpload('borrower', url)}
-                  folder="borrows"
-                  compact
-                />
-              ) : borrowerPhoto ? (
+              {borrowerPhoto ? (
                 <img
                   src={borrowerPhoto}
                   alt={t('borrowerPhoto')}
@@ -919,12 +898,12 @@ function BorrowDetailSheet({
               )}
             </div>
 
-            {/* Lender photo */}
+            {/* Lender photo — lender can upload while pending_approval */}
             <div>
               <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
                 {t('lenderSide')}
               </p>
-              {isLenderSide && (borrow.status === 'pending_approval' || borrow.status === 'approved' || borrow.status === 'pos_adjusting') ? (
+              {isLenderSide && borrow.status === 'pending_approval' ? (
                 <PhotoUpload
                   value={lenderPhoto}
                   onChange={(url) => handlePhotoUpload('lender', url)}
@@ -988,26 +967,6 @@ function BorrowDetailSheet({
                   {formatThaiDateTime(borrow.completed_at)}
                 </p>
               )}
-              <div className="mt-2 space-y-1 text-xs text-emerald-600 dark:text-emerald-400">
-                <div className="flex items-center gap-1.5">
-                  <Check className="h-3 w-3" />
-                  {t('borrowerPosConfirmed')}
-                  {borrow.borrower_pos_confirmed_at && (
-                    <span className="text-emerald-400">
-                      ({formatThaiDateTime(borrow.borrower_pos_confirmed_at)})
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Check className="h-3 w-3" />
-                  {t('lenderPosConfirmed')}
-                  {borrow.lender_pos_confirmed_at && (
-                    <span className="text-emerald-400">
-                      ({formatThaiDateTime(borrow.lender_pos_confirmed_at)})
-                    </span>
-                  )}
-                </div>
-              </div>
             </div>
           )}
 
@@ -1120,68 +1079,40 @@ function BorrowDetailSheet({
             </div>
           )}
 
-          {/* POS confirm — each side uploads POS bill + confirms */}
+          {/* Approved — borrower confirms receipt with a photo */}
           {(borrow.status === 'approved' || borrow.status === 'pos_adjusting') && (
             <div className="space-y-4">
-              {/* ฝั่งผู้ให้ยืม (lender) */}
-              {isLenderSide && (
+              {/* ฝั่งผู้ยืม (borrower) — ถ่ายรูปสินค้าที่ได้รับ + กดยืนยัน = เสร็จ */}
+              {isBorrowerSide && (
                 <div className="space-y-3">
-                  {borrow.lender_pos_confirmed ? (
-                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
-                      <CheckCircle2 className="h-4 w-4" />
-                      {t('lenderPosConfirmedMsg', { store: borrow.to_store_name || '' })}
-                    </div>
-                  ) : (
-                    <>
-                      <PhotoUpload
-                        value={posBillUrl}
-                        onChange={setPosBillUrl}
-                        folder="borrows/pos-bills"
-                        label={t('posBillLender')}
-                        compact
-                      />
-                      <Button
-                        className="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 dark:bg-purple-500 dark:hover:bg-purple-600"
-                        icon={<Check className="h-4 w-4" />}
-                        onClick={() => handleConfirmPos('lender')}
-                        isLoading={isActing}
-                        disabled={!posBillUrl}
-                      >
-                        {t('confirmPosLender')}
-                      </Button>
-                    </>
-                  )}
+                  <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
+                    <Camera className="h-4 w-4 shrink-0" />
+                    <span>{t('receivePhotoDesc')}</span>
+                  </div>
+                  <PhotoUpload
+                    value={receivePhoto}
+                    onChange={setReceivePhoto}
+                    folder="borrows/received"
+                    label={t('receivePhotoLabel')}
+                    compact
+                  />
+                  <Button
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+                    icon={<CheckCircle2 className="h-4 w-4" />}
+                    onClick={handleMarkReceived}
+                    isLoading={isActing}
+                    disabled={!receivePhoto}
+                  >
+                    {t('markAsReceived')}
+                  </Button>
                 </div>
               )}
 
-              {/* ฝั่งผู้ยืม (borrower) */}
-              {isBorrowerSide && (
-                <div className="space-y-3">
-                  {borrow.borrower_pos_confirmed ? (
-                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
-                      <CheckCircle2 className="h-4 w-4" />
-                      {t('borrowerPosConfirmedMsg', { store: borrow.from_store_name || '' })}
-                    </div>
-                  ) : (
-                    <>
-                      <PhotoUpload
-                        value={posBillUrl}
-                        onChange={setPosBillUrl}
-                        folder="borrows/pos-bills"
-                        label={t('posBillBorrower')}
-                        compact
-                      />
-                      <Button
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 dark:bg-indigo-500 dark:hover:bg-indigo-600"
-                        icon={<Check className="h-4 w-4" />}
-                        onClick={() => handleConfirmPos('borrower')}
-                        isLoading={isActing}
-                        disabled={!posBillUrl}
-                      >
-                        {t('confirmPosBorrower')}
-                      </Button>
-                    </>
-                  )}
+              {/* ฝั่งผู้ให้ยืม (lender) — รอ borrower ยืนยันรับ */}
+              {isLenderSide && (
+                <div className="flex items-center gap-2 rounded-lg bg-indigo-50 p-3 text-sm text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400">
+                  <Clock className="h-4 w-4 shrink-0" />
+                  <span>{t('waitingBorrowerReceive', { store: borrow.from_store_name || '' })}</span>
                 </div>
               )}
             </div>
@@ -1328,49 +1259,27 @@ export default function BorrowPage() {
   // -----------------------------------------------------------------------
 
   const pendingCount = borrows.filter((b) => b.status === 'pending_approval').length;
-  const isOurSidePending = (b: BorrowWithDetails) => {
-    if (activeTab === 'outgoing') return !b.borrower_pos_confirmed;
-    return !b.lender_pos_confirmed;
-  };
-  const posWaitingCount = borrows.filter((b) =>
-    (b.status === 'approved' || b.status === 'pos_adjusting') && isOurSidePending(b)
-  ).length;
+  const isWaitingReceive = (b: BorrowWithDetails) =>
+    b.status === 'approved' || b.status === 'pos_adjusting';
+  const waitingReceiveCount = borrows.filter(isWaitingReceive).length;
 
   const currentStoreName =
     stores.find((s) => s.id === currentStoreId)?.store_name || '';
 
-  // Sub-tab definitions per main tab
-  const outgoingSubTabs = [
+  // Sub-tab definitions (same for both directions in the simplified flow)
+  const subTabs = [
     { key: 'all', label: t('subAll') },
     { key: 'pending_approval', label: t('subPendingApproval') },
-    { key: 'pos_waiting', label: t('subPosWaiting') },
+    { key: 'waiting_receive', label: t('subWaitingReceive') },
     { key: 'completed', label: t('subCompleted') },
     { key: 'cancelled_rejected', label: t('subCancelled') },
   ];
-  const incomingSubTabs = [
-    { key: 'all', label: t('subAll') },
-    { key: 'pending_approval', label: t('subPendingApproval') },
-    { key: 'pos_waiting', label: t('subPosWaiting') },
-    { key: 'completed', label: t('subCompletedIncoming') },
-    { key: 'cancelled_rejected', label: t('subCancelled') },
-  ];
-  const subTabs = activeTab === 'outgoing' ? outgoingSubTabs : incomingSubTabs;
-
-  // Helper: check if our side has completed POS
-  const isOurSideDone = (b: BorrowWithDetails) => {
-    if (activeTab === 'outgoing') return b.borrower_pos_confirmed;
-    return b.lender_pos_confirmed;
-  };
 
   const filteredBorrows = borrows.filter((b) => {
     if (statusFilter === 'all') return true;
     if (statusFilter === 'cancelled_rejected') return b.status === 'cancelled' || b.status === 'rejected';
-    if (statusFilter === 'pos_waiting') {
-      return (b.status === 'approved' || b.status === 'pos_adjusting') && !isOurSideDone(b);
-    }
-    if (statusFilter === 'completed') {
-      return b.status === 'completed' || ((b.status === 'approved' || b.status === 'pos_adjusting') && isOurSideDone(b));
-    }
+    if (statusFilter === 'waiting_receive') return isWaitingReceive(b);
+    if (statusFilter === 'completed') return b.status === 'completed';
     return b.status === statusFilter;
   });
 
@@ -1420,10 +1329,10 @@ export default function BorrowPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {posWaitingCount}
+                {waitingReceiveCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {t('posWaitingCount')}
+                {t('waitingReceiveCount')}
               </p>
             </div>
           </div>
@@ -1469,15 +1378,14 @@ export default function BorrowPage() {
       {/* ----------------------------------------------------------------- */}
       <div className="flex gap-2 overflow-x-auto">
         {subTabs.map((st) => {
-          const ourDone = (b: BorrowWithDetails) => activeTab === 'outgoing' ? b.borrower_pos_confirmed : b.lender_pos_confirmed;
           const count = st.key === 'all'
             ? borrows.length
             : st.key === 'cancelled_rejected'
               ? borrows.filter((b) => b.status === 'cancelled' || b.status === 'rejected').length
-              : st.key === 'pos_waiting'
-                ? borrows.filter((b) => (b.status === 'approved' || b.status === 'pos_adjusting') && !ourDone(b)).length
+              : st.key === 'waiting_receive'
+                ? borrows.filter(isWaitingReceive).length
                 : st.key === 'completed'
-                  ? borrows.filter((b) => b.status === 'completed' || ((b.status === 'approved' || b.status === 'pos_adjusting') && ourDone(b))).length
+                  ? borrows.filter((b) => b.status === 'completed').length
                   : borrows.filter((b) => b.status === st.key).length;
           return (
             <button
