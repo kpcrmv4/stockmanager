@@ -830,9 +830,19 @@ export default function StoreDetailSettingsPage() {
               />
             </button>
           </div>
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
-            <p className="text-xs text-blue-700 dark:text-blue-400">
-              <strong>{t('storeDetail.lineGroupIdHowTo')}</strong>
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+            <p className="mb-2 text-xs font-semibold text-blue-800 dark:text-blue-300">
+              {t('storeDetail.lineGroupHowToTitle')}
+            </p>
+            <ol className="list-decimal space-y-1.5 pl-4 text-xs text-blue-700 dark:text-blue-400">
+              <li>{t('storeDetail.lineGroupHowToStep1')}</li>
+              <li>{t('storeDetail.lineGroupHowToStep2')}</li>
+              <li>{t('storeDetail.lineGroupHowToStep3')}</li>
+              <li>{t('storeDetail.lineGroupHowToStep4')}</li>
+              <li>{t('storeDetail.lineGroupHowToStep5')}</li>
+            </ol>
+            <p className="mt-2 text-[11px] italic text-blue-600 dark:text-blue-500">
+              {t('storeDetail.lineGroupHowToNote')}
             </p>
           </div>
         </CardContent>
