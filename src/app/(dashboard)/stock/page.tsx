@@ -864,7 +864,7 @@ export default function StockOverviewPage() {
                           <>
                             {' · '}
                             <span className="text-red-600 dark:text-red-400">
-                              {t('pendingExplanation', { count: store.pendingCount })}
+                              {t('pendingExplanationCount', { count: store.pendingCount })}
                             </span>
                           </>
                         )}
