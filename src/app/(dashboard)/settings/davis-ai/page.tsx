@@ -344,25 +344,101 @@ export default function DavisAiSettingsPage() {
           title={t('keywordsTitle')}
           description={t('keywordsDesc')}
         />
-        <CardContent>
-          <ul className="space-y-2">
-            <li className="flex items-start gap-2 text-xs">
-              <code className="shrink-0 rounded bg-indigo-100 px-2 py-0.5 font-mono text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+        <CardContent className="space-y-5">
+          {/* Category 1: Deposit code lookup */}
+          <div>
+            <p className="mb-2 text-xs font-semibold text-gray-900 dark:text-white">
+              {t('keywordGroupDepCodeTitle')}
+            </p>
+            <p className="mb-2 text-[11px] text-gray-500 dark:text-gray-400">
+              {t('keywordDep')}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              <code className="rounded bg-indigo-100 px-2 py-0.5 font-mono text-xs text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
                 DEP-xxxxx
               </code>
-              <span className="text-gray-700 dark:text-gray-300">
-                {t('keywordDep')}
-              </span>
-            </li>
-            <li className="flex items-start gap-2 text-xs">
-              <code className="shrink-0 rounded bg-indigo-100 px-2 py-0.5 font-mono text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
-                ฝากเหล้า
-              </code>
-              <span className="text-gray-700 dark:text-gray-300">
-                {t('keywordDeposit')}
-              </span>
-            </li>
-          </ul>
+            </div>
+          </div>
+
+          {/* Category 2: Deposit system entry */}
+          <div>
+            <p className="mb-2 text-xs font-semibold text-gray-900 dark:text-white">
+              {t('keywordGroupDepositTitle')}
+            </p>
+            <p className="mb-2 text-[11px] text-gray-500 dark:text-gray-400">
+              {t('keywordDeposit')}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                'ฝากเหล้า',
+                'ระบบฝาก',
+                'ของฝาก',
+                'เหล้าฝาก',
+                'เช็คเหล้า',
+                'ดูเหล้า',
+                'ดูของฝาก',
+                'เหล้า',
+                'เมนู',
+                'ช่วยเหลือ',
+                'เริ่ม',
+                'สวัสดี',
+                'deposit',
+                'menu',
+                'start',
+                'help',
+                'hi',
+                'hello',
+                '?',
+                '/menu',
+                '/start',
+                '/help',
+                '/deposit',
+              ].map((kw) => (
+                <code
+                  key={kw}
+                  className="rounded bg-emerald-100 px-2 py-0.5 font-mono text-xs text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                >
+                  {kw}
+                </code>
+              ))}
+            </div>
+          </div>
+
+          {/* Category 3: Group ID (in LINE group only) */}
+          <div>
+            <p className="mb-2 text-xs font-semibold text-gray-900 dark:text-white">
+              {t('keywordGroupGroupIdTitle')}
+            </p>
+            <p className="mb-2 text-[11px] text-gray-500 dark:text-gray-400">
+              {t('keywordGroupGroupIdDesc')}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                'groupid',
+                'group id',
+                '/groupid',
+                '/group id',
+                'id กลุ่ม',
+                'กลุ่ม id',
+                'ขอ group id',
+                'ขอ id กลุ่ม',
+              ].map((kw) => (
+                <code
+                  key={kw}
+                  className="rounded bg-violet-100 px-2 py-0.5 font-mono text-xs text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                >
+                  {kw}
+                </code>
+              ))}
+            </div>
+          </div>
+
+          {/* Note */}
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+            <p className="text-[11px] text-blue-700 dark:text-blue-400">
+              {t('keywordGroupNote')}
+            </p>
+          </div>
         </CardContent>
       </Card>
 

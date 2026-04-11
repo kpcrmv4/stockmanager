@@ -1857,6 +1857,11 @@
       "keywordsDesc": "When a customer sends one of these in any branch's LINE OA, the bot replies automatically",
       "keywordDep": "Look up a request by its ID, e.g. DEP-001234",
       "keywordDeposit": "Open the LIFF for depositing / viewing stored bottles",
+      "keywordGroupDepCodeTitle": "Check deposit status (by code)",
+      "keywordGroupDepositTitle": "Open deposit system (LIFF)",
+      "keywordGroupGroupIdTitle": "Get Group ID (LINE groups only)",
+      "keywordGroupGroupIdDesc": "Invite the bot into a staff LINE group and type any of these commands — it will reply with the Group ID to paste into the branch settings",
+      "keywordGroupNote": "All commands are case-insensitive, ignore leading/trailing whitespace, and customers don't need to memorize them all — any single keyword will open the system",
       "copy": "Copy",
       "copied": "Copied",
       "saveButton": "Save settings"
