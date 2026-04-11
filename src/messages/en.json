@@ -2657,7 +2657,13 @@
       "subtitle": "Review and approve stock discrepancy explanations",
       "title": "Stock Approval",
       "unspecified": "Unspecified",
-      "willShowHere": "will appear here"
+      "willShowHere": "will appear here",
+      "batchApproveSuccessMsg": "Approved {count} items",
+      "batchRejectSuccessMsg": "Rejected {count} items",
+      "batchRejectNotifyBody": "{count} explanations were rejected",
+      "selectAll": "Select all ({count})",
+      "selectedCount": "Selected {count}",
+      "approveAll": "Approve all ({count})"
     },
     "banner": {
       "countComplete": "Stock count completed",
@@ -2705,7 +2711,11 @@
       "times": "times",
       "title": "Comparison Results",
       "trendTitle": "Comparison Trend",
-      "withinTolerance": "Within tolerance"
+      "withinTolerance": "Within tolerance",
+      "productViewDesc": "Products with discrepancies in {range}",
+      "showingProducts": "Showing {count} items",
+      "historyTitle": "History: {name}",
+      "detailTitle": "Details — {date}"
     },
     "dailyCheck": {
       "allCategories": "All Categories",
@@ -2745,7 +2755,17 @@
       "waitingPosMsg": "Waiting for POS data upload",
       "waitingPosTitle": "Waiting for POS",
       "withinTolerance": "Within tolerance",
-      "zeroQtyConfirmMsg": "Some items have 0 quantity. Confirm save?"
+      "zeroQtyConfirmMsg": "Some items have 0 quantity. Confirm save?",
+      "saveCountMsg": "Saved {count} items",
+      "autoCompareMsg": "Match {match} items, over tolerance {overTolerance} items",
+      "unfilledCount": "{count} items are not yet filled",
+      "unfilledSupplementary": "{count} supplementary items are not yet filled",
+      "saveSupplementaryMsg": "Saved {count} supplementary items",
+      "countedProgress": "Counted {filled}/{total} items",
+      "supplementaryTitle": "Supplementary Items ({count})",
+      "supplementaryWarning": "Found {count} items from POS that staff haven't counted yet — please count",
+      "zeroQtyWarning": "{count} items have 0 quantity",
+      "finish": "Save {filled}/{total}"
     },
     "explanation": {
       "allExplained": "All items explained",
@@ -2776,7 +2796,11 @@
       "subtitle": "Explain discrepancies over tolerance",
       "title": "Explain Discrepancies",
       "unspecified": "Unspecified",
-      "willShowHere": "will appear here"
+      "willShowHere": "will appear here",
+      "batchSaveSuccessMsg": "Submitted {count} explanations",
+      "notifyOwnerBatchBody": "{count} new explanations submitted",
+      "notifyOwnerBody": "{name} - diff {diff} ({percent})",
+      "submitAll": "Submit all ({count})"
     },
     "products": {
       "actionsCol": "Actions",
@@ -2796,7 +2820,7 @@
       "codeLabel": "Product Code",
       "codePlaceholder": "e.g. WH001",
       "confirmDelete": "Confirm Delete",
-      "confirmDeleteMsg": "Delete this product?",
+      "confirmDeleteMsg": "Are you sure you want to delete {name} ({code})?",
       "countActiveDesc": "Included in daily count",
       "countExcludedDesc": "Excluded from count",
       "countStatus": "Count Status",
@@ -2933,7 +2957,22 @@
       "sampleBottle": "bottle",
       "sampleBeerCat": "Beer",
       "sampleWineCat": "Wine",
-      "sampleSpiritCat": "Spirit"
+      "sampleSpiritCat": "Spirit",
+      "saveSuccessMsg": "Saved {count} items",
+      "autoCompareSuccessMsg": "Match {match} items, over tolerance {overTolerance} items",
+      "missingManualItemsMsg": "{count} items are in POS but not yet counted by staff",
+      "noNameWarning": "Found {count} items without product name",
+      "noUnitWarning": "Found {count} items without unit",
+      "duplicateWarningDetail": "A POS upload for {date} already exists — saving will overwrite existing data",
+      "duplicatePreviewDetail": "POS data for {date} already exists — saving will overwrite existing data",
+      "overwriteConfirmDetail": "Confirm overwriting POS data for {date}?",
+      "fileItemCount": "{count} items — {date}",
+      "fileImported": "{file} — {date}",
+      "newAddedDetail": "Added {count} new products",
+      "deactivatedDetail": "Deactivated {count} existing products (no longer in POS)",
+      "reactivatedDetail": "Reactivated {count} products (returned to POS)",
+      "foundMissingItems": "Found {count} items in POS but",
+      "stepPreviewDesc": "Review data before saving — {date}"
     },
     "importCsv": {
       "title": "Import Products from CSV",
@@ -2972,7 +3011,8 @@
       "close": "Close",
       "selectNewFile": "Select New File",
       "importing": "Importing...",
-      "importCount": "Import {count} items"
+      "importCount": "Import {count} items",
+      "rowCount": "{count} items"
     },
     "noStoreTitle": "No stores in the system",
     "noStoreDesc": "Please create a store first to start using the stock count system",
@@ -3004,6 +3044,22 @@
     "crossStoreTitle": "Cross-Store Comparison — Stock",
     "storesCount": "{count} stores",
     "matchLabel": "Match",
-    "pendingExplanation": "Pending {count}"
+    "pendingExplanation": "Pending {count}",
+    "errorOccurred": "Error",
+    "errorLoadOverview": "Cannot load overview data",
+    "totalProducts": "Total Products",
+    "lastStockCheck": "Last Count",
+    "neverCounted": "Never counted",
+    "pendingApproval": "Pending Approval",
+    "countStock": "Count Stock",
+    "dailyStockCount": "Daily Stock Count",
+    "importFromTxt": "Import from .txt file",
+    "viewComparison": "View Comparison",
+    "posVsManual": "POS vs Actual",
+    "explainDiscrepancy": "Explain Discrepancy",
+    "explainDiscrepancyDesc": "Explain items over tolerance",
+    "approve": "Approve",
+    "approveDesc": "Review and approve explanations",
+    "statusApproved": "Approved"
   }
 }
