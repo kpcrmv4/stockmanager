@@ -2209,7 +2209,79 @@
     "error": "Error",
     "createFailed": "Could not create user",
     "createSuccess": "User created successfully",
-    "networkError": "Cannot connect to server"
+    "networkError": "Cannot connect to server",
+    "managePermissions": "Manage permissions"
+  },
+  "permissions": {
+    "title": "Individual Permissions",
+    "subtitle": "Grant extra permissions to {user}",
+    "back": "Back to users",
+    "notFound": "User not found",
+    "disabled": "Disabled",
+    "listTitle": "Permission list",
+    "listSubtitle": "Select permissions to grant in addition to those from the user's role",
+    "fromRole": "From role",
+    "granted": "Granted",
+    "infoLine1": "Permissions already granted by the user's role cannot be revoked here.",
+    "infoLine2": "Individual permissions let users access additional modules without changing their role.",
+    "ownerNote": "Owner already has all permissions — no need to grant extras.",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saveSuccess": "Permissions saved",
+    "saveFailed": "Save failed",
+    "networkError": "Cannot connect to server",
+    "unsavedChanges": "You have unsaved changes",
+    "noChanges": "No changes",
+    "perm": {
+      "can_count_stock": {
+        "label": "Count stock",
+        "description": "Record and count product stock"
+      },
+      "can_manage_deposit": {
+        "label": "Manage deposits",
+        "description": "Create and manage liquor deposits"
+      },
+      "can_approve_deposit": {
+        "label": "Approve deposits",
+        "description": "Confirm receipt and approve deposits from the bar"
+      },
+      "can_approve_stock": {
+        "label": "Approve stock results",
+        "description": "Approve or reject stock comparison results"
+      },
+      "can_manage_users": {
+        "label": "Manage users",
+        "description": "Add, remove, and edit staff information"
+      },
+      "can_view_reports": {
+        "label": "View reports",
+        "description": "Access reports and performance analytics"
+      },
+      "can_manage_settings": {
+        "label": "Manage settings",
+        "description": "Edit store settings, announcements, and system config"
+      },
+      "can_transfer": {
+        "label": "Transfer items",
+        "description": "Create and confirm inter-store transfers"
+      },
+      "can_view_own_deposits": {
+        "label": "View own deposits",
+        "description": "For customers to view their own deposits"
+      },
+      "can_request_withdrawal": {
+        "label": "Request withdrawal",
+        "description": "For customers to request withdrawals from the store"
+      },
+      "can_borrow": {
+        "label": "Borrow items",
+        "description": "Request to borrow items from another store"
+      },
+      "can_manage_commission": {
+        "label": "Manage commission",
+        "description": "Record and pay AE commissions"
+      }
+    }
   },
   "reports": {
     "title": "Reports",

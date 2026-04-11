@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils/cn';
 import { getModuleColors } from '@/lib/utils/module-colors';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { getModulesForRole } from '@/lib/modules/registry';
+import { getAccessibleModules } from '@/lib/modules/registry';
 import { StoreSwitcher } from './store-switcher';
 import { LanguageSwitcher } from './language-switcher';
 import type { Store } from '@/types/database';
@@ -73,7 +73,12 @@ export function Sidebar({ stores }: SidebarProps) {
   const { user, logout } = useAuthStore();
   const { sidebarOpen, toggleSidebar, theme, toggleTheme } = useAppStore();
 
-  const modules = useMemo(() => (user ? getModulesForRole(user.role) : []), [user?.role]);
+  // เห็นโมดูลตาม role + permission ส่วนตัวที่ได้รับเพิ่ม
+  const modules = useMemo(
+    () => (user ? getAccessibleModules(user) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user?.role, user?.permissions?.join(',')]
+  );
   const collapsed = !sidebarOpen;
 
   // จัดกลุ่มเมนูตาม group
