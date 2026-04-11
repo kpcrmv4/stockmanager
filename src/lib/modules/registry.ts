@@ -1,4 +1,5 @@
 import type { UserRole, Permission } from '@/types/roles';
+import type { AuthUser } from '@/lib/auth/permissions';
 
 export interface ModuleConfig {
   id: string;
@@ -226,4 +227,22 @@ export const modules: ModuleConfig[] = [
 
 export function getModulesForRole(role: UserRole): ModuleConfig[] {
   return modules.filter((m) => m.roles.includes(role));
+}
+
+/**
+ * คืนโมดูลทั้งหมดที่ผู้ใช้คนนี้เข้าถึงได้ โดยรวม:
+ * 1. Role-based access: ถ้า user.role อยู่ใน module.roles
+ * 2. Individual permission override: ถ้า module.permission ถูกประกาศไว้
+ *    และผู้ใช้ได้รับ permission นั้นแบบรายบุคคล (user.permissions)
+ *
+ * Owner (role มี '*' wildcard) เห็นทุกโมดูลอยู่แล้วผ่าน role check
+ */
+export function getAccessibleModules(user: AuthUser): ModuleConfig[] {
+  return modules.filter((m) => {
+    // 1) role-based access — พฤติกรรมเดิม
+    if (m.roles.includes(user.role)) return true;
+    // 2) individual permission unlock — ต้องประกาศ permission ไว้
+    if (m.permission && user.permissions.includes(m.permission)) return true;
+    return false;
+  });
 }

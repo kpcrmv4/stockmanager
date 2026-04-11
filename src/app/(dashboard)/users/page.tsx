@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
@@ -236,6 +237,15 @@ export default function UsersPage() {
                 {/* Actions */}
                 {u.id !== currentUser?.id && (
                   <div className="flex items-center gap-2">
+                    {u.role !== 'owner' && u.role !== 'customer' && (
+                      <Link
+                        href={`/users/${u.id}/permissions`}
+                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400"
+                        title={t('managePermissions')}
+                      >
+                        <Shield className="h-4 w-4" />
+                      </Link>
+                    )}
                     <button
                       onClick={() => toggleUserActive(u.id, u.active)}
                       className={cn(
