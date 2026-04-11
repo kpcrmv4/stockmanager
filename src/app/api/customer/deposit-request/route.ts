@@ -131,11 +131,13 @@ export async function POST(request: NextRequest) {
           store?.store_name || '',
         ),
       );
-      await pushToStaffGroup(
-        store.deposit_notify_group_id,
-        [flexMsg],
-        store?.line_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-      );
+      if (store?.line_token) {
+        await pushToStaffGroup(
+          store.deposit_notify_group_id,
+          [flexMsg],
+          store.line_token,
+        );
+      }
     } catch (err) {
       console.error('[DepositRequest] Failed to notify staff via LINE:', err);
     }

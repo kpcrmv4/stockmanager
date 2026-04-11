@@ -36,6 +36,10 @@ import {
   WifiOff,
   Clock,
   Monitor,
+  Smartphone,
+  Copy,
+  Check,
+  Bot,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReceiptSettings, PrintServerStatus, PrintServerWorkingHours } from '@/types/database';
@@ -49,6 +53,12 @@ interface StoreData {
   store_code: string;
   store_name: string;
   is_central: boolean;
+  /** LINE OA ของสาขา — channel access token */
+  line_token: string | null;
+  /** LINE OA ของสาขา — channel id (ไว้ resolve จาก webhook destination) */
+  line_channel_id: string | null;
+  /** LINE OA ของสาขา — channel secret (ไว้ verify signature) */
+  line_channel_secret: string | null;
   /** กลุ่มแจ้งเตือนสต๊อก (daily reminder, comparison, approval) */
   stock_notify_group_id: string | null;
   /** กลุ่มแจ้งเตือนฝาก/เบิกเหล้า (staff) */
@@ -124,11 +134,22 @@ export default function StoreDetailSettingsPage() {
   const [storeName, setStoreName] = useState('');
   const [isCentral, setIsCentral] = useState(false);
 
+  // LINE OA credentials (per-store)
+  const [lineToken, setLineToken] = useState('');
+  const [lineChannelId, setLineChannelId] = useState('');
+  const [lineChannelSecret, setLineChannelSecret] = useState('');
+  const [showLineToken, setShowLineToken] = useState(false);
+  const [showLineSecret, setShowLineSecret] = useState(false);
+
   // LINE group settings
   const [stockNotifyGroupId, setStockNotifyGroupId] = useState('');
   const [depositNotifyGroupId, setDepositNotifyGroupId] = useState('');
   const [barNotifyGroupId, setBarNotifyGroupId] = useState('');
   const [lineNotifyEnabled, setLineNotifyEnabled] = useState(true);
+
+  // Central LIFF ID (read-only — from system_settings)
+  const [centralLiffId, setCentralLiffId] = useState('');
+  const [liffLinkCopied, setLiffLinkCopied] = useState(false);
 
   // Stock settings
   const [notifyTime, setNotifyTime] = useState('09:00');
@@ -198,7 +219,7 @@ export default function StoreDetailSettingsPage() {
     // Load store info
     const { data: store } = await supabase
       .from('stores')
-      .select('id, store_code, store_name, is_central, stock_notify_group_id, deposit_notify_group_id, bar_notify_group_id')
+      .select('id, store_code, store_name, is_central, line_token, line_channel_id, line_channel_secret, stock_notify_group_id, deposit_notify_group_id, bar_notify_group_id')
       .eq('id', storeId)
       .single();
 
@@ -206,10 +227,21 @@ export default function StoreDetailSettingsPage() {
       setStoreCode(store.store_code || '');
       setStoreName(store.store_name || '');
       setIsCentral(store.is_central || false);
+      setLineToken(store.line_token || '');
+      setLineChannelId(store.line_channel_id || '');
+      setLineChannelSecret(store.line_channel_secret || '');
       setStockNotifyGroupId(store.stock_notify_group_id || '');
       setDepositNotifyGroupId(store.deposit_notify_group_id || '');
       setBarNotifyGroupId(store.bar_notify_group_id || '');
     }
+
+    // Load central LIFF ID (from system_settings)
+    const { data: sysRows } = await supabase
+      .from('system_settings')
+      .select('key, value')
+      .eq('key', 'davis_ai.liff_id')
+      .single();
+    setCentralLiffId((sysRows?.value as string) || '');
 
     // Load store settings
     const { data: settings } = await supabase
@@ -402,6 +434,9 @@ export default function StoreDetailSettingsPage() {
       .update({
         store_name: storeName.trim(),
         is_central: isCentral,
+        line_token: lineToken.trim() || null,
+        line_channel_id: lineChannelId.trim() || null,
+        line_channel_secret: lineChannelSecret.trim() || null,
         stock_notify_group_id: stockNotifyGroupId || null,
         deposit_notify_group_id: depositNotifyGroupId || null,
         bar_notify_group_id: barNotifyGroupId || null,
@@ -507,6 +542,26 @@ export default function StoreDetailSettingsPage() {
   };
 
   // ---------------------------------------------------------------------------
+  // LIFF link for this store (central LIFF + ?store={storeCode} param)
+  // ---------------------------------------------------------------------------
+
+  const storeLiffUrl =
+    centralLiffId && storeCode
+      ? `https://liff.line.me/${centralLiffId}?store=${encodeURIComponent(storeCode)}`
+      : '';
+
+  const copyLiffLink = async () => {
+    if (!storeLiffUrl) return;
+    try {
+      await navigator.clipboard.writeText(storeLiffUrl);
+      setLiffLinkCopied(true);
+      setTimeout(() => setLiffLinkCopied(false), 2000);
+    } catch {
+      toast({ type: 'error', title: t('storeDetail.copyError') });
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // Loading State
   // ---------------------------------------------------------------------------
 
@@ -593,6 +648,127 @@ export default function StoreDetailSettingsPage() {
                 }`}
               />
             </button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Section 1.5: LINE OA ของสาขา (channel credentials)                  */}
+      {/* ------------------------------------------------------------------ */}
+      <Card padding="none">
+        <CardHeader
+          title={t('storeDetail.lineOaTitle')}
+          description={t('storeDetail.lineOaDesc')}
+          action={
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 dark:bg-green-900/20">
+              <Smartphone className="h-4 w-4 text-green-600 dark:text-green-400" />
+            </div>
+          }
+        />
+        <CardContent className="space-y-4">
+          {/* Clarify: this is per-store, NOT the central DAVIS Ai config */}
+          <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 dark:border-violet-800/50 dark:bg-violet-900/20">
+            <div className="flex items-start gap-2">
+              <Bot className="mt-0.5 h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400" />
+              <div className="flex-1 text-xs text-violet-800 dark:text-violet-300">
+                <p className="font-medium">{t('storeDetail.lineOaBannerTitle')}</p>
+                <p className="mt-0.5">
+                  {t('storeDetail.lineOaBannerDesc')}{' '}
+                  <Link
+                    href="/settings/davis-ai"
+                    className="font-medium underline decoration-dotted underline-offset-2 hover:text-violet-900 dark:hover:text-violet-200"
+                  >
+                    {t('storeDetail.lineOaBannerLink')}
+                  </Link>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Channel ID */}
+          <Input
+            label={t('storeDetail.lineChannelIdLabel')}
+            value={lineChannelId}
+            onChange={(e) => setLineChannelId(e.target.value)}
+            placeholder="1234567890"
+            hint={t('storeDetail.lineChannelIdHint')}
+          />
+
+          {/* Channel Access Token (masked) */}
+          <div>
+            <Input
+              label={t('storeDetail.lineTokenLabel')}
+              type={showLineToken ? 'text' : 'password'}
+              value={lineToken}
+              onChange={(e) => setLineToken(e.target.value)}
+              placeholder={t('storeDetail.lineTokenPlaceholder')}
+              hint={t('storeDetail.lineTokenHint')}
+            />
+            <button
+              type="button"
+              onClick={() => setShowLineToken((v) => !v)}
+              className="mt-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              {showLineToken ? t('storeDetail.hide') : t('storeDetail.show')}
+            </button>
+          </div>
+
+          {/* Channel Secret (masked) */}
+          <div>
+            <Input
+              label={t('storeDetail.lineSecretLabel')}
+              type={showLineSecret ? 'text' : 'password'}
+              value={lineChannelSecret}
+              onChange={(e) => setLineChannelSecret(e.target.value)}
+              placeholder={t('storeDetail.lineSecretPlaceholder')}
+              hint={t('storeDetail.lineSecretHint')}
+            />
+            <button
+              type="button"
+              onClick={() => setShowLineSecret((v) => !v)}
+              className="mt-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              {showLineSecret ? t('storeDetail.hide') : t('storeDetail.show')}
+            </button>
+          </div>
+
+          {/* LIFF link preview (read-only) */}
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+            <p className="mb-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
+              {t('storeDetail.liffLinkLabel')}
+            </p>
+            {storeLiffUrl ? (
+              <div className="flex items-center gap-2">
+                <code className="flex-1 truncate rounded bg-white px-2 py-1.5 text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                  {storeLiffUrl}
+                </code>
+                <button
+                  type="button"
+                  onClick={copyLiffLink}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white transition-colors hover:bg-emerald-700"
+                  title={t('storeDetail.copy')}
+                >
+                  {liffLinkCopied ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                {t('storeDetail.liffLinkMissing')}{' '}
+                <Link
+                  href="/settings/davis-ai"
+                  className="font-medium underline decoration-dotted"
+                >
+                  {t('storeDetail.lineOaBannerLink')}
+                </Link>
+              </p>
+            )}
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {t('storeDetail.liffLinkHint')}
+            </p>
           </div>
         </CardContent>
       </Card>

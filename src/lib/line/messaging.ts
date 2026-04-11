@@ -1,14 +1,17 @@
 /**
  * LINE Messaging API Service
  *
- * Token Resolution (priority):
- *   1. Explicit `token` parameter -> use that token (per-branch)
- *   2. No token -> use env LINE_CHANNEL_ACCESS_TOKEN (central token)
+ * Per-store LINE OA model (after 00018 migration):
+ *   - Every store configures its own `line_token` + `line_channel_secret`
+ *     via the store settings page.
+ *   - There is NO central/env-level LINE token fallback anymore.
+ *     If a store has no token → the push/reply is skipped and logged.
+ *   - Webhook replies must use the exact token of the bot that received
+ *     the webhook (resolved from `stores.line_channel_id`).
  *
- * Push notifications:
- *   - Pass store.line_token if available -> use branch bot
- *   - If store has no line_token -> falls back to central bot automatically
- *   - Webhook reply -> must use the token from the bot that received the webhook
+ * LIFF:
+ *   - One shared LIFF id lives in `system_settings['davis_ai.liff_id']`.
+ *   - URL format for customers: https://liff.line.me/{liffId}?store={storeCode}
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
@@ -175,13 +178,25 @@ export async function pushToCustomer(
   return pushMessage(lineUserId, messages, { token: storeToken });
 }
 
+/**
+ * @deprecated No central LINE token exists anymore. Each store has its own
+ * LINE OA — pass `store.line_token` explicitly to {@link pushMessage}.
+ *
+ * Kept only for backward compatibility with old callers. If `explicitToken`
+ * is not provided, the call becomes a no-op (warns and skips).
+ */
 export async function pushViaCentralBot(
   to: string,
   messages: LineMessage[],
-  centralToken?: string,
+  explicitToken?: string,
 ) {
-  const token = centralToken || process.env.LINE_CENTRAL_TOKEN;
-  return pushMessage(to, messages, { token: token || undefined });
+  if (!explicitToken) {
+    console.warn(
+      '[LINE] pushViaCentralBot called without a token — no central bot exists. Skipping.',
+    );
+    return;
+  }
+  return pushMessage(to, messages, { token: explicitToken });
 }
 
 // ---------------------------------------------------------------------------
@@ -294,12 +309,13 @@ async function isLineNotifyEnabled(storeId: string): Promise<boolean> {
 }
 
 /**
- * Resolve the channel token for a store.
- * Uses the store's own line_token if available, otherwise falls back to the central token.
+ * Resolve the channel token for a store. Returns `null` if the store has not
+ * configured its own LINE OA yet (callers should skip/log in that case).
+ *
+ * No env fallback — every store owns its own LINE OA in the new model.
  */
 function resolveStoreToken(storeConfig: StoreLineConfig): string | null {
-  if (storeConfig.line_token) return storeConfig.line_token;
-  return process.env.LINE_CHANNEL_ACCESS_TOKEN || null;
+  return storeConfig.line_token || null;
 }
 
 // ---------------------------------------------------------------------------
@@ -546,6 +562,7 @@ export async function notifyStockEvent(params: NotifyStockEventParams): Promise<
 // ---------------------------------------------------------------------------
 
 function resolveToken(explicitToken?: string): string | null {
-  if (explicitToken) return explicitToken;
-  return process.env.LINE_CHANNEL_ACCESS_TOKEN || null;
+  // Per-store model: callers MUST pass the store's own token.
+  // No env/central fallback exists anymore.
+  return explicitToken || null;
 }

@@ -13,8 +13,12 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
-import { CustomerProvider } from './_components/customer-provider';
+import {
+  CustomerProvider,
+  useCustomerAuth,
+} from './_components/customer-provider';
 import type { LucideIcon } from 'lucide-react';
+import './customer-theme.css';
 
 interface CustomerNavItem {
   labelKey: string;
@@ -30,28 +34,63 @@ const customerNavItems: CustomerNavItem[] = [
   { labelKey: 'settings', href: '/customer/settings', icon: Settings },
 ];
 
+// ---------------------------------------------------------------------------
+// Header — glass-morphism with brand logo + store subtitle
+// ---------------------------------------------------------------------------
+function CustomerHeader() {
+  const { store } = useCustomerAuth();
+  const title = 'Bottle Keeper';
+  const subtitle = store.name || 'Stock Manager';
+
+  return (
+    <header className="customer-header-bg sticky top-0 z-40">
+      <div className="flex items-center gap-2.5 px-4 py-3">
+        <div className="customer-logo-box">
+          <Wine className="h-4 w-4" />
+        </div>
+        <div className="flex flex-col leading-tight min-w-0">
+          <h1 className="customer-brand-title truncate">{title}</h1>
+          <span className="customer-brand-subtitle truncate">{subtitle}</span>
+        </div>
+      </div>
+    </header>
+  );
+}
+
 function CustomerLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const t = useTranslations('customer.nav');
 
-  // ส่งต่อ token param ไปยัง nav links (เพื่อไม่หลุด token เมื่อกดเมนู)
+  // Preserve both ?token= and ?store= across nav so context doesn't get lost
   const token = searchParams.get('token');
-  const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+  const storeCode = searchParams.get('store');
+
+  const queryParts: string[] = [];
+  if (token) queryParts.push(`token=${encodeURIComponent(token)}`);
+  if (storeCode) queryParts.push(`store=${encodeURIComponent(storeCode)}`);
+  const navQuery = queryParts.length ? `?${queryParts.join('&')}` : '';
 
   return (
     <CustomerProvider>
-      <div className="flex min-h-screen flex-col bg-white">
-        {/* Top Header — LINE-themed green */}
-        <header className="sticky top-0 z-40 flex h-12 items-center justify-center bg-[#06C755] px-4">
-          <h1 className="text-base font-bold text-white">StockManager</h1>
-        </header>
+      <div className="customer-theme relative flex min-h-screen flex-col">
+        {/* Ambient background orbs */}
+        <div className="customer-ambient-bg" aria-hidden="true">
+          <div className="customer-ambient-orb orb-1" />
+          <div className="customer-ambient-orb orb-2" />
+          <div className="customer-ambient-orb orb-3" />
+        </div>
 
-        {/* เนื้อหาหลัก */}
-        <main className="flex-1 overflow-y-auto pb-20">{children}</main>
+        {/* Top header */}
+        <CustomerHeader />
 
-        {/* Bottom Navigation — LINE-themed */}
-        <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white safe-area-inset-bottom">
+        {/* Main content */}
+        <main className="customer-scroll relative z-[5] flex-1 overflow-y-auto pb-[72px]">
+          {children}
+        </main>
+
+        {/* Bottom navigation — glass dark theme */}
+        <nav className="customer-bottom-nav fixed inset-x-0 bottom-0 z-50 safe-area-inset-bottom">
           <ul className="flex items-center justify-around">
             {customerNavItems.map((item) => {
               const isActive =
@@ -64,17 +103,14 @@ function CustomerLayoutInner({ children }: { children: React.ReactNode }) {
               return (
                 <li key={item.href} className="flex-1">
                   <Link
-                    href={`${item.href}${tokenQuery}`}
+                    href={`${item.href}${navQuery}`}
                     className={cn(
-                      'flex min-h-[44px] flex-col items-center justify-center gap-0.5 px-1 py-2',
-                      'transition-colors duration-150',
-                      isActive ? 'text-[#06C755]' : 'text-gray-500',
+                      'customer-bottom-nav-item flex min-h-[44px] flex-col items-center justify-center gap-0.5 px-1 py-1.5',
+                      isActive && 'active',
                     )}
                   >
-                    <Icon
-                      className={cn('h-5 w-5', isActive && 'fill-current')}
-                    />
-                    <span className="text-[10px] font-medium leading-tight">
+                    <Icon className="h-[18px] w-[18px]" />
+                    <span className="text-[9px] font-semibold uppercase tracking-wide leading-tight">
                       {t(item.labelKey)}
                     </span>
                   </Link>
@@ -96,8 +132,8 @@ export default function CustomerLayout({
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-[#06C755]" />
+        <div className="customer-theme flex min-h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-[#F8D794]" />
         </div>
       }
     >

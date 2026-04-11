@@ -1277,3 +1277,206 @@ export function promotionTemplate(
     ]),
   };
 }
+
+// ---------------------------------------------------------------------------
+// (p) openDepositSystemFlex — reply when customer types "ฝากเหล้า" / "deposit"
+//
+// Mirrors the behaviour of the old GAS bot: instead of plain text, send a
+// rich card with a single primary button that launches the deposit system.
+// The button URL should be a LIFF deep link (with ?store={code}) when the
+// central LIFF ID is configured, otherwise a signed token fallback URL.
+// ---------------------------------------------------------------------------
+
+interface OpenDepositSystemParams {
+  /** Store display name to show in the card header area */
+  store_name: string;
+  /** Number of active deposits the customer has at this branch (0 = no items) */
+  active_deposit_count: number;
+  /** Customer display name (from LINE profile), optional */
+  customer_name?: string | null;
+  /** Full URL that the "Open" button should navigate to */
+  entry_url: string;
+  /** Bot display name, defaults to "DAVIS Ai" */
+  bot_name?: string;
+}
+
+export function openDepositSystemFlex(
+  params: OpenDepositSystemParams,
+): FlexMessage {
+  const {
+    store_name,
+    active_deposit_count,
+    customer_name,
+    entry_url,
+    bot_name = 'DAVIS Ai',
+  } = params;
+
+  const hasItems = active_deposit_count > 0;
+
+  // Body varies depending on whether the customer already has deposits
+  const bodyContents: Record<string, unknown>[] = [
+    textComponent(customer_name ? `สวัสดีคุณ ${customer_name}` : 'สวัสดีครับ 👋', {
+      size: 'md',
+      weight: 'bold',
+      color: COLORS.textPrimary,
+      wrap: true,
+    }),
+    textComponent(`สาขา: ${store_name}`, {
+      size: 'xs',
+      color: COLORS.textMuted,
+      margin: 'sm',
+    }),
+    separatorComponent(),
+  ];
+
+  if (hasItems) {
+    bodyContents.push(
+      textComponent('🍾 ของฝากของคุณ', {
+        size: 'sm',
+        color: COLORS.textSecondary,
+        margin: 'lg',
+        weight: 'bold',
+      }),
+      labelValueRow(
+        'รายการที่ยังอยู่',
+        `${formatNumber(active_deposit_count)} รายการ`,
+        { color: COLORS.green },
+      ),
+      textComponent('กดปุ่มด้านล่างเพื่อดูรายละเอียด / ขอเบิก', {
+        size: 'xs',
+        color: COLORS.textMuted,
+        margin: 'md',
+        wrap: true,
+      }),
+    );
+  } else {
+    bodyContents.push(
+      textComponent('ยังไม่มีของฝากที่สาขานี้', {
+        size: 'sm',
+        color: COLORS.textSecondary,
+        margin: 'lg',
+        weight: 'bold',
+      }),
+      textComponent(
+        'กดปุ่มด้านล่างเพื่อเปิดระบบฝากเหล้า — สามารถดูประวัติ, ตรวจสอบวันหมดอายุ, และขอเบิกได้จากหน้าเดียว',
+        {
+          size: 'xs',
+          color: COLORS.textMuted,
+          margin: 'md',
+          wrap: true,
+        },
+      ),
+    );
+  }
+
+  return {
+    type: 'flex',
+    altText: `เปิดระบบฝากเหล้า ${store_name}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox(`🍾 ${bot_name}`, COLORS.green),
+      body: bodyBox(bodyContents),
+      footer: footerBox([
+        {
+          type: 'button',
+          action: {
+            type: 'uri',
+            label: hasItems ? 'เปิดระบบฝากเหล้า' : 'เริ่มต้นใช้งาน',
+            uri: entry_url,
+          },
+          style: 'primary',
+          color: COLORS.green,
+          height: 'sm',
+        },
+        textComponent('พิมพ์ DEP-xxxxx เพื่อตรวจสอบรหัสฝาก', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          wrap: true,
+          align: 'center',
+          margin: 'sm',
+        }),
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.green },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// (q) groupIdFlex — reply when staff types "groupid" inside a LINE group
+//
+// Sent alongside a plain-text message containing ONLY the raw group id, so
+// the staff can long-press the text bubble to copy it directly without
+// needing a clipboard action (which LINE's Flex spec does not support).
+// ---------------------------------------------------------------------------
+
+interface GroupIdFlexParams {
+  group_id: string;
+  group_name?: string | null;
+}
+
+export function groupIdFlex(params: GroupIdFlexParams): FlexMessage {
+  const { group_id, group_name } = params;
+
+  return {
+    type: 'flex',
+    altText: `Group ID: ${group_id}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('✅ Group ID', COLORS.green),
+      body: bodyBox([
+        textComponent('นี่คือ LINE Group ID ของกลุ่มนี้', {
+          size: 'sm',
+          color: COLORS.textSecondary,
+          wrap: true,
+        }),
+        textComponent(
+          group_name ? `กลุ่ม: ${group_name}` : 'ใช้สำหรับตั้งค่าการแจ้งเตือนของสาขา',
+          {
+            size: 'xs',
+            color: COLORS.textMuted,
+            margin: 'sm',
+            wrap: true,
+          },
+        ),
+        separatorComponent(),
+        {
+          type: 'box',
+          layout: 'vertical',
+          margin: 'lg',
+          paddingAll: 'md',
+          backgroundColor: '#F5F5F5',
+          cornerRadius: '8px',
+          contents: [
+            textComponent('GROUP ID', {
+              size: 'xs',
+              color: COLORS.textMuted,
+              weight: 'bold',
+            }),
+            textComponent(group_id, {
+              size: 'sm',
+              color: COLORS.textPrimary,
+              weight: 'bold',
+              wrap: true,
+              margin: 'sm',
+            }),
+          ],
+        },
+        textComponent('📋 แตะค้างที่ข้อความด้านล่างเพื่อคัดลอก', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          margin: 'lg',
+          wrap: true,
+          align: 'center',
+        }),
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.green },
+      },
+    },
+  };
+}

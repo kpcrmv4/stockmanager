@@ -10,6 +10,15 @@ import {
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
+interface StoreContext {
+  /** store_code passed via ?store=XX (from the staff-shared LIFF URL) */
+  code: string | null;
+  /** store display name resolved from DB */
+  name: string | null;
+  /** store id resolved from DB */
+  id: string | null;
+}
+
 interface CustomerAuth {
   lineUserId: string | null;
   displayName: string | null;
@@ -18,7 +27,11 @@ interface CustomerAuth {
   mode: 'liff' | 'token' | null;
   isLoading: boolean;
   error: string | null;
+  /** Store context parsed from URL ?store= param */
+  store: StoreContext;
 }
+
+const DEFAULT_STORE: StoreContext = { code: null, name: null, id: null };
 
 const CustomerContext = createContext<CustomerAuth>({
   lineUserId: null,
@@ -27,17 +40,17 @@ const CustomerContext = createContext<CustomerAuth>({
   mode: null,
   isLoading: true,
   error: null,
+  store: DEFAULT_STORE,
 });
 
 export function useCustomerAuth() {
   return useContext(CustomerContext);
 }
 
-const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || '';
-
 export function CustomerProvider({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
+  const storeCode = searchParams.get('store');
   const t = useTranslations('customer.provider');
 
   const [auth, setAuth] = useState<CustomerAuth>({
@@ -47,6 +60,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
     mode: null,
     isLoading: true,
     error: null,
+    store: { code: storeCode, name: null, id: null },
   });
 
   useEffect(() => {
@@ -54,7 +68,41 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // -------------------------------------------------------------------------
+  // Resolve store context from ?store=CODE parameter
+  // -------------------------------------------------------------------------
+  async function resolveStoreContext(code: string | null): Promise<StoreContext> {
+    if (!code) return DEFAULT_STORE;
+    try {
+      const res = await fetch(
+        `/api/public/store-lookup?code=${encodeURIComponent(code)}`,
+      );
+      if (!res.ok) return { code, name: null, id: null };
+      const data = await res.json();
+      return { code, name: data.name || null, id: data.id || null };
+    } catch {
+      return { code, name: null, id: null };
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Fetch the central LIFF ID from system_settings
+  // -------------------------------------------------------------------------
+  async function fetchCentralLiffId(): Promise<string> {
+    try {
+      const res = await fetch('/api/system-settings/public');
+      if (!res.ok) return '';
+      const data = await res.json();
+      return (data.liff_id as string) || '';
+    } catch {
+      return '';
+    }
+  }
+
   async function initAuth() {
+    // Resolve store context in parallel with auth flow
+    const storeContextPromise = resolveStoreContext(storeCode);
+
     // -------------------------------------------------------
     // Mode 1: Token mode (จาก URL ?token=xxxx)
     // -------------------------------------------------------
@@ -69,6 +117,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
             mode: null,
             isLoading: false,
             error: t('linkExpired'),
+            store: await storeContextPromise,
           });
           return;
         }
@@ -81,6 +130,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
           mode: 'token',
           isLoading: false,
           error: null,
+          store: await storeContextPromise,
         });
         return;
       } catch {
@@ -91,19 +141,22 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
           mode: null,
           isLoading: false,
           error: t('linkError'),
+          store: await storeContextPromise,
         });
         return;
       }
     }
 
     // -------------------------------------------------------
-    // Mode 2: LIFF mode (ถ้ามี LIFF_ID)
-    //   → init LIFF → login → ส่ง accessToken ไป verify server-side
+    // Mode 2: LIFF mode — fetch central LIFF ID from DB
+    //   → init LIFF → login → verify server-side
     // -------------------------------------------------------
-    if (LIFF_ID) {
+    const liffId = await fetchCentralLiffId();
+
+    if (liffId) {
       try {
         const liff = (await import('@line/liff')).default;
-        await liff.init({ liffId: LIFF_ID });
+        await liff.init({ liffId });
 
         if (!liff.isLoggedIn()) {
           liff.login();
@@ -137,6 +190,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
           mode: 'liff',
           isLoading: false,
           error: null,
+          store: await storeContextPromise,
         });
         return;
       } catch (err) {
@@ -148,6 +202,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
           mode: null,
           isLoading: false,
           error: t('lineConnectError'),
+          store: await storeContextPromise,
         });
         return;
       }
@@ -163,6 +218,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
       mode: null,
       isLoading: false,
       error: t('openFromLine'),
+      store: await storeContextPromise,
     });
   }
 

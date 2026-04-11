@@ -11,9 +11,11 @@ import {
   claimDepositFlex,
   claimMultipleDepositsFlex,
   depositLinkedFlex,
+  groupIdFlex,
   multipleDepositsLinkedFlex,
+  openDepositSystemFlex,
 } from '@/lib/line/flex-templates';
-import { generateCustomerUrl } from '@/lib/auth/customer-token';
+import { buildCustomerEntryUrl } from '@/lib/line/customer-entry-url';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -34,6 +36,7 @@ interface LineWebhookBody {
 
 interface StoreInfo {
   id: string;
+  store_code: string;
   store_name: string;
   line_token: string;
   line_channel_secret: string | null;
@@ -70,7 +73,7 @@ function verifySignature(
 // ---------------------------------------------------------------------------
 
 const STORE_SELECT =
-  'id, store_name, line_token, line_channel_secret, deposit_notify_group_id, bar_notify_group_id, stock_notify_group_id';
+  'id, store_code, store_name, line_token, line_channel_secret, deposit_notify_group_id, bar_notify_group_id, stock_notify_group_id';
 
 async function resolveStore(
   supabase: SupabaseClient,
@@ -148,28 +151,36 @@ export async function POST(request: NextRequest) {
   const supabase = createServiceClient();
 
   // -----------------------------------------------------------------------
-  // 1. Verify webhook signature (ใช้ channel_secret ของสาขาหรือ central)
+  // 1. Verify webhook signature (ใช้ channel_secret ของสาขาเท่านั้น)
+  //
+  // Per-store model: the `destination` field is the channel_id of the store
+  // LINE OA that received the webhook. We look up the store by that id and
+  // verify using THAT store's secret. No env fallback.
   // -----------------------------------------------------------------------
-  let channelSecret = process.env.LINE_CHANNEL_SECRET || '';
-
-  // ลองหา channel_secret จากสาขาก่อน (multi-bot mode)
-  if (destination) {
-    const { data: store } = await supabase
-      .from('stores')
-      .select('line_channel_secret')
-      .eq('line_channel_id', destination)
-      .eq('active', true)
-      .single();
-
-    if (store?.line_channel_secret) {
-      channelSecret = store.line_channel_secret;
-    }
+  if (!destination) {
+    return NextResponse.json(
+      { error: 'Missing destination' },
+      { status: 400 },
+    );
   }
 
+  const { data: secretStore } = await supabase
+    .from('stores')
+    .select('line_channel_secret')
+    .eq('line_channel_id', destination)
+    .eq('active', true)
+    .single();
+
+  const channelSecret = secretStore?.line_channel_secret || '';
+
   if (!channelSecret) {
+    console.warn(
+      `[LINE] No store found for channel_id=${destination}. ` +
+        'ตั้งค่า Channel ID/Secret ใน ตั้งค่า → สาขา → [ชื่อสาขา] → LINE OA',
+    );
     return NextResponse.json(
-      { error: 'No channel secret configured' },
-      { status: 500 },
+      { error: 'Store not configured for this LINE channel' },
+      { status: 404 },
     );
   }
 
@@ -201,8 +212,11 @@ export async function POST(request: NextRequest) {
 
         // ตอบกลับเพื่อให้ admin เห็น group ID
         if (event.source.groupId) {
-          const botToken =
-            storeInfo?.line_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+          const botToken = storeInfo?.line_token || '';
+          if (!botToken) {
+            console.warn('[LINE] join event but store has no line_token — skip reply');
+            continue;
+          }
           await replyMessage(
             event.replyToken!,
             [
@@ -237,9 +251,58 @@ async function handleTextMessage(
 
   if (!userId || !event.replyToken) return;
 
-  // token สำหรับ reply (ใช้ token สาขา หรือ central bot)
-  const botToken =
-    storeInfo?.line_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+  // token สำหรับ reply — ต้องเป็น token ของสาขาเท่านั้น
+  // (webhook verify ผ่านแล้ว → storeInfo ต้องมี token เสมอ)
+  const botToken = storeInfo?.line_token || '';
+  if (!botToken) {
+    console.warn('[LINE] handleTextMessage: store has no line_token — skip reply');
+    return;
+  }
+
+  // -----------------------------------------------------------------------
+  // Pattern: "groupid" → reply with the current group id for easy copy
+  //
+  // Works only inside a LINE group. Sends two messages:
+  //   1. A Flex card with the group id in a styled box
+  //   2. A plain text bubble containing ONLY the raw id — the easiest UX
+  //      to long-press and copy inside the LINE app (Flex has no native
+  //      clipboard action).
+  // -----------------------------------------------------------------------
+  if (isGroupIdKeyword(text)) {
+    const groupId = event.source.groupId;
+    if (!groupId || event.source.type !== 'group') {
+      await replyMessage(
+        event.replyToken,
+        [
+          {
+            type: 'text',
+            text: 'ℹ️ คำสั่ง "groupid" ใช้ได้ในกลุ่ม LINE เท่านั้น\n\nกรุณาเชิญ bot เข้ากลุ่มก่อน แล้วพิมพ์ "groupid" ในกลุ่มนั้น',
+          },
+        ],
+        botToken,
+      );
+      return;
+    }
+
+    // Note: we intentionally don't pass a group_name here. storeInfo.store_name
+    // is the *store that owns this bot*, not the group's display name, which
+    // the Messaging API doesn't give us without an extra groupSummary call.
+    const flex = groupIdFlex({
+      group_id: groupId,
+      group_name: null,
+    });
+
+    await replyMessage(
+      event.replyToken,
+      [
+        flex,
+        // Plain text with ONLY the id — long-press to copy.
+        { type: 'text', text: groupId },
+      ],
+      botToken,
+    );
+    return;
+  }
 
   // -----------------------------------------------------------------------
   // Pattern: DEP-XXXXX → ค้นหารหัสฝากเหล้า + Claim Flow
@@ -247,7 +310,7 @@ async function handleTextMessage(
   if (/^DEP-/i.test(text)) {
     const query = supabase
       .from('deposits')
-      .select('*, store:stores(store_name)')
+      .select('*, store:stores(store_name, store_code)')
       .ilike('deposit_code', text);
 
     if (storeInfo) {
@@ -266,8 +329,13 @@ async function handleTextMessage(
     }
 
     const rawStore = deposit.store as unknown;
-    const storeName =
-      (Array.isArray(rawStore) ? rawStore[0]?.store_name : (rawStore as { store_name: string } | null)?.store_name) || '';
+    const storeRow =
+      (Array.isArray(rawStore)
+        ? rawStore[0]
+        : (rawStore as { store_name: string; store_code: string } | null)) ||
+      null;
+    const storeName = storeRow?.store_name || '';
+    const storeCode = storeRow?.store_code || storeInfo?.store_code || null;
 
     // Case 1: มี line_user_id แล้ว แต่ไม่ใช่คนพิมพ์ → ป้องกันคนอื่นเห็น
     if (deposit.line_user_id && deposit.line_user_id !== userId) {
@@ -297,7 +365,10 @@ async function handleTextMessage(
 
     // Case 3: มี line_user_id = ผู้พิมพ์ → ผูกแล้ว แสดงข้อมูลเดิม
     if (deposit.line_user_id === userId) {
-      const portalUrl = generateCustomerUrl(userId);
+      const portalUrl = await buildCustomerEntryUrl({
+        lineUserId: userId,
+        storeCode,
+      });
       const flex = depositLinkedFlex({
         deposit_code: deposit.deposit_code,
         product_name: deposit.product_name,
@@ -360,68 +431,39 @@ async function handleTextMessage(
   }
 
   // -----------------------------------------------------------------------
-  // Pattern: ระบบฝากเหล้า / ฝากเหล้า → ข้อมูลฝากเหล้าของลูกค้า
+  // Pattern: GAS-style keywords → Flex card with button to deposit system
+  //
+  // Mirrors the old GAS bot: any of these keywords triggers the "open deposit
+  // system" Flex card. The button opens the central LIFF (scoped via ?store=)
+  // when configured, or falls back to a signed token URL.
   // -----------------------------------------------------------------------
-  if (/ฝากเหล้า|ระบบฝาก/.test(text)) {
-    // Query deposits — ถ้ารู้สาขา filter ตามสาขา, ถ้าไม่รู้ดึงทุกสาขา
-    const query = supabase
+  if (isDepositSystemKeyword(text)) {
+    // Count the customer's active deposits at this branch (if resolvable).
+    // If no store context, count across all stores — still useful info.
+    const countQuery = supabase
       .from('deposits')
-      .select('deposit_code, product_name, remaining_qty, status, store:stores(store_name)')
+      .select('id', { count: 'exact', head: true })
       .eq('line_user_id', userId)
-      .in('status', ['in_store', 'pending_confirm'])
-      .order('created_at', { ascending: false })
-      .limit(10);
+      .in('status', ['in_store', 'pending_confirm', 'pending_withdrawal']);
 
     if (storeInfo) {
-      query.eq('store_id', storeInfo.id);
+      countQuery.eq('store_id', storeInfo.id);
     }
 
-    const { data: deposits } = await query;
+    const { count } = await countQuery;
 
-    const portalUrl = generateCustomerUrl(userId);
-    const storeName = storeInfo?.store_name || '';
+    const entryUrl = await buildCustomerEntryUrl({
+      lineUserId: userId,
+      storeCode: storeInfo?.store_code ?? null,
+    });
 
-    if (deposits && deposits.length > 0) {
-      const list = deposits
-        .map((d) => {
-          const raw = d.store as unknown;
-          const dStore =
-            (Array.isArray(raw) ? raw[0]?.store_name : (raw as { store_name: string } | null)?.store_name) || '';
-          const storeLabel = !storeInfo && dStore ? ` [${dStore}]` : '';
-          return `📦 ${d.deposit_code}${storeLabel}\n   ${d.product_name} (เหลือ ${d.remaining_qty})`;
-        })
-        .join('\n\n');
+    const flex = openDepositSystemFlex({
+      store_name: storeInfo?.store_name || 'StockManager',
+      active_deposit_count: count ?? 0,
+      entry_url: entryUrl,
+    });
 
-      const header = storeName
-        ? `🍾 ของฝากของคุณที่ ${storeName}`
-        : '🍾 ของฝากของคุณ';
-
-      await replyMessage(
-        event.replyToken,
-        [
-          {
-            type: 'text',
-            text: `${header}\n\n${list}\n\nพิมพ์รหัส DEP-xxxxx เพื่อดูรายละเอียด\n\n🔗 ดูทั้งหมด: ${portalUrl}`,
-          },
-        ],
-        botToken,
-      );
-    } else {
-      const noDepositMsg = storeName
-        ? `📋 ยังไม่มีของฝากที่ ${storeName}`
-        : '📋 ยังไม่มีของฝาก';
-
-      await replyMessage(
-        event.replyToken,
-        [
-          {
-            type: 'text',
-            text: `${noDepositMsg}\n\nติดต่อพนักงานเพื่อฝากเหล้า\n\n🔗 เปิดหน้าลูกค้า: ${portalUrl}`,
-          },
-        ],
-        botToken,
-      );
-    }
+    await replyMessage(event.replyToken, [flex], botToken);
     return;
   }
 
@@ -431,18 +473,95 @@ async function handleTextMessage(
   const storeSuffix = storeInfo
     ? `\n\n📍 สาขา: ${storeInfo.store_name}`
     : '';
-  const portalLink = generateCustomerUrl(userId);
+  const portalLink = await buildCustomerEntryUrl({
+    lineUserId: userId,
+    storeCode: storeInfo?.store_code ?? null,
+  });
 
   await replyMessage(
     event.replyToken,
     [
       {
         type: 'text',
-        text: `📋 StockManager\n\n• พิมพ์รหัสฝาก (DEP-xxxxx) เพื่อตรวจสอบสถานะ\n• พิมพ์ "ฝากเหล้า" เพื่อดูของฝากของคุณ\n\n🔗 เปิดหน้าลูกค้า: ${portalLink}${storeSuffix}`,
+        text: `📋 StockManager\n\n• พิมพ์รหัสฝาก (DEP-xxxxx) เพื่อตรวจสอบสถานะ\n• พิมพ์ "ฝากเหล้า" เพื่อเปิดระบบฝากเหล้า\n\n🔗 เปิดหน้าลูกค้า: ${portalLink}${storeSuffix}`,
       },
     ],
     botToken,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Keyword matcher — GAS-compatible trigger list
+// ---------------------------------------------------------------------------
+//
+// Mirrors the old GAS bot's keyword behaviour. Matching is case-insensitive
+// and ignores leading/trailing whitespace. The list covers:
+//   - Thai deposit/stock phrases  (ฝากเหล้า, ของฝาก, เหล้า, เช็คเหล้า, ...)
+//   - English shortcuts           (deposit, menu, start, help, hi, hello)
+//   - Symbolic shortcuts          ("?", "/menu", "/start")
+//
+// The keywords here should stay broad — it's cheaper to show the Flex card
+// one extra time than to frustrate a customer who typed a near-match.
+// ---------------------------------------------------------------------------
+
+const DEPOSIT_KEYWORD_PATTERNS: RegExp[] = [
+  // Thai — deposit system entry
+  /ฝากเหล้า/,
+  /ระบบฝาก/,
+  /ของฝาก/,
+  /เหล้าฝาก/,
+  /เช็คเหล้า/,
+  /ดูเหล้า/,
+  /ดูของฝาก/,
+  /^เหล้า$/,
+  // Thai — menu / help / greeting
+  /^เมนู$/,
+  /^ช่วย(เหลือ)?$/,
+  /^เริ่ม(ต้น)?$/,
+  /^สวัสดี(ครับ|ค่ะ)?$/,
+  // English (case-insensitive)
+  /^deposit$/i,
+  /^deposits$/i,
+  /^menu$/i,
+  /^start$/i,
+  /^help$/i,
+  /^hi$/i,
+  /^hello$/i,
+  // Symbolic
+  /^\?$/,
+  /^\/(menu|start|help|deposit)$/i,
+];
+
+function isDepositSystemKeyword(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  return DEPOSIT_KEYWORD_PATTERNS.some((re) => re.test(trimmed));
+}
+
+// ---------------------------------------------------------------------------
+// Keyword matcher — "groupid" and common variants
+// ---------------------------------------------------------------------------
+//
+// Triggers the Group ID reply. Intentionally broad: case-insensitive,
+// whitespace-tolerant, supports Thai and symbolic shortcuts. Only fires in
+// LINE groups (the handler itself checks event.source.type).
+// ---------------------------------------------------------------------------
+
+const GROUP_ID_KEYWORD_PATTERNS: RegExp[] = [
+  /^group\s*id$/i,
+  /^groupid$/i,
+  /^\/group\s*id$/i,
+  /^\/groupid$/i,
+  /^id\s*กลุ่ม$/i,
+  /^กลุ่ม\s*id$/i,
+  /^ขอ\s*group\s*id$/i,
+  /^ขอ\s*id\s*กลุ่ม$/i,
+];
+
+function isGroupIdKeyword(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  return GROUP_ID_KEYWORD_PATTERNS.some((re) => re.test(trimmed));
 }
 
 // ---------------------------------------------------------------------------
@@ -460,8 +579,11 @@ async function handlePostback(
 
   if (!event.replyToken) return;
 
-  const botToken =
-    storeInfo?.line_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+  const botToken = storeInfo?.line_token || '';
+  if (!botToken) {
+    console.warn('[LINE] handlePostback: store has no line_token — skip reply');
+    return;
+  }
 
   // -----------------------------------------------------------------------
   // Action: check_deposit
@@ -500,7 +622,7 @@ async function handlePostback(
 
     const { data: deposit } = await supabase
       .from('deposits')
-      .select('*, store:stores(store_name)')
+      .select('*, store:stores(store_name, store_code)')
       .eq('deposit_code', code)
       .single();
 
@@ -550,9 +672,17 @@ async function handlePostback(
     }
 
     const rawStore = deposit.store as unknown;
-    const storeName =
-      (Array.isArray(rawStore) ? rawStore[0]?.store_name : (rawStore as { store_name: string } | null)?.store_name) || '';
-    const portalUrl = generateCustomerUrl(userId);
+    const storeRow =
+      (Array.isArray(rawStore)
+        ? rawStore[0]
+        : (rawStore as { store_name: string; store_code: string } | null)) ||
+      null;
+    const storeName = storeRow?.store_name || '';
+    const storeCode = storeRow?.store_code || storeInfo?.store_code || null;
+    const portalUrl = await buildCustomerEntryUrl({
+      lineUserId: userId,
+      storeCode,
+    });
 
     const flex = depositLinkedFlex({
       deposit_code: deposit.deposit_code,
@@ -581,11 +711,12 @@ async function handlePostback(
     const linkedCodes: string[] = [];
     const linkedProductNames: string[] = [];
     let storeName = '';
+    let resolvedStoreCode: string | null = null;
 
     for (const code of codes) {
       const { data: deposit } = await supabase
         .from('deposits')
-        .select('id, deposit_code, product_name, store:stores(store_name)')
+        .select('id, deposit_code, product_name, store:stores(store_name, store_code)')
         .eq('deposit_code', code)
         .is('line_user_id', null)
         .single();
@@ -602,8 +733,13 @@ async function handlePostback(
           linkedProductNames.push(deposit.product_name);
           if (!storeName) {
             const rawStore = deposit.store as unknown;
-            storeName =
-              (Array.isArray(rawStore) ? rawStore[0]?.store_name : (rawStore as { store_name: string } | null)?.store_name) || '';
+            const storeRow =
+              (Array.isArray(rawStore)
+                ? rawStore[0]
+                : (rawStore as { store_name: string; store_code: string } | null)) ||
+              null;
+            storeName = storeRow?.store_name || '';
+            resolvedStoreCode = storeRow?.store_code || null;
           }
         }
       }
@@ -618,7 +754,10 @@ async function handlePostback(
       return;
     }
 
-    const portalUrl = generateCustomerUrl(userId);
+    const portalUrl = await buildCustomerEntryUrl({
+      lineUserId: userId,
+      storeCode: resolvedStoreCode || storeInfo?.store_code || null,
+    });
 
     const flex = multipleDepositsLinkedFlex({
       codes: linkedCodes,
@@ -703,10 +842,7 @@ async function handlePostback(
           storeInfo?.deposit_notify_group_id ||
           depositStore?.deposit_notify_group_id;
         const notifyToken =
-          storeInfo?.line_token ||
-          depositStore?.line_token ||
-          process.env.LINE_CHANNEL_ACCESS_TOKEN ||
-          '';
+          storeInfo?.line_token || depositStore?.line_token || '';
         const notifyStoreName =
           storeInfo?.store_name ||
           depositStore?.store_name ||

@@ -148,8 +148,7 @@ export async function POST(request: NextRequest) {
   } | null;
 
   const notifyGroupId = depositStore?.deposit_notify_group_id;
-  const notifyToken =
-    depositStore?.line_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+  const notifyToken = depositStore?.line_token || '';
   const storeName = depositStore?.store_name || '';
 
   if (notifyGroupId && notifyToken) {

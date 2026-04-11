@@ -20,12 +20,10 @@ import {
   ArrowLeft,
   ArrowRight,
   Store,
-  MessageCircle,
   Package,
   Users,
   Bell,
   Check,
-  Loader2,
 } from 'lucide-react';
 
 export default function CreateStoreWizardPage() {
@@ -35,10 +33,9 @@ export default function CreateStoreWizardPage() {
 
   const steps = [
     { id: 1, label: t('newStore.stepStoreInfo'), icon: Store },
-    { id: 2, label: t('newStore.stepLineGroup'), icon: MessageCircle },
-    { id: 3, label: t('newStore.stepProducts'), icon: Package },
-    { id: 4, label: t('newStore.stepStaff'), icon: Users },
-    { id: 5, label: t('newStore.stepNotifications'), icon: Bell },
+    { id: 2, label: t('newStore.stepProducts'), icon: Package },
+    { id: 3, label: t('newStore.stepStaff'), icon: Users },
+    { id: 4, label: t('newStore.stepNotifications'), icon: Bell },
   ];
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,18 +46,7 @@ export default function CreateStoreWizardPage() {
   const [storeName, setStoreName] = useState('');
   const [isCentral, setIsCentral] = useState(false);
 
-  // Step 2: LINE group settings
-  const [stockNotifyGroupId, setStockNotifyGroupId] = useState('');
-  const [depositNotifyGroupId, setDepositNotifyGroupId] = useState('');
-  const [barNotifyGroupId, setBarNotifyGroupId] = useState('');
-
-  // Step 3: Products (placeholder)
-  const [importFrom, setImportFrom] = useState('');
-
-  // Step 4: Staff (placeholder)
-  const [staffNotes, setStaffNotes] = useState('');
-
-  // Step 5: Notifications
+  // Step 4: Notifications
   const [notifyTime, setNotifyTime] = useState('09:00');
   const [notifyDays, setNotifyDays] = useState(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
 
@@ -81,14 +67,13 @@ export default function CreateStoreWizardPage() {
     const supabase = createClient();
 
     // 1. Create store
+    // LINE notification group IDs are configured later via the per-store
+    // settings page — use the `groupid` bot keyword to retrieve them.
     const { data: store, error: storeError } = await supabase
       .from('stores')
       .insert({
         store_code: storeCode.trim().toUpperCase(),
         store_name: storeName.trim(),
-        stock_notify_group_id: stockNotifyGroupId || null,
-        deposit_notify_group_id: depositNotifyGroupId || null,
-        bar_notify_group_id: barNotifyGroupId || null,
         is_central: isCentral,
         manager_id: user.id,
         active: true,
@@ -243,38 +228,6 @@ export default function CreateStoreWizardPage() {
           {currentStep === 2 && (
             <>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t('newStore.lineGroupDesc')}
-              </p>
-              <Input
-                label={t('newStore.stockNotifyLabel')}
-                value={stockNotifyGroupId}
-                onChange={(e) => setStockNotifyGroupId(e.target.value)}
-                placeholder={t('newStore.lineGroupPlaceholder')}
-                hint={t('newStore.stockNotifyHint')}
-              />
-              <Input
-                label={t('newStore.depositNotifyLabel')}
-                value={depositNotifyGroupId}
-                onChange={(e) => setDepositNotifyGroupId(e.target.value)}
-                placeholder={t('newStore.lineGroupPlaceholder')}
-                hint={t('newStore.depositNotifyHint')}
-              />
-              <Input
-                label={t('newStore.barNotifyLabel')}
-                value={barNotifyGroupId}
-                onChange={(e) => setBarNotifyGroupId(e.target.value)}
-                placeholder={t('newStore.lineGroupPlaceholder')}
-                hint={t('newStore.barNotifyHint')}
-              />
-              <p className="text-xs text-gray-400 dark:text-gray-500">
-                {t('newStore.skipStep')}
-              </p>
-            </>
-          )}
-
-          {currentStep === 3 && (
-            <>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
                 {t('newStore.productsDesc')}
               </p>
               <div className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center dark:border-gray-600">
@@ -285,7 +238,7 @@ export default function CreateStoreWizardPage() {
             </>
           )}
 
-          {currentStep === 4 && (
+          {currentStep === 3 && (
             <>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {t('newStore.staffDesc')}
@@ -298,7 +251,7 @@ export default function CreateStoreWizardPage() {
             </>
           )}
 
-          {currentStep === 5 && (
+          {currentStep === 4 && (
             <>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -347,9 +300,9 @@ export default function CreateStoreWizardPage() {
           {t('newStore.previous')}
         </Button>
 
-        {currentStep < 5 ? (
+        {currentStep < 4 ? (
           <Button
-            onClick={() => setCurrentStep((s) => Math.min(5, s + 1))}
+            onClick={() => setCurrentStep((s) => Math.min(4, s + 1))}
             disabled={currentStep === 1 && (!storeCode || !storeName)}
             icon={<ArrowRight className="h-4 w-4" />}
           >

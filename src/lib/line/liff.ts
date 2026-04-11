@@ -6,20 +6,21 @@ let initialized = false;
 
 /**
  * Initialize LIFF with a given LIFF ID.
- * If already initialized, this is a no-op.
- * Falls back to NEXT_PUBLIC_LIFF_ID env var if no liffId is provided.
+ *
+ * The LIFF ID must be provided explicitly (fetched from the server via
+ * `/api/system-settings/public` or similar). There is no env fallback —
+ * the single central LIFF ID lives in `system_settings['davis_ai.liff_id']`.
  */
-export async function initLiff(liffId?: string): Promise<void> {
+export async function initLiff(liffId: string): Promise<void> {
   if (initialized) return;
 
-  const id = liffId || process.env.NEXT_PUBLIC_LIFF_ID;
-  if (!id) {
-    console.error('[LIFF] LIFF ID not configured');
+  if (!liffId) {
+    console.error('[LIFF] LIFF ID not provided — configure it in ตั้งค่า → DAVIS Ai');
     return;
   }
 
   try {
-    await liff.init({ liffId: id });
+    await liff.init({ liffId });
     initialized = true;
   } catch (error) {
     console.error('[LIFF] Initialization failed:', error);

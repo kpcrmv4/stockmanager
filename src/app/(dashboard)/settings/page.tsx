@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
+import { useAuthStore } from '@/stores/auth-store';
 import {
   Button,
   Card,
@@ -14,6 +15,7 @@ import {
   Plus,
   ChevronRight,
   Upload,
+  Bot,
 } from 'lucide-react';
 
 interface StoreInfo {
@@ -27,6 +29,8 @@ interface StoreInfo {
 export default function SettingsPage() {
   const router = useRouter();
   const t = useTranslations('settings');
+  const { user } = useAuthStore();
+  const isOwner = user?.role === 'owner';
   const [stores, setStores] = useState<StoreInfo[]>([]);
 
 
@@ -51,6 +55,31 @@ export default function SettingsPage() {
           {t('subtitle')}
         </p>
       </div>
+
+      {/* DAVIS Ai Central Config — Owner only */}
+      {isOwner && (
+        <Card padding="none">
+          <button
+            onClick={() => router.push('/settings/davis-ai')}
+            className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-sm">
+                <Bot className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {t('davisAiTitle')}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('davisAiDesc')}
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-gray-300" />
+          </button>
+        </Card>
+      )}
 
       {/* Stores List */}
       <Card padding="none">

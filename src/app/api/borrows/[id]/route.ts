@@ -96,12 +96,12 @@ async function sendLineToStore(
   store: StoreRow | null,
   flexMsg: unknown,
 ): Promise<void> {
-  if (!store?.deposit_notify_group_id) return;
+  if (!store?.deposit_notify_group_id || !store.line_token) return;
 
   await pushToStaffGroup(
     store.deposit_notify_group_id,
     [flexMsg as unknown as LineMessage],
-    store.line_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+    store.line_token,
   );
 }
 

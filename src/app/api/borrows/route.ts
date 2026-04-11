@@ -190,11 +190,13 @@ export async function POST(request: NextRequest) {
           notes: notes || undefined,
         });
 
-        await pushToStaffGroup(
-          toStoreResult.data.deposit_notify_group_id,
-          [flexMsg as unknown as LineMessage],
-          toStoreResult.data.line_token || process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
-        );
+        if (toStoreResult.data.line_token) {
+          await pushToStaffGroup(
+            toStoreResult.data.deposit_notify_group_id,
+            [flexMsg as unknown as LineMessage],
+            toStoreResult.data.line_token,
+          );
+        }
       } catch (err) {
         console.error('[Borrows] Failed to send LINE notification to lender:', err);
       }

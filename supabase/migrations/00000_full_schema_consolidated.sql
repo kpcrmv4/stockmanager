@@ -1,10 +1,10 @@
 -- ==========================================
 -- StockManager — Consolidated Schema (Fresh Install)
--- Merged from migrations 00001 through 00017
--- Generated: 2026-03-28
+-- Merged from migrations 00001 through 00018
+-- Generated: 2026-04-11
 --
 -- This single file creates the entire schema from scratch.
--- Do NOT run individual 00001-00008 migrations if using this file.
+-- Do NOT run individual 00001-00018 migrations if using this file.
 -- ==========================================
 
 -- ==========================================
@@ -1152,6 +1152,83 @@ INSERT INTO app_settings (key, value, type, description) VALUES
   ('LINE_CENTRAL_CHANNEL_SECRET', '', 'secret', 'LINE Channel Secret สำหรับ verify webhook signature'),
   ('OWNER_GROUP_LINE_ID', '', 'string', 'LINE Group ID ของกลุ่ม owner/admin สำหรับแจ้งเตือนผลต่างสต๊อก')
 ON CONFLICT (key) DO NOTHING;
+
+-- ==========================================
+-- SYSTEM SETTINGS: DAVIS Ai Central Config (from 00018)
+--
+-- Global key-value store separate from app_settings, used for:
+--   - davis_ai.bot_name        — display name shown in UI
+--   - davis_ai.liff_id         — ONE shared LIFF id (replaces NEXT_PUBLIC_LIFF_ID env)
+--                                URL format: liff.line.me/{liff_id}?store={store_code}
+--   - davis_ai.webhook_note    — optional UI instructions
+--
+-- Per-store LINE credentials continue to live in `stores.line_token`
+-- / `line_channel_id` / `line_channel_secret` (entered via per-store UI).
+-- ==========================================
+
+CREATE TABLE IF NOT EXISTS system_settings (
+  key         TEXT PRIMARY KEY,
+  value       TEXT,
+  description TEXT,
+  updated_at  TIMESTAMPTZ DEFAULT now(),
+  updated_by  UUID REFERENCES profiles(id)
+);
+
+COMMENT ON TABLE system_settings IS
+  'Global key-value settings (DAVIS Ai central bot config, feature flags, etc.)';
+
+-- Seed default rows
+INSERT INTO system_settings (key, value, description)
+VALUES
+  ('davis_ai.bot_name',     'DAVIS Ai', 'Display name for the central bot (shown in UI)'),
+  ('davis_ai.liff_id',      '',         'LIFF ID ที่ใช้ร่วมกันทุกสาขา — ใส่ ?store=storeCode ใน URL เพื่อระบุสาขา'),
+  ('davis_ai.webhook_note', '',         'Extra note shown on DAVIS Ai settings page (optional)')
+ON CONFLICT (key) DO NOTHING;
+
+-- RLS — owner only can read/write
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "owner_read_system_settings"
+  ON system_settings FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+        AND profiles.role = 'owner'
+    )
+  );
+
+CREATE POLICY "owner_write_system_settings"
+  ON system_settings FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+        AND profiles.role = 'owner'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+        AND profiles.role = 'owner'
+    )
+  );
+
+-- Trigger: auto-update updated_at
+CREATE OR REPLACE FUNCTION system_settings_touch_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS system_settings_updated_at ON system_settings;
+CREATE TRIGGER system_settings_updated_at
+  BEFORE UPDATE ON system_settings
+  FOR EACH ROW
+  EXECUTE FUNCTION system_settings_touch_updated_at();
 
 -- ==========================================
 -- SUPABASE STORAGE: Bucket สำหรับรูปฝากเหล้า

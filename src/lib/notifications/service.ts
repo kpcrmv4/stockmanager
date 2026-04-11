@@ -200,7 +200,9 @@ export async function notifyUser(params: NotifyUserParams): Promise<void> {
     // ----- 4. LINE Push -----
     if (lineEnabled && lineUserId) {
       try {
-        const token = lineToken || process.env.LINE_CHANNEL_ACCESS_TOKEN;
+        // Per-store model: caller must pass the store's own LINE token.
+        // No env fallback — if none, we skip the LINE push silently.
+        const token = lineToken || null;
         if (token) {
           if (lineMessage && lineMessage.length > 0) {
             // Send structured Flex Message
