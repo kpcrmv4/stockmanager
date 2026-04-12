@@ -15,7 +15,7 @@ import { ChatRoomSettings } from './chat-room-settings';
 import { TransactionBoard } from './transaction-board';
 import { MyTasksBoard } from './my-tasks-board';
 import { CompactActionCard } from './compact-action-card';
-import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin, Reply, MessageSquare, ClipboardList, UserCircle, Users, ChevronLeft } from 'lucide-react';
+import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin, Reply, MessageSquare, ClipboardList, UserCircle, Users, ChevronLeft, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { ChatNotificationToggle } from './chat-notification-toggle';
 import type { ChatPinnedMessage, ChatMessage, ChatRoom } from '@/types/chat';
@@ -49,6 +49,16 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Chat date filter with localStorage persistence
+  const [chatDateFilter, setChatDateFilter] = useState<'all' | 'today' | 'yesterday'>(() => {
+    if (typeof window === 'undefined') return 'all';
+    return (localStorage.getItem('chat-date-filter') as 'all' | 'today' | 'yesterday') || 'all';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('chat-date-filter', chatDateFilter);
+  }, [chatDateFilter]);
 
   // Set active room for badge
   useEffect(() => {
@@ -311,6 +321,23 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
     }).length;
   }, [messages]);
 
+  // Filter messages by date for chat tab
+  const filteredMessages = useMemo(() => {
+    if (chatDateFilter === 'all') return messages;
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+    if (chatDateFilter === 'today') {
+      return messages.filter((msg) => new Date(msg.created_at) >= todayStart);
+    }
+    return messages.filter((msg) => {
+      const d = new Date(msg.created_at);
+      return d >= yesterdayStart && d < todayStart;
+    });
+  }, [messages, chatDateFilter]);
+
   // Fetch room data if not in store (e.g. app resumed from background)
   useEffect(() => {
     if (room || !roomId) return;
@@ -471,6 +498,25 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
       {/* Pinned messages banner */}
       <PinnedMessagesBanner onScrollToMessage={handleScrollToMessage} />
 
+      {/* Date filter bar */}
+      <div className="flex items-center gap-1.5 border-b border-gray-200/80 bg-white/90 px-3 py-1.5 backdrop-blur-sm dark:border-gray-700/60 dark:bg-gray-800/90">
+        <CalendarDays className="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-gray-500" />
+        {(['all', 'today', 'yesterday'] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setChatDateFilter(f)}
+            className={cn(
+              'shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-all',
+              chatDateFilter === f
+                ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-400 dark:ring-indigo-700'
+                : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+            )}
+          >
+            {f === 'all' ? 'ทั้งหมด' : f === 'today' ? 'วันนี้' : 'เมื่อวาน'}
+          </button>
+        ))}
+      </div>
+
       {/* Messages — LINE-like soft blue-gray background */}
       <div
         ref={scrollRef}
@@ -486,8 +532,16 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
 
         {/* Messages list — action cards shown as compact notifications */}
         <div className="space-y-2">
-          {messages.map((msg, i) => {
-            const prevMsg = i > 0 ? messages[i - 1] : null;
+          {filteredMessages.length === 0 && chatDateFilter !== 'all' && !isLoadingMessages && (
+            <div className="mt-12 text-center">
+              <CalendarDays className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                ไม่มีข้อความ{chatDateFilter === 'today' ? 'วันนี้' : 'เมื่อวาน'}
+              </p>
+            </div>
+          )}
+          {filteredMessages.map((msg, i) => {
+            const prevMsg = i > 0 ? filteredMessages[i - 1] : null;
             const showDate = !prevMsg || !isSameDay(prevMsg.created_at, msg.created_at);
             const showSender =
               !prevMsg ||

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Wine,
   Package,
@@ -68,9 +68,9 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
   const messages = useChatStore((s) => s.messages);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterType, setFilterType] = useState<FilterType>('all');
-  // Auto-collapse groups that have only completed items
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupStatusFilter, setGroupStatusFilter] = useState<Record<string, string>>({}); // type → status filter
+  const collapsedInitRef = useRef(false);
 
   // Extract action card messages only (works for both ActionCard and Transfer metadata)
   const actionCards = useMemo(() => {
@@ -118,6 +118,22 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
       return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
     });
   }, [filteredCards]);
+
+  // Default collapse all groups except those with active items (pending/claimed)
+  useEffect(() => {
+    if (collapsedInitRef.current || grouped.length === 0) return;
+    collapsedInitRef.current = true;
+
+    const toCollapse = new Set<string>();
+    for (const [type, msgs] of grouped) {
+      const hasActive = msgs.some((m) => {
+        const n = getNormalizedStatus(m.metadata as unknown as Record<string, unknown>);
+        return n === 'pending' || n === 'pending_bar' || n === 'claimed';
+      });
+      if (!hasActive) toCollapse.add(type);
+    }
+    if (toCollapse.size > 0) setCollapsedGroups(toCollapse);
+  }, [grouped]);
 
   // Stats (normalized across all card types)
   const stats = useMemo(() => {
