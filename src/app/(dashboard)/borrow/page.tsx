@@ -1624,57 +1624,106 @@ export default function BorrowPage() {
           }
         />
       ) : viewMode === 'kanban' ? (
-        <div className="hidden md:grid grid-cols-3 gap-4 items-start h-[calc(100vh-320px)] min-h-[500px]">
+        <div className={cn(
+          "grid gap-4 items-start h-auto md:h-[calc(100vh-320px)] min-h-[500px]",
+          statusFilter === 'all' || ['pending_approval', 'waiting_receive', 'waiting_return'].includes(statusFilter)
+            ? "grid-cols-1 md:grid-cols-3"
+            : "grid-cols-1"
+        )}>
           {/* Column 1: Pending */}
-          <div className="flex flex-col h-full bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
-            <div className="p-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-amber-500" />
-                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('subPendingApproval')}</span>
+          {(statusFilter === 'all' || statusFilter === 'pending_approval') && (
+            <div className="flex flex-col h-full bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+              <div className="p-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('subPendingApproval')}</span>
+                </div>
+                <Badge variant="warning">{filteredBorrows.filter(b => b.status === 'pending_approval').length}</Badge>
               </div>
-              <Badge variant="warning">{borrows.filter(b => b.status === 'pending_approval').length}</Badge>
+              <div className="flex-1 overflow-y-auto md:overflow-y-auto p-2 space-y-2 max-h-[500px] md:max-h-none">
+                {filteredBorrows.filter(b => b.status === 'pending_approval').map(b => (
+                  <BorrowCard key={b.id} borrow={b} tab={activeTab} currentStoreId={currentStoreId!} onClick={() => setSelectedBorrow(b)} t={t} />
+                ))}
+                {filteredBorrows.filter(b => b.status === 'pending_approval').length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
-              {borrows.filter(b => b.status === 'pending_approval').map(b => (
-                <BorrowCard key={b.id} borrow={b} tab={activeTab} currentStoreId={currentStoreId!} onClick={() => setSelectedBorrow(b)} t={t} />
-              ))}
-              {borrows.filter(b => b.status === 'pending_approval').length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
-            </div>
-          </div>
+          )}
 
           {/* Column 2: In Progress (Receive) */}
-          <div className="flex flex-col h-full bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
-            <div className="p-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-teal-500" />
-                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('subWaitingReceive')}</span>
+          {(statusFilter === 'all' || statusFilter === 'waiting_receive') && (
+            <div className="flex flex-col h-full bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+              <div className="p-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-teal-500" />
+                  <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('subWaitingReceive')}</span>
+                </div>
+                <Badge variant="info">{filteredBorrows.filter(isWaitingReceive).length}</Badge>
               </div>
-              <Badge variant="info">{borrows.filter(isWaitingReceive).length}</Badge>
+              <div className="flex-1 overflow-y-auto md:overflow-y-auto p-2 space-y-2 max-h-[500px] md:max-h-none">
+                {filteredBorrows.filter(isWaitingReceive).map(b => (
+                  <BorrowCard key={b.id} borrow={b} tab={activeTab} currentStoreId={currentStoreId!} onClick={() => setSelectedBorrow(b)} t={t} />
+                ))}
+                {filteredBorrows.filter(isWaitingReceive).length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
-              {borrows.filter(isWaitingReceive).map(b => (
-                <BorrowCard key={b.id} borrow={b} tab={activeTab} currentStoreId={currentStoreId!} onClick={() => setSelectedBorrow(b)} t={t} />
-              ))}
-              {borrows.filter(isWaitingReceive).length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
-            </div>
-          </div>
+          )}
 
           {/* Column 3: To Return */}
-          <div className="flex flex-col h-full bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
-            <div className="p-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('subWaitingReturn')}</span>
+          {(statusFilter === 'all' || statusFilter === 'waiting_return') && (
+            <div className="flex flex-col h-full bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+              <div className="p-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                  <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('subWaitingReturn')}</span>
+                </div>
+                <Badge variant="default">{filteredBorrows.filter(b => b.status === 'completed').length}</Badge>
               </div>
-              <Badge variant="default">{borrows.filter(b => b.status === 'completed').length}</Badge>
+              <div className="flex-1 overflow-y-auto md:overflow-y-auto p-2 space-y-2 max-h-[500px] md:max-h-none">
+                {filteredBorrows.filter(b => b.status === 'completed').map(b => (
+                  <BorrowCard key={b.id} borrow={b} tab={activeTab} currentStoreId={currentStoreId!} onClick={() => setSelectedBorrow(b)} t={t} />
+                ))}
+                {filteredBorrows.filter(b => b.status === 'completed').length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
-              {borrows.filter(b => b.status === 'completed').map(b => (
-                <BorrowCard key={b.id} borrow={b} tab={activeTab} currentStoreId={currentStoreId!} onClick={() => setSelectedBorrow(b)} t={t} />
-              ))}
-              {borrows.filter(b => b.status === 'completed').length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
+          )}
+
+          {/* Column 4: Returned (Special) */}
+          {statusFilter === 'returned' && (
+            <div className="flex flex-col h-full bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+              <div className="p-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('statusReturned')}</span>
+                </div>
+                <Badge variant="success">{filteredBorrows.filter(b => b.status === 'returned').length}</Badge>
+              </div>
+              <div className="flex-1 overflow-y-auto md:overflow-y-auto p-2 space-y-2 max-h-[500px] md:max-h-none">
+                {filteredBorrows.filter(b => b.status === 'returned').map(b => (
+                  <BorrowCard key={b.id} borrow={b} tab={activeTab} currentStoreId={currentStoreId!} onClick={() => setSelectedBorrow(b)} t={t} />
+                ))}
+                {filteredBorrows.filter(b => b.status === 'returned').length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Column 5: Cancelled/Rejected (Special) */}
+          {statusFilter === 'cancelled_rejected' && (
+            <div className="flex flex-col h-full bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+              <div className="p-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                  <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('subCancelled')}</span>
+                </div>
+                <Badge variant="destructive">{filteredBorrows.filter(b => b.status === 'cancelled' || b.status === 'rejected').length}</Badge>
+              </div>
+              <div className="flex-1 overflow-y-auto md:overflow-y-auto p-2 space-y-2 max-h-[500px] md:max-h-none">
+                {filteredBorrows.filter(b => b.status === 'cancelled' || b.status === 'rejected').map(b => (
+                  <BorrowCard key={b.id} borrow={b} tab={activeTab} currentStoreId={currentStoreId!} onClick={() => setSelectedBorrow(b)} t={t} />
+                ))}
+                {filteredBorrows.filter(b => b.status === 'cancelled' || b.status === 'rejected').length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
+              </div>
+            </div>
+          )}
         </div>
       ) : viewMode === 'table' ? (
         <div className="hidden md:block overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">

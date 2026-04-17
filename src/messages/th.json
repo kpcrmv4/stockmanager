@@ -2728,6 +2728,21 @@
   "stock": {
     "title": "ระบบนับสต๊อก",
     "subtitle": "ภาพรวมการนับสต๊อกและตรวจสอบส่วนต่าง",
+    "missing": "สินค้าขาด",
+    "surplus": "สินค้าเกิน",
+    "shortage": "ขาด",
+    "excess": "เกิน",
+    "missingCount": "ขาด {count}",
+    "surplusCount": "เกิน {count}",
+    "multiStoreStats": "สถิติรายสาขา",
+    "discrepancyTrend": "แนวโน้มสินค้าขาด/เกิน",
+    "compareWithPrevious": "เปรียบเทียบกับรอบก่อน",
+    "totalDiscrepancies": "ส่วนต่างทั้งหมด",
+    "monthlyReport": "รายงานรายเดือน",
+    "allStores": "ทุกสาขา",
+    "storePerformance": "ประสิทธิภาพแต่ละสาขา",
+    "dailyDiscrepancy": "สินค้าขาด/เกินรายวัน",
+
     "approval": {
       "allReviewed": "คำชี้แจงทั้งหมดได้รับการตรวจสอบแล้ว",
       "approveSuccess": "อนุมัติสำเร็จ",
