@@ -98,11 +98,10 @@ interface StoreStatus {
   pendingIncomingTransfers: number; // transfers pending (incoming to HQ)
   lastStockCheck: string | null;
   totalIssues: number;          // sum of all pending items
-  // enhanced data
-  borrowsToApprove: number; // to_store_id, pending_approval
-  borrowsToReturn: number;  // to_store_id, completed
-  lendsToApprove: number;   // from_store_id, pending_approval
-  lendsToReceive: number;   // from_store_id, completed
+  borrowsToApprove: number; // from_store_id (Borrower), pending_approval
+  borrowsToReturn: number;  // from_store_id (Borrower), completed
+  lendsToApprove: number;   // to_store_id (Lender), pending_approval
+  lendsToReceive: number;   // to_store_id (Lender), completed
   commissionThisMonth: number;  // commission net total this month
   commissionEntries: number;    // commission entry count this month
 }
@@ -949,10 +948,10 @@ export default function OverviewPage() {
                   supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'explained'),
                   supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('from_store_id', sid).eq('status', 'pending'),
                   supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending'),
-                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending_approval'),
-                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'completed'),
                   supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('from_store_id', sid).eq('status', 'pending_approval'),
                   supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('from_store_id', sid).eq('status', 'completed'),
+                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending_approval'),
+                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'completed'),
                   supabase.from('commission_entries').select('net_amount').eq('store_id', sid).gte('bill_date', cmStart).lte('bill_date', cmEnd),
                 ]);
 
