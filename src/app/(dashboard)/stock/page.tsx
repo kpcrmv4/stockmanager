@@ -905,7 +905,7 @@ export default function StockOverviewPage() {
               <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="sm"
                   onClick={() => navigateMonth(-1)}
                 >
                   <ArrowLeft className="h-4 w-4" />
@@ -915,7 +915,7 @@ export default function StockOverviewPage() {
                 </span>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="sm"
                   onClick={() => navigateMonth(1)}
                 >
                   <ArrowRight className="h-4 w-4" />
