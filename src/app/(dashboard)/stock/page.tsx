@@ -89,7 +89,7 @@ export default function StockOverviewPage() {
     pendingApprovals: 0,
   });
   const [recentChecks, setRecentChecks] = useState<RecentCheck[]>([]);
-  const [crossStoreData, setCrossStoreData] = useState<CrossStoreItem[]>([]);
+  const [trendLoading, setTrendLoading] = useState(false);
   const [trendData, setTrendData] = useState<TrendDataItem[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
@@ -261,107 +261,6 @@ export default function StockOverviewPage() {
         setRecentChecks(checks);
       }
 
-      // ── Cross-store comparison & Trend (owner/manager only) ──
-      const _isStaffOrBar = user?.role === 'staff' || user?.role === 'bar';
-      if (!_isStaffOrBar && user?.storeIds && user.storeIds.length > 0) {
-        const { data: stores } = await supabase
-          .from('stores')
-          .select('id, store_name')
-          .in('id', user.storeIds)
-          .eq('active', true)
-          .order('store_name');
-
-        if (stores && stores.length > 0) {
-          const storeIds = stores.map((s) => s.id);
-
-          // 1. Cross-store summary for today
-          const { data: manualCounts } = await supabase
-            .from('manual_counts')
-            .select('store_id')
-            .in('store_id', storeIds)
-            .eq('count_date', businessDate);
-
-          const { data: ocrLogs } = await supabase
-            .from('ocr_logs')
-            .select('store_id')
-            .in('store_id', storeIds)
-            .eq('upload_date', businessDate);
-
-          const { data: comparisonsToday } = await supabase
-            .from('comparisons')
-            .select('store_id, difference, status')
-            .in('store_id', storeIds)
-            .eq('comp_date', businessDate);
-
-          const manualSet = new Set(manualCounts?.map((m) => m.store_id) || []);
-          const ocrSet = new Set(ocrLogs?.map((o) => o.store_id) || []);
-
-          const compByStore = (comparisonsToday || []).reduce<
-            Record<string, { total: number; match: number; pending: number; missing: number; surplus: number }>
-          >((acc, c) => {
-            if (!acc[c.store_id]) {
-              acc[c.store_id] = { total: 0, match: 0, pending: 0, missing: 0, surplus: 0 };
-            }
-            acc[c.store_id].total++;
-            if (c.difference === 0 || c.difference === null) {
-              acc[c.store_id].match++;
-            } else if (c.difference < 0) {
-              acc[c.store_id].missing++;
-            } else if (c.difference > 0) {
-              acc[c.store_id].surplus++;
-            }
-            if (c.status === 'pending') {
-              acc[c.store_id].pending++;
-            }
-            return acc;
-          }, {});
-
-          const crossData: CrossStoreItem[] = stores.map((s) => {
-            const comp = compByStore[s.id] || { total: 0, match: 0, pending: 0, missing: 0, surplus: 0 };
-            return {
-              storeId: s.id,
-              storeName: s.store_name,
-              manualCounted: manualSet.has(s.id),
-              posUploaded: ocrSet.has(s.id),
-              compared: comp.total > 0,
-              matchCount: comp.match,
-              totalCount: comp.total,
-              pendingCount: comp.pending,
-              missingCount: comp.missing,
-              surplusCount: comp.surplus,
-            };
-          });
-
-          setCrossStoreData(crossData);
-
-          // 2. Trend data for the selected month
-          const startOfMonth = `${selectedMonth}-01`;
-          const endOfMonth = `${selectedMonth}-31`;
-
-          const { data: trendComparisons } = await supabase
-            .from('comparisons')
-            .select('comp_date, difference')
-            .in('store_id', storeIds)
-            .gte('comp_date', startOfMonth)
-            .lte('comp_date', endOfMonth)
-            .order('comp_date', { ascending: true });
-
-          if (trendComparisons) {
-            const trendMap = trendComparisons.reduce<Record<string, TrendDataItem>>((acc, item) => {
-              const date = item.comp_date;
-              if (!acc[date]) {
-                acc[date] = { date, label: date.slice(8, 10), missing: 0, surplus: 0, total: 0 };
-              }
-              acc[date].total++;
-              if (item.difference < 0) acc[date].missing++;
-              else if (item.difference > 0) acc[date].surplus++;
-              return acc;
-            }, {});
-
-            setTrendData(Object.values(trendMap).sort((a, b) => a.date.localeCompare(b.date)));
-          }
-        }
-      }
     } catch (error) {
       console.error('Error fetching stock overview:', error);
       toast({
@@ -372,11 +271,56 @@ export default function StockOverviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentStoreId, user?.role, user?.storeIds, selectedMonth, businessDate, t]);
+  }, [currentStoreId, user?.role, user?.storeIds, businessDate, t]);
+
+  const fetchTrendData = useCallback(async () => {
+    const _isStaffOrBar = user?.role === 'staff' || user?.role === 'bar';
+    if (_isStaffOrBar || !user?.storeIds || user.storeIds.length === 0) return;
+
+    setTrendLoading(true);
+    try {
+      const supabase = createClient();
+      const startOfMonth = `${selectedMonth}-01`;
+      const endOfMonth = `${selectedMonth}-31`;
+
+      const { data: trendComparisons } = await supabase
+        .from('comparisons')
+        .select('comp_date, difference')
+        .in('store_id', user.storeIds)
+        .gte('comp_date', startOfMonth)
+        .lte('comp_date', endOfMonth)
+        .order('comp_date', { ascending: true });
+
+      if (trendComparisons) {
+        const trendMap = trendComparisons.reduce<Record<string, TrendDataItem>>((acc, item) => {
+          const date = item.comp_date;
+          if (!acc[date]) {
+            acc[date] = { date, label: date.slice(8, 10), missing: 0, surplus: 0, total: 0 };
+          }
+          acc[date].total++;
+          if (item.difference < 0) acc[date].missing++;
+          else if (item.difference > 0) acc[date].surplus++;
+          return acc;
+        }, {});
+
+        setTrendData(Object.values(trendMap).sort((a, b) => a.date.localeCompare(b.date)));
+      } else {
+        setTrendData([]);
+      }
+    } catch (error) {
+      console.error('Error fetching trend data:', error);
+    } finally {
+      setTrendLoading(false);
+    }
+  }, [selectedMonth, user?.role, user?.storeIds]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    fetchTrendData();
+  }, [fetchTrendData]);
 
   const summaryCards = [
     {
@@ -836,7 +780,11 @@ export default function StockOverviewPage() {
             }
           />
           <CardContent>
-            {trendData.length > 0 ? (
+            {trendLoading ? (
+              <div className="flex h-[300px] w-full items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+              </div>
+            ) : trendData.length > 0 ? (
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
