@@ -99,8 +99,10 @@ interface StoreStatus {
   lastStockCheck: string | null;
   totalIssues: number;          // sum of all pending items
   // enhanced data
-  borrowsPendingApproval: number; // borrows pending_approval
-  borrowsWaitingReturn: number;   // borrows waiting_return
+  borrowsToApprove: number; // to_store_id, pending_approval
+  borrowsToReturn: number;  // to_store_id, completed
+  lendsToApprove: number;   // from_store_id, pending_approval
+  lendsToReceive: number;   // from_store_id, completed
   commissionThisMonth: number;  // commission net total this month
   commissionEntries: number;    // commission entry count this month
 }
@@ -921,8 +923,10 @@ export default function OverviewPage() {
                     pendingIncomingTransfers: pendingIncoming,
                     lastStockCheck: null,
                     totalIssues: pendingIncoming,
-                    borrowsPendingApproval: 0,
-                    borrowsWaitingReturn: 0,
+                    borrowsToApprove: 0,
+                    borrowsToReturn: 0,
+                    lendsToApprove: 0,
+                    lendsToReceive: 0,
                     commissionThisMonth: 0,
                     commissionEntries: 0,
                   };
@@ -935,7 +939,8 @@ export default function OverviewPage() {
                 const cmEnd = new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 0).toISOString().split('T')[0];
 
                 const [
-                  pwRes, edRes, adRes, peRes, paRes, ptRes, piRes, bpRes, brRes, cmRes,
+                  pwRes, edRes, adRes, peRes, paRes, ptRes, piRes,
+                  btaRes, btrRes, ltaRes, ltrRes, cmRes,
                 ] = await Promise.all([
                   supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending_withdrawal'),
                   supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'in_store').lt('expiry_date', sevenDaysFromNow).gt('expiry_date', todayISO),
@@ -945,7 +950,9 @@ export default function OverviewPage() {
                   supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('from_store_id', sid).eq('status', 'pending'),
                   supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending'),
                   supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending_approval'),
-                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'waiting_return'),
+                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'completed'),
+                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('from_store_id', sid).eq('status', 'pending_approval'),
+                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('from_store_id', sid).eq('status', 'completed'),
                   supabase.from('commission_entries').select('net_amount').eq('store_id', sid).gte('bill_date', cmStart).lte('bill_date', cmEnd),
                 ]);
 
@@ -956,8 +963,10 @@ export default function OverviewPage() {
                 const pendingAppr = paRes.count || 0;
                 const pendingTrans = ptRes.count || 0;
                 const pendingIncoming = piRes.count || 0;
-                const borrowsPendingApproval = bpRes.count || 0;
-                const borrowsWaitingReturn = brRes.count || 0;
+                const borrowsToApprove = btaRes.count || 0;
+                const borrowsToReturn = btrRes.count || 0;
+                const lendsToApprove = ltaRes.count || 0;
+                const lendsToReceive = ltrRes.count || 0;
                 const storeCommRows = cmRes.data || [];
                 const storeCommTotal = storeCommRows.reduce((s: number, r: { net_amount: number | string | null }) => s + (Number(r.net_amount) || 0), 0);
                 const storeCommEntries = storeCommRows.length;
@@ -970,7 +979,7 @@ export default function OverviewPage() {
                 const lcRes = await supabase.from('manual_counts').select('count_date').eq('store_id', sid).order('count_date', { ascending: false }).limit(1).maybeSingle();
                 if (lcRes.data) lastStockCheck = lcRes.data.count_date || null;
 
-                const totalIssues = pendingDeposits + pendingWithdrawals + expiringDeposits + pendingExpl + pendingAppr + pendingTrans + pendingIncoming + borrowsPendingApproval + borrowsWaitingReturn;
+                const totalIssues = pendingDeposits + pendingWithdrawals + expiringDeposits + pendingExpl + pendingAppr + pendingTrans + pendingIncoming + borrowsToApprove + borrowsToReturn + lendsToApprove + lendsToReceive;
 
                 const result: StoreStatus = {
                   id: store.id,
@@ -987,8 +996,10 @@ export default function OverviewPage() {
                   pendingIncomingTransfers: pendingIncoming,
                   lastStockCheck,
                   totalIssues,
-                  borrowsPendingApproval,
-                  borrowsWaitingReturn,
+                  borrowsToApprove,
+                  borrowsToReturn,
+                  lendsToApprove,
+                  lendsToReceive,
                   commissionThisMonth: Math.round(storeCommTotal * 100) / 100,
                   commissionEntries: storeCommEntries,
                 };
@@ -1377,26 +1388,54 @@ export default function OverviewPage() {
                           {t('modules.borrow.name')}
                         </h4>
                         <div className="rounded-lg bg-gray-50 p-2.5 dark:bg-gray-800/50 space-y-1.5 text-xs">
-                          {store.borrowsPendingApproval > 0 ? (
-                            <Link href="/borrow?status=pending_approval" className="flex justify-between items-center text-amber-600 hover:text-amber-500">
-                              <span className="flex items-center gap-1"><FileCheck className="h-3 w-3" /> รายการรออนุมัติ</span>
-                              <span className="font-bold">{store.borrowsPendingApproval}</span>
+                          {/* ขอยืม - รอเขาอนุมัติ */}
+                          {store.borrowsToApprove > 0 ? (
+                            <Link href="/borrow" className="flex justify-between items-center text-amber-600 hover:text-amber-500">
+                              <span className="flex items-center gap-1"><FileCheck className="h-3 w-3" /> ขอยืม (รออนุมัติ)</span>
+                              <span className="font-bold">{store.borrowsToApprove}</span>
                             </Link>
                           ) : (
                             <div className="flex justify-between items-center text-gray-400 dark:text-gray-500">
-                              <span className="flex items-center gap-1"><FileCheck className="h-3 w-3" /> รายการรออนุมัติ</span>
+                              <span className="flex items-center gap-1"><FileCheck className="h-3 w-3" /> ขอยืม (รออนุมัติ)</span>
                               <span>0</span>
                             </div>
                           )}
                           
-                          {store.borrowsWaitingReturn > 0 ? (
-                            <Link href="/borrow?status=waiting_return" className="flex justify-between items-center text-purple-600 hover:text-purple-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
-                              <span className="flex items-center gap-1"><Repeat className="h-3 w-3" /> รายการรอคืน</span>
-                              <span className="font-bold">{store.borrowsWaitingReturn}</span>
+                          {/* ขอยืม - ต้องส่งคืน */}
+                          {store.borrowsToReturn > 0 ? (
+                            <Link href="/borrow" className="flex justify-between items-center text-purple-600 hover:text-purple-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                              <span className="flex items-center gap-1"><Repeat className="h-3 w-3" /> รอส่งคืน (ยืมมา)</span>
+                              <span className="font-bold">{store.borrowsToReturn}</span>
                             </Link>
                           ) : (
                             <div className="flex justify-between items-center text-gray-400 dark:text-gray-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
-                              <span className="flex items-center gap-1"><Repeat className="h-3 w-3" /> รายการรอคืน</span>
+                              <span className="flex items-center gap-1"><Repeat className="h-3 w-3" /> รอส่งคืน (ยืมมา)</span>
+                              <span>0</span>
+                            </div>
+                          )}
+
+                          {/* ให้ยืม - รอเราอนุมัติ */}
+                          {store.lendsToApprove > 0 ? (
+                            <Link href="/borrow?tab=incoming" className="flex justify-between items-center text-amber-600 hover:text-amber-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                              <span className="flex items-center gap-1"><FileCheck className="h-3 w-3" /> ให้ยืม (รออนุมัติ)</span>
+                              <span className="font-bold">{store.lendsToApprove}</span>
+                            </Link>
+                          ) : (
+                            <div className="flex justify-between items-center text-gray-400 dark:text-gray-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                              <span className="flex items-center gap-1"><FileCheck className="h-3 w-3" /> ให้ยืม (รออนุมัติ)</span>
+                              <span>0</span>
+                            </div>
+                          )}
+
+                          {/* ให้ยืม - รอรับคืน */}
+                          {store.lendsToReceive > 0 ? (
+                            <Link href="/borrow?tab=incoming" className="flex justify-between items-center text-teal-600 hover:text-teal-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                              <span className="flex items-center gap-1"><Repeat className="h-3 w-3" /> รอรับคืน (ให้ยืม)</span>
+                              <span className="font-bold">{store.lendsToReceive}</span>
+                            </Link>
+                          ) : (
+                            <div className="flex justify-between items-center text-gray-400 dark:text-gray-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                              <span className="flex items-center gap-1"><Repeat className="h-3 w-3" /> รอรับคืน (ให้ยืม)</span>
                               <span>0</span>
                             </div>
                           )}
