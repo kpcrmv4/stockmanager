@@ -2652,7 +2652,9 @@
       "table": "Table",
       "subtotal": "Amount",
       "bottles": "bottles",
-      "receiptPhoto": "Receipt Photo"
+      "receiptPhoto": "Receipt Photo",
+      "groupView": "Group View",
+      "totalLabel": "Total"
     },
     "ae": {
       "searchPlaceholder": "Search AE...",

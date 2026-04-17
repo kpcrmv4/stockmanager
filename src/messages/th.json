@@ -2652,7 +2652,9 @@
       "table": "โต๊ะ",
       "subtotal": "ยอด",
       "bottles": "ขวด",
-      "receiptPhoto": "รูปถ่ายบิล"
+      "receiptPhoto": "รูปถ่ายบิล",
+      "groupView": "มุมมองจัดกลุ่ม",
+      "totalLabel": "รวมทั้งหมด"
     },
     "ae": {
       "searchPlaceholder": "ค้นหา AE...",

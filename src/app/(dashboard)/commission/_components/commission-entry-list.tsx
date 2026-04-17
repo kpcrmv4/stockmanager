@@ -31,7 +31,7 @@ export function CommissionEntryList() {
   const [photoModal, setPhotoModal] = useState<string | null>(null);
   
   // Grouping state
-  const [isGrouped, setIsGrouped] = useState(false);
+  const [isGrouped, setIsGrouped] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const canDelete = user?.role === 'owner' || user?.role === 'accountant';
@@ -169,7 +169,7 @@ export function CommissionEntryList() {
                       </div>
                     )}
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">รวมทั้งหมด</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('entryList.totalLabel')}</p>
                       <p className="font-bold text-amber-600 dark:text-amber-400">{formatCurrency(group.totalAmount)}</p>
                     </div>
                   </div>
