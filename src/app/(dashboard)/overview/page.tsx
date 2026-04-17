@@ -1215,85 +1215,6 @@ export default function OverviewPage() {
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {storeStatuses.map((store) => {
               const hasIssues = store.totalIssues > 0;
-              const issueItems: { label: string; count: number; icon: LucideIcon; color: string; href: string }[] = [];
-
-              if (store.isCentral) {
-                // HQ store — only incoming transfers
-                if (store.pendingIncomingTransfers > 0) {
-                  issueItems.push({
-                    label: t('storeStatus.issues.pendingIncomingTransfers'),
-                    count: store.pendingIncomingTransfers,
-                    icon: Truck,
-                    color: 'text-teal-600 dark:text-teal-400',
-                    href: '/hq-warehouse',
-                  });
-                }
-              } else {
-                // Regular stores
-                if (store.pendingApprovals > 0) {
-                  issueItems.push({
-                    label: t('storeStatus.issues.pendingApprovals'),
-                    count: store.pendingApprovals,
-                    icon: FileCheck,
-                    color: 'text-amber-600 dark:text-amber-400',
-                    href: '/stock/approval',
-                  });
-                }
-                if (store.pendingExplanations > 0) {
-                  issueItems.push({
-                    label: t('storeStatus.issues.pendingExplanations'),
-                    count: store.pendingExplanations,
-                    icon: AlertTriangle,
-                    color: 'text-red-600 dark:text-red-400',
-                    href: '/stock/comparison',
-                  });
-                }
-                if (store.pendingWithdrawals > 0) {
-                  issueItems.push({
-                    label: t('storeStatus.issues.pendingWithdrawals'),
-                    count: store.pendingWithdrawals,
-                    icon: Wine,
-                    color: 'text-blue-600 dark:text-blue-400',
-                    href: '/deposit',
-                  });
-                }
-                if (store.pendingDeposits > 0) {
-                  issueItems.push({
-                    label: t('storeStatus.issues.pendingDeposits'),
-                    count: store.pendingDeposits,
-                    icon: Package,
-                    color: 'text-indigo-600 dark:text-indigo-400',
-                    href: '/deposit',
-                  });
-                }
-                if (store.expiringDeposits > 0) {
-                  issueItems.push({
-                    label: t('storeStatus.issues.expiringDeposits'),
-                    count: store.expiringDeposits,
-                    icon: CalendarClock,
-                    color: 'text-orange-600 dark:text-orange-400',
-                    href: '/deposit',
-                  });
-                }
-                if (store.pendingTransfers > 0) {
-                  issueItems.push({
-                    label: t('storeStatus.issues.pendingTransfers'),
-                    count: store.pendingTransfers,
-                    icon: ArrowRightLeft,
-                    color: 'text-cyan-600 dark:text-cyan-400',
-                    href: '/transfer',
-                  });
-                }
-                if (store.pendingBorrows > 0) {
-                  issueItems.push({
-                    label: t('storeStatus.issues.pendingBorrows'),
-                    count: store.pendingBorrows,
-                    icon: Repeat,
-                    color: 'text-purple-600 dark:text-purple-400',
-                    href: '/borrow',
-                  });
-                }
-              }
 
               return (
                 <div
@@ -1307,44 +1228,32 @@ export default function OverviewPage() {
                 >
                   {/* Store header */}
                   <div className={cn(
-                    'flex items-center justify-between rounded-t-xl px-4 py-3',
+                    'flex items-center justify-between rounded-t-xl px-4 py-3 border-b',
                     hasIssues
-                      ? 'bg-amber-50/50 dark:bg-amber-900/10'
-                      : 'bg-gray-50/50 dark:bg-gray-800/50'
+                      ? 'bg-amber-50/50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/50'
+                      : 'bg-gray-50/50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-700/50'
                   )}>
                     <div className="flex items-center gap-2.5">
                       <div className={cn(
-                        'flex h-8 w-8 items-center justify-center rounded-lg',
+                        'flex h-10 w-10 items-center justify-center rounded-lg',
                         store.isCentral
-                          ? hasIssues
-                            ? 'bg-teal-100 dark:bg-teal-900/30'
-                            : 'bg-teal-100 dark:bg-teal-900/30'
+                          ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400'
                           : hasIssues
-                            ? 'bg-amber-100 dark:bg-amber-900/30'
-                            : 'bg-emerald-100 dark:bg-emerald-900/30'
+                            ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                            : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
                       )}>
                         {store.isCentral ? (
-                          <Warehouse className={cn(
-                            'h-4 w-4',
-                            hasIssues
-                              ? 'text-teal-600 dark:text-teal-400'
-                              : 'text-teal-600 dark:text-teal-400'
-                          )} />
+                          <Warehouse className="h-5 w-5" />
                         ) : (
-                          <Store className={cn(
-                            'h-4 w-4',
-                            hasIssues
-                              ? 'text-amber-600 dark:text-amber-400'
-                              : 'text-emerald-600 dark:text-emerald-400'
-                          )} />
+                          <Store className="h-5 w-5" />
                         )}
                       </div>
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        <h3 className="text-base font-bold text-gray-900 dark:text-white">
                           {store.name}
                         </h3>
                         {store.code && (
-                          <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
                             {store.code}
                           </p>
                         )}
@@ -1366,131 +1275,145 @@ export default function OverviewPage() {
                   </div>
 
                   {/* Store body */}
-                  <div className="px-4 py-3">
-                    {/* Quick stats */}
-                    {store.isCentral ? (
-                      <div className="mb-3 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                        <span className="flex items-center gap-1">
-                          <Warehouse className="h-3 w-3" />
-                          {t('storeStatus.hqDescription')}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-gray-500 dark:text-gray-400">
-                        <span className="flex items-center gap-1.5">
-                          <Wine className="h-3 w-3 text-emerald-500" />
-                          {t('storeStatus.depositsInStore')} <span className="font-semibold text-gray-700 dark:text-gray-300">{store.activeDeposits}</span>
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <Timer className="h-3 w-3 text-indigo-500" />
-                          {t('storeStatus.lastCount')} {store.lastStockCheck ? formatThaiDate(store.lastStockCheck) : <span className="text-gray-400">{t('storeStatus.neverCounted')}</span>}
-                        </span>
-                        {store.commissionThisMonth > 0 && (
-                          <span className="flex items-center gap-1.5 col-span-2">
-                            <HandCoins className="h-3 w-3 text-rose-500" />
-                            {t('storeStatus.commissionThisMonth')} <span className="font-semibold text-gray-700 dark:text-gray-300">{formatNumber(store.commissionThisMonth, 2)}</span> {t('storeStatus.baht')}
-                            <span className="text-gray-400">({t('storeStatus.entries', { count: store.commissionEntries })})</span>
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Issues list */}
-                    {issueItems.length > 0 ? (
-                      <div className="space-y-1.5">
-                        {issueItems.map((issue) => {
-                          const IssueIcon = issue.icon;
-                          return (
-                            <Link
-                              key={issue.label}
-                              href={issue.href}
-                              className="flex items-center justify-between rounded-lg px-2.5 py-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                            >
-                              <div className="flex items-center gap-2">
-                                <IssueIcon className={cn('h-4 w-4', issue.color)} />
-                                <span className="text-sm text-gray-700 dark:text-gray-300">
-                                  {issue.label}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className={cn('text-sm font-bold', issue.color)}>
-                                  {issue.count}
-                                </span>
-                                <ArrowRight className="h-3.5 w-3.5 text-gray-300 dark:text-gray-600" />
-                              </div>
+                  {store.isCentral ? (
+                    <div className="p-4 grid grid-cols-1 gap-4">
+                      <div className="space-y-2">
+                        <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-teal-500">
+                          <Warehouse className="h-3.5 w-3.5" />
+                          {t('modules.transfer.name')}
+                        </h4>
+                        <div className="rounded-lg bg-gray-50 p-2.5 dark:bg-gray-800/50 space-y-1.5 text-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500 dark:text-gray-400">{t('storeStatus.hqDescription')}</span>
+                          </div>
+                          {store.pendingIncomingTransfers > 0 && (
+                            <Link href="/hq-warehouse" className="flex justify-between items-center text-teal-600 hover:text-teal-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                              <span className="flex items-center gap-1"><Truck className="h-3 w-3" /> {t('storeStatus.issues.pendingIncomingTransfers')}</span>
+                              <span className="font-bold">{store.pendingIncomingTransfers}</span>
                             </Link>
-                          );
-                        })}
+                          )}
+                        </div>
                       </div>
-                    ) : (
-                      <p className="text-center text-xs text-gray-400 dark:text-gray-500 py-2">
-                        {t('storeStatus.noPendingWork')}
-                      </p>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Stock Module */}
+                      <div className="space-y-2">
+                        <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-indigo-500">
+                          <ClipboardCheck className="h-3.5 w-3.5" />
+                          {t('modules.stock.name')}
+                        </h4>
+                        <div className="rounded-lg bg-gray-50 p-2.5 dark:bg-gray-800/50 space-y-1.5 text-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500 dark:text-gray-400">{t('storeStatus.lastCount')}</span>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {store.lastStockCheck ? formatThaiDate(store.lastStockCheck) : <span className="text-gray-400">{t('storeStatus.neverCounted')}</span>}
+                            </span>
+                          </div>
+                          {store.pendingExplanations > 0 && (
+                            <Link href="/stock/comparison" className="flex justify-between items-center text-red-600 hover:text-red-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                              <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {t('storeStatus.issues.pendingExplanations')}</span>
+                              <span className="font-bold">{store.pendingExplanations}</span>
+                            </Link>
+                          )}
+                          {store.pendingApprovals > 0 && (
+                            <Link href="/stock/approval" className="flex justify-between items-center text-amber-600 hover:text-amber-500 mt-1">
+                              <span className="flex items-center gap-1"><FileCheck className="h-3 w-3" /> {t('storeStatus.issues.pendingApprovals')}</span>
+                              <span className="font-bold">{store.pendingApprovals}</span>
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Deposit Module */}
+                      <div className="space-y-2">
+                        <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-emerald-500">
+                          <Wine className="h-3.5 w-3.5" />
+                          {t('modules.deposit.name')}
+                        </h4>
+                        <div className="rounded-lg bg-gray-50 p-2.5 dark:bg-gray-800/50 space-y-1.5 text-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500 dark:text-gray-400">{t('storeStatus.depositsInStore')}</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{store.activeDeposits}</span>
+                          </div>
+                          {store.expiringDeposits > 0 && (
+                            <Link href="/deposit" className="flex justify-between items-center text-orange-600 hover:text-orange-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                              <span className="flex items-center gap-1"><CalendarClock className="h-3 w-3" /> {t('storeStatus.issues.expiringDeposits')}</span>
+                              <span className="font-bold">{store.expiringDeposits}</span>
+                            </Link>
+                          )}
+                          {store.pendingDeposits > 0 && (
+                            <Link href="/deposit" className="flex justify-between items-center text-indigo-600 hover:text-indigo-500 mt-1">
+                              <span className="flex items-center gap-1"><Package className="h-3 w-3" /> {t('storeStatus.issues.pendingDeposits')}</span>
+                              <span className="font-bold">{store.pendingDeposits}</span>
+                            </Link>
+                          )}
+                          {store.pendingWithdrawals > 0 && (
+                            <Link href="/deposit/withdrawals" className="flex justify-between items-center text-blue-600 hover:text-blue-500 mt-1">
+                              <span className="flex items-center gap-1"><Wine className="h-3 w-3" /> {t('storeStatus.issues.pendingWithdrawals')}</span>
+                              <span className="font-bold">{store.pendingWithdrawals}</span>
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Transfer & Borrow Module */}
+                      <div className="space-y-2">
+                        <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-blue-500">
+                          <ArrowRightLeft className="h-3.5 w-3.5" />
+                          {t('modules.transfer.name')} &amp; {t('modules.borrow.name')}
+                        </h4>
+                        <div className="rounded-lg bg-gray-50 p-2.5 dark:bg-gray-800/50 space-y-1.5 text-xs">
+                          {store.pendingTransfers > 0 ? (
+                            <Link href="/transfer" className="flex justify-between items-center text-cyan-600 hover:text-cyan-500">
+                              <span className="flex items-center gap-1"><ArrowRightLeft className="h-3 w-3" /> {t('storeStatus.issues.pendingTransfers')}</span>
+                              <span className="font-bold">{store.pendingTransfers}</span>
+                            </Link>
+                          ) : (
+                            <div className="flex justify-between items-center text-gray-400 dark:text-gray-500">
+                              <span className="flex items-center gap-1"><ArrowRightLeft className="h-3 w-3" /> {t('storeStatus.issues.pendingTransfers')}</span>
+                              <span>0</span>
+                            </div>
+                          )}
+                          
+                          {store.pendingBorrows > 0 ? (
+                            <Link href="/borrow" className="flex justify-between items-center text-purple-600 hover:text-purple-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                              <span className="flex items-center gap-1"><Repeat className="h-3 w-3" /> {t('storeStatus.issues.pendingBorrows')}</span>
+                              <span className="font-bold">{store.pendingBorrows}</span>
+                            </Link>
+                          ) : (
+                            <div className="flex justify-between items-center text-gray-400 dark:text-gray-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                              <span className="flex items-center gap-1"><Repeat className="h-3 w-3" /> {t('storeStatus.issues.pendingBorrows')}</span>
+                              <span>0</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Commission Module */}
+                      <div className="space-y-2">
+                        <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-rose-500">
+                          <HandCoins className="h-3.5 w-3.5" />
+                          {t('modules.commission.name')}
+                        </h4>
+                        <div className="rounded-lg bg-gray-50 p-2.5 dark:bg-gray-800/50 space-y-1.5 text-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500 dark:text-gray-400">{t('storeStatus.commissionThisMonth')}</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{formatNumber(store.commissionThisMonth, 2)} {t('storeStatus.baht')}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-gray-500 dark:text-gray-400 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                            <span>{t('storeStatus.entries', { count: store.commissionEntries })}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
       )}
-
-      {/* ---- Module Grid ---- */}
-      <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          {t('modules.heading')}
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {moduleCards.map((mod) => {
-            const Icon = mod.icon;
-            const colors = COLOR_MAP[mod.color] || COLOR_MAP.gray;
-            return (
-              <Link
-                key={mod.id}
-                href={mod.href}
-                className={cn(
-                  'group relative rounded-xl border-l-4 bg-white p-5 shadow-sm ring-1 ring-gray-200 transition-shadow hover:shadow-md dark:bg-gray-800 dark:ring-gray-700',
-                  colors.border
-                )}
-              >
-                {/* Top row: icon + name + arrow */}
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
-                      colors.iconBg
-                    )}
-                  >
-                    <Icon className={cn('h-5 w-5', colors.text)} />
-                  </div>
-                  <h3 className="flex-1 text-sm font-semibold text-gray-900 dark:text-white">
-                    {mod.name}
-                  </h3>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-gray-300 transition-transform group-hover:translate-x-0.5 dark:text-gray-600" />
-                </div>
-
-                {/* Metrics / description */}
-                <div className="mt-3 space-y-1">
-                  {mod.metrics.length > 0
-                    ? mod.metrics.map((metric) => (
-                        <p
-                          key={metric}
-                          className="text-xs text-gray-500 dark:text-gray-400"
-                        >
-                          {metric}
-                        </p>
-                      ))
-                    : mod.description && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {mod.description}
-                        </p>
-                      )}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
 
       {/* ---- Recent Activity ---- */}
       <Card padding="none">
