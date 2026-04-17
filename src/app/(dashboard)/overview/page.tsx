@@ -99,7 +99,8 @@ interface StoreStatus {
   lastStockCheck: string | null;
   totalIssues: number;          // sum of all pending items
   // enhanced data
-  pendingBorrows: number;       // borrows pending approval
+  borrowsPendingApproval: number; // borrows pending_approval
+  borrowsWaitingReturn: number;   // borrows waiting_return
   commissionThisMonth: number;  // commission net total this month
   commissionEntries: number;    // commission entry count this month
 }
@@ -920,7 +921,8 @@ export default function OverviewPage() {
                     pendingIncomingTransfers: pendingIncoming,
                     lastStockCheck: null,
                     totalIssues: pendingIncoming,
-                    pendingBorrows: 0,
+                    borrowsPendingApproval: 0,
+                    borrowsWaitingReturn: 0,
                     commissionThisMonth: 0,
                     commissionEntries: 0,
                   };
@@ -933,7 +935,7 @@ export default function OverviewPage() {
                 const cmEnd = new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 0).toISOString().split('T')[0];
 
                 const [
-                  pwRes, edRes, adRes, peRes, paRes, ptRes, brRes, cmRes,
+                  pwRes, edRes, adRes, peRes, paRes, ptRes, piRes, bpRes, brRes, cmRes,
                 ] = await Promise.all([
                   supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending_withdrawal'),
                   supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'in_store').lt('expiry_date', sevenDaysFromNow).gt('expiry_date', todayISO),
@@ -941,7 +943,9 @@ export default function OverviewPage() {
                   supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending'),
                   supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'explained'),
                   supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('from_store_id', sid).eq('status', 'pending'),
-                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending'),
+                  supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending'),
+                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending_approval'),
+                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'waiting_return'),
                   supabase.from('commission_entries').select('net_amount').eq('store_id', sid).gte('bill_date', cmStart).lte('bill_date', cmEnd),
                 ]);
 
@@ -951,7 +955,9 @@ export default function OverviewPage() {
                 const pendingExpl = peRes.count || 0;
                 const pendingAppr = paRes.count || 0;
                 const pendingTrans = ptRes.count || 0;
-                const pendingBorrows = brRes.count || 0;
+                const pendingIncoming = piRes.count || 0;
+                const borrowsPendingApproval = bpRes.count || 0;
+                const borrowsWaitingReturn = brRes.count || 0;
                 const storeCommRows = cmRes.data || [];
                 const storeCommTotal = storeCommRows.reduce((s: number, r: { net_amount: number | string | null }) => s + (Number(r.net_amount) || 0), 0);
                 const storeCommEntries = storeCommRows.length;
@@ -964,7 +970,7 @@ export default function OverviewPage() {
                 const lcRes = await supabase.from('manual_counts').select('count_date').eq('store_id', sid).order('count_date', { ascending: false }).limit(1).maybeSingle();
                 if (lcRes.data) lastStockCheck = lcRes.data.count_date || null;
 
-                const totalIssues = pendingDeposits + pendingWithdrawals + expiringDeposits + pendingExpl + pendingAppr + pendingTrans + pendingBorrows;
+                const totalIssues = pendingDeposits + pendingWithdrawals + expiringDeposits + pendingExpl + pendingAppr + pendingTrans + pendingIncoming + borrowsPendingApproval + borrowsWaitingReturn;
 
                 const result: StoreStatus = {
                   id: store.id,
@@ -978,10 +984,11 @@ export default function OverviewPage() {
                   pendingExplanations: pendingExpl,
                   pendingApprovals: pendingAppr,
                   pendingTransfers: pendingTrans,
-                  pendingIncomingTransfers: 0,
+                  pendingIncomingTransfers: pendingIncoming,
                   lastStockCheck,
                   totalIssues,
-                  pendingBorrows,
+                  borrowsPendingApproval,
+                  borrowsWaitingReturn,
                   commissionThisMonth: Math.round(storeCommTotal * 100) / 100,
                   commissionEntries: storeCommEntries,
                 };
@@ -1325,21 +1332,21 @@ export default function OverviewPage() {
                         </div>
                       </div>
 
-                      {/* Deposit Module */}
+                      {/* Deposit & Transfer Module */}
                       <div className="space-y-2">
                         <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-emerald-500">
                           <Wine className="h-3.5 w-3.5" />
-                          {t('modules.deposit.name')}
+                          {t('modules.deposit.name')} &amp; {t('modules.transfer.name')}
                         </h4>
                         <div className="rounded-lg bg-gray-50 p-2.5 dark:bg-gray-800/50 space-y-1.5 text-xs">
                           <div className="flex justify-between items-center">
                             <span className="text-gray-500 dark:text-gray-400">{t('storeStatus.depositsInStore')}</span>
                             <span className="font-medium text-gray-900 dark:text-white">{store.activeDeposits}</span>
                           </div>
-                          {store.expiringDeposits > 0 && (
+                          {(store.expiringDeposits > 0 || store.pendingIncomingTransfers > 0) && (
                             <Link href="/deposit" className="flex justify-between items-center text-orange-600 hover:text-orange-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
-                              <span className="flex items-center gap-1"><CalendarClock className="h-3 w-3" /> {t('storeStatus.issues.expiringDeposits')}</span>
-                              <span className="font-bold">{store.expiringDeposits}</span>
+                              <span className="flex items-center gap-1"><CalendarClock className="h-3 w-3" /> หมดอายุ/รอรับ</span>
+                              <span className="font-bold">{store.expiringDeposits + store.pendingIncomingTransfers}</span>
                             </Link>
                           )}
                           {store.pendingDeposits > 0 && (
@@ -1354,36 +1361,42 @@ export default function OverviewPage() {
                               <span className="font-bold">{store.pendingWithdrawals}</span>
                             </Link>
                           )}
+                          {store.pendingTransfers > 0 && (
+                            <Link href="/transfer" className="flex justify-between items-center text-cyan-600 hover:text-cyan-500 mt-1">
+                              <span className="flex items-center gap-1"><ArrowRightLeft className="h-3 w-3" /> รอโอนสต๊อก</span>
+                              <span className="font-bold">{store.pendingTransfers}</span>
+                            </Link>
+                          )}
                         </div>
                       </div>
 
-                      {/* Transfer & Borrow Module */}
+                      {/* Borrow Module */}
                       <div className="space-y-2">
-                        <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-blue-500">
-                          <ArrowRightLeft className="h-3.5 w-3.5" />
-                          {t('modules.transfer.name')} &amp; {t('modules.borrow.name')}
+                        <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-purple-500">
+                          <Repeat className="h-3.5 w-3.5" />
+                          {t('modules.borrow.name')}
                         </h4>
                         <div className="rounded-lg bg-gray-50 p-2.5 dark:bg-gray-800/50 space-y-1.5 text-xs">
-                          {store.pendingTransfers > 0 ? (
-                            <Link href="/transfer" className="flex justify-between items-center text-cyan-600 hover:text-cyan-500">
-                              <span className="flex items-center gap-1"><ArrowRightLeft className="h-3 w-3" /> {t('storeStatus.issues.pendingTransfers')}</span>
-                              <span className="font-bold">{store.pendingTransfers}</span>
+                          {store.borrowsPendingApproval > 0 ? (
+                            <Link href="/borrow?status=pending_approval" className="flex justify-between items-center text-amber-600 hover:text-amber-500">
+                              <span className="flex items-center gap-1"><FileCheck className="h-3 w-3" /> รายการรออนุมัติ</span>
+                              <span className="font-bold">{store.borrowsPendingApproval}</span>
                             </Link>
                           ) : (
                             <div className="flex justify-between items-center text-gray-400 dark:text-gray-500">
-                              <span className="flex items-center gap-1"><ArrowRightLeft className="h-3 w-3" /> {t('storeStatus.issues.pendingTransfers')}</span>
+                              <span className="flex items-center gap-1"><FileCheck className="h-3 w-3" /> รายการรออนุมัติ</span>
                               <span>0</span>
                             </div>
                           )}
                           
-                          {store.pendingBorrows > 0 ? (
-                            <Link href="/borrow" className="flex justify-between items-center text-purple-600 hover:text-purple-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
-                              <span className="flex items-center gap-1"><Repeat className="h-3 w-3" /> {t('storeStatus.issues.pendingBorrows')}</span>
-                              <span className="font-bold">{store.pendingBorrows}</span>
+                          {store.borrowsWaitingReturn > 0 ? (
+                            <Link href="/borrow?status=waiting_return" className="flex justify-between items-center text-purple-600 hover:text-purple-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                              <span className="flex items-center gap-1"><Repeat className="h-3 w-3" /> รายการรอคืน</span>
+                              <span className="font-bold">{store.borrowsWaitingReturn}</span>
                             </Link>
                           ) : (
                             <div className="flex justify-between items-center text-gray-400 dark:text-gray-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
-                              <span className="flex items-center gap-1"><Repeat className="h-3 w-3" /> {t('storeStatus.issues.pendingBorrows')}</span>
+                              <span className="flex items-center gap-1"><Repeat className="h-3 w-3" /> รายการรอคืน</span>
                               <span>0</span>
                             </div>
                           )}
