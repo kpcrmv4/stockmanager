@@ -1265,6 +1265,7 @@ export default function BorrowPage() {
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const t = useTranslations('borrow');
+  const tCommon = useTranslations('common');
 
   const [activeTab, setActiveTab] = useState<'outgoing' | 'incoming'>('outgoing');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -1680,10 +1681,10 @@ export default function BorrowPage() {
           <table className="w-full text-left text-sm border-collapse">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
-                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">{t('common.date')}</th>
-                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">{t('borrow.branch')}</th>
-                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">{t('borrow.itemList')}</th>
-                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300 text-center">{t('common.status')}</th>
+                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">{tCommon('date')}</th>
+                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">{t('branch')}</th>
+                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">{t('itemList')}</th>
+                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300 text-center">{tCommon('status')}</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -1692,7 +1693,7 @@ export default function BorrowPage() {
                 const config = getStatusConfig(t)[b.status];
                 return (
                   <tr key={b.id} onClick={() => setSelectedBorrow(b)} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 cursor-pointer transition-colors group">
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatThaiDateTime(b.created_at).split(' ')[0]}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatThaiDate(b.created_at)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5 font-medium">
                         <span className="truncate max-w-[120px]">{b.from_store_name}</span>

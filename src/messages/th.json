@@ -1668,7 +1668,8 @@
     "photoStatusPending": "ยังไม่ถ่ายรูป",
     "createBorrowPhotoLabel": "ถ่ายรูปสินค้าที่ต้องการยืม (แนะนำ)",
     "approvedByLabel": "อนุมัติโดย",
-    "returnedByLabel": "คืนโดย"
+    "returnedByLabel": "คืนโดย",
+    "branch": "สาขา"
   },
   "barApproval": {
     "title": "รายการรออนุมัติ",
