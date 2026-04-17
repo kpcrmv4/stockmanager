@@ -233,7 +233,7 @@ export interface HqDeposit {
   created_at: string;
 }
 
-export type BorrowStatus = 'pending_approval' | 'approved' | 'pos_adjusting' | 'completed' | 'rejected';
+export type BorrowStatus = 'pending_approval' | 'approved' | 'pos_adjusting' | 'completed' | 'returned' | 'rejected' | 'cancelled';
 
 export interface Borrow {
   id: string;
@@ -256,6 +256,14 @@ export interface Borrow {
   rejected_at: string | null;
   rejection_reason: string | null;
   completed_at: string | null;
+  /** รูปถ่ายยืนยันการคืนสินค้า */
+  return_photo_url: string | null;
+  /** ผู้ยืนยันการคืนสินค้า */
+  return_confirmed_by: string | null;
+  /** เวลาที่ยืนยันคืนสินค้า */
+  return_confirmed_at: string | null;
+  /** หมายเหตุการคืนสินค้า */
+  return_notes: string | null;
   created_at: string;
   updated_at: string;
 }

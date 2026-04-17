@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { notifyStoreOwners, notifyStoreStaff } from '@/lib/notifications/service';
+import { notifyBorrowWatchers, notifyStoreStaff } from '@/lib/notifications/service';
 import { sendBotMessage, buildStockExplainActionCard } from '@/lib/chat/bot';
 
 export async function POST(request: NextRequest) {
@@ -257,20 +257,17 @@ export async function POST(request: NextRequest) {
 
     // 9. Notify owners if there are items over tolerance
     if (overToleranceCount > 0) {
+      // 3. แจ้งเตือน In-App + PWA ไปยัง Owner/Manager ตามที่ตั้งค่าไว้
       try {
-        await notifyStoreOwners({
+        await notifyBorrowWatchers({
           storeId: store_id,
           type: 'stock_alert',
-          title: 'ผลเปรียบเทียบสต๊อก',
-          body: `พบส่วนต่าง ${overToleranceCount} รายการ เกินเกณฑ์ที่กำหนด`,
-          data: {
-            date: comp_date,
-            total_diffs: overToleranceCount,
-            url: '/stock/comparison',
-          },
+          title: '⚠️ พบสต๊อกผลต่างสูง รออนุมัติ',
+          body: `พบ ${overToleranceCount} รายการ เกินเกณฑ์ที่กำหนด`,
+          data: { url: '/stock/comparison' },
         });
-      } catch (notifyErr) {
-        console.error('[Compare] Failed to notify owners:', notifyErr);
+      } catch (err) {
+        console.error('[StockCompare] Failed to notify watchers:', err);
       }
 
       // ส่ง Action Card เข้าแชทสาขา

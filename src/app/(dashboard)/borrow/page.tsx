@@ -38,6 +38,7 @@ import {
   CheckCircle2,
   XCircle,
   Image,
+  AlertTriangle,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -59,7 +60,7 @@ interface BorrowWithDetails {
   from_store_id: string;
   to_store_id: string;
   requested_by: string | null;
-  status: 'pending_approval' | 'approved' | 'pos_adjusting' | 'completed' | 'rejected' | 'cancelled';
+  status: 'pending_approval' | 'approved' | 'pos_adjusting' | 'completed' | 'returned' | 'rejected' | 'cancelled';
   notes: string | null;
   borrower_photo_url: string | null;
   lender_photo_url: string | null;
@@ -82,6 +83,10 @@ interface BorrowWithDetails {
   requester_name?: string;
   approver_name?: string;
   items: BorrowItem[];
+  return_photo_url?: string | null;
+  return_confirmed_by?: string | null;
+  return_confirmed_at?: string | null;
+  return_notes?: string | null;
 }
 
 interface StoreOption {
@@ -121,14 +126,15 @@ function getStatusConfig(t: ReturnType<typeof useTranslations>): Record<
   BorrowWithDetails['status'],
   { label: string; variant: 'warning' | 'info' | 'default' | 'success' | 'danger'; step: number }
 > {
-  // 3-step flow: ส่งคำขอ (0) → อนุมัติ (1) → เสร็จ (2)
+  // 4-step flow: ส่งคำขอ (0) → อนุมัติ (1) → รับสินค้า (2) → คืนสินค้า (3)
   // `pos_adjusting` kept for backward compat with legacy records — treated
   // the same as `approved` in the new flow.
   return {
     pending_approval: { label: t('statusPendingApproval'), variant: 'warning', step: 0 },
     approved: { label: t('statusWaitingReceive'), variant: 'info', step: 1 },
     pos_adjusting: { label: t('statusWaitingReceive'), variant: 'info', step: 1 },
-    completed: { label: t('statusCompleted'), variant: 'success', step: 2 },
+    completed: { label: t('statusWaitingReturn'), variant: 'info', step: 2 },
+    returned: { label: t('statusReturned'), variant: 'success', step: 3 },
     rejected: { label: t('statusRejected'), variant: 'danger', step: -1 },
     cancelled: { label: t('statusCancelled'), variant: 'danger', step: -1 },
   };
@@ -155,7 +161,7 @@ function StatusProgressBar({
   status: BorrowWithDetails['status'];
   t: ReturnType<typeof useTranslations>;
 }) {
-  const steps = [t('stepSendRequest'), t('stepApprove'), t('stepComplete')];
+  const steps = [t('stepSendRequest'), t('stepApprove'), t('stepComplete'), t('stepReturn')];
   const isRejected = status === 'rejected';
   const statusConfig = getStatusConfig(t);
   const currentStep = statusConfig[status].step;
@@ -271,11 +277,12 @@ function BorrowCard({
       <div className="p-4 sm:p-5">
         {/* Top row: store + status */}
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <Store className="h-4 w-4 shrink-0 text-teal-500" />
-            <span className="font-medium truncate max-w-[180px] sm:max-w-none">
-              {otherStore || t('unknownStore')}
-            </span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-gray-800 dark:text-gray-100">
+              <span className="truncate max-w-[90px] sm:max-w-[120px]">{borrow.from_store_name || t('unknownStore')}</span>
+              <ArrowRightLeft className="h-3.5 w-3.5 shrink-0 text-teal-500" />
+              <span className="truncate max-w-[90px] sm:max-w-[120px]">{borrow.to_store_name || t('unknownStore')}</span>
+            </div>
           </div>
           <Badge variant={config.variant as 'warning' | 'success' | 'danger' | 'info' | 'default'} size="sm">
             {config.label}
@@ -606,6 +613,15 @@ function CreateBorrowModal({
           </button>
         </div>
 
+        {/* Photo (optional) */}
+        <PhotoUpload
+          value={photoUrl}
+          onChange={setPhotoUrl}
+          folder="borrows/request"
+          label={t('createBorrowPhotoLabel')}
+          compact
+        />
+
         {/* Notes */}
         <Textarea
           label={t('notesLabel')}
@@ -662,6 +678,8 @@ function BorrowDetailSheet({
   const [borrowerPhoto, setBorrowerPhoto] = useState<string | null>(borrow.borrower_photo_url);
   const [lenderPhoto, setLenderPhoto] = useState<string | null>(borrow.lender_photo_url);
   const [receivePhoto, setReceivePhoto] = useState<string | null>(null);
+  const [returnPhoto, setReturnPhoto] = useState<string | null>(null);
+  const [returnNotes, setReturnNotes] = useState('');
   const [approvedQtys, setApprovedQtys] = useState<Record<string, number>>(
     () => Object.fromEntries(borrow.items.map((i) => [i.id, i.approved_quantity ?? i.quantity]))
   );
@@ -729,6 +747,15 @@ function BorrowDetailSheet({
     patchBorrow({ action: 'cancel' });
   };
 
+  const handleMarkReturned = () => {
+    if (!returnPhoto) {
+      toast({ type: 'warning', title: t('returnPhotoRequired') });
+      return;
+    }
+    toast({ type: 'success', title: t('markReturnedSuccess') });
+    patchBorrow({ action: 'mark_returned', photoUrl: returnPhoto, returnNotes: returnNotes.trim() || undefined });
+  };
+
   const handlePhotoUpload = (side: 'borrower' | 'lender', url: string | null) => {
     if (side === 'borrower') {
       setBorrowerPhoto(url);
@@ -760,7 +787,7 @@ function BorrowDetailSheet({
         </div>
 
         <div className="p-5 sm:p-6 space-y-5">
-          {/* Header */}
+          {/* Header — ใครยืมใคร ชัดเจน */}
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2">
@@ -771,9 +798,17 @@ function BorrowDetailSheet({
                   {formatThaiDateTime(borrow.created_at)}
                 </span>
               </div>
-              <h2 className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">
-                {t('borrowDetail')}
+              <h2 className="mt-2 text-lg font-bold text-gray-900 dark:text-white">
+                {t('borrowsFrom', {
+                  from: borrow.from_store_name || t('unknownBranch'),
+                  to: borrow.to_store_name || t('unknownBranch'),
+                })}
               </h2>
+              {borrow.requester_name && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {t('requester')} {borrow.requester_name}
+                </p>
+              )}
             </div>
             <button
               onClick={onClose}
@@ -786,20 +821,37 @@ function BorrowDetailSheet({
           {/* Status Progress */}
           <StatusProgressBar status={borrow.status} t={t} />
 
-          {/* Store info */}
-          <div className="flex items-center gap-3 rounded-xl bg-teal-50 p-4 dark:bg-teal-900/10">
-            <div className="flex items-center gap-2 text-sm">
-              <Building2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-              <span className="font-medium text-gray-800 dark:text-gray-200">
-                {borrow.from_store_name || t('unknownBranch')}
-              </span>
+          {/* Store info — 2-column card */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-3 dark:border-teal-800 dark:bg-teal-900/10">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-teal-600 dark:text-teal-400 mb-1">{t('borrowerLabel')}</p>
+              <div className="flex items-center gap-1.5">
+                <Building2 className="h-4 w-4 text-teal-600 dark:text-teal-400 shrink-0" />
+                <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
+                  {borrow.from_store_name || t('unknownBranch')}
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1 text-[10px]">
+                <Camera className="h-3 w-3" />
+                <span className={borrowerPhoto ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500'}>
+                  {borrowerPhoto ? t('photoStatus') : t('photoStatusPending')}
+                </span>
+              </div>
             </div>
-            <ArrowRightLeft className="h-4 w-4 text-teal-500" />
-            <div className="flex items-center gap-2 text-sm">
-              <Store className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-              <span className="font-medium text-gray-800 dark:text-gray-200">
-                {borrow.to_store_name || t('unknownBranch')}
-              </span>
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-800 dark:bg-indigo-900/10">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-1">{t('lenderLabel')}</p>
+              <div className="flex items-center gap-1.5">
+                <Store className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
+                  {borrow.to_store_name || t('unknownBranch')}
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1 text-[10px]">
+                <Camera className="h-3 w-3" />
+                <span className={lenderPhoto ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500'}>
+                  {lenderPhoto ? t('photoStatus') : t('photoStatusPending')}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -1117,6 +1169,85 @@ function BorrowDetailSheet({
               )}
             </div>
           )}
+
+          {/* Completed — borrower should return items */}
+          {borrow.status === 'completed' && (
+            <div className="space-y-4">
+              {/* Borrower side — return reminder + photo upload + confirm */}
+              {isBorrowerSide && (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>{t('returnReminder', { store: borrow.to_store_name || '' })}</span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
+                    <Camera className="h-4 w-4 shrink-0" />
+                    <span>{t('returnPhotoDesc')}</span>
+                  </div>
+                  <PhotoUpload
+                    value={returnPhoto}
+                    onChange={setReturnPhoto}
+                    folder="borrows/returned"
+                    label={t('returnPhotoLabel')}
+                    compact
+                  />
+                  <textarea
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    rows={2}
+                    placeholder={t('returnNotesPlaceholder')}
+                    value={returnNotes}
+                    onChange={(e) => setReturnNotes(e.target.value)}
+                  />
+                  <Button
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+                    icon={<CheckCircle2 className="h-4 w-4" />}
+                    onClick={handleMarkReturned}
+                    isLoading={isActing}
+                    disabled={!returnPhoto}
+                  >
+                    {t('markAsReturned')}
+                  </Button>
+                </div>
+              )}
+
+              {/* Lender side — waiting for borrower to return */}
+              {isLenderSide && (
+                <div className="flex items-center gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+                  <Clock className="h-4 w-4 shrink-0" />
+                  <span>{t('returnReminder', { store: borrow.from_store_name || '' })}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Returned — show success state */}
+          {borrow.status === 'returned' && (
+            <div className="rounded-xl bg-emerald-50 p-4 dark:bg-emerald-900/10">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-medium">
+                <CheckCircle2 className="h-5 w-5" />
+                <span>{t('returnedStatus')}</span>
+              </div>
+              {borrow.return_confirmed_at && (
+                <p className="mt-1 text-xs text-emerald-600/70 dark:text-emerald-400/70">
+                  {t('returnedAt', { date: formatThaiDateTime(borrow.return_confirmed_at) })}
+                </p>
+              )}
+              {borrow.return_notes && (
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                  {borrow.return_notes}
+                </p>
+              )}
+              {borrow.return_photo_url && (
+                <div className="mt-3">
+                  <img
+                    src={borrow.return_photo_url}
+                    alt="Return photo"
+                    className="h-32 w-auto rounded-lg object-cover border border-emerald-200 dark:border-emerald-800"
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </>
@@ -1263,15 +1394,18 @@ export default function BorrowPage() {
     b.status === 'approved' || b.status === 'pos_adjusting';
   const waitingReceiveCount = borrows.filter(isWaitingReceive).length;
 
+  const waitingReturnCount = borrows.filter((b) => b.status === 'completed').length;
+
   const currentStoreName =
     stores.find((s) => s.id === currentStoreId)?.store_name || '';
 
-  // Sub-tab definitions (same for both directions in the simplified flow)
+  // Sub-tab definitions (4-step flow + completed + cancelled)
   const subTabs = [
     { key: 'all', label: t('subAll') },
     { key: 'pending_approval', label: t('subPendingApproval') },
     { key: 'waiting_receive', label: t('subWaitingReceive') },
-    { key: 'completed', label: t('subCompleted') },
+    { key: 'waiting_return', label: t('subWaitingReturn') },
+    { key: 'returned', label: t('statusReturned') },
     { key: 'cancelled_rejected', label: t('subCancelled') },
   ];
 
@@ -1279,7 +1413,8 @@ export default function BorrowPage() {
     if (statusFilter === 'all') return true;
     if (statusFilter === 'cancelled_rejected') return b.status === 'cancelled' || b.status === 'rejected';
     if (statusFilter === 'waiting_receive') return isWaitingReceive(b);
-    if (statusFilter === 'completed') return b.status === 'completed';
+    if (statusFilter === 'waiting_return') return b.status === 'completed';
+    if (statusFilter === 'returned') return b.status === 'returned';
     return b.status === statusFilter;
   });
 
@@ -1338,6 +1473,18 @@ export default function BorrowPage() {
           </div>
         </Card>
       </div>
+
+      {/* Waiting return count — show when there are items to return */}
+      {waitingReturnCount > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+          <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span className="font-medium">
+              {t('waitingReturnCount')}: {waitingReturnCount} {t('itemCount', { count: waitingReturnCount })}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ----------------------------------------------------------------- */}
       {/* Tabs                                                               */}

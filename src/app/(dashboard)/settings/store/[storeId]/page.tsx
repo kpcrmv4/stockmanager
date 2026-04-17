@@ -147,6 +147,9 @@ export default function StoreDetailSettingsPage() {
   const [barNotifyGroupId, setBarNotifyGroupId] = useState('');
   const [lineNotifyEnabled, setLineNotifyEnabled] = useState(true);
 
+  // Staff notification settings
+  const [borrowNotificationRoles, setBorrowNotificationRoles] = useState<string[]>(['owner', 'manager']);
+
   // Central LIFF ID (read-only — from system_settings)
   const [centralLiffId, setCentralLiffId] = useState('');
   const [liffLinkCopied, setLiffLinkCopied] = useState(false);
@@ -219,7 +222,7 @@ export default function StoreDetailSettingsPage() {
     // Load store info
     const { data: store } = await supabase
       .from('stores')
-      .select('id, store_code, store_name, is_central, line_token, line_channel_id, line_channel_secret, stock_notify_group_id, deposit_notify_group_id, bar_notify_group_id')
+      .select('id, store_code, store_name, is_central, line_token, line_channel_id, line_channel_secret, stock_notify_group_id, deposit_notify_group_id, bar_notify_group_id, borrow_notification_roles')
       .eq('id', storeId)
       .single();
 
@@ -233,6 +236,7 @@ export default function StoreDetailSettingsPage() {
       setStockNotifyGroupId(store.stock_notify_group_id || '');
       setDepositNotifyGroupId(store.deposit_notify_group_id || '');
       setBarNotifyGroupId(store.bar_notify_group_id || '');
+      setBorrowNotificationRoles(store.borrow_notification_roles || ['owner', 'manager']);
     }
 
     // Load central LIFF ID (from system_settings)
@@ -440,6 +444,7 @@ export default function StoreDetailSettingsPage() {
         stock_notify_group_id: stockNotifyGroupId || null,
         deposit_notify_group_id: depositNotifyGroupId || null,
         bar_notify_group_id: barNotifyGroupId || null,
+        borrow_notification_roles: borrowNotificationRoles,
       })
       .eq('id', storeId);
 
@@ -538,6 +543,12 @@ export default function StoreDetailSettingsPage() {
   const toggleChannel = (channel: string) => {
     setCustomerChannels((prev) =>
       prev.includes(channel) ? prev.filter((c) => c !== channel) : [...prev, channel]
+    );
+  };
+
+  const toggleBorrowRole = (role: string) => {
+    setBorrowNotificationRoles((prev) =>
+      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
     );
   };
 
@@ -843,6 +854,61 @@ export default function StoreDetailSettingsPage() {
             </ol>
             <p className="mt-2 text-[11px] italic text-blue-600 dark:text-blue-500">
               {t('storeDetail.lineGroupHowToNote')}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Section 2.5: การแจ้งเตือนพนักงาน (Staff Notifications)               */}
+      {/* ------------------------------------------------------------------ */}
+      <Card padding="none">
+        <CardHeader
+          title={t('storeDetail.staffNotifTitle')}
+          description={t('storeDetail.staffNotifDesc')}
+          action={
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
+              <Bell className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+            </div>
+          }
+        />
+        <CardContent className="space-y-6">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-900 dark:text-white">
+              {t('storeDetail.borrowNotifLabel')}
+            </label>
+            <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+              {t('storeDetail.borrowNotifDesc')}
+            </p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { id: 'owner', label: t('storeDetail.roleOwner') },
+                { id: 'manager', label: t('storeDetail.roleManager') },
+                { id: 'bar', label: t('storeDetail.roleBar') },
+                { id: 'staff', label: t('storeDetail.roleStaff') },
+              ].map((role) => {
+                const isSelected = borrowNotificationRoles.includes(role.id);
+                return (
+                  <button
+                    key={role.id}
+                    type="button"
+                    onClick={() => toggleBorrowRole(role.id)}
+                    className={`flex items-center justify-center rounded-xl border p-3 text-sm font-medium transition-colors ${
+                      isSelected
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300'
+                        : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {role.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          
+          <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+            <p className="text-xs italic text-gray-500 dark:text-gray-400">
+              {t('storeDetail.roleNotifyNote')}
             </p>
           </div>
         </CardContent>

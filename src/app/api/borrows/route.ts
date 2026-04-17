@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { pushToStaffGroup, type LineMessage } from '@/lib/line/messaging';
 import { borrowRequestFlex } from '@/lib/line/flex-templates';
-import { notifyStoreStaff } from '@/lib/notifications/service';
+import { notifyStoreStaff, notifyBorrowWatchers } from '@/lib/notifications/service';
 import { sendBotMessage, buildBorrowActionCard } from '@/lib/chat/bot';
 
 // ---------------------------------------------------------------------------
@@ -166,11 +166,33 @@ export async function POST(request: NextRequest) {
         type: 'approval_request',
         title: 'มีคำขอยืมสินค้า',
         body: `${fromStoreName} ขอยืมสินค้า ${items.length} รายการ โดย ${requesterName}`,
-        data: { borrowId: borrow.id },
+        data: { borrowId: borrow.id, url: '/borrow' },
         excludeUserId: user.id,
       });
     } catch (err) {
       console.error('[Borrows] Failed to notify lender store staff:', err);
+    }
+
+    // ----- Notify owners of BOTH stores -----
+    try {
+      await Promise.allSettled([
+        notifyBorrowWatchers({
+          storeId: fromStoreId,
+          type: 'approval_request',
+          title: '📦 มีการขอยืมสินค้า',
+          body: `${fromStoreName} ขอยืมจาก ${toStoreName} (${items.length} รายการ) โดย ${requesterName}`,
+          data: { borrowId: borrow.id, url: '/borrow' },
+        }),
+        notifyBorrowWatchers({
+          storeId: toStoreId,
+          type: 'approval_request',
+          title: '📦 มีคำขอยืมสินค้าเข้ามา',
+          body: `${fromStoreName} ขอยืมสินค้า ${items.length} รายการ`,
+          data: { borrowId: borrow.id, url: '/borrow' },
+        }),
+      ]);
+    } catch (err) {
+      console.error('[Borrows] Failed to notify owners:', err);
     }
 
     // ----- Notify lender store via LINE -----

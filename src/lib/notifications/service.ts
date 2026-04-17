@@ -278,13 +278,14 @@ export async function notifyStoreStaff(params: NotifyGroupParams): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
-// notifyStoreOwners — Notify all owners of a store
+// notifyBorrowWatchers — Notify roles based on store settings
 // ---------------------------------------------------------------------------
 
 /**
- * Send a notification to all owners of a store.
+ * Send a notification to roles configured in the store's borrow_notification_roles.
+ * Defaults to ['owner', 'manager'] if not configured.
  */
-export async function notifyStoreOwners(
+export async function notifyBorrowWatchers(
   params: Omit<NotifyGroupParams, 'excludeUserId'>,
 ): Promise<void> {
   const { storeId, type, title, body, data } = params;
@@ -292,15 +293,32 @@ export async function notifyStoreOwners(
   try {
     const supabase = createServiceClient();
 
-    // Find all users in this store with owner role
+    // 1. Get store settings
+    const { data: store, error: storeError } = await supabase
+      .from('stores')
+      .select('borrow_notification_roles')
+      .eq('id', storeId)
+      .single();
+
+    if (storeError) {
+      console.error('[Notify] Failed to fetch store settings:', storeError.message);
+      return;
+    }
+
+    // Default to owner and manager if not configured
+    const targetRoles = store?.borrow_notification_roles || ['owner', 'manager'];
+
+    if (targetRoles.length === 0) return;
+
+    // 2. Find all users in this store with the target roles
     const { data: userStores, error } = await supabase
       .from('user_stores')
       .select('user_id, profiles!inner(id, role, line_user_id)')
       .eq('store_id', storeId)
-      .eq('profiles.role', 'owner');
+      .in('profiles.role', targetRoles);
 
     if (error) {
-      console.error('[Notify] Failed to fetch store owners:', error.message);
+      console.error('[Notify] Failed to fetch store watchers:', error.message);
       return;
     }
 
@@ -322,7 +340,7 @@ export async function notifyStoreOwners(
 
     await Promise.allSettled(notifyPromises);
   } catch (error) {
-    console.error('[Notify] notifyStoreOwners error:', error);
+    console.error('[Notify] notifyBorrowWatchers error:', error);
   }
 }
 

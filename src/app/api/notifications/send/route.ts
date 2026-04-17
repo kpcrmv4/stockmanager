@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import {
   notifyUser,
   notifyStoreStaff,
-  notifyStoreOwners,
+  notifyBorrowWatchers,
   checkStoreNotifEnabled,
   type NotificationType,
 } from '@/lib/notifications/service';
@@ -16,7 +16,7 @@ import {
  *
  * Body:
  * {
- *   action: 'notifyUser' | 'notifyStoreStaff' | 'notifyStoreOwners',
+ *   action: 'notifyUser' | 'notifyStoreStaff' | 'notifyBorrowWatchers',
  *   params: { ... }
  * }
  */
@@ -60,8 +60,8 @@ export async function POST(request: NextRequest) {
       case 'notifyStoreStaff':
         await notifyStoreStaff(params);
         break;
-      case 'notifyStoreOwners':
-        await notifyStoreOwners(params);
+      case 'notifyBorrowWatchers':
+        await notifyBorrowWatchers(params);
         break;
       default:
         return NextResponse.json(

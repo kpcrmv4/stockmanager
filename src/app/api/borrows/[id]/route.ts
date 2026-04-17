@@ -7,7 +7,7 @@ import {
   borrowRejectedFlex,
   borrowCompletedFlex,
 } from '@/lib/line/flex-templates';
-import { notifyStoreStaff } from '@/lib/notifications/service';
+import { notifyStoreStaff, notifyBorrowWatchers } from '@/lib/notifications/service';
 import { sendBotMessage } from '@/lib/chat/bot';
 
 // ---------------------------------------------------------------------------
@@ -15,12 +15,13 @@ import { sendBotMessage } from '@/lib/chat/bot';
 // ---------------------------------------------------------------------------
 
 interface PatchBody {
-  action: 'approve' | 'reject' | 'mark_received' | 'upload_photo' | 'cancel';
+  action: 'approve' | 'reject' | 'mark_received' | 'upload_photo' | 'cancel' | 'mark_returned';
   lenderPhotoUrl?: string;
   reason?: string;
   side?: 'borrower' | 'lender';
   photoUrl?: string;
   approvedItems?: { itemId: string; approvedQuantity: number }[];
+  returnNotes?: string;
 }
 
 interface StoreRow {
@@ -270,6 +271,29 @@ export async function PATCH(
         console.error('[Borrows] Failed to send LINE to borrower:', err);
       }
 
+      // Notify owners of both stores
+      try {
+        const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
+        await Promise.allSettled([
+          notifyBorrowWatchers({
+            storeId: updatedBorrow.from_store_id,
+            type: 'approval_request',
+            title: '✅ คำขอยืมสินค้าได้รับการอนุมัติ',
+            body: `${ctx.toStore?.store_name} อนุมัติให้ ${ctx.fromStore?.store_name} ยืม (${itemsList})`,
+            data: { borrowId: id, url: '/borrow' },
+          }),
+          notifyBorrowWatchers({
+            storeId: updatedBorrow.to_store_id,
+            type: 'approval_request',
+            title: '✅ อนุมัติยืมสินค้าแล้ว',
+            body: `อนุมัติให้ ${ctx.fromStore?.store_name} ยืม (${itemsList}) โดย ${currentUserName}`,
+            data: { borrowId: id, url: '/borrow' },
+          }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to notify owners (approve):', err);
+      }
+
       // Audit log
       await serviceClient.from('audit_logs').insert({
         store_id: updatedBorrow.to_store_id,
@@ -376,6 +400,28 @@ export async function PATCH(
         await sendLineToStore(ctx.fromStore, flexMsg);
       } catch (err) {
         console.error('[Borrows] Failed to send LINE to borrower:', err);
+      }
+
+      // Notify owners of both stores
+      try {
+        await Promise.allSettled([
+          notifyBorrowWatchers({
+            storeId: updatedBorrow.from_store_id,
+            type: 'approval_request',
+            title: '❌ คำขอยืมสินค้าถูกปฏิเสธ',
+            body: `${ctx.toStore?.store_name} ปฏิเสธคำขอยืมของ ${ctx.fromStore?.store_name}${body.reason ? ` เหตุผล: ${body.reason}` : ''}`,
+            data: { borrowId: id, url: '/borrow' },
+          }),
+          notifyBorrowWatchers({
+            storeId: updatedBorrow.to_store_id,
+            type: 'approval_request',
+            title: '❌ ปฏิเสธคำขอยืมสินค้า',
+            body: `ปฏิเสธคำขอยืมจาก ${ctx.fromStore?.store_name} โดย ${currentUserName}`,
+            data: { borrowId: id, url: '/borrow' },
+          }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to notify owners (reject):', err);
       }
 
       // Audit log
@@ -507,6 +553,43 @@ export async function PATCH(
         ]);
       } catch (err) {
         console.error('[Borrows] Failed to send LINE completion:', err);
+      }
+
+      // Notify owners of both stores + return reminder
+      try {
+        const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
+        await Promise.allSettled([
+          notifyBorrowWatchers({
+            storeId: updatedBorrow.from_store_id,
+            type: 'approval_request',
+            title: '🎉 ยืมสินค้าเสร็จสมบูรณ์ — รอคืน',
+            body: `${ctx.fromStore?.store_name} รับสินค้าจาก ${ctx.toStore?.store_name} แล้ว (${itemsList}) กรุณาเบิกเหล้าไปคืน`,
+            data: { borrowId: id, url: '/borrow' },
+          }),
+          notifyBorrowWatchers({
+            storeId: updatedBorrow.to_store_id,
+            type: 'approval_request',
+            title: '🎉 ยืมสินค้าเสร็จสมบูรณ์',
+            body: `${ctx.fromStore?.store_name} รับสินค้าเรียบร้อย (${itemsList})`,
+            data: { borrowId: id, url: '/borrow' },
+          }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to notify owners (completed):', err);
+      }
+
+      // Send return reminder to borrower store staff
+      try {
+        const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
+        await notifyStoreStaff({
+          storeId: updatedBorrow.from_store_id,
+          type: 'approval_request',
+          title: '⚠️ กรุณาเบิกเหล้าไปคืนสาขา ' + (ctx.toStore?.store_name || ''),
+          body: `รายการที่ต้องคืน: ${itemsList}`,
+          data: { borrowId: id, url: '/borrow' },
+        });
+      } catch (err) {
+        console.error('[Borrows] Failed to send return reminder:', err);
       }
 
       // Audit log
@@ -665,10 +748,32 @@ export async function PATCH(
           type: 'approval_request',
           title: 'คำขอยืมสินค้าถูกยกเลิก',
           body: `${ctx.fromStore?.store_name || 'สาขา'} ยกเลิกคำขอยืมสินค้า ${ctx.items.length} รายการ โดย ${currentUserName}`,
-          data: { borrowId: id },
+          data: { borrowId: id, url: '/borrow' },
         });
       } catch (err) {
         console.error('[Borrows] Failed to notify lender store (cancel):', err);
+      }
+
+      // Notify owners of both stores
+      try {
+        await Promise.allSettled([
+          notifyBorrowWatchers({
+            storeId: updatedBorrow.from_store_id,
+            type: 'approval_request',
+            title: '⚠️ ยกเลิกคำขอยืมสินค้า',
+            body: `${ctx.fromStore?.store_name} ยกเลิกคำขอยืมจาก ${ctx.toStore?.store_name} โดย ${currentUserName}`,
+            data: { borrowId: id, url: '/borrow' },
+          }),
+          notifyBorrowWatchers({
+            storeId: updatedBorrow.to_store_id,
+            type: 'approval_request',
+            title: '⚠️ คำขอยืมสินค้าถูกยกเลิก',
+            body: `${ctx.fromStore?.store_name} ยกเลิกคำขอยืมสินค้า ${ctx.items.length} รายการ`,
+            data: { borrowId: id, url: '/borrow' },
+          }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to notify owners (cancel):', err);
       }
 
       // Audit log
@@ -680,6 +785,133 @@ export async function PATCH(
           borrow_id: id,
           cancelled_by: user.id,
           canceller_name: currentUserName,
+        },
+        changed_by: user.id,
+      });
+
+      return NextResponse.json({
+        success: true,
+        borrow: {
+          ...updatedBorrow,
+          borrow_items: ctx.items,
+          from_store_name: ctx.fromStore?.store_name,
+          to_store_name: ctx.toStore?.store_name,
+        },
+      });
+    }
+
+    // =====================================================================
+    // ACTION: mark_returned (borrower confirms items have been returned)
+    // =====================================================================
+    if (action === 'mark_returned') {
+      if (!body.photoUrl || typeof body.photoUrl !== 'string') {
+        return NextResponse.json(
+          { error: 'photoUrl is required for return confirmation' },
+          { status: 400 },
+        );
+      }
+
+      if (borrow.status !== 'completed') {
+        return NextResponse.json(
+          { error: 'Borrow must be completed before marking as returned' },
+          { status: 400 },
+        );
+      }
+
+      const now = new Date().toISOString();
+
+      const { data: updatedBorrow, error: updateError } = await serviceClient
+        .from('borrows')
+        .update({
+          status: 'returned',
+          return_photo_url: body.photoUrl,
+          return_confirmed_by: user.id,
+          return_confirmed_at: now,
+          return_notes: body.returnNotes || null,
+          updated_at: now,
+        })
+        .eq('id', id)
+        .select('*')
+        .single();
+
+      if (updateError || !updatedBorrow) {
+        console.error('[Borrows] Mark returned error:', updateError);
+        return NextResponse.json(
+          { error: 'Failed to mark as returned' },
+          { status: 500 },
+        );
+      }
+
+      // Fetch context for notifications
+      const ctx = await fetchBorrowContext(serviceClient, updatedBorrow);
+
+      // Notify both stores (in-app + PWA push)
+      try {
+        await Promise.allSettled([
+          notifyStoreStaff({
+            storeId: updatedBorrow.to_store_id,
+            type: 'approval_request',
+            title: '✅ สินค้ายืมถูกคืนแล้ว',
+            body: `${ctx.fromStore?.store_name || 'สาขา'} คืนสินค้าเรียบร้อย โดย ${currentUserName}`,
+            data: { borrowId: id, url: '/borrow' },
+          }),
+          notifyStoreStaff({
+            storeId: updatedBorrow.from_store_id,
+            type: 'approval_request',
+            title: '✅ ยืนยันคืนสินค้าแล้ว',
+            body: `คืนสินค้าให้ ${ctx.toStore?.store_name || 'สาขา'} เรียบร้อย`,
+            data: { borrowId: id, url: '/borrow' },
+            excludeUserId: user.id,
+          }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to notify return:', err);
+      }
+
+      // Notify owners of both stores
+      try {
+        await Promise.allSettled([
+          notifyBorrowWatchers({
+            storeId: updatedBorrow.from_store_id,
+            type: 'approval_request',
+            title: '✅ สินค้ายืมถูกคืนแล้ว',
+            body: `${ctx.fromStore?.store_name} คืนสินค้าให้ ${ctx.toStore?.store_name} เรียบร้อย`,
+            data: { borrowId: id, url: '/borrow' },
+          }),
+          notifyBorrowWatchers({
+            storeId: updatedBorrow.to_store_id,
+            type: 'approval_request',
+            title: '✅ สินค้ายืมถูกคืนแล้ว',
+            body: `${ctx.fromStore?.store_name} คืนสินค้าเรียบร้อย`,
+            data: { borrowId: id, url: '/borrow' },
+          }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to notify owners (return):', err);
+      }
+
+      // Chat bot — system message to both stores
+      try {
+        const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
+        const msg = `✅ คืนสินค้ายืมแล้ว — ${ctx.fromStore?.store_name} → ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nยืนยันคืนโดย: ${currentUserName}`;
+
+        await Promise.allSettled([
+          sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
+          sendBotMessage({ storeId: updatedBorrow.to_store_id, type: 'system', content: msg }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to send chat message (returned):', err);
+      }
+
+      // Audit log
+      await serviceClient.from('audit_logs').insert({
+        store_id: updatedBorrow.from_store_id,
+        action_type: 'BORROW_RETURNED',
+        table_name: 'borrows',
+        new_value: {
+          borrow_id: id,
+          returned_by: user.id,
+          returner_name: currentUserName,
         },
         changed_by: user.id,
       });

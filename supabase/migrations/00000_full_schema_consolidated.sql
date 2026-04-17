@@ -24,7 +24,7 @@ CREATE TYPE transfer_status AS ENUM ('pending', 'confirmed', 'rejected');
 CREATE TYPE print_job_status AS ENUM ('pending', 'printing', 'completed', 'failed');
 CREATE TYPE print_job_type AS ENUM ('receipt', 'label', 'transfer');
 CREATE TYPE hq_deposit_status AS ENUM ('awaiting_withdrawal', 'withdrawn');
-CREATE TYPE borrow_status AS ENUM ('pending_approval', 'approved', 'pos_adjusting', 'completed', 'rejected', 'cancelled');
+CREATE TYPE borrow_status AS ENUM ('pending_approval', 'approved', 'pos_adjusting', 'completed', 'returned', 'rejected', 'cancelled');
 CREATE TYPE chat_room_type AS ENUM ('store', 'direct', 'cross_store');
 CREATE TYPE chat_message_type AS ENUM ('text', 'image', 'action_card', 'system');
 CREATE TYPE chat_member_role AS ENUM ('member', 'admin');
@@ -66,6 +66,7 @@ CREATE TABLE stores (
   deposit_notify_group_id TEXT,
   /** กลุ่มบาร์ยืนยันรับเหล้า (bar confirm) */
   bar_notify_group_id TEXT,
+  borrow_notification_roles TEXT[] DEFAULT ARRAY['owner', 'manager']::text[],
   manager_id UUID REFERENCES profiles(id),
   is_central BOOLEAN DEFAULT false,
   active BOOLEAN DEFAULT true,
@@ -293,6 +294,9 @@ CREATE TABLE borrows (
   borrower_pos_bill_url TEXT,              -- รูป POS bill ฝั่งผู้ยืม
   lender_pos_bill_url TEXT,                -- รูป POS bill ฝั่งผู้ให้ยืม
   completed_at TIMESTAMPTZ,
+  return_photo_url TEXT,
+  return_confirmed_at TIMESTAMPTZ,
+  return_notes TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
