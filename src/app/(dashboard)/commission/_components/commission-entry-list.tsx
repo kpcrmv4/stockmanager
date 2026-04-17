@@ -20,7 +20,9 @@ function getCurrentMonth() {
 }
 
 function GroupItem({ groupId, group, isExpanded, onToggle, t, canDelete, onDelete, onViewPhoto }: any) {
-  const profileName = group.profile?.name || (group.type === 'ae_commission' ? 'Unknown AE' : 'Unknown Staff');
+  const profileName = group.type === 'ae_commission' 
+    ? (group.profile?.name || 'Unknown AE')
+    : (group.profile?.display_name || group.profile?.username || 'Unknown Staff');
   
   return (
     <Card className="overflow-hidden">

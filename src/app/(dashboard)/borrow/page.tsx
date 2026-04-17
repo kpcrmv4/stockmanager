@@ -39,6 +39,9 @@ import {
   XCircle,
   Image,
   AlertTriangle,
+  LayoutGrid,
+  LayoutList,
+  Columns as ColumnsIcon,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -1270,6 +1273,7 @@ export default function BorrowPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedBorrow, setSelectedBorrow] = useState<BorrowWithDetails | null>(null);
+  const [viewMode, setViewMode] = useState<'cards' | 'kanban' | 'table'>('kanban');
 
   // -----------------------------------------------------------------------
   // Fetch borrows — direct Supabase client (skip API route for speed)
@@ -1432,10 +1436,44 @@ export default function BorrowPage() {
           {t('title')}
         </h1>
         {currentStoreName && (
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {currentStoreName}
           </p>
         )}
+      </div>
+
+      {/* View Switcher (Desktop only) */}
+      <div className="hidden md:flex items-center justify-between gap-4">
+        <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+          <button 
+            onClick={() => setViewMode('kanban')}
+            className={cn(
+              "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-all",
+              viewMode === 'kanban' ? "bg-white text-teal-600 shadow-sm dark:bg-gray-700 dark:text-teal-400" : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+            )}
+          >
+            <ColumnsIcon className="h-3.5 w-3.5" />
+            Dashboard
+          </button>
+          <button 
+            onClick={() => setViewMode('table')}
+            className={cn(
+              "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-all",
+              viewMode === 'table' ? "bg-white text-teal-600 shadow-sm dark:bg-gray-700 dark:text-teal-400" : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+            )}
+          >
+            <LayoutList className="h-3.5 w-3.5" />
+            Table
+          </button>
+          <button 
+            onClick={() => setViewMode('cards')}
+            className={cn(
+              "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-all",
+              viewMode === 'cards' ? "bg-white text-teal-600 shadow-sm dark:bg-gray-700 dark:text-teal-400" : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+            )}
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            Cards
+          </button>
+        </div>
       </div>
 
       {/* ----------------------------------------------------------------- */}
@@ -1480,7 +1518,7 @@ export default function BorrowPage() {
           <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span className="font-medium">
-              {t('waitingReturnCount')}: {waitingReturnCount} {t('itemCount', { count: waitingReturnCount })}
+              {t('waitingReturnCount')}: {t('itemCount', { count: waitingReturnCount })}
             </span>
           </div>
         </div>
@@ -1531,7 +1569,7 @@ export default function BorrowPage() {
               ? borrows.filter((b) => b.status === 'cancelled' || b.status === 'rejected').length
               : st.key === 'waiting_receive'
                 ? borrows.filter(isWaitingReceive).length
-                : st.key === 'completed'
+                : st.key === 'waiting_return'
                   ? borrows.filter((b) => b.status === 'completed').length
                   : borrows.filter((b) => b.status === st.key).length;
           return (
@@ -1582,6 +1620,99 @@ export default function BorrowPage() {
             ) : undefined
           }
         />
+      ) : viewMode === 'kanban' ? (
+        <div className="hidden md:grid grid-cols-3 gap-4 items-start h-[calc(100vh-320px)] min-h-[500px]">
+          {/* Column 1: Pending */}
+          <div className="flex flex-col h-full bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+            <div className="p-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-amber-500" />
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('subPendingApproval')}</span>
+              </div>
+              <Badge variant="warning">{borrows.filter(b => b.status === 'pending_approval').length}</Badge>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              {borrows.filter(b => b.status === 'pending_approval').map(b => (
+                <BorrowCard key={b.id} borrow={b} tab={activeTab} currentStoreId={currentStoreId!} onClick={() => setSelectedBorrow(b)} t={t} />
+              ))}
+              {borrows.filter(b => b.status === 'pending_approval').length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
+            </div>
+          </div>
+
+          {/* Column 2: In Progress (Receive) */}
+          <div className="flex flex-col h-full bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+            <div className="p-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-teal-500" />
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('subWaitingReceive')}</span>
+              </div>
+              <Badge variant="info">{borrows.filter(isWaitingReceive).length}</Badge>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              {borrows.filter(isWaitingReceive).map(b => (
+                <BorrowCard key={b.id} borrow={b} tab={activeTab} currentStoreId={currentStoreId!} onClick={() => setSelectedBorrow(b)} t={t} />
+              ))}
+              {borrows.filter(isWaitingReceive).length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
+            </div>
+          </div>
+
+          {/* Column 3: To Return */}
+          <div className="flex flex-col h-full bg-gray-50/50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+            <div className="p-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('subWaitingReturn')}</span>
+              </div>
+              <Badge variant="default">{borrows.filter(b => b.status === 'completed').length}</Badge>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              {borrows.filter(b => b.status === 'completed').map(b => (
+                <BorrowCard key={b.id} borrow={b} tab={activeTab} currentStoreId={currentStoreId!} onClick={() => setSelectedBorrow(b)} t={t} />
+              ))}
+              {borrows.filter(b => b.status === 'completed').length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
+            </div>
+          </div>
+        </div>
+      ) : viewMode === 'table' ? (
+        <div className="hidden md:block overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
+          <table className="w-full text-left text-sm border-collapse">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">{t('common.date')}</th>
+                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">{t('borrow.branch')}</th>
+                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">{t('borrow.itemList')}</th>
+                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300 text-center">{t('common.status')}</th>
+                <th className="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+              {filteredBorrows.map(b => {
+                const config = getStatusConfig(t)[b.status];
+                return (
+                  <tr key={b.id} onClick={() => setSelectedBorrow(b)} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 cursor-pointer transition-colors group">
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatThaiDateTime(b.created_at).split(' ')[0]}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <span className="truncate max-w-[120px]">{b.from_store_name}</span>
+                        <ArrowRightLeft className="h-3 w-3 text-teal-500 flex-shrink-0" />
+                        <span className="truncate max-w-[120px]">{b.to_store_name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 truncate max-w-[300px]">
+                      {b.items.map(it => `${it.product_name} x${it.quantity}`).join(', ')}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Badge variant={config.variant as any} size="sm">{config.label}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-teal-500 transition-all group-hover:translate-x-1 inline" />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filteredBorrows.map((borrow) => (

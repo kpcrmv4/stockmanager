@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button, Card, CardHeader, CardContent, Badge, Modal, ModalFooter, toast, PhotoUpload, Textarea } from '@/components/ui';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { Loader2, Banknote, Clock, Search, CheckCircle2, XCircle, Eye, Image } from 'lucide-react';
+import { Loader2, Banknote, Clock, Search, CheckCircle2, XCircle, Eye, Image, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { useTranslations } from 'next-intl';
@@ -12,6 +12,22 @@ import type { AEProfile } from '@/types/commission';
 
 function formatCurrency(n: number) {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function EntryRow({ e, t }: { e: any, t: any }) {
+  return (
+    <div className="flex items-center justify-between py-1.5 pl-8 pr-2 text-xs border-t border-gray-50 dark:border-gray-800/50">
+      <div className="flex items-center gap-2">
+        <Badge variant={e.payment_id ? 'success' : 'outline'} size="sm" className="scale-75 origin-left">
+          {e.payment_id ? t('entryList.paid') : t('entryList.unpaid')}
+        </Badge>
+        <span className="text-gray-400">{e.bill_date}</span>
+        {e.receipt_no && <span className="text-gray-500 font-mono">#{e.receipt_no}</span>}
+        {e.table_no && <span className="text-gray-400">{t('entryList.table')} {e.table_no}</span>}
+      </div>
+      <span className="font-medium text-gray-700 dark:text-gray-300">{formatCurrency(Number(e.net_amount))}</span>
+    </div>
+  );
 }
 
 function getCurrentMonth() {
@@ -36,7 +52,9 @@ interface SummaryData {
     staff_name: string;
     entry_count: number;
     total_bottles: number;
+    total_bottles: number;
     total_net: number;
+    entries: Array<any>;
   }>;
   grand_total: {
     ae_total_net: number;
@@ -85,6 +103,13 @@ export function CommissionPayment() {
   const [cancelModal, setCancelModal] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  
+  // Expansion state
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (id: string) => {
+    setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -229,18 +254,31 @@ export function CommissionPayment() {
           <CardHeader title={t('payment.unpaidAE')} />
           <CardContent>
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
-              {unpaidAE.map((ae) => (
-                <div key={ae.ae_id} className="flex items-center justify-between px-2 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{ae.ae_name} {ae.ae_nickname ? `(${ae.ae_nickname})` : ''}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{ae.entry_count} {t('payment.bills')} | {ae.bank_name ? `${ae.bank_name} ${ae.bank_account_no}` : t('payment.noBankInfo')}</p>
+              {unpaidAE.map((ae) => {
+                const isExpanded = !!expandedRows[`unpaid_ae_${ae.ae_id}`];
+                return (
+                  <div key={ae.ae_id} className="group">
+                    <div className="flex items-center justify-between px-2 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                      <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleExpand(`unpaid_ae_${ae.ae_id}`)}>
+                        {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{ae.ae_name} {ae.ae_nickname ? `(${ae.ae_nickname})` : ''}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{ae.entry_count} {t('payment.bills')} | {ae.bank_name ? `${ae.bank_name} ${ae.bank_account_no}` : t('payment.noBankInfo')}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{formatCurrency(ae.total_net)}</span>
+                        <Button size="sm" onClick={() => { setSelectedType('ae'); setSelectedId(ae.ae_id); }}>{t('payment.pay')}</Button>
+                      </div>
+                    </div>
+                    {isExpanded && ae.entries && (
+                      <div className="bg-gray-50/50 dark:bg-gray-900/20 pb-1">
+                        {ae.entries.map((e: any) => <EntryRow key={e.id} e={e} t={t} />)}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{formatCurrency(ae.total_net)}</span>
-                    <Button size="sm" onClick={() => { setSelectedType('ae'); setSelectedId(ae.ae_id); }}>{t('payment.pay')}</Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -252,18 +290,31 @@ export function CommissionPayment() {
           <CardHeader title={t('payment.unpaidBottle')} />
           <CardContent>
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
-              {unpaidBottle.map((b) => (
-                <div key={b.staff_id} className="flex items-center justify-between px-2 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{b.staff_name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{b.total_bottles} {t('payment.bottles')} | {b.entry_count} {t('payment.entries')}</p>
+              {unpaidBottle.map((b) => {
+                const isExpanded = !!expandedRows[`unpaid_bottle_${b.staff_id}`];
+                return (
+                  <div key={b.staff_id} className="group">
+                    <div className="flex items-center justify-between px-2 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                      <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleExpand(`unpaid_bottle_${b.staff_id}`)}>
+                        {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{b.staff_name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{b.total_bottles} {t('payment.bottles')} | {b.entry_count} {t('payment.entries')}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatCurrency(b.total_net)}</span>
+                        <Button size="sm" onClick={() => { setSelectedType('bottle'); setSelectedId(b.staff_id); }}>{t('payment.pay')}</Button>
+                      </div>
+                    </div>
+                    {isExpanded && b.entries && (
+                      <div className="bg-gray-50/50 dark:bg-gray-900/20 pb-1">
+                        {b.entries.map((e: any) => <EntryRow key={e.id} e={e} t={t} />)}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatCurrency(b.total_net)}</span>
-                    <Button size="sm" onClick={() => { setSelectedType('bottle'); setSelectedId(b.staff_id); }}>{t('payment.pay')}</Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
