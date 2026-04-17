@@ -1714,7 +1714,7 @@ export default function BorrowPage() {
                   <div className="w-2 h-2 rounded-full bg-red-500" />
                   <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('subCancelled')}</span>
                 </div>
-                <Badge variant="destructive">{filteredBorrows.filter(b => b.status === 'cancelled' || b.status === 'rejected').length}</Badge>
+                <Badge variant="danger">{filteredBorrows.filter(b => b.status === 'cancelled' || b.status === 'rejected').length}</Badge>
               </div>
               <div className="flex-1 overflow-y-auto md:overflow-y-auto p-2 space-y-2 max-h-[500px] md:max-h-none">
                 {filteredBorrows.filter(b => b.status === 'cancelled' || b.status === 'rejected').map(b => (
