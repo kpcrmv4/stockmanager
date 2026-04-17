@@ -1649,6 +1649,8 @@
     "stepReturn": "คืนสินค้า",
     "statusReturned": "คืนแล้ว",
     "statusWaitingReturn": "รอคืนสินค้า",
+    "statusWaitingToReturn": "รอส่งคืน",
+    "statusWaitingToReceiveReturn": "รอรับคืน",
     "subWaitingReturn": "รอคืน",
     "waitingReturnCount": "รอคืนสินค้า",
     "returnPhotoLabel": "ถ่ายรูปสินค้าที่คืน",

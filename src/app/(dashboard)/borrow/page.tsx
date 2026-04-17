@@ -145,10 +145,25 @@ function getStatusConfig(t: ReturnType<typeof useTranslations>): Record<
 
 function getVisualStatus(
   borrow: BorrowWithDetails,
-  _currentStoreId: string,
+  currentStoreId: string,
   t: ReturnType<typeof useTranslations>,
 ): { label: string; variant: 'warning' | 'info' | 'default' | 'success' | 'danger'; step: number } {
-  return getStatusConfig(t)[borrow.status];
+  const config = getStatusConfig(t);
+  const status = borrow.status;
+  const base = config[status];
+
+  // Perspective-based labels for 'completed' (waiting return)
+  if (status === 'completed') {
+    if (borrow.from_store_id === currentStoreId) {
+      // We are the borrower -> "รอส่งคืน"
+      return { ...base, label: t('statusWaitingToReturn') };
+    } else {
+      // We are the lender -> "รอรับคืน"
+      return { ...base, label: t('statusWaitingToReceiveReturn') };
+    }
+  }
+
+  return base;
 }
 
 const EMPTY_FORM_ITEM: FormItem = { product_name: '', category: '', quantity: '', unit: '' };
