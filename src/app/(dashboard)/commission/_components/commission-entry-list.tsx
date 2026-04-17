@@ -8,6 +8,7 @@ import { Loader2, Trash2, Image, ChevronDown, ChevronRight, Layers } from 'lucid
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { useTranslations } from 'next-intl';
+import { formatThaiDate } from '@/lib/utils/format';
 import type { CommissionEntry } from '@/types/commission';
 
 function formatCurrency(n: number) {
@@ -74,7 +75,7 @@ function GroupItem({ groupId, group, isExpanded, onToggle, t, canDelete, onDelet
                     <Badge variant={entry.payment_id ? 'success' : 'outline'} size="sm">
                       {entry.payment_id ? t('entryList.paid') : t('entryList.unpaid')}
                     </Badge>
-                    <span className="text-xs text-gray-400">{entry.bill_date}</span>
+                    <span className="text-xs text-gray-400">{formatThaiDate(entry.bill_date)}</span>
                     {entry.store && <span className="text-xs text-gray-400">{entry.store.store_code}</span>}
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -300,7 +301,7 @@ export function CommissionEntryList() {
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Badge variant={isAE ? 'warning' : 'danger'} size="sm">{isAE ? 'AE' : 'Bottle'}</Badge>
                         <Badge variant={isPaid ? 'success' : 'outline'} size="sm">{isPaid ? t('entryList.paid') : t('entryList.unpaid')}</Badge>
-                        <span className="text-xs text-gray-400">{entry.bill_date}</span>
+                        <span className="text-xs text-gray-400">{formatThaiDate(entry.bill_date)}</span>
                         {store && <span className="text-xs text-gray-400">{store.store_code}</span>}
                       </div>
                       <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">

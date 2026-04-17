@@ -8,6 +8,7 @@ import { Loader2, Banknote, Clock, Search, CheckCircle2, XCircle, Eye, Image, Ch
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { useTranslations } from 'next-intl';
+import { formatThaiDate } from '@/lib/utils/format';
 import type { AEProfile } from '@/types/commission';
 
 function formatCurrency(n: number) {
@@ -21,7 +22,7 @@ function EntryRow({ e, t }: { e: any, t: any }) {
         <Badge variant={e.payment_id ? 'success' : 'outline'} size="sm" className="scale-75 origin-left">
           {e.payment_id ? t('entryList.paid') : t('entryList.unpaid')}
         </Badge>
-        <span className="text-gray-400">{e.bill_date}</span>
+        <span className="text-gray-400">{formatThaiDate(e.bill_date)}</span>
         {e.receipt_no && <span className="text-gray-500 font-mono">#{e.receipt_no}</span>}
         {e.table_no && <span className="text-gray-400">{t('entryList.table')} {e.table_no}</span>}
       </div>
@@ -361,7 +362,7 @@ export function CommissionPayment() {
                   <div>
                     <div className="flex items-center gap-2">
                       <Badge variant="success" size="sm">{t('payment.paid')}</Badge>
-                      <span className="text-xs text-gray-400">{new Date(p.paid_at).toLocaleDateString('th-TH')}</span>
+                      <span className="text-xs text-gray-400">{formatThaiDate(p.paid_at)}</span>
                     </div>
                     <p className="mt-0.5 text-sm font-medium text-gray-900 dark:text-white">
                       {p.type === 'ae_commission' ? p.ae_profile?.name : p.staff_profile?.display_name || p.staff_profile?.username}

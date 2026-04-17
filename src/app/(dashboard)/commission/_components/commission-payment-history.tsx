@@ -5,6 +5,7 @@ import { Card, CardContent, Badge, Modal } from '@/components/ui';
 import { useAppStore } from '@/stores/app-store';
 import { Loader2, Eye, Image } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { formatThaiDate } from '@/lib/utils/format';
 
 function formatCurrency(n: number) {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -119,7 +120,7 @@ export function CommissionPaymentHistory() {
                           </div>
                           <p className="mt-0.5 text-sm font-medium text-gray-900 dark:text-white">{name || '-'}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {p.total_entries} {t('paymentHistory.entries')} | {new Date(p.paid_at).toLocaleDateString('th-TH')}
+                            {p.total_entries} {t('paymentHistory.entries')} | {formatThaiDate(p.paid_at)}
                             {p.paid_by_profile && ` | ${t('paymentHistory.by')} ${p.paid_by_profile.display_name || p.paid_by_profile.username}`}
                           </p>
                           {!isPaid && p.cancel_reason && (
@@ -170,7 +171,7 @@ export function CommissionPaymentHistory() {
                   <tbody className="text-gray-700 dark:text-gray-300">
                     {detailModal.entries.map((e: Record<string, unknown>) => (
                       <tr key={e.id as string} className="border-t border-gray-100 dark:border-gray-700">
-                        <td className="py-1">{e.bill_date as string}</td>
+                        <td className="py-1">{formatThaiDate(e.bill_date as string)}</td>
                         <td className="py-1">{(e.receipt_no as string) || '-'}</td>
                         <td className="py-1 text-right font-medium">{formatCurrency(Number(e.net_amount) || 0)}</td>
                       </tr>
