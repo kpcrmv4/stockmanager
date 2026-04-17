@@ -20,7 +20,7 @@ import {
   toast,
 } from '@/components/ui';
 import { PhotoUpload } from '@/components/ui/photo-upload';
-import { formatThaiDateTime } from '@/lib/utils/format';
+import { formatThaiDateTime, formatThaiDate } from '@/lib/utils/format';
 import {
   Package,
   ArrowRightLeft,
