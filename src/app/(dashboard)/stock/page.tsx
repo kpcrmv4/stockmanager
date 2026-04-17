@@ -757,39 +757,42 @@ export default function StockOverviewPage() {
         <Card>
           <CardHeader
             title={t('discrepancyTrend')}
+            className="flex-col space-y-3 sm:flex-row sm:space-y-0"
             action={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => navigateMonth(-1)}
+                  className="h-8 w-8 p-0"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <span className="min-w-[120px] text-center text-sm font-medium">
+                <span className="min-w-[100px] sm:min-w-[120px] text-center text-xs sm:text-sm font-medium">
                   {monthLabel}
                 </span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => navigateMonth(1)}
+                  className="h-8 w-8 p-0"
                 >
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </div>
             }
           />
-          <CardContent>
+          <CardContent className="px-1 sm:px-5">
             {trendLoading ? (
               <div className="flex h-[300px] w-full items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
               </div>
             ) : trendData.length > 0 ? (
-              <div className="h-[300px] w-full">
+              <div className="h-[250px] sm:h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={trendData}
-                    margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                   >
                     <CartesianGrid
                       strokeDasharray="3 3"
@@ -800,13 +803,13 @@ export default function StockOverviewPage() {
                       dataKey="label"
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fill: '#9CA3AF', fontSize: 12 }}
-                      dy={10}
+                      tick={{ fill: '#9CA3AF', fontSize: 10 }}
+                      dy={5}
                     />
                     <YAxis
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                      tick={{ fill: '#9CA3AF', fontSize: 10 }}
                     />
                     <Tooltip
                       cursor={{ fill: '#F3F4F6' }}
@@ -856,9 +859,9 @@ export default function StockOverviewPage() {
                       verticalAlign="top"
                       align="right"
                       iconType="circle"
-                      wrapperStyle={{ paddingBottom: '20px' }}
+                      wrapperStyle={{ paddingBottom: '10px' }}
                       formatter={(value) => (
-                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                        <span className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400">
                           {value === 'missing' ? t('shortage') : t('excess')}
                         </span>
                       )}
@@ -867,13 +870,13 @@ export default function StockOverviewPage() {
                       dataKey="missing"
                       fill="#EF4444"
                       radius={[4, 4, 0, 0]}
-                      barSize={20}
+                      barSize={12}
                     />
                     <Bar
                       dataKey="surplus"
                       fill="#F59E0B"
                       radius={[4, 4, 0, 0]}
-                      barSize={20}
+                      barSize={12}
                     />
                   </BarChart>
                 </ResponsiveContainer>
