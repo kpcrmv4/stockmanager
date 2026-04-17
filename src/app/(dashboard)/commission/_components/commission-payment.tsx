@@ -52,7 +52,6 @@ interface SummaryData {
     staff_name: string;
     entry_count: number;
     total_bottles: number;
-    total_bottles: number;
     total_net: number;
     entries: Array<any>;
   }>;
