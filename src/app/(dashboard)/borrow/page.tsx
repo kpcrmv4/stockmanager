@@ -1436,6 +1436,8 @@ export default function BorrowPage() {
           {t('title')}
         </h1>
         {currentStoreName && (
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {currentStoreName}
           </p>
         )}
       </div>
