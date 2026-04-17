@@ -832,7 +832,7 @@ export default function StockOverviewPage() {
                         {store.pendingCount > 0 ? t('statusPendingExplanation') : t('statusComplete')}
                       </Badge>
                     ) : (
-                      <Badge variant="secondary">{t('statusInProgress')}</Badge>
+                      <Badge variant="default">{t('statusInProgress')}</Badge>
                     )}
                   </div>
 
