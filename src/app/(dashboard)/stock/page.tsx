@@ -757,9 +757,9 @@ export default function StockOverviewPage() {
         <Card>
           <CardHeader
             title={t('discrepancyTrend')}
-            className="flex-col space-y-3 sm:flex-row sm:space-y-0"
+            className="flex-col items-center text-center space-y-3 sm:flex-row sm:items-center sm:text-left sm:space-y-0"
             action={
-              <div className="flex items-center gap-1 sm:gap-2">
+              <div className="flex items-center justify-center gap-1 sm:gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
