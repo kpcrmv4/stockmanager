@@ -137,11 +137,14 @@ function getStatusConfig(t: ReturnType<typeof useTranslations>): Record<
     approved: { label: t('statusWaitingReceive'), variant: 'info', step: 1 },
     pos_adjusting: { label: t('statusWaitingReceive'), variant: 'info', step: 1 },
     completed: { label: t('statusWaitingReturn'), variant: 'info', step: 2 },
+    return_pending: { label: t('statusReturnPending'), variant: 'warning', step: 2 },
     returned: { label: t('statusReturned'), variant: 'success', step: 3 },
     rejected: { label: t('statusRejected'), variant: 'danger', step: -1 },
     cancelled: { label: t('statusCancelled'), variant: 'danger', step: -1 },
   };
 }
+
+const FALLBACK_STATUS_CONFIG = { label: '', variant: 'default' as const, step: -1 };
 
 function getVisualStatus(
   borrow: BorrowWithDetails,
@@ -150,7 +153,7 @@ function getVisualStatus(
 ): { label: string; variant: 'warning' | 'info' | 'default' | 'success' | 'danger'; step: number } {
   const config = getStatusConfig(t);
   const status = borrow.status;
-  const base = config[status];
+  const base = config[status] ?? { ...FALLBACK_STATUS_CONFIG, label: String(status) };
 
   // Perspective-based labels for 'completed' (waiting return)
   if (status === 'completed') {
@@ -160,6 +163,15 @@ function getVisualStatus(
     } else {
       // We are the lender -> "รอรับคืน"
       return { ...base, label: t('statusWaitingToReceiveReturn') };
+    }
+  }
+
+  // Perspective-based labels for 'return_pending' (borrower submitted return, lender must confirm)
+  if (status === 'return_pending') {
+    if (borrow.from_store_id === currentStoreId) {
+      return { ...base, label: t('statusReturnPendingBorrower') };
+    } else {
+      return { ...base, label: t('statusReturnPendingLender') };
     }
   }
 
@@ -189,7 +201,7 @@ function StatusProgressBar({
   ];
   const isRejected = status === 'rejected';
   const statusConfig = getStatusConfig(t);
-  const currentStep = statusConfig[status].step;
+  const currentStep = statusConfig[status]?.step ?? -1;
   // `step` represents the last completed milestone; the next step is in progress.
   const isTerminated = currentStep < 0;
 
