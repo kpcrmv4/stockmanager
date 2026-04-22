@@ -43,7 +43,7 @@ export function SectionCustomer() {
           <p>ชื่อลูกค้า, เบอร์โทร, หมายเลขโต๊ะ, โน้ต + ถ่ายรูปขวด (ถ้าต้องการ)</p>
         </Step>
         <Step num={3} title="ส่งคำขอ">
-          <p>คำขอจะถูกส่งไปยังพนักงาน/หัวหน้าบาร์เพื่อยืนยัน</p>
+          <p>คำขอจะถูกส่งไปยังพนักงาน/บาร์เพื่อยืนยัน</p>
         </Step>
         <ImgPlaceholder icon="🍷" name="img-24-customer-deposit-form.png" desc="ฟอร์มฝากเหล้าของลูกค้า (LINE LIFF)" />
       </Card>

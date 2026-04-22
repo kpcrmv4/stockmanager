@@ -4,16 +4,13 @@ import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import {
-  ClipboardList,
   Wine,
   ClipboardCheck,
-  Bell,
-  CheckCircle,
   Repeat,
   LayoutDashboard,
-  BarChart3,
   MessageSquare,
   BookOpen,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
@@ -38,22 +35,20 @@ const desktopRoleNavItems: NavItem[] = [
   { labelKey: 'nav.guide', href: '/guide', icon: BookOpen, color: 'sky' },
 ];
 
-// เมนูสำหรับ staff
+// เมนูสำหรับ staff — ฝากเหล้า / เบิกเหล้า / แชท
 const staffNavItems: NavItem[] = [
   { labelKey: 'nav.depositWithdraw', href: '/deposit', icon: Wine, color: 'emerald' },
-  { labelKey: 'nav.countStock', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
   { labelKey: 'nav.chat', href: '/chat', icon: MessageSquare, color: 'blue' },
-  { labelKey: 'nav.borrowItem', href: '/borrow', icon: Repeat, color: 'rose' },
   { labelKey: 'nav.guide', href: '/guide', icon: BookOpen, color: 'sky' },
 ];
 
-// เมนูสำหรับ bar
+// เมนูสำหรับ bar — นับสต๊อค ฝากเหล้า ยืม โอน แชท
 const barNavItems: NavItem[] = [
-  { labelKey: 'nav.approve', href: '/bar-approval', icon: CheckCircle, color: 'teal' },
+  { labelKey: 'nav.countStock', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
   { labelKey: 'nav.depositWithdraw', href: '/deposit', icon: Wine, color: 'emerald' },
   { labelKey: 'nav.chat', href: '/chat', icon: MessageSquare, color: 'blue' },
-  { labelKey: 'nav.countStock', href: '/stock', icon: ClipboardCheck, color: 'indigo' },
-  { labelKey: 'nav.guide', href: '/guide', icon: BookOpen, color: 'sky' },
+  { labelKey: 'nav.borrowItem', href: '/borrow', icon: Repeat, color: 'rose' },
+  { labelKey: 'nav.transfer', href: '/transfer', icon: ArrowLeftRight, color: 'blue' },
 ];
 
 export function BottomNav() {
