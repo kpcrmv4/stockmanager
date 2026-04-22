@@ -189,21 +189,30 @@ const EMPTY_FORM_ITEM: FormItem = { product_name: '', category: '', quantity: ''
 
 function StatusProgressBar({
   status,
+  isLender,
   t,
 }: {
   status: BorrowWithDetails['status'];
+  isLender: boolean;
   t: ReturnType<typeof useTranslations>;
 }) {
-  const steps = [t('stepSendRequest'), t('stepApprove'), t('stepComplete'), t('stepReturn')];
+  const steps = [
+    t('stepSendRequest'),
+    t('stepApprove'),
+    t('stepReceive'),
+    isLender ? t('stepReturnLender') : t('stepReturnBorrower'),
+  ];
   const isRejected = status === 'rejected';
   const statusConfig = getStatusConfig(t);
   const currentStep = statusConfig[status].step;
+  // `step` represents the last completed milestone; the next step is in progress.
+  const isTerminated = currentStep < 0;
 
   return (
     <div className="flex items-center gap-1">
       {steps.map((label, i) => {
-        const isCompleted = !isRejected && currentStep >= i;
-        const isCurrent = !isRejected && currentStep === i;
+        const isCompleted = !isTerminated && currentStep >= i;
+        const isCurrent = !isTerminated && currentStep + 1 === i;
         const isRejectedStep = isRejected && i === 0;
 
         return (
@@ -862,7 +871,7 @@ function BorrowDetailSheet({
           </div>
 
           {/* Status Progress */}
-          <StatusProgressBar status={borrow.status} t={t} />
+          <StatusProgressBar status={borrow.status} isLender={isLenderSide} t={t} />
 
           {/* Store info — 2-column card */}
           <div className="grid grid-cols-2 gap-3">
