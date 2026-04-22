@@ -16,10 +16,30 @@ export type Permission =
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[] | ['*']> = {
   owner: ['*'],
-  accountant: ['can_view_reports', 'can_manage_commission'],
-  manager: ['can_count_stock', 'can_transfer', 'can_view_reports', 'can_borrow', 'can_manage_commission'],
-  bar: ['can_count_stock', 'can_manage_deposit', 'can_approve_deposit'],
-  staff: ['can_count_stock', 'can_manage_deposit', 'can_borrow'],
+  // Account = ใช้ได้หมดเลย ดูข้ามสาขา
+  accountant: ['*'],
+  // Manager = คนคุมร้าน ดูได้เฉพาะในสาขา ทุกเมนู
+  manager: [
+    'can_count_stock',
+    'can_approve_stock',
+    'can_manage_deposit',
+    'can_approve_deposit',
+    'can_transfer',
+    'can_borrow',
+    'can_view_reports',
+    'can_manage_commission',
+  ],
+  // Bar = นับสต๊อค เช็คสต๊อค ฝากเหล้า ยืม เบิกเหล้า โอนคลังกลางที่หมดอายุ แชท
+  bar: [
+    'can_count_stock',
+    'can_approve_stock',
+    'can_manage_deposit',
+    'can_approve_deposit',
+    'can_borrow',
+    'can_transfer',
+  ],
+  // Staff = ฝากเหล้า / เบิกเหล้า / แชท
+  staff: ['can_manage_deposit'],
   customer: ['can_view_own_deposits', 'can_request_withdrawal'],
   hq: ['can_transfer', 'can_view_reports'],
 };
@@ -27,8 +47,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[] | ['*']> = {
 export const ROLE_LABELS: Record<UserRole, string> = {
   owner: 'เจ้าของร้าน',
   accountant: 'บัญชี',
-  manager: 'ผู้จัดการ',
-  bar: 'หัวหน้าบาร์',
+  manager: 'คนคุมร้าน',
+  bar: 'บาร์',
   staff: 'พนักงาน',
   customer: 'ลูกค้า',
   hq: 'พนักงานคลังกลาง',
