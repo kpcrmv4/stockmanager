@@ -63,7 +63,7 @@ interface BorrowWithDetails {
   from_store_id: string;
   to_store_id: string;
   requested_by: string | null;
-  status: 'pending_approval' | 'approved' | 'pos_adjusting' | 'completed' | 'returned' | 'rejected' | 'cancelled';
+  status: 'pending_approval' | 'approved' | 'pos_adjusting' | 'completed' | 'return_pending' | 'returned' | 'rejected' | 'cancelled';
   notes: string | null;
   borrower_photo_url: string | null;
   lender_photo_url: string | null;
@@ -90,6 +90,9 @@ interface BorrowWithDetails {
   return_confirmed_by?: string | null;
   return_confirmed_at?: string | null;
   return_notes?: string | null;
+  return_receipt_photo_url?: string | null;
+  return_received_by?: string | null;
+  return_received_at?: string | null;
 }
 
 interface StoreOption {
@@ -137,6 +140,7 @@ function getStatusConfig(t: ReturnType<typeof useTranslations>): Record<
     approved: { label: t('statusWaitingReceive'), variant: 'info', step: 1 },
     pos_adjusting: { label: t('statusWaitingReceive'), variant: 'info', step: 1 },
     completed: { label: t('statusWaitingReturn'), variant: 'info', step: 2 },
+    return_pending: { label: t('statusReturnPending'), variant: 'warning', step: 3 },
     returned: { label: t('statusReturned'), variant: 'success', step: 3 },
     rejected: { label: t('statusRejected'), variant: 'danger', step: -1 },
     cancelled: { label: t('statusCancelled'), variant: 'danger', step: -1 },
@@ -160,6 +164,17 @@ function getVisualStatus(
     } else {
       // We are the lender -> "รอรับคืน"
       return { ...base, label: t('statusWaitingToReceiveReturn') };
+    }
+  }
+
+  // Perspective-based labels for 'return_pending' (lender must confirm receipt)
+  if (status === 'return_pending') {
+    if (borrow.from_store_id === currentStoreId) {
+      // We are the borrower, waiting for lender to confirm
+      return { ...base, label: t('statusWaitingLenderReceipt') };
+    } else {
+      // We are the lender, need to confirm receipt
+      return { ...base, label: t('statusConfirmReturnReceipt') };
     }
   }
 
@@ -698,6 +713,7 @@ function BorrowDetailSheet({
   const [receivePhoto, setReceivePhoto] = useState<string | null>(null);
   const [returnPhoto, setReturnPhoto] = useState<string | null>(null);
   const [returnNotes, setReturnNotes] = useState('');
+  const [returnReceiptPhoto, setReturnReceiptPhoto] = useState<string | null>(null);
   const [approvedQtys, setApprovedQtys] = useState<Record<string, number>>(
     () => Object.fromEntries(borrow.items.map((i) => [i.id, i.approved_quantity ?? i.quantity]))
   );
@@ -772,6 +788,15 @@ function BorrowDetailSheet({
     }
     toast({ type: 'success', title: t('markReturnedSuccess') });
     patchBorrow({ action: 'mark_returned', photoUrl: returnPhoto, returnNotes: returnNotes.trim() || undefined });
+  };
+
+  const handleConfirmReturnReceipt = () => {
+    if (!returnReceiptPhoto) {
+      toast({ type: 'warning', title: t('returnReceiptPhotoRequired') });
+      return;
+    }
+    toast({ type: 'success', title: t('confirmReturnReceiptSuccess') });
+    patchBorrow({ action: 'confirm_return_receipt', photoUrl: returnReceiptPhoto });
   };
 
   const handlePhotoUpload = (side: 'borrower' | 'lender', url: string | null) => {
@@ -1238,16 +1263,80 @@ function BorrowDetailSheet({
             </div>
           )}
 
-          {/* Returned — show success state */}
+          {/* Return pending — borrower sent, lender must confirm receipt with photo */}
+          {borrow.status === 'return_pending' && (
+            <div className="space-y-4">
+              {/* Show borrower-side sent photo summary */}
+              {borrow.return_photo_url && (
+                <div className="rounded-xl bg-blue-50 p-3 dark:bg-blue-900/10">
+                  <p className="text-xs font-medium text-blue-700 dark:text-blue-400">
+                    {t('returnPhotoLabel')}
+                  </p>
+                  <div className="mt-2">
+                    <img
+                      src={borrow.return_photo_url}
+                      alt="Return photo"
+                      className="h-24 w-auto rounded-lg object-cover border border-blue-200 dark:border-blue-800"
+                    />
+                  </div>
+                  {borrow.return_notes && (
+                    <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                      {borrow.return_notes}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Lender side — confirm receipt with photo */}
+              {isLenderSide && (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>{t('returnReceiptReminder', { store: borrow.from_store_name || '' })}</span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
+                    <Camera className="h-4 w-4 shrink-0" />
+                    <span>{t('returnReceiptPhotoDesc')}</span>
+                  </div>
+                  <PhotoUpload
+                    value={returnReceiptPhoto}
+                    onChange={setReturnReceiptPhoto}
+                    folder="borrows/return-receipt"
+                    label={t('returnReceiptPhotoLabel')}
+                    compact
+                  />
+                  <Button
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+                    icon={<CheckCircle2 className="h-4 w-4" />}
+                    onClick={handleConfirmReturnReceipt}
+                    isLoading={isActing}
+                    disabled={!returnReceiptPhoto}
+                  >
+                    {t('confirmReturnReceipt')}
+                  </Button>
+                </div>
+              )}
+
+              {/* Borrower side — waiting for lender to confirm receipt */}
+              {isBorrowerSide && (
+                <div className="flex items-center gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+                  <Clock className="h-4 w-4 shrink-0" />
+                  <span>{t('waitingLenderReceipt', { store: borrow.to_store_name || '' })}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Returned — show success state (both photos) */}
           {borrow.status === 'returned' && (
             <div className="rounded-xl bg-emerald-50 p-4 dark:bg-emerald-900/10">
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-medium">
                 <CheckCircle2 className="h-5 w-5" />
                 <span>{t('returnedStatus')}</span>
               </div>
-              {borrow.return_confirmed_at && (
+              {borrow.return_received_at && (
                 <p className="mt-1 text-xs text-emerald-600/70 dark:text-emerald-400/70">
-                  {t('returnedAt', { date: formatThaiDateTime(borrow.return_confirmed_at) })}
+                  {t('returnReceivedAt', { date: formatThaiDateTime(borrow.return_received_at) })}
                 </p>
               )}
               {borrow.return_notes && (
@@ -1255,15 +1344,32 @@ function BorrowDetailSheet({
                   {borrow.return_notes}
                 </p>
               )}
-              {borrow.return_photo_url && (
-                <div className="mt-3">
-                  <img
-                    src={borrow.return_photo_url}
-                    alt="Return photo"
-                    className="h-32 w-auto rounded-lg object-cover border border-emerald-200 dark:border-emerald-800"
-                  />
-                </div>
-              )}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {borrow.return_photo_url && (
+                  <div>
+                    <p className="mb-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                      {t('returnPhotoLabel')}
+                    </p>
+                    <img
+                      src={borrow.return_photo_url}
+                      alt="Return photo"
+                      className="h-28 w-full rounded-lg object-cover border border-emerald-200 dark:border-emerald-800"
+                    />
+                  </div>
+                )}
+                {borrow.return_receipt_photo_url && (
+                  <div>
+                    <p className="mb-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                      {t('returnReceiptPhotoLabel')}
+                    </p>
+                    <img
+                      src={borrow.return_receipt_photo_url}
+                      alt="Return receipt photo"
+                      className="h-28 w-full rounded-lg object-cover border border-emerald-200 dark:border-emerald-800"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -1414,7 +1520,9 @@ export default function BorrowPage() {
     b.status === 'approved' || b.status === 'pos_adjusting';
   const waitingReceiveCount = borrows.filter(isWaitingReceive).length;
 
-  const waitingReturnCount = borrows.filter((b) => b.status === 'completed').length;
+  const isWaitingReturn = (b: BorrowWithDetails) =>
+    b.status === 'completed' || b.status === 'return_pending';
+  const waitingReturnCount = borrows.filter(isWaitingReturn).length;
 
   const currentStoreName =
     stores.find((s) => s.id === currentStoreId)?.store_name || '';
@@ -1433,7 +1541,7 @@ export default function BorrowPage() {
     if (statusFilter === 'all') return true;
     if (statusFilter === 'cancelled_rejected') return b.status === 'cancelled' || b.status === 'rejected';
     if (statusFilter === 'waiting_receive') return isWaitingReceive(b);
-    if (statusFilter === 'waiting_return') return b.status === 'completed';
+    if (statusFilter === 'waiting_return') return isWaitingReturn(b);
     if (statusFilter === 'returned') return b.status === 'returned';
     return b.status === statusFilter;
   });
@@ -1588,7 +1696,7 @@ export default function BorrowPage() {
               : st.key === 'waiting_receive'
                 ? borrows.filter(isWaitingReceive).length
                 : st.key === 'waiting_return'
-                  ? borrows.filter((b) => b.status === 'completed').length
+                  ? borrows.filter(isWaitingReturn).length
                   : borrows.filter((b) => b.status === st.key).length;
           return (
             <button
@@ -1691,13 +1799,13 @@ export default function BorrowPage() {
                   <div className="w-2 h-2 rounded-full bg-indigo-500" />
                   <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{t('subWaitingReturn')}</span>
                 </div>
-                <Badge variant="default">{filteredBorrows.filter(b => b.status === 'completed').length}</Badge>
+                <Badge variant="default">{filteredBorrows.filter(isWaitingReturn).length}</Badge>
               </div>
               <div className="flex-1 overflow-y-auto md:overflow-y-auto p-2 space-y-2 max-h-[500px] md:max-h-none">
-                {filteredBorrows.filter(b => b.status === 'completed').map(b => (
+                {filteredBorrows.filter(isWaitingReturn).map(b => (
                   <BorrowCard key={b.id} borrow={b} tab={activeTab} currentStoreId={currentStoreId!} onClick={() => setSelectedBorrow(b)} t={t} />
                 ))}
-                {filteredBorrows.filter(b => b.status === 'completed').length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
+                {filteredBorrows.filter(isWaitingReturn).length === 0 && <p className="text-center py-8 text-xs text-gray-400 italic">{t('noItems')}</p>}
               </div>
             </div>
           )}

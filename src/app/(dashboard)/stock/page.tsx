@@ -750,7 +750,95 @@ export default function StockOverviewPage() {
         </CardContent>
       </Card>
 
-
+      {/* ── Prominent Comparison Result Card ── */}
+      {todayStatus.compared && (
+        <Card>
+          <CardHeader
+            title={t('comparisonResultTitle')}
+            action={
+              <Link
+                href="/stock/comparison"
+                className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+              >
+                {t('viewDetails')}
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            }
+          />
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-xl bg-emerald-50 p-4 dark:bg-emerald-900/20">
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                  {t('match')}
+                </p>
+                <p className="mt-1 text-2xl font-bold text-emerald-800 dark:text-emerald-300">
+                  {formatNumber(
+                    Math.max(
+                      0,
+                      todayStatus.manualCount -
+                        todayStatus.missingCount -
+                        todayStatus.surplusCount,
+                    ),
+                  )}
+                </p>
+              </div>
+              <div className="rounded-xl bg-red-50 p-4 dark:bg-red-900/20">
+                <p className="text-xs text-red-700 dark:text-red-400">
+                  {t('shortage')}
+                </p>
+                <p className="mt-1 text-2xl font-bold text-red-700 dark:text-red-400">
+                  {formatNumber(todayStatus.missingCount)}
+                </p>
+              </div>
+              <div className="rounded-xl bg-amber-50 p-4 dark:bg-amber-900/20">
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  {t('excess')}
+                </p>
+                <p className="mt-1 text-2xl font-bold text-amber-700 dark:text-amber-400">
+                  {formatNumber(todayStatus.surplusCount)}
+                </p>
+              </div>
+              <div
+                className={cn(
+                  'rounded-xl p-4',
+                  todayStatus.overTolerance > 0
+                    ? 'bg-rose-50 dark:bg-rose-900/20'
+                    : 'bg-gray-50 dark:bg-gray-700/40',
+                )}
+              >
+                <p
+                  className={cn(
+                    'text-xs',
+                    todayStatus.overTolerance > 0
+                      ? 'text-rose-700 dark:text-rose-400'
+                      : 'text-gray-600 dark:text-gray-400',
+                  )}
+                >
+                  {t('overToleranceLabel')}
+                </p>
+                <p
+                  className={cn(
+                    'mt-1 text-2xl font-bold',
+                    todayStatus.overTolerance > 0
+                      ? 'text-rose-700 dark:text-rose-400'
+                      : 'text-gray-700 dark:text-gray-300',
+                  )}
+                >
+                  {formatNumber(todayStatus.overTolerance)}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                {todayStatus.overTolerance === 0
+                  ? t('comparisonResultAllPass')
+                  : t('comparisonResultNeedAttention')}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Discrepancy Trend Graph */}
       {!isStaffOrBar && (

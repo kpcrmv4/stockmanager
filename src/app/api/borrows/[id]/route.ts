@@ -15,7 +15,14 @@ import { sendBotMessage } from '@/lib/chat/bot';
 // ---------------------------------------------------------------------------
 
 interface PatchBody {
-  action: 'approve' | 'reject' | 'mark_received' | 'upload_photo' | 'cancel' | 'mark_returned';
+  action:
+    | 'approve'
+    | 'reject'
+    | 'mark_received'
+    | 'upload_photo'
+    | 'cancel'
+    | 'mark_returned'
+    | 'confirm_return_receipt';
   lenderPhotoUrl?: string;
   reason?: string;
   side?: 'borrower' | 'lender';
@@ -155,11 +162,13 @@ export async function PATCH(
   // ----- Fetch current user profile -----
   const { data: userProfile } = await serviceClient
     .from('profiles')
-    .select('display_name')
+    .select('display_name, role, store_id')
     .eq('id', user.id)
     .single();
 
   const currentUserName = userProfile?.display_name || user.email || 'Unknown';
+  const currentUserRole = userProfile?.role as string | undefined;
+  const currentUserStoreId = userProfile?.store_id as string | undefined;
 
   try {
     // =====================================================================
@@ -801,7 +810,9 @@ export async function PATCH(
     }
 
     // =====================================================================
-    // ACTION: mark_returned (borrower confirms items have been returned)
+    // ACTION: mark_returned (borrower submits a photo that items are returned)
+    // Moves status from 'completed' → 'return_pending'. The lender must then
+    // confirm receipt with confirm_return_receipt before status becomes 'returned'.
     // =====================================================================
     if (action === 'mark_returned') {
       if (!body.photoUrl || typeof body.photoUrl !== 'string') {
@@ -823,7 +834,7 @@ export async function PATCH(
       const { data: updatedBorrow, error: updateError } = await serviceClient
         .from('borrows')
         .update({
-          status: 'returned',
+          status: 'return_pending',
           return_photo_url: body.photoUrl,
           return_confirmed_by: user.id,
           return_confirmed_at: now,
@@ -842,58 +853,168 @@ export async function PATCH(
         );
       }
 
-      // Fetch context for notifications
       const ctx = await fetchBorrowContext(serviceClient, updatedBorrow);
 
-      // Notify both stores (in-app + PWA push)
+      // Notify the lender (to_store) — they must confirm receipt
       try {
         await Promise.allSettled([
           notifyStoreStaff({
             storeId: updatedBorrow.to_store_id,
             type: 'approval_request',
-            title: '✅ สินค้ายืมถูกคืนแล้ว',
-            body: `${ctx.fromStore?.store_name || 'สาขา'} คืนสินค้าเรียบร้อย โดย ${currentUserName}`,
+            title: '📦 รอยืนยันรับคืนสินค้า',
+            body: `${ctx.fromStore?.store_name || 'สาขา'} ส่งคืนสินค้าแล้ว กรุณาถ่ายรูปยืนยันรับคืน`,
             data: { borrowId: id, url: '/borrow' },
           }),
           notifyStoreStaff({
             storeId: updatedBorrow.from_store_id,
             type: 'approval_request',
-            title: '✅ ยืนยันคืนสินค้าแล้ว',
-            body: `คืนสินค้าให้ ${ctx.toStore?.store_name || 'สาขา'} เรียบร้อย`,
+            title: '📦 ส่งคืนสินค้าแล้ว',
+            body: `รอ ${ctx.toStore?.store_name || 'สาขา'} ยืนยันรับคืน`,
             data: { borrowId: id, url: '/borrow' },
             excludeUserId: user.id,
           }),
         ]);
       } catch (err) {
-        console.error('[Borrows] Failed to notify return:', err);
+        console.error('[Borrows] Failed to notify return_pending:', err);
       }
 
-      // Notify owners of both stores
+      try {
+        const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
+        const msg = `📦 ส่งคืนสินค้ายืม รอยืนยันรับคืน — ${ctx.fromStore?.store_name} → ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nส่งคืนโดย: ${currentUserName}`;
+
+        await Promise.allSettled([
+          sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
+          sendBotMessage({ storeId: updatedBorrow.to_store_id, type: 'system', content: msg }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to send chat message (return_pending):', err);
+      }
+
+      await serviceClient.from('audit_logs').insert({
+        store_id: updatedBorrow.from_store_id,
+        action_type: 'BORROW_RETURN_PENDING',
+        table_name: 'borrows',
+        new_value: {
+          borrow_id: id,
+          returned_by: user.id,
+          returner_name: currentUserName,
+        },
+        changed_by: user.id,
+      });
+
+      return NextResponse.json({
+        success: true,
+        borrow: {
+          ...updatedBorrow,
+          borrow_items: ctx.items,
+          from_store_name: ctx.fromStore?.store_name,
+          to_store_name: ctx.toStore?.store_name,
+        },
+      });
+    }
+
+    // =====================================================================
+    // ACTION: confirm_return_receipt (lender confirms receiving returned items)
+    // Moves status from 'return_pending' → 'returned'. Requires a receipt photo.
+    // =====================================================================
+    if (action === 'confirm_return_receipt') {
+      if (!body.photoUrl || typeof body.photoUrl !== 'string') {
+        return NextResponse.json(
+          { error: 'photoUrl is required to confirm return receipt' },
+          { status: 400 },
+        );
+      }
+
+      if (borrow.status !== 'return_pending') {
+        return NextResponse.json(
+          { error: 'Borrow must be in return_pending state before confirming receipt' },
+          { status: 400 },
+        );
+      }
+
+      // Only the lender (to_store) can confirm — or owner/accountant (cross-store)
+      const isCrossStoreRole =
+        currentUserRole === 'owner' || currentUserRole === 'accountant';
+      const lenderStoreId = (borrow as { to_store_id: string }).to_store_id;
+      if (!isCrossStoreRole && currentUserStoreId !== lenderStoreId) {
+        return NextResponse.json(
+          { error: 'Only the lender store can confirm return receipt' },
+          { status: 403 },
+        );
+      }
+
+      const now = new Date().toISOString();
+
+      const { data: updatedBorrow, error: updateError } = await serviceClient
+        .from('borrows')
+        .update({
+          status: 'returned',
+          return_receipt_photo_url: body.photoUrl,
+          return_received_by: user.id,
+          return_received_at: now,
+          updated_at: now,
+        })
+        .eq('id', id)
+        .select('*')
+        .single();
+
+      if (updateError || !updatedBorrow) {
+        console.error('[Borrows] Confirm return receipt error:', updateError);
+        return NextResponse.json(
+          { error: 'Failed to confirm return receipt' },
+          { status: 500 },
+        );
+      }
+
+      const ctx = await fetchBorrowContext(serviceClient, updatedBorrow);
+
+      // Notify both stores
+      try {
+        await Promise.allSettled([
+          notifyStoreStaff({
+            storeId: updatedBorrow.from_store_id,
+            type: 'approval_request',
+            title: '✅ รับคืนสินค้าเรียบร้อย',
+            body: `${ctx.toStore?.store_name || 'สาขา'} ยืนยันรับคืนแล้ว`,
+            data: { borrowId: id, url: '/borrow' },
+          }),
+          notifyStoreStaff({
+            storeId: updatedBorrow.to_store_id,
+            type: 'approval_request',
+            title: '✅ ยืนยันรับคืนแล้ว',
+            body: `รับคืนจาก ${ctx.fromStore?.store_name || 'สาขา'} เรียบร้อย`,
+            data: { borrowId: id, url: '/borrow' },
+            excludeUserId: user.id,
+          }),
+        ]);
+      } catch (err) {
+        console.error('[Borrows] Failed to notify return confirmed:', err);
+      }
+
       try {
         await Promise.allSettled([
           notifyBorrowWatchers({
             storeId: updatedBorrow.from_store_id,
             type: 'approval_request',
-            title: '✅ สินค้ายืมถูกคืนแล้ว',
-            body: `${ctx.fromStore?.store_name} คืนสินค้าให้ ${ctx.toStore?.store_name} เรียบร้อย`,
+            title: '✅ สินค้ายืมถูกคืนครบถ้วน',
+            body: `${ctx.fromStore?.store_name} คืนสินค้าให้ ${ctx.toStore?.store_name} เรียบร้อย (ยืนยันรับแล้ว)`,
             data: { borrowId: id, url: '/borrow' },
           }),
           notifyBorrowWatchers({
             storeId: updatedBorrow.to_store_id,
             type: 'approval_request',
-            title: '✅ สินค้ายืมถูกคืนแล้ว',
+            title: '✅ สินค้ายืมถูกคืนครบถ้วน',
             body: `${ctx.fromStore?.store_name} คืนสินค้าเรียบร้อย`,
             data: { borrowId: id, url: '/borrow' },
           }),
         ]);
       } catch (err) {
-        console.error('[Borrows] Failed to notify owners (return):', err);
+        console.error('[Borrows] Failed to notify owners (return receipt):', err);
       }
 
-      // Chat bot — system message to both stores
       try {
         const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
-        const msg = `✅ คืนสินค้ายืมแล้ว — ${ctx.fromStore?.store_name} → ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nยืนยันคืนโดย: ${currentUserName}`;
+        const msg = `✅ ยืนยันรับคืนสินค้าแล้ว — ${ctx.fromStore?.store_name} → ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nยืนยันรับโดย: ${currentUserName}`;
 
         await Promise.allSettled([
           sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
@@ -903,15 +1024,14 @@ export async function PATCH(
         console.error('[Borrows] Failed to send chat message (returned):', err);
       }
 
-      // Audit log
       await serviceClient.from('audit_logs').insert({
-        store_id: updatedBorrow.from_store_id,
+        store_id: updatedBorrow.to_store_id,
         action_type: 'BORROW_RETURNED',
         table_name: 'borrows',
         new_value: {
           borrow_id: id,
-          returned_by: user.id,
-          returner_name: currentUserName,
+          received_by: user.id,
+          receiver_name: currentUserName,
         },
         changed_by: user.id,
       });

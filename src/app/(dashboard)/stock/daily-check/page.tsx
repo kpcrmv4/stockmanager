@@ -45,7 +45,7 @@ interface CountEntry {
   notes: string;
 }
 
-const COUNT_ROLES = ['owner', 'manager', 'bar', 'staff'];
+const COUNT_ROLES = ['owner', 'accountant', 'manager', 'bar'];
 
 export default function DailyCheckPage() {
   const t = useTranslations('stock');
@@ -79,6 +79,9 @@ export default function DailyCheckPage() {
   const [comparing, setComparing] = useState(false);
   const [compareResult, setCompareResult] =
     useState<AutoCompareResult | null>(null);
+
+  // Persistent "manual count saved" indicator (ไม่หายไปแม้ compare จะยังรอ POS)
+  const [countFinalized, setCountFinalized] = useState(false);
 
   // Supplementary count state
   const [supplementaryItems, setSupplementaryItems] = useState<
@@ -550,6 +553,7 @@ export default function DailyCheckPage() {
         newExisting[e.product_code] = Number(e.count_quantity);
       });
       setExistingCounts(newExisting);
+      setCountFinalized(true);
 
       // ── Auto-compare ──
       setComparing(true);
@@ -849,6 +853,25 @@ export default function DailyCheckPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Persistent "manual count saved" banner — คงไว้แม้ compare จะยังรอ POS */}
+      {countFinalized && !comparing && !compareResult?.compared && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+                {t('dailyCheck.countFinalized')}
+              </p>
+              <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">
+                {compareResult?.reason === 'no_pos'
+                  ? t('dailyCheck.waitingPosMsg')
+                  : t('dailyCheck.countFinalizedHint')}
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Auto-compare in progress */}

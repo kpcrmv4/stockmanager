@@ -233,7 +233,7 @@ export interface HqDeposit {
   created_at: string;
 }
 
-export type BorrowStatus = 'pending_approval' | 'approved' | 'pos_adjusting' | 'completed' | 'returned' | 'rejected' | 'cancelled';
+export type BorrowStatus = 'pending_approval' | 'approved' | 'pos_adjusting' | 'completed' | 'return_pending' | 'returned' | 'rejected' | 'cancelled';
 
 export interface Borrow {
   id: string;
