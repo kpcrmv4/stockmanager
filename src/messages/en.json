@@ -1653,6 +1653,8 @@
     "stepReturn": "Return",
     "statusReturned": "Returned",
     "statusWaitingReturn": "Pending return",
+    "statusWaitingToReturn": "Pending return",
+    "statusWaitingToReceiveReturn": "Pending return receipt",
     "subWaitingReturn": "Pending return",
     "waitingReturnCount": "Pending return",
     "returnPhotoLabel": "Photo of returned items",

@@ -147,6 +147,8 @@ function getStatusConfig(t: ReturnType<typeof useTranslations>): Record<
   };
 }
 
+const FALLBACK_STATUS_CONFIG = { label: '', variant: 'default' as const, step: -1 };
+
 function getVisualStatus(
   borrow: BorrowWithDetails,
   currentStoreId: string,
@@ -154,7 +156,7 @@ function getVisualStatus(
 ): { label: string; variant: 'warning' | 'info' | 'default' | 'success' | 'danger'; step: number } {
   const config = getStatusConfig(t);
   const status = borrow.status;
-  const base = config[status];
+  const base = config[status] ?? { ...FALLBACK_STATUS_CONFIG, label: String(status) };
 
   // Perspective-based labels for 'completed' (waiting return)
   if (status === 'completed') {
@@ -204,7 +206,7 @@ function StatusProgressBar({
   ];
   const isRejected = status === 'rejected';
   const statusConfig = getStatusConfig(t);
-  const currentStep = statusConfig[status].step;
+  const currentStep = statusConfig[status]?.step ?? -1;
   // `step` represents the last completed milestone; the next step is in progress.
   const isTerminated = currentStep < 0;
 
