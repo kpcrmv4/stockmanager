@@ -699,7 +699,14 @@
       "colRate": "Rate",
       "colExpiring": "Expiring Soon",
       "minuteShort": "m",
-      "loadError": "Failed to load data"
+      "loadError": "Failed to load data",
+      "presetThisMonth": "This Month",
+      "presetLast30": "Last 30 days",
+      "smallMultiplesTitle": "KPI Rankings",
+      "smallMultiplesDesc": "Each card is one KPI, stores sorted from highest to lowest",
+      "heatmapTitle": "Overview Heatmap",
+      "heatmapDesc": "Darker = higher value (relative to the top store in each KPI)",
+      "completionRate": "Completion %"
     },
     "operations": {
       "title": "Real-time Operations",

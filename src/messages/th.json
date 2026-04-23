@@ -699,7 +699,14 @@
       "colRate": "Rate",
       "colExpiring": "ใกล้หมดอายุ",
       "minuteShort": "น.",
-      "loadError": "โหลดข้อมูลไม่สำเร็จ"
+      "loadError": "โหลดข้อมูลไม่สำเร็จ",
+      "presetThisMonth": "เดือนนี้",
+      "presetLast30": "30 วันล่าสุด",
+      "smallMultiplesTitle": "จัดอันดับแต่ละ KPI",
+      "smallMultiplesDesc": "แต่ละการ์ดคือหนึ่ง KPI เรียงสาขาจากมากไปน้อย",
+      "heatmapTitle": "Heatmap ภาพรวม",
+      "heatmapDesc": "สีเข้ม = ค่ามาก (เทียบกับสาขาสูงสุดใน KPI นั้น)",
+      "completionRate": "% งานสำเร็จ"
     },
     "operations": {
       "title": "สถานะงาน Real-time",

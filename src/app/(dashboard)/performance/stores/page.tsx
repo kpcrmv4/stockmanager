@@ -71,7 +71,15 @@ const STORE_COLORS = [
   '#ec4899', '#8b5cf6', '#14b8a6', '#f97316', '#06b6d4',
 ];
 
-function getDefaultDateRange(): { start: string; end: string } {
+function getCurrentMonthRange(): { start: string; end: string } {
+  const endStr = todayBangkok();
+  const d = nowBangkok();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return { start: `${y}-${m}-01`, end: endStr };
+}
+
+function getLast30DaysRange(): { start: string; end: string } {
   const endStr = todayBangkok();
   const d = nowBangkok();
   d.setDate(d.getDate() - 30);
@@ -81,10 +89,32 @@ function getDefaultDateRange(): { start: string; end: string } {
   return { start: `${y}-${m}-${day}`, end: endStr };
 }
 
+function getDefaultDateRange(): { start: string; end: string } {
+  // Default to current month — matches the most common use case
+  // (customer comparisons for the ongoing month).
+  return getCurrentMonthRange();
+}
+
 function normalize(value: number, max: number): number {
   if (max === 0) return 0;
   return Math.round((value / max) * 100);
 }
+
+// Metrics used by the small-multiples ranking chart and the heatmap.
+// `format` renders one store's value; `unit` is a tiny label shown on the card.
+const SMALL_MULTIPLE_METRICS: ReadonlyArray<{
+  key: keyof StoreKPI;
+  labelKey: string;
+  unit: string;
+  format: (v: number) => string;
+}> = [
+  { key: 'deposits', labelKey: 'deposits', unit: '', format: (v) => formatNumber(v) },
+  { key: 'withdrawals', labelKey: 'withdrawals', unit: '', format: (v) => formatNumber(v) },
+  { key: 'stockChecks', labelKey: 'stockChecks', unit: '', format: (v) => formatNumber(v) },
+  { key: 'tasksCompleted', labelKey: 'tasksCompleted', unit: '', format: (v) => formatNumber(v) },
+  { key: 'completionRate', labelKey: 'completionRate', unit: '%', format: (v) => `${v.toFixed(0)}%` },
+  { key: 'stockAccuracy', labelKey: 'stockAccuracy', unit: '%', format: (v) => `${v.toFixed(0)}%` },
+];
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload) return null;
@@ -380,28 +410,54 @@ export default function StoreComparisonPage() {
       {/* Date filter */}
       <Card>
         <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                {t('dateFrom')}
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-              />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                  {t('dateFrom')}
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                  {t('dateTo')}
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                />
+              </div>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                {t('dateTo')}
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-              />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const r = getCurrentMonthRange();
+                  setStartDate(r.start);
+                  setEndDate(r.end);
+                }}
+              >
+                {t('presetThisMonth')}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const r = getLast30DaysRange();
+                  setStartDate(r.start);
+                  setEndDate(r.end);
+                }}
+              >
+                {t('presetLast30')}
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -445,6 +501,114 @@ export default function StoreComparisonPage() {
               ) : (
                 <ChartEmptyState />
               )}
+            </CardContent>
+          </Card>
+
+          {/* Small multiples: one ranking bar chart per KPI */}
+          <Card>
+            <CardHeader
+              title={t('smallMultiplesTitle')}
+              description={t('smallMultiplesDesc')}
+            />
+            <CardContent>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {SMALL_MULTIPLE_METRICS.map((m) => {
+                  const ranked = [...storeKPIs]
+                    .map((s) => ({
+                      storeId: s.storeId,
+                      storeName: s.storeName,
+                      value: Number(s[m.key as keyof StoreKPI] ?? 0),
+                    }))
+                    .sort((a, b) => b.value - a.value);
+                  const max = Math.max(...ranked.map((r) => r.value), 1);
+                  return (
+                    <div key={m.key}>
+                      <div className="mb-2 flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {t(m.labelKey)}
+                        </h4>
+                        <span className="text-xs text-gray-400">{m.unit}</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {ranked.map((r, idx) => {
+                          const pct = max > 0 ? (r.value / max) * 100 : 0;
+                          const color = STORE_COLORS[idx % STORE_COLORS.length];
+                          return (
+                            <div key={r.storeId} className="flex items-center gap-2 text-xs">
+                              <span className="w-20 shrink-0 truncate text-gray-700 dark:text-gray-300" title={r.storeName}>
+                                {r.storeName}
+                              </span>
+                              <div className="relative h-5 flex-1 overflow-hidden rounded bg-gray-100 dark:bg-gray-800">
+                                <div
+                                  className="h-full rounded transition-all"
+                                  style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.85 }}
+                                />
+                              </div>
+                              <span className="w-14 shrink-0 text-right font-medium tabular-nums text-gray-900 dark:text-white">
+                                {m.format(r.value)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Heatmap: all KPIs × all stores in one matrix */}
+          <Card>
+            <CardHeader
+              title={t('heatmapTitle')}
+              description={t('heatmapDesc')}
+            />
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs uppercase text-gray-500 dark:text-gray-400">
+                      <th className="py-2 pr-3 text-left font-medium">{t('colBranch')}</th>
+                      {SMALL_MULTIPLE_METRICS.map((m) => (
+                        <th key={m.key} className="px-2 py-2 text-center font-medium">
+                          {t(m.labelKey)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {storeKPIs.map((s) => (
+                      <tr key={s.storeId} className="border-t border-gray-100 dark:border-gray-800">
+                        <td className="py-2 pr-3 font-medium text-gray-900 dark:text-white">
+                          {s.storeName}
+                        </td>
+                        {SMALL_MULTIPLE_METRICS.map((m) => {
+                          const v = Number(s[m.key as keyof StoreKPI] ?? 0);
+                          const allVals = storeKPIs.map((x) => Number(x[m.key as keyof StoreKPI] ?? 0));
+                          const max = Math.max(...allVals, 1);
+                          const pct = max > 0 ? v / max : 0;
+                          const bg = `rgba(99, 102, 241, ${pct * 0.85})`;
+                          const textColor = pct > 0.55 ? '#ffffff' : undefined;
+                          return (
+                            <td
+                              key={m.key}
+                              className="px-1 py-1 text-center tabular-nums"
+                            >
+                              <div
+                                className="rounded px-2 py-1.5 text-xs font-medium"
+                                style={{ backgroundColor: bg, color: textColor }}
+                              >
+                                {m.format(v)}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
 
