@@ -503,6 +503,8 @@
       "baht": "THB",
       "entries": "{count} entries",
       "noPendingWork": "No pending work",
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all",
       "issues": {
         "pendingIncomingTransfers": "Pending incoming transfers",
         "pendingApprovals": "Pending stock approval",
@@ -514,6 +516,16 @@
         "pendingBorrows": "Borrow / pending approval"
       }
     },
+    "compareHeading": "Branch Comparison (this month)",
+    "compareDesc": "See which branch leads in each metric this month",
+    "compareHeatmapTitle": "All-KPI heatmap",
+    "compareColBranch": "Branch",
+    "compareDeposits": "New deposits",
+    "compareWithdrawals": "Withdrawals",
+    "compareStockChecks": "Stock checks",
+    "compareCommission": "Commission",
+    "compareActiveDeposits": "In store",
+    "comparePending": "Pending",
     "modules": {
       "heading": "Modules",
       "stock": {

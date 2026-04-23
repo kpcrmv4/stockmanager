@@ -56,6 +56,9 @@ import {
   LogIn,
   Hand,
   Banknote,
+  ChevronDown,
+  ChevronUp,
+  BarChart2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -104,6 +107,9 @@ interface StoreStatus {
   lendsToReceive: number;   // to_store_id (Lender), completed
   commissionThisMonth: number;  // commission net total this month
   commissionEntries: number;    // commission entry count this month
+  depositsThisMonth: number;    // deposits created this month
+  withdrawalsThisMonth: number; // deposits withdrawn this month (created_at in month, status=withdrawn)
+  stockChecksThisMonth: number; // manual_counts created this month
 }
 
 interface AuditLogEntry {
@@ -125,6 +131,23 @@ interface ModuleCardConfig {
   metrics: string[];      // computed metric strings
   description?: string;   // fallback if no metrics
 }
+
+// Metrics displayed in the per-store comparison chart (owner only).
+// All values are already present on StoreStatus — no extra fetch needed.
+type ComparisonMetric = {
+  key: keyof StoreStatus;
+  labelKey: string;
+  format: (v: number) => string;
+};
+
+const COMPARISON_METRICS: ReadonlyArray<ComparisonMetric> = [
+  { key: 'depositsThisMonth', labelKey: 'compareDeposits', format: (v) => formatNumber(v) },
+  { key: 'withdrawalsThisMonth', labelKey: 'compareWithdrawals', format: (v) => formatNumber(v) },
+  { key: 'stockChecksThisMonth', labelKey: 'compareStockChecks', format: (v) => formatNumber(v) },
+  { key: 'commissionThisMonth', labelKey: 'compareCommission', format: (v) => `฿${formatNumber(Math.round(v))}` },
+  { key: 'activeDeposits', labelKey: 'compareActiveDeposits', format: (v) => formatNumber(v) },
+  { key: 'totalIssues', labelKey: 'comparePending', format: (v) => formatNumber(v) },
+];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -622,6 +645,22 @@ export default function OverviewPage() {
   });
   const [activities, setActivities] = useState<AuditLogEntry[]>([]);
   const [storeStatuses, setStoreStatuses] = useState<StoreStatus[]>([]);
+  // Per-store-card expansion state (owner view). Collapsed by default — users
+  // see a lightweight header + badges and click to reveal full metric breakdown.
+  const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set());
+  const toggleStore = (id: string) => {
+    setExpandedStores((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const allExpanded = storeStatuses.length > 0 && expandedStores.size === storeStatuses.length;
+  const toggleAllStores = () => {
+    if (allExpanded) setExpandedStores(new Set());
+    else setExpandedStores(new Set(storeStatuses.map((s) => s.id)));
+  };
 
   const isOwner = user?.role === 'owner';
 
@@ -731,6 +770,12 @@ export default function OverviewPage() {
       // For lastStockCheck per store: fetch (store_id, count_date) ordered DESC, take first per store.
       const grpLcQ = isOwner ? supabase.from('manual_counts').select('store_id, count_date').order('count_date', { ascending: false }).limit(2000) : null;
 
+      // Month-scoped grouped metrics (for the per-store comparison chart).
+      const monthStartISO = `${commissionMonthStart}T00:00:00+07:00`;
+      const grpMoDepQ = isOwner ? supabase.from('deposits').select('store_id').gte('created_at', monthStartISO) : null;
+      const grpMoWdQ = isOwner ? supabase.from('deposits').select('store_id').eq('status', 'withdrawn').gte('created_at', monthStartISO) : null;
+      const grpMoScQ = isOwner ? supabase.from('manual_counts').select('store_id').gte('created_at', monthStartISO) : null;
+
       // -------- Execute everything in parallel --------
       const [
         storesRes, depositsInStoreRes, pendingWithdrawalsRes, expiringRes,
@@ -742,6 +787,7 @@ export default function OverviewPage() {
         ownerStoresRes,
         grpPwRes, grpEdRes, grpAdRes, grpPeRes, grpPaRes, grpPtRes, grpPiRes,
         grpBtaRes, grpBtrRes, grpLtaRes, grpLtrRes, grpCmRes, grpDrRes, grpLcRes,
+        grpMoDepRes, grpMoWdRes, grpMoScRes,
       ] = await Promise.all([
         storesQuery, depositsInStoreQuery, pendingWithdrawalsQuery, expiringQuery,
         pendingExplQuery, pendingApprQuery, pendingTransfersQuery, usersQuery,
@@ -752,6 +798,7 @@ export default function OverviewPage() {
         ownerStoresQuery,
         grpPwQ, grpEdQ, grpAdQ, grpPeQ, grpPaQ, grpPtQ, grpPiQ,
         grpBtaQ, grpBtrQ, grpLtaQ, grpLtrQ, grpCmQ, grpDrQ, grpLcQ,
+        grpMoDepQ, grpMoWdQ, grpMoScQ,
       ]);
 
       const depositsTrend = calcTrend(curDepositsRes.count || 0, prevDepositsRes.count || 0);
@@ -843,6 +890,9 @@ export default function OverviewPage() {
           const ltaMap = countBy(grpLtaRes?.data, 'to_store_id');
           const ltrMap = countBy(grpLtrRes?.data, 'to_store_id');
           const drMap = countBy(grpDrRes?.data, 'store_id');
+          const moDepMap = countBy(grpMoDepRes?.data, 'store_id');
+          const moWdMap = countBy(grpMoWdRes?.data, 'store_id');
+          const moScMap = countBy(grpMoScRes?.data, 'store_id');
 
           // Commission: sum net_amount + count entries per store
           const commTotalMap = new Map<string, number>();
@@ -890,6 +940,9 @@ export default function OverviewPage() {
                 lendsToReceive: 0,
                 commissionThisMonth: 0,
                 commissionEntries: 0,
+                depositsThisMonth: 0,
+                withdrawalsThisMonth: 0,
+                stockChecksThisMonth: moScMap.get(sid) || 0,
               };
             }
 
@@ -934,6 +987,9 @@ export default function OverviewPage() {
               lendsToReceive,
               commissionThisMonth: Math.round(storeCommTotal * 100) / 100,
               commissionEntries: storeCommEntries,
+              depositsThisMonth: moDepMap.get(sid) || 0,
+              withdrawalsThisMonth: moWdMap.get(sid) || 0,
+              stockChecksThisMonth: moScMap.get(sid) || 0,
             };
           });
 
@@ -1002,14 +1058,136 @@ export default function OverviewPage() {
 
 
       {/* ---- Per-Store Status (Owner only) ---- */}
+      {/* ---- Per-store comparison chart (owner only) ---- */}
+      {isOwner && storeStatuses.length > 0 && (
+        <Card padding="none">
+          <CardHeader
+            title={t('compareHeading')}
+            description={t('compareDesc')}
+          />
+          <div className="p-4 sm:p-5">
+            {/* Small multiples: per-metric ranking with horizontal bars */}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {COMPARISON_METRICS.map((m) => {
+                const ranked = [...storeStatuses]
+                  .map((s) => ({
+                    storeId: s.id,
+                    storeName: s.name,
+                    value: Number(s[m.key] ?? 0),
+                  }))
+                  .sort((a, b) => b.value - a.value);
+                const max = Math.max(...ranked.map((r) => r.value), 1);
+                return (
+                  <div key={String(m.key)}>
+                    <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                      {t(m.labelKey)}
+                    </h4>
+                    <div className="space-y-1.5">
+                      {ranked.map((r, idx) => {
+                        const pct = max > 0 ? (r.value / max) * 100 : 0;
+                        const palette = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899', '#8b5cf6', '#14b8a6', '#f97316', '#06b6d4'];
+                        const color = palette[idx % palette.length];
+                        return (
+                          <div key={r.storeId} className="flex items-center gap-2 text-xs">
+                            <span className="w-20 shrink-0 truncate text-gray-700 dark:text-gray-300" title={r.storeName}>
+                              {r.storeName}
+                            </span>
+                            <div className="relative h-5 flex-1 overflow-hidden rounded bg-gray-100 dark:bg-gray-800">
+                              <div
+                                className="h-full rounded"
+                                style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.85 }}
+                              />
+                            </div>
+                            <span className="w-16 shrink-0 text-right font-medium tabular-nums text-gray-900 dark:text-white">
+                              {m.format(r.value)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Heatmap: all metrics × all stores */}
+            <div className="mt-6 border-t border-gray-100 pt-5 dark:border-gray-700">
+              <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-gray-900 dark:text-white">
+                <BarChart2 className="h-4 w-4" />
+                {t('compareHeatmapTitle')}
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs uppercase text-gray-500 dark:text-gray-400">
+                      <th className="py-2 pr-3 text-left font-medium">{t('compareColBranch')}</th>
+                      {COMPARISON_METRICS.map((m) => (
+                        <th key={String(m.key)} className="px-2 py-2 text-center font-medium">
+                          {t(m.labelKey)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {storeStatuses.map((s) => (
+                      <tr key={s.id} className="border-t border-gray-100 dark:border-gray-800">
+                        <td className="py-2 pr-3 font-medium text-gray-900 dark:text-white">{s.name}</td>
+                        {COMPARISON_METRICS.map((m) => {
+                          const v = Number(s[m.key] ?? 0);
+                          const allVals = storeStatuses.map((x) => Number(x[m.key] ?? 0));
+                          const max = Math.max(...allVals, 1);
+                          const pct = max > 0 ? v / max : 0;
+                          const bg = `rgba(99, 102, 241, ${pct * 0.85})`;
+                          const textColor = pct > 0.55 ? '#ffffff' : undefined;
+                          return (
+                            <td key={String(m.key)} className="px-1 py-1 text-center tabular-nums">
+                              <div
+                                className="rounded px-2 py-1.5 text-xs font-medium"
+                                style={{ backgroundColor: bg, color: textColor }}
+                              >
+                                {m.format(v)}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {isOwner && storeStatuses.length > 0 && (
         <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-            {t('storeStatus.heading')}
-          </h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              {t('storeStatus.heading')}
+            </h2>
+            <button
+              type="button"
+              onClick={toggleAllStores}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20"
+            >
+              {allExpanded ? (
+                <>
+                  <ChevronUp className="h-3.5 w-3.5" />
+                  {t('storeStatus.collapseAll')}
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  {t('storeStatus.expandAll')}
+                </>
+              )}
+            </button>
+          </div>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {storeStatuses.map((store) => {
               const hasIssues = store.totalIssues > 0;
+              const isExpanded = expandedStores.has(store.id);
 
               return (
                 <div
@@ -1021,13 +1199,19 @@ export default function OverviewPage() {
                       : 'ring-gray-200 dark:ring-gray-700'
                   )}
                 >
-                  {/* Store header */}
-                  <div className={cn(
-                    'flex items-center justify-between rounded-t-xl px-4 py-3 border-b',
-                    hasIssues
-                      ? 'bg-amber-50/50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/50'
-                      : 'bg-gray-50/50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-700/50'
-                  )}>
+                  {/* Store header — click anywhere to expand/collapse */}
+                  <button
+                    type="button"
+                    onClick={() => toggleStore(store.id)}
+                    aria-expanded={isExpanded}
+                    className={cn(
+                      'flex w-full items-center justify-between px-4 py-3 border-b text-left transition-colors',
+                      isExpanded ? 'rounded-t-xl' : 'rounded-xl border-b-transparent',
+                      hasIssues
+                        ? 'bg-amber-50/50 hover:bg-amber-50 dark:bg-amber-900/10 dark:hover:bg-amber-900/20 border-amber-100 dark:border-amber-900/50'
+                        : 'bg-gray-50/50 hover:bg-gray-50 dark:bg-gray-800/50 dark:hover:bg-gray-800 border-gray-100 dark:border-gray-700/50'
+                    )}
+                  >
                     <div className="flex items-center gap-2.5">
                       <div className={cn(
                         'flex h-10 w-10 items-center justify-center rounded-lg',
@@ -1066,11 +1250,16 @@ export default function OverviewPage() {
                           {t('storeStatus.normal')}
                         </span>
                       )}
+                      {isExpanded ? (
+                        <ChevronUp className="h-4 w-4 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-gray-400" />
+                      )}
                     </div>
-                  </div>
+                  </button>
 
-                  {/* Store body */}
-                  {store.isCentral ? (
+                  {/* Store body — only rendered when expanded */}
+                  {isExpanded && (store.isCentral ? (
                     <div className="p-4 grid grid-cols-1 gap-4">
                       <div className="space-y-2">
                         <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-teal-500">
@@ -1236,7 +1425,7 @@ export default function OverviewPage() {
                         </div>
                       </div>
                     </div>
-                  )}
+                  ))}
                 </div>
               );
             })}

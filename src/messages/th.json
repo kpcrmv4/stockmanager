@@ -503,6 +503,8 @@
       "baht": "บาท",
       "entries": "{count} รายการ",
       "noPendingWork": "ไม่มีงานค้าง",
+      "expandAll": "คลี่ทั้งหมด",
+      "collapseAll": "ยุบทั้งหมด",
       "issues": {
         "pendingIncomingTransfers": "รอรับโอนจากสาขา",
         "pendingApprovals": "รออนุมัติสต๊อก",
@@ -514,6 +516,16 @@
         "pendingBorrows": "ยืม/รออนุมัติ"
       }
     },
+    "compareHeading": "เปรียบเทียบสาขา (เดือนนี้)",
+    "compareDesc": "ดูว่าสาขาไหนทำได้ดีในด้านใดในเดือนปัจจุบัน",
+    "compareHeatmapTitle": "Heatmap ภาพรวมทุก KPI",
+    "compareColBranch": "สาขา",
+    "compareDeposits": "ฝากใหม่",
+    "compareWithdrawals": "เบิก",
+    "compareStockChecks": "เช็คสต๊อก",
+    "compareCommission": "คอม",
+    "compareActiveDeposits": "ฝากอยู่",
+    "comparePending": "รายการค้าง",
     "modules": {
       "heading": "โมดูล",
       "stock": {
