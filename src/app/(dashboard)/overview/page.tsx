@@ -218,6 +218,10 @@ const ACTION_ICON_MAP: Record<string, LucideIcon> = {
   BORROW_REJECTED: XCircle,
   BORROW_POS_CONFIRMED: CheckCircle2,
   BORROW_COMPLETED: CheckCircle2,
+  BORROW_RETURN_PENDING: Clock,
+  BORROW_RETURNED: Repeat,
+  BORROW_MARKED_RECEIVED: CheckCircle2,
+  BORROW_PHOTO_UPLOADED: Upload,
   ACTION_CARD_CLAIMED: Hand,
   ACTION_CARD_RELEASED: XCircle,
   ACTION_CARD_COMPLETED: CheckCircle2,
@@ -283,6 +287,10 @@ const ACTION_COLOR_MAP: Record<string, string> = {
   BORROW_REJECTED: 'text-red-500',
   BORROW_POS_CONFIRMED: 'text-violet-500',
   BORROW_COMPLETED: 'text-emerald-500',
+  BORROW_RETURN_PENDING: 'text-amber-500',
+  BORROW_RETURNED: 'text-teal-500',
+  BORROW_MARKED_RECEIVED: 'text-emerald-500',
+  BORROW_PHOTO_UPLOADED: 'text-violet-500',
   ACTION_CARD_CLAIMED: 'text-blue-500',
   ACTION_CARD_RELEASED: 'text-amber-500',
   ACTION_CARD_COMPLETED: 'text-emerald-500',
@@ -316,6 +324,8 @@ const KNOWN_ACTION_TYPES = new Set([
   'CRON_DEPOSIT_EXPIRED', 'CRON_FOLLOW_UP_SENT', 'USER_CREATED', 'USER_UPDATED',
   'USER_DEACTIVATED', 'USER_LOGIN', 'BORROW_REQUESTED', 'BORROW_APPROVED',
   'BORROW_REJECTED', 'BORROW_POS_CONFIRMED', 'BORROW_COMPLETED',
+  'BORROW_RETURN_PENDING', 'BORROW_RETURNED', 'BORROW_MARKED_RECEIVED',
+  'BORROW_PHOTO_UPLOADED',
   'ACTION_CARD_CLAIMED', 'ACTION_CARD_RELEASED', 'ACTION_CARD_COMPLETED',
   'ACTION_CARD_REJECTED', 'SETTINGS_UPDATED', 'STORE_CREATED', 'STORE_UPDATED',
   'AUDIT_LOG_CLEANUP', 'COMMISSION_ENTRY_CREATED', 'COMMISSION_ENTRY_UPDATED',
@@ -1317,33 +1327,47 @@ export default function OverviewPage() {
                         </h4>
                         <div className="rounded-lg bg-gray-50 p-2.5 dark:bg-gray-800/50 space-y-1.5 text-xs">
                           <div className="flex justify-between items-center">
-                            <span className="text-gray-500 dark:text-gray-400">{t('storeStatus.depositsInStore')}</span>
+                            <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                              <Wine className="h-3 w-3" /> {t('storeStatus.depositsInStore')}
+                            </span>
                             <span className="font-medium text-gray-900 dark:text-white">{store.activeDeposits}</span>
                           </div>
-                          {(store.expiringDeposits > 0 || store.pendingIncomingTransfers > 0) && (
-                            <Link href="/deposit" className="flex justify-between items-center text-orange-600 hover:text-orange-500 mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
-                              <span className="flex items-center gap-1"><CalendarClock className="h-3 w-3" /> หมดอายุ/รอรับ</span>
-                              <span className="font-bold">{store.expiringDeposits + store.pendingIncomingTransfers}</span>
-                            </Link>
-                          )}
-                          {store.pendingDeposits > 0 && (
-                            <Link href="/deposit" className="flex justify-between items-center text-indigo-600 hover:text-indigo-500 mt-1">
-                              <span className="flex items-center gap-1"><Package className="h-3 w-3" /> {t('storeStatus.issues.pendingDeposits')}</span>
-                              <span className="font-bold">{store.pendingDeposits}</span>
-                            </Link>
-                          )}
-                          {store.pendingWithdrawals > 0 && (
-                            <Link href="/deposit/withdrawals" className="flex justify-between items-center text-blue-600 hover:text-blue-500 mt-1">
-                              <span className="flex items-center gap-1"><Wine className="h-3 w-3" /> {t('storeStatus.issues.pendingWithdrawals')}</span>
-                              <span className="font-bold">{store.pendingWithdrawals}</span>
-                            </Link>
-                          )}
-                          {store.pendingTransfers > 0 && (
-                            <Link href="/transfer" className="flex justify-between items-center text-cyan-600 hover:text-cyan-500 mt-1">
-                              <span className="flex items-center gap-1"><ArrowRightLeft className="h-3 w-3" /> รอโอนสต๊อก</span>
-                              <span className="font-bold">{store.pendingTransfers}</span>
-                            </Link>
-                          )}
+                          <div className="flex justify-between items-center">
+                            <span className={cn(
+                              'flex items-center gap-1',
+                              store.expiringDeposits > 0
+                                ? 'text-orange-600 dark:text-orange-400'
+                                : 'text-gray-500 dark:text-gray-400'
+                            )}>
+                              <CalendarClock className="h-3 w-3" /> {t('storeStatus.expired')}
+                            </span>
+                            <span className={cn(
+                              'font-medium',
+                              store.expiringDeposits > 0
+                                ? 'text-orange-600 dark:text-orange-400'
+                                : 'text-gray-900 dark:text-white'
+                            )}>
+                              {store.expiringDeposits}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className={cn(
+                              'flex items-center gap-1',
+                              store.pendingTransfers > 0
+                                ? 'text-cyan-600 dark:text-cyan-400'
+                                : 'text-gray-500 dark:text-gray-400'
+                            )}>
+                              <ArrowRightLeft className="h-3 w-3" /> {t('storeStatus.pendingToHq')}
+                            </span>
+                            <span className={cn(
+                              'font-medium',
+                              store.pendingTransfers > 0
+                                ? 'text-cyan-600 dark:text-cyan-400'
+                                : 'text-gray-900 dark:text-white'
+                            )}>
+                              {store.pendingTransfers}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
