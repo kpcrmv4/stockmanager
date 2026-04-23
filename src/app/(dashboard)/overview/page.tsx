@@ -637,203 +637,143 @@ export default function OverviewPage() {
       // For owner: no store filter (see all). For manager: filter by currentStoreId.
       const storeFilter = isOwner ? null : currentStoreId;
 
-      // --- Stores count ---
-      const storesQuery = supabase
-        .from('stores')
-        .select('*', { count: 'exact', head: true })
-        .eq('active', true);
-      const { count: storeCount } = await storesQuery;
-
-      // --- Deposits in_store ---
-      const depositsInStoreQuery = supabase
-        .from('deposits')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'in_store');
-      if (storeFilter) depositsInStoreQuery.eq('store_id', storeFilter);
-      const { count: totalDepositsInStore } = await depositsInStoreQuery;
-
-      // --- Pending withdrawals ---
-      const pendingWithdrawalsQuery = supabase
-        .from('deposits')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending_withdrawal');
-      if (storeFilter) pendingWithdrawalsQuery.eq('store_id', storeFilter);
-      const { count: pendingWithdrawals } = await pendingWithdrawalsQuery;
-
-      // --- Expiring deposits (within 7 days) ---
-      const expiringQuery = supabase
-        .from('deposits')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'in_store')
-        .lt('expiry_date', daysFromNowISO(7))
-        .gt('expiry_date', startOfTodayBangkokISO());
-      if (storeFilter) expiringQuery.eq('store_id', storeFilter);
-      const { count: expiringDeposits } = await expiringQuery;
-
-      // --- Pending explanations (comparisons status=pending) ---
-      const pendingExplQuery = supabase
-        .from('comparisons')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
-      if (storeFilter) pendingExplQuery.eq('store_id', storeFilter);
-      const { count: pendingExplanations } = await pendingExplQuery;
-
-      // --- Pending approvals (comparisons status=explained) ---
-      const pendingApprQuery = supabase
-        .from('comparisons')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'explained');
-      if (storeFilter) pendingApprQuery.eq('store_id', storeFilter);
-      const { count: pendingApprovals } = await pendingApprQuery;
-
-      // --- Pending transfers ---
-      const pendingTransfersQuery = supabase
-        .from('transfers')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
-      if (storeFilter) pendingTransfersQuery.eq('from_store_id', storeFilter);
-      const { count: pendingTransfers } = await pendingTransfersQuery;
-
-      // --- Total active users ---
-      const { count: totalUsers } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('active', true);
-
-      // --- Total active products ---
-      const productsQuery = supabase
-        .from('products')
-        .select('*', { count: 'exact', head: true })
-        .eq('active', true);
-      if (storeFilter) productsQuery.eq('store_id', storeFilter);
-      const { count: totalProducts } = await productsQuery;
-
-      // --- Latest manual count date ---
-      const latestCountQuery = supabase
-        .from('manual_counts')
-        .select('count_date')
-        .order('count_date', { ascending: false })
-        .limit(1);
-      if (storeFilter) latestCountQuery.eq('store_id', storeFilter);
-      const { data: latestCount } = await latestCountQuery.maybeSingle();
-
-      // --- Trend calculations: current period (last 30 days) vs previous period (30-60 days ago) ---
+      const sevenDaysFromNow = daysFromNowISO(7);
+      const todayISO = startOfTodayBangkokISO();
       const thirtyDaysAgoISO = daysAgoBangkokISO(30);
       const sixtyDaysAgoISO = daysAgoBangkokISO(60);
-
-      // Current period queries (last 30 days)
-      const curDepositsQ = supabase
-        .from('deposits')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'in_store')
-        .gte('created_at', thirtyDaysAgoISO);
-      if (storeFilter) curDepositsQ.eq('store_id', storeFilter);
-
-      const curWithdrawalsQ = supabase
-        .from('deposits')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'withdrawn')
-        .gte('created_at', thirtyDaysAgoISO);
-      if (storeFilter) curWithdrawalsQ.eq('store_id', storeFilter);
-
-      const curStockChecksQ = supabase
-        .from('manual_counts')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', thirtyDaysAgoISO);
-      if (storeFilter) curStockChecksQ.eq('store_id', storeFilter);
-
-      const curPenaltiesQ = supabase
-        .from('comparisons')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'rejected')
-        .gte('created_at', thirtyDaysAgoISO);
-      if (storeFilter) curPenaltiesQ.eq('store_id', storeFilter);
-
-      // Previous period queries (30-60 days ago)
-      const prevDepositsQ = supabase
-        .from('deposits')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'in_store')
-        .gte('created_at', sixtyDaysAgoISO)
-        .lt('created_at', thirtyDaysAgoISO);
-      if (storeFilter) prevDepositsQ.eq('store_id', storeFilter);
-
-      const prevWithdrawalsQ = supabase
-        .from('deposits')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'withdrawn')
-        .gte('created_at', sixtyDaysAgoISO)
-        .lt('created_at', thirtyDaysAgoISO);
-      if (storeFilter) prevWithdrawalsQ.eq('store_id', storeFilter);
-
-      const prevStockChecksQ = supabase
-        .from('manual_counts')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', sixtyDaysAgoISO)
-        .lt('created_at', thirtyDaysAgoISO);
-      if (storeFilter) prevStockChecksQ.eq('store_id', storeFilter);
-
-      const prevPenaltiesQ = supabase
-        .from('comparisons')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'rejected')
-        .gte('created_at', sixtyDaysAgoISO)
-        .lt('created_at', thirtyDaysAgoISO);
-      if (storeFilter) prevPenaltiesQ.eq('store_id', storeFilter);
-
-      // Execute all trend queries in parallel
-      const [
-        { count: curDepositsCount },
-        { count: curWithdrawalsCount },
-        { count: curStockChecksCount },
-        { count: curPenaltiesCount },
-        { count: prevDepositsCount },
-        { count: prevWithdrawalsCount },
-        { count: prevStockChecksCount },
-        { count: prevPenaltiesCount },
-      ] = await Promise.all([
-        curDepositsQ,
-        curWithdrawalsQ,
-        curStockChecksQ,
-        curPenaltiesQ,
-        prevDepositsQ,
-        prevWithdrawalsQ,
-        prevStockChecksQ,
-        prevPenaltiesQ,
-      ]);
-
-      const depositsTrend = calcTrend(curDepositsCount || 0, prevDepositsCount || 0);
-      const withdrawalsTrend = calcTrend(curWithdrawalsCount || 0, prevWithdrawalsCount || 0);
-      const stockChecksTrend = calcTrend(curStockChecksCount || 0, prevStockChecksCount || 0);
-      const penaltiesTrend = calcTrend(curPenaltiesCount || 0, prevPenaltiesCount || 0);
-
-      // --- Commission this month ---
       const now = new Date();
       const commissionMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
       const commissionMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
-      const commissionQuery = supabase
-        .from('commission_entries')
-        .select('net_amount')
-        .gte('bill_date', commissionMonthStart)
-        .lte('bill_date', commissionMonthEnd);
-      if (storeFilter) commissionQuery.eq('store_id', storeFilter);
-      const { data: commissionRows } = await commissionQuery;
+      // -------- Build all queries (no awaits) --------
+      // Global headline counts
+      const storesQuery = supabase.from('stores').select('*', { count: 'exact', head: true }).eq('active', true);
 
-      const commissionThisMonth = (commissionRows || []).reduce((sum, r) => sum + (Number(r.net_amount) || 0), 0);
-      const commissionEntries = (commissionRows || []).length;
+      const depositsInStoreQuery = supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('status', 'in_store');
+      if (storeFilter) depositsInStoreQuery.eq('store_id', storeFilter);
+
+      const pendingWithdrawalsQuery = supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('status', 'pending_withdrawal');
+      if (storeFilter) pendingWithdrawalsQuery.eq('store_id', storeFilter);
+
+      const expiringQuery = supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('status', 'in_store').lt('expiry_date', sevenDaysFromNow).gt('expiry_date', todayISO);
+      if (storeFilter) expiringQuery.eq('store_id', storeFilter);
+
+      const pendingExplQuery = supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('status', 'pending');
+      if (storeFilter) pendingExplQuery.eq('store_id', storeFilter);
+
+      const pendingApprQuery = supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('status', 'explained');
+      if (storeFilter) pendingApprQuery.eq('store_id', storeFilter);
+
+      const pendingTransfersQuery = supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('status', 'pending');
+      if (storeFilter) pendingTransfersQuery.eq('from_store_id', storeFilter);
+
+      const usersQuery = supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('active', true);
+
+      const productsQuery = supabase.from('products').select('*', { count: 'exact', head: true }).eq('active', true);
+      if (storeFilter) productsQuery.eq('store_id', storeFilter);
+
+      const latestCountBuilder = supabase.from('manual_counts').select('count_date').order('count_date', { ascending: false }).limit(1);
+      if (storeFilter) latestCountBuilder.eq('store_id', storeFilter);
+      const latestCountQuery = latestCountBuilder.maybeSingle();
+
+      // Trend queries (current vs previous 30-day window)
+      const curDepositsQ = supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('status', 'in_store').gte('created_at', thirtyDaysAgoISO);
+      if (storeFilter) curDepositsQ.eq('store_id', storeFilter);
+
+      const curWithdrawalsQ = supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('status', 'withdrawn').gte('created_at', thirtyDaysAgoISO);
+      if (storeFilter) curWithdrawalsQ.eq('store_id', storeFilter);
+
+      const curStockChecksQ = supabase.from('manual_counts').select('*', { count: 'exact', head: true }).gte('created_at', thirtyDaysAgoISO);
+      if (storeFilter) curStockChecksQ.eq('store_id', storeFilter);
+
+      const curPenaltiesQ = supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('status', 'rejected').gte('created_at', thirtyDaysAgoISO);
+      if (storeFilter) curPenaltiesQ.eq('store_id', storeFilter);
+
+      const prevDepositsQ = supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('status', 'in_store').gte('created_at', sixtyDaysAgoISO).lt('created_at', thirtyDaysAgoISO);
+      if (storeFilter) prevDepositsQ.eq('store_id', storeFilter);
+
+      const prevWithdrawalsQ = supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('status', 'withdrawn').gte('created_at', sixtyDaysAgoISO).lt('created_at', thirtyDaysAgoISO);
+      if (storeFilter) prevWithdrawalsQ.eq('store_id', storeFilter);
+
+      const prevStockChecksQ = supabase.from('manual_counts').select('*', { count: 'exact', head: true }).gte('created_at', sixtyDaysAgoISO).lt('created_at', thirtyDaysAgoISO);
+      if (storeFilter) prevStockChecksQ.eq('store_id', storeFilter);
+
+      const prevPenaltiesQ = supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('status', 'rejected').gte('created_at', sixtyDaysAgoISO).lt('created_at', thirtyDaysAgoISO);
+      if (storeFilter) prevPenaltiesQ.eq('store_id', storeFilter);
+
+      const commissionQuery = supabase.from('commission_entries').select('net_amount').gte('bill_date', commissionMonthStart).lte('bill_date', commissionMonthEnd);
+      if (storeFilter) commissionQuery.eq('store_id', storeFilter);
+
+      const logsQuery = supabase.from('audit_logs').select('id, action_type, table_name, record_id, new_value, created_at, changed_by').order('created_at', { ascending: false }).limit(8);
+      if (storeFilter) logsQuery.eq('store_id', storeFilter);
+
+      // -------- Per-store grouped queries (owner only) --------
+      // Strategy: 1 query per metric returning store_id (or sums), grouped client-side.
+      // Replaces the previous N+1 (14 queries × N stores).
+      const ownerStoresQuery = isOwner
+        ? supabase.from('stores').select('id, store_name, store_code, is_central').eq('active', true).order('store_name')
+        : null;
+
+      // Owner-only grouped metrics. We fetch only the columns needed for grouping.
+      const grpPwQ = isOwner ? supabase.from('deposits').select('store_id').eq('status', 'pending_withdrawal') : null;
+      const grpEdQ = isOwner ? supabase.from('deposits').select('store_id').eq('status', 'in_store').lt('expiry_date', sevenDaysFromNow).gt('expiry_date', todayISO) : null;
+      const grpAdQ = isOwner ? supabase.from('deposits').select('store_id').eq('status', 'in_store') : null;
+      const grpPeQ = isOwner ? supabase.from('comparisons').select('store_id').eq('status', 'pending') : null;
+      const grpPaQ = isOwner ? supabase.from('comparisons').select('store_id').eq('status', 'explained') : null;
+      const grpPtQ = isOwner ? supabase.from('transfers').select('from_store_id').eq('status', 'pending') : null;
+      const grpPiQ = isOwner ? supabase.from('transfers').select('to_store_id').eq('status', 'pending') : null;
+      const grpBtaQ = isOwner ? supabase.from('borrows').select('from_store_id').eq('status', 'pending_approval') : null;
+      const grpBtrQ = isOwner ? supabase.from('borrows').select('from_store_id').eq('status', 'completed') : null;
+      const grpLtaQ = isOwner ? supabase.from('borrows').select('to_store_id').eq('status', 'pending_approval') : null;
+      const grpLtrQ = isOwner ? supabase.from('borrows').select('to_store_id').eq('status', 'completed') : null;
+      const grpCmQ = isOwner ? supabase.from('commission_entries').select('store_id, net_amount').gte('bill_date', commissionMonthStart).lte('bill_date', commissionMonthEnd) : null;
+      const grpDrQ = isOwner ? supabase.from('deposit_requests').select('store_id').eq('status', 'pending') : null;
+      // For lastStockCheck per store: fetch (store_id, count_date) ordered DESC, take first per store.
+      const grpLcQ = isOwner ? supabase.from('manual_counts').select('store_id, count_date').order('count_date', { ascending: false }).limit(2000) : null;
+
+      // -------- Execute everything in parallel --------
+      const [
+        storesRes, depositsInStoreRes, pendingWithdrawalsRes, expiringRes,
+        pendingExplRes, pendingApprRes, pendingTransfersRes, usersRes,
+        productsRes, latestCountRes,
+        curDepositsRes, curWithdrawalsRes, curStockChecksRes, curPenaltiesRes,
+        prevDepositsRes, prevWithdrawalsRes, prevStockChecksRes, prevPenaltiesRes,
+        commissionRes, logsRes,
+        ownerStoresRes,
+        grpPwRes, grpEdRes, grpAdRes, grpPeRes, grpPaRes, grpPtRes, grpPiRes,
+        grpBtaRes, grpBtrRes, grpLtaRes, grpLtrRes, grpCmRes, grpDrRes, grpLcRes,
+      ] = await Promise.all([
+        storesQuery, depositsInStoreQuery, pendingWithdrawalsQuery, expiringQuery,
+        pendingExplQuery, pendingApprQuery, pendingTransfersQuery, usersQuery,
+        productsQuery, latestCountQuery,
+        curDepositsQ, curWithdrawalsQ, curStockChecksQ, curPenaltiesQ,
+        prevDepositsQ, prevWithdrawalsQ, prevStockChecksQ, prevPenaltiesQ,
+        commissionQuery, logsQuery,
+        ownerStoresQuery,
+        grpPwQ, grpEdQ, grpAdQ, grpPeQ, grpPaQ, grpPtQ, grpPiQ,
+        grpBtaQ, grpBtrQ, grpLtaQ, grpLtrQ, grpCmQ, grpDrQ, grpLcQ,
+      ]);
+
+      const depositsTrend = calcTrend(curDepositsRes.count || 0, prevDepositsRes.count || 0);
+      const withdrawalsTrend = calcTrend(curWithdrawalsRes.count || 0, prevWithdrawalsRes.count || 0);
+      const stockChecksTrend = calcTrend(curStockChecksRes.count || 0, prevStockChecksRes.count || 0);
+      const penaltiesTrend = calcTrend(curPenaltiesRes.count || 0, prevPenaltiesRes.count || 0);
+
+      const commissionRows = commissionRes.data || [];
+      const commissionThisMonth = commissionRows.reduce((sum, r) => sum + (Number(r.net_amount) || 0), 0);
+      const commissionEntries = commissionRows.length;
 
       setData({
-        storeCount: storeCount || 0,
-        totalDepositsInStore: totalDepositsInStore || 0,
-        pendingWithdrawals: pendingWithdrawals || 0,
-        expiringDeposits: expiringDeposits || 0,
-        pendingExplanations: pendingExplanations || 0,
-        pendingApprovals: pendingApprovals || 0,
-        pendingTransfers: pendingTransfers || 0,
-        totalUsers: totalUsers || 0,
-        totalProducts: totalProducts || 0,
-        lastCheckDate: latestCount?.count_date || null,
+        storeCount: storesRes.count || 0,
+        totalDepositsInStore: depositsInStoreRes.count || 0,
+        pendingWithdrawals: pendingWithdrawalsRes.count || 0,
+        expiringDeposits: expiringRes.count || 0,
+        pendingExplanations: pendingExplRes.count || 0,
+        pendingApprovals: pendingApprRes.count || 0,
+        pendingTransfers: pendingTransfersRes.count || 0,
+        totalUsers: usersRes.count || 0,
+        totalProducts: productsRes.count || 0,
+        lastCheckDate: latestCountRes.data?.count_date || null,
         depositsTrend,
         withdrawalsTrend,
         stockChecksTrend,
@@ -843,16 +783,8 @@ export default function OverviewPage() {
       });
 
       // --- Recent audit logs (latest 8) ---
-      const logsQuery = supabase
-        .from('audit_logs')
-        .select('id, action_type, table_name, record_id, new_value, created_at, changed_by')
-        .order('created_at', { ascending: false })
-        .limit(8);
-      if (storeFilter) logsQuery.eq('store_id', storeFilter);
-      const { data: logs } = await logsQuery;
-
+      const logs = logsRes.data;
       if (logs && logs.length > 0) {
-        // Resolve display names
         const userIds = [...new Set(logs.map((l) => l.changed_by).filter(Boolean))] as string[];
         let nameMap: Record<string, string> = {};
         if (userIds.length > 0) {
@@ -883,135 +815,130 @@ export default function OverviewPage() {
       }
 
       // --- Per-store statuses (owner only) ---
-      if (isOwner) {
-        try {
-          const { data: allStores, error: storesError } = await supabase
-            .from('stores')
-            .select('id, store_name, store_code, is_central')
-            .eq('active', true)
-            .order('store_name');
+      if (isOwner && ownerStoresRes) {
+        if (ownerStoresRes.error) {
+          console.error('Error fetching stores:', ownerStoresRes.error);
+        } else if (ownerStoresRes.data && ownerStoresRes.data.length > 0) {
+          // Build count maps from grouped query results
+          const countBy = (rows: Array<Record<string, unknown>> | null | undefined, col: string): Map<string, number> => {
+            const m = new Map<string, number>();
+            if (!rows) return m;
+            for (const r of rows) {
+              const k = r[col] as string | null;
+              if (!k) continue;
+              m.set(k, (m.get(k) || 0) + 1);
+            }
+            return m;
+          };
 
-          if (storesError) {
-            console.error('Error fetching stores:', storesError);
-          } else if (allStores && allStores.length > 0) {
-            const sevenDaysFromNow = daysFromNowISO(7);
-            const todayISO = startOfTodayBangkokISO();
+          const pwMap = countBy(grpPwRes?.data, 'store_id');
+          const edMap = countBy(grpEdRes?.data, 'store_id');
+          const adMap = countBy(grpAdRes?.data, 'store_id');
+          const peMap = countBy(grpPeRes?.data, 'store_id');
+          const paMap = countBy(grpPaRes?.data, 'store_id');
+          const ptMap = countBy(grpPtRes?.data, 'from_store_id');
+          const piMap = countBy(grpPiRes?.data, 'to_store_id');
+          const btaMap = countBy(grpBtaRes?.data, 'from_store_id');
+          const btrMap = countBy(grpBtrRes?.data, 'from_store_id');
+          const ltaMap = countBy(grpLtaRes?.data, 'to_store_id');
+          const ltrMap = countBy(grpLtrRes?.data, 'to_store_id');
+          const drMap = countBy(grpDrRes?.data, 'store_id');
 
-            const storeResults = await Promise.all(
-              allStores.map(async (store) => {
-                const sid = store.id;
-                const isCentral = store.is_central === true;
-
-                if (isCentral) {
-                  // HQ store — only count incoming transfers
-                  const incomingRes = await supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending');
-                  const pendingIncoming = incomingRes.count || 0;
-
-                  const result: StoreStatus = {
-                    id: store.id,
-                    name: store.store_name,
-                    code: store.store_code || '',
-                    isCentral: true,
-                    pendingDeposits: 0,
-                    pendingWithdrawals: 0,
-                    expiringDeposits: 0,
-                    activeDeposits: 0,
-                    pendingExplanations: 0,
-                    pendingApprovals: 0,
-                    pendingTransfers: 0,
-                    pendingIncomingTransfers: pendingIncoming,
-                    lastStockCheck: null,
-                    totalIssues: pendingIncoming,
-                    borrowsToApprove: 0,
-                    borrowsToReturn: 0,
-                    lendsToApprove: 0,
-                    lendsToReceive: 0,
-                    commissionThisMonth: 0,
-                    commissionEntries: 0,
-                  };
-                  return result;
-                }
-
-                // Regular store — compute commission month range
-                const nowDate = new Date();
-                const cmStart = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-01`;
-                const cmEnd = new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 0).toISOString().split('T')[0];
-
-                const [
-                  pwRes, edRes, adRes, peRes, paRes, ptRes, piRes,
-                  btaRes, btrRes, ltaRes, ltrRes, cmRes,
-                ] = await Promise.all([
-                  supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending_withdrawal'),
-                  supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'in_store').lt('expiry_date', sevenDaysFromNow).gt('expiry_date', todayISO),
-                  supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'in_store'),
-                  supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending'),
-                  supabase.from('comparisons').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'explained'),
-                  supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('from_store_id', sid).eq('status', 'pending'),
-                  supabase.from('transfers').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending'),
-                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('from_store_id', sid).eq('status', 'pending_approval'),
-                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('from_store_id', sid).eq('status', 'completed'),
-                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'pending_approval'),
-                  supabase.from('borrows').select('*', { count: 'exact', head: true }).eq('to_store_id', sid).eq('status', 'completed'),
-                  supabase.from('commission_entries').select('net_amount').eq('store_id', sid).gte('bill_date', cmStart).lte('bill_date', cmEnd),
-                ]);
-
-                const pendingWithdrawals = pwRes.count || 0;
-                const expiringDeposits = edRes.count || 0;
-                const activeDeposits = adRes.count || 0;
-                const pendingExpl = peRes.count || 0;
-                const pendingAppr = paRes.count || 0;
-                const pendingTrans = ptRes.count || 0;
-                const pendingIncoming = piRes.count || 0;
-                const borrowsToApprove = btaRes.count || 0;
-                const borrowsToReturn = btrRes.count || 0;
-                const lendsToApprove = ltaRes.count || 0;
-                const lendsToReceive = ltrRes.count || 0;
-                const storeCommRows = cmRes.data || [];
-                const storeCommTotal = storeCommRows.reduce((s: number, r: { net_amount: number | string | null }) => s + (Number(r.net_amount) || 0), 0);
-                const storeCommEntries = storeCommRows.length;
-
-                let pendingDeposits = 0;
-                const drRes = await supabase.from('deposit_requests').select('*', { count: 'exact', head: true }).eq('store_id', sid).eq('status', 'pending');
-                if (!drRes.error) pendingDeposits = drRes.count || 0;
-
-                let lastStockCheck: string | null = null;
-                const lcRes = await supabase.from('manual_counts').select('count_date').eq('store_id', sid).order('count_date', { ascending: false }).limit(1).maybeSingle();
-                if (lcRes.data) lastStockCheck = lcRes.data.count_date || null;
-
-                const totalIssues = pendingDeposits + pendingWithdrawals + expiringDeposits + pendingExpl + pendingAppr + pendingTrans + pendingIncoming + borrowsToApprove + borrowsToReturn + lendsToApprove + lendsToReceive;
-
-                const result: StoreStatus = {
-                  id: store.id,
-                  name: store.store_name,
-                  code: store.store_code || '',
-                  isCentral: false,
-                  pendingDeposits,
-                  pendingWithdrawals,
-                  expiringDeposits,
-                  activeDeposits,
-                  pendingExplanations: pendingExpl,
-                  pendingApprovals: pendingAppr,
-                  pendingTransfers: pendingTrans,
-                  pendingIncomingTransfers: pendingIncoming,
-                  lastStockCheck,
-                  totalIssues,
-                  borrowsToApprove,
-                  borrowsToReturn,
-                  lendsToApprove,
-                  lendsToReceive,
-                  commissionThisMonth: Math.round(storeCommTotal * 100) / 100,
-                  commissionEntries: storeCommEntries,
-                };
-                return result;
-              })
-            );
-
-            // Sort: stores with most issues first
-            storeResults.sort((a, b) => b.totalIssues - a.totalIssues);
-            setStoreStatuses(storeResults);
+          // Commission: sum net_amount + count entries per store
+          const commTotalMap = new Map<string, number>();
+          const commCountMap = new Map<string, number>();
+          for (const r of grpCmRes?.data || []) {
+            const sid = r.store_id as string | null;
+            if (!sid) continue;
+            commTotalMap.set(sid, (commTotalMap.get(sid) || 0) + (Number(r.net_amount) || 0));
+            commCountMap.set(sid, (commCountMap.get(sid) || 0) + 1);
           }
-        } catch (storeErr) {
-          console.error('Error fetching per-store statuses:', storeErr);
+
+          // Last stock check per store: take the first occurrence per store_id
+          // (rows are ordered by count_date DESC).
+          const lastCheckMap = new Map<string, string>();
+          for (const r of grpLcRes?.data || []) {
+            const sid = r.store_id as string | null;
+            if (!sid || lastCheckMap.has(sid)) continue;
+            if (r.count_date) lastCheckMap.set(sid, r.count_date as string);
+          }
+
+          const storeResults: StoreStatus[] = ownerStoresRes.data.map((store) => {
+            const sid = store.id;
+            const isCentral = store.is_central === true;
+
+            if (isCentral) {
+              const pendingIncoming = piMap.get(sid) || 0;
+              return {
+                id: store.id,
+                name: store.store_name,
+                code: store.store_code || '',
+                isCentral: true,
+                pendingDeposits: 0,
+                pendingWithdrawals: 0,
+                expiringDeposits: 0,
+                activeDeposits: 0,
+                pendingExplanations: 0,
+                pendingApprovals: 0,
+                pendingTransfers: 0,
+                pendingIncomingTransfers: pendingIncoming,
+                lastStockCheck: null,
+                totalIssues: pendingIncoming,
+                borrowsToApprove: 0,
+                borrowsToReturn: 0,
+                lendsToApprove: 0,
+                lendsToReceive: 0,
+                commissionThisMonth: 0,
+                commissionEntries: 0,
+              };
+            }
+
+            const pendingDeposits = drMap.get(sid) || 0;
+            const pendingWithdrawals = pwMap.get(sid) || 0;
+            const expiringDeposits = edMap.get(sid) || 0;
+            const activeDeposits = adMap.get(sid) || 0;
+            const pendingExpl = peMap.get(sid) || 0;
+            const pendingAppr = paMap.get(sid) || 0;
+            const pendingTrans = ptMap.get(sid) || 0;
+            const pendingIncoming = piMap.get(sid) || 0;
+            const borrowsToApprove = btaMap.get(sid) || 0;
+            const borrowsToReturn = btrMap.get(sid) || 0;
+            const lendsToApprove = ltaMap.get(sid) || 0;
+            const lendsToReceive = ltrMap.get(sid) || 0;
+            const storeCommTotal = commTotalMap.get(sid) || 0;
+            const storeCommEntries = commCountMap.get(sid) || 0;
+
+            const totalIssues =
+              pendingDeposits + pendingWithdrawals + expiringDeposits +
+              pendingExpl + pendingAppr + pendingTrans + pendingIncoming +
+              borrowsToApprove + borrowsToReturn + lendsToApprove + lendsToReceive;
+
+            return {
+              id: store.id,
+              name: store.store_name,
+              code: store.store_code || '',
+              isCentral: false,
+              pendingDeposits,
+              pendingWithdrawals,
+              expiringDeposits,
+              activeDeposits,
+              pendingExplanations: pendingExpl,
+              pendingApprovals: pendingAppr,
+              pendingTransfers: pendingTrans,
+              pendingIncomingTransfers: pendingIncoming,
+              lastStockCheck: lastCheckMap.get(sid) || null,
+              totalIssues,
+              borrowsToApprove,
+              borrowsToReturn,
+              lendsToApprove,
+              lendsToReceive,
+              commissionThisMonth: Math.round(storeCommTotal * 100) / 100,
+              commissionEntries: storeCommEntries,
+            };
+          });
+
+          storeResults.sort((a, b) => b.totalIssues - a.totalIssues);
+          setStoreStatuses(storeResults);
         }
       }
     } catch (error) {
@@ -1024,7 +951,7 @@ export default function OverviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [isOwner, currentStoreId]);
+  }, [isOwner, currentStoreId, t]);
 
   useEffect(() => {
     fetchData();
