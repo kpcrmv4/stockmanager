@@ -271,6 +271,7 @@ CREATE TABLE hq_deposits (
 
 CREATE TABLE borrows (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  borrow_code TEXT UNIQUE,                       -- human-readable ref: BRW-{FROM}-{TO}-XXXXX (see migration 00022)
   from_store_id UUID REFERENCES stores(id),      -- สาขาที่ขอยืม (borrower)
   to_store_id UUID REFERENCES stores(id),        -- สาขาเจ้าของสินค้า (lender)
   requested_by UUID REFERENCES profiles(id),     -- คนที่สร้างคำขอ

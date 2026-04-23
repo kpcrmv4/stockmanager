@@ -736,7 +736,9 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             {isPendingBar ? 'รอบาร์ยืนยัน' : isPending && isDepositCard ? 'รอ Staff รับ' : config.label}
           </span>
           <span className="text-xs text-gray-400">
-            #{meta.reference_id}
+            {typeof meta.summary.code === 'string' && meta.summary.code
+              ? meta.summary.code
+              : `#${meta.reference_id}`}
           </span>
         </div>
 

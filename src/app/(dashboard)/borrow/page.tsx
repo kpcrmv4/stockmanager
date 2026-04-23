@@ -60,6 +60,7 @@ interface BorrowItem {
 
 interface BorrowWithDetails {
   id: string;
+  borrow_code: string | null;
   from_store_id: string;
   to_store_id: string;
   requested_by: string | null;
@@ -140,7 +141,10 @@ function getStatusConfig(t: ReturnType<typeof useTranslations>): Record<
     approved: { label: t('statusWaitingReceive'), variant: 'info', step: 1 },
     pos_adjusting: { label: t('statusWaitingReceive'), variant: 'info', step: 1 },
     completed: { label: t('statusWaitingReturn'), variant: 'info', step: 2 },
-    return_pending: { label: t('statusReturnPending'), variant: 'warning', step: 3 },
+    // `return_pending` = borrower has sent return items; lender hasn't confirmed yet.
+    // Keep step at 2 so the final step shows as "in progress" (not ticked) until
+    // `returned` is reached.
+    return_pending: { label: t('statusReturnPending'), variant: 'warning', step: 2 },
     returned: { label: t('statusReturned'), variant: 'success', step: 3 },
     rejected: { label: t('statusRejected'), variant: 'danger', step: -1 },
     cancelled: { label: t('statusCancelled'), variant: 'danger', step: -1 },
@@ -732,7 +736,10 @@ function BorrowDetailSheet({
   const isBorrowerSide = borrow.from_store_id === currentStoreId;
   const isLenderSide = borrow.to_store_id === currentStoreId;
 
-  const patchBorrow = async (payload: Record<string, unknown>) => {
+  const patchBorrow = async (
+    payload: Record<string, unknown>,
+    successMessage?: { title: string; type?: 'success' | 'warning' },
+  ) => {
     setIsActing(true);
     try {
       const res = await fetch(`/api/borrows/${borrow.id}`, {
@@ -743,6 +750,9 @@ function BorrowDetailSheet({
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || t('actionError'));
+      }
+      if (successMessage) {
+        toast({ type: successMessage.type ?? 'success', title: successMessage.title });
       }
       onAction();
     } catch (err) {
@@ -765,8 +775,10 @@ function BorrowDetailSheet({
       itemId: i.id,
       approvedQuantity: approvedQtys[i.id] ?? i.quantity,
     }));
-    toast({ type: 'success', title: t('approveSuccess') });
-    patchBorrow({ action: 'approve', lenderPhotoUrl: lenderPhoto, approvedItems });
+    patchBorrow(
+      { action: 'approve', lenderPhotoUrl: lenderPhoto, approvedItems },
+      { title: t('approveSuccess') },
+    );
   };
 
   const handleReject = () => {
@@ -774,8 +786,10 @@ function BorrowDetailSheet({
       toast({ type: 'warning', title: t('rejectReasonRequired') });
       return;
     }
-    toast({ type: 'warning', title: t('rejectSuccess') });
-    patchBorrow({ action: 'reject', reason: rejectionReason.trim() });
+    patchBorrow(
+      { action: 'reject', reason: rejectionReason.trim() },
+      { title: t('rejectSuccess'), type: 'warning' },
+    );
   };
 
   const handleMarkReceived = () => {
@@ -783,13 +797,17 @@ function BorrowDetailSheet({
       toast({ type: 'warning', title: t('receivePhotoRequired') });
       return;
     }
-    toast({ type: 'success', title: t('markReceivedSuccess') });
-    patchBorrow({ action: 'mark_received', photoUrl: receivePhoto });
+    patchBorrow(
+      { action: 'mark_received', photoUrl: receivePhoto },
+      { title: t('markReceivedSuccess') },
+    );
   };
 
   const handleCancel = () => {
-    toast({ type: 'warning', title: t('cancelSuccess') });
-    patchBorrow({ action: 'cancel' });
+    patchBorrow(
+      { action: 'cancel' },
+      { title: t('cancelSuccess'), type: 'warning' },
+    );
   };
 
   const handleMarkReturned = () => {
@@ -797,8 +815,14 @@ function BorrowDetailSheet({
       toast({ type: 'warning', title: t('returnPhotoRequired') });
       return;
     }
-    toast({ type: 'success', title: t('markReturnedSuccess') });
-    patchBorrow({ action: 'mark_returned', photoUrl: returnPhoto, returnNotes: returnNotes.trim() || undefined });
+    patchBorrow(
+      {
+        action: 'mark_returned',
+        photoUrl: returnPhoto,
+        returnNotes: returnNotes.trim() || undefined,
+      },
+      { title: t('markReturnedSuccess') },
+    );
   };
 
   const handleConfirmReturnReceipt = () => {
@@ -806,8 +830,10 @@ function BorrowDetailSheet({
       toast({ type: 'warning', title: t('returnReceiptPhotoRequired') });
       return;
     }
-    toast({ type: 'success', title: t('confirmReturnReceiptSuccess') });
-    patchBorrow({ action: 'confirm_return_receipt', photoUrl: returnReceiptPhoto });
+    patchBorrow(
+      { action: 'confirm_return_receipt', photoUrl: returnReceiptPhoto },
+      { title: t('confirmReturnReceiptSuccess') },
+    );
   };
 
   const handlePhotoUpload = (side: 'borrower' | 'lender', url: string | null) => {
@@ -852,6 +878,11 @@ function BorrowDetailSheet({
                   {formatThaiDateTime(borrow.created_at)}
                 </span>
               </div>
+              {borrow.borrow_code && (
+                <p className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">
+                  {borrow.borrow_code}
+                </p>
+              )}
               <h2 className="mt-2 text-lg font-bold text-gray-900 dark:text-white">
                 {t('borrowsFrom', {
                   from: borrow.from_store_name || t('unknownBranch'),
@@ -1061,16 +1092,31 @@ function BorrowDetailSheet({
             </div>
           )}
 
-          {/* Completion info */}
+          {/* Received — waiting for return (intermediate state, not fully completed) */}
           {borrow.status === 'completed' && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+              <div className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+                <Package className="h-4 w-4" />
+                {t('statusReceivedAwaitingReturn')}
+              </div>
+              {borrow.completed_at && (
+                <p className="mt-1 text-xs text-amber-600/80 dark:text-amber-400/80">
+                  {formatThaiDateTime(borrow.completed_at)}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Fully completed — lender confirmed return receipt */}
+          {borrow.status === 'returned' && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
               <div className="flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
                 <CheckCircle2 className="h-4 w-4" />
                 {t('completedStatus')}
               </div>
-              {borrow.completed_at && (
+              {borrow.return_received_at && (
                 <p className="mt-1 text-xs text-emerald-500 dark:text-emerald-400">
-                  {formatThaiDateTime(borrow.completed_at)}
+                  {formatThaiDateTime(borrow.return_received_at)}
                 </p>
               )}
             </div>

@@ -181,9 +181,13 @@ export function buildStockExplainActionCard(comparison: {
 
 /**
  * สร้าง Action Card สำหรับคำขอยืมสินค้า
+ *
+ * `reference_id` = borrow.id (UUID) → ใช้สำหรับเรียก API
+ * `summary.code` = borrow_code (BRW-...) → ใช้สำหรับแสดงผลใน UI
  */
 export function buildBorrowActionCard(borrow: {
   id: string;
+  borrow_code?: string | null;
   from_store_name: string;
   items_preview: string;
   notes?: string | null;
@@ -203,12 +207,14 @@ export function buildBorrowActionCard(borrow: {
       customer: borrow.from_store_name,
       items: borrow.items_preview,
       note: borrow.notes || undefined,
+      code: borrow.borrow_code || undefined,
     },
   };
 
+  const codeSuffix = borrow.borrow_code ? ` ${borrow.borrow_code}` : '';
   return {
     type: 'action_card',
-    content: `คำขอยืมสินค้าจาก ${borrow.from_store_name}`,
+    content: `คำขอยืมสินค้า${codeSuffix} จาก ${borrow.from_store_name}`,
     metadata: meta,
   };
 }

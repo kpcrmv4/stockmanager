@@ -1638,6 +1638,7 @@
     "rejectionReason": "Reason: {reason}",
     "cancelled": "Cancelled",
     "completedStatus": "Completed",
+    "statusReceivedAwaitingReturn": "Items received — please withdraw stock to return",
     "specifyApprovedQty": "Specify approved quantity",
     "approve": "Approve",
     "reject": "Reject",

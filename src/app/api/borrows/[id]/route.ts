@@ -170,6 +170,11 @@ export async function PATCH(
   const currentUserRole = userProfile?.role as string | undefined;
   const currentUserStoreId = userProfile?.store_id as string | undefined;
 
+  // Human-readable tag used in bot chat messages (falls back to short UUID prefix for legacy rows)
+  const borrowTag = borrow.borrow_code
+    ? `[${borrow.borrow_code}] `
+    : `[BRW-${borrow.id.slice(0, 5).toUpperCase()}] `;
+
   try {
     // =====================================================================
     // ACTION: approve
@@ -257,7 +262,7 @@ export async function PATCH(
       // Chat bot — system message to both stores
       try {
         const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
-        const msg = `✅ อนุมัติยืมสินค้า — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nอนุมัติโดย: ${currentUserName}`;
+        const msg = `✅ ${borrowTag}อนุมัติยืมสินค้า — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nอนุมัติโดย: ${currentUserName}`;
 
         await Promise.allSettled([
           sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
@@ -387,7 +392,7 @@ export async function PATCH(
       try {
         const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
         const reasonText = body.reason ? `\nเหตุผล: ${body.reason}` : '';
-        const msg = `❌ ปฏิเสธคำขอยืมสินค้า — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nปฏิเสธโดย: ${currentUserName}${reasonText}`;
+        const msg = `❌ ${borrowTag}ปฏิเสธคำขอยืมสินค้า — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nปฏิเสธโดย: ${currentUserName}${reasonText}`;
 
         await Promise.allSettled([
           sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
@@ -512,22 +517,22 @@ export async function PATCH(
         unit: i.unit || undefined,
       }));
 
-      // Notify both stores (in-app + PWA push)
+      // Notify both stores (in-app + PWA push) — borrower received, awaiting return
       try {
         await Promise.allSettled([
           notifyStoreStaff({
             storeId: updatedBorrow.from_store_id,
             type: 'approval_request',
-            title: 'ยืมสินค้าเสร็จสมบูรณ์',
-            body: `ยืนยันรับสินค้าจาก ${ctx.toStore?.store_name || 'สาขา'} เรียบร้อย`,
+            title: '📦 รับสินค้าที่ยืมแล้ว',
+            body: `รับสินค้าจาก ${ctx.toStore?.store_name || 'สาขา'} เรียบร้อย — โปรดเบิกเหล้าไปคืน`,
             data: { borrowId: id },
             excludeUserId: user.id,
           }),
           notifyStoreStaff({
             storeId: updatedBorrow.to_store_id,
             type: 'approval_request',
-            title: 'ยืมสินค้าเสร็จสมบูรณ์',
-            body: `${ctx.fromStore?.store_name || 'สาขา'} ยืนยันรับสินค้าเรียบร้อย`,
+            title: '📦 ผู้ยืมรับสินค้าแล้ว',
+            body: `${ctx.fromStore?.store_name || 'สาขา'} ยืนยันรับสินค้า — รอคืน`,
             data: { borrowId: id },
           }),
         ]);
@@ -536,16 +541,19 @@ export async function PATCH(
       }
 
       // Chat bot — system message to both stores
+      // Note: status is 'completed' (items received by borrower) but the borrow is
+      // NOT fully finished yet — borrower still has to withdraw stock and return it.
       try {
         const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
-        const msg = `🎉 ยืมสินค้าเสร็จสมบูรณ์ — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nยืนยันรับสินค้าโดย: ${currentUserName}`;
+        const borrowerMsg = `📦 ${borrowTag}รับสินค้าที่ยืมแล้ว — โปรดเบิกเหล้าไปคืน\n${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nยืนยันรับสินค้าโดย: ${currentUserName}`;
+        const lenderMsg = `📦 ${borrowTag}${ctx.fromStore?.store_name} ยืนยันรับสินค้าแล้ว — รอคืน\n${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nยืนยันรับสินค้าโดย: ${currentUserName}`;
 
         await Promise.allSettled([
-          sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
-          sendBotMessage({ storeId: updatedBorrow.to_store_id, type: 'system', content: msg }),
+          sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: borrowerMsg }),
+          sendBotMessage({ storeId: updatedBorrow.to_store_id, type: 'system', content: lenderMsg }),
         ]);
       } catch (err) {
-        console.error('[Borrows] Failed to send chat message (completed):', err);
+        console.error('[Borrows] Failed to send chat message (received):', err);
       }
 
       // LINE push to both stores
@@ -740,7 +748,7 @@ export async function PATCH(
       // Chat bot — system message to both stores
       try {
         const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
-        const msg = `⚠️ ยกเลิกคำขอยืมสินค้า — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nยกเลิกโดย: ${currentUserName}`;
+        const msg = `⚠️ ${borrowTag}ยกเลิกคำขอยืมสินค้า — ${ctx.fromStore?.store_name} ← ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nยกเลิกโดย: ${currentUserName}`;
 
         await Promise.allSettled([
           sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
@@ -880,7 +888,7 @@ export async function PATCH(
 
       try {
         const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
-        const msg = `📦 ส่งคืนสินค้ายืม รอยืนยันรับคืน — ${ctx.fromStore?.store_name} → ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nส่งคืนโดย: ${currentUserName}`;
+        const msg = `📦 ${borrowTag}ส่งคืนสินค้ายืม รอยืนยันรับคืน — ${ctx.fromStore?.store_name} → ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nส่งคืนโดย: ${currentUserName}`;
 
         await Promise.allSettled([
           sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
@@ -1014,7 +1022,7 @@ export async function PATCH(
 
       try {
         const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
-        const msg = `✅ ยืนยันรับคืนสินค้าแล้ว — ${ctx.fromStore?.store_name} → ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nยืนยันรับโดย: ${currentUserName}`;
+        const msg = `✅ ${borrowTag}ยืนยันรับคืนสินค้าแล้ว — ${ctx.fromStore?.store_name} → ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nยืนยันรับโดย: ${currentUserName}`;
 
         await Promise.allSettled([
           sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
