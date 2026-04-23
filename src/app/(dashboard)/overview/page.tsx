@@ -110,6 +110,7 @@ interface StoreStatus {
   depositsThisMonth: number;    // deposits created this month
   withdrawalsThisMonth: number; // deposits withdrawn this month (created_at in month, status=withdrawn)
   stockChecksThisMonth: number; // manual_counts created this month
+  pendingConfirm: number;       // deposits awaiting bar confirmation (status=pending_confirm)
 }
 
 interface AuditLogEntry {
@@ -146,7 +147,7 @@ const COMPARISON_METRICS: ReadonlyArray<ComparisonMetric> = [
   { key: 'stockChecksThisMonth', labelKey: 'compareStockChecks', format: (v) => formatNumber(v) },
   { key: 'commissionThisMonth', labelKey: 'compareCommission', format: (v) => `฿${formatNumber(Math.round(v))}` },
   { key: 'activeDeposits', labelKey: 'compareActiveDeposits', format: (v) => formatNumber(v) },
-  { key: 'totalIssues', labelKey: 'comparePending', format: (v) => formatNumber(v) },
+  { key: 'expiringDeposits', labelKey: 'comparePending', format: (v) => formatNumber(v) },
 ];
 
 // ---------------------------------------------------------------------------
@@ -786,6 +787,9 @@ export default function OverviewPage() {
       const grpMoWdQ = isOwner ? supabase.from('deposits').select('store_id').eq('status', 'withdrawn').gte('created_at', monthStartISO) : null;
       const grpMoScQ = isOwner ? supabase.from('manual_counts').select('store_id').gte('created_at', monthStartISO) : null;
 
+      // Deposits awaiting bar confirmation — drives the "รอยืนยัน" badge.
+      const grpPcQ = isOwner ? supabase.from('deposits').select('store_id').eq('status', 'pending_confirm') : null;
+
       // -------- Execute everything in parallel --------
       const [
         storesRes, depositsInStoreRes, pendingWithdrawalsRes, expiringRes,
@@ -797,7 +801,7 @@ export default function OverviewPage() {
         ownerStoresRes,
         grpPwRes, grpEdRes, grpAdRes, grpPeRes, grpPaRes, grpPtRes, grpPiRes,
         grpBtaRes, grpBtrRes, grpLtaRes, grpLtrRes, grpCmRes, grpDrRes, grpLcRes,
-        grpMoDepRes, grpMoWdRes, grpMoScRes,
+        grpMoDepRes, grpMoWdRes, grpMoScRes, grpPcRes,
       ] = await Promise.all([
         storesQuery, depositsInStoreQuery, pendingWithdrawalsQuery, expiringQuery,
         pendingExplQuery, pendingApprQuery, pendingTransfersQuery, usersQuery,
@@ -808,7 +812,7 @@ export default function OverviewPage() {
         ownerStoresQuery,
         grpPwQ, grpEdQ, grpAdQ, grpPeQ, grpPaQ, grpPtQ, grpPiQ,
         grpBtaQ, grpBtrQ, grpLtaQ, grpLtrQ, grpCmQ, grpDrQ, grpLcQ,
-        grpMoDepQ, grpMoWdQ, grpMoScQ,
+        grpMoDepQ, grpMoWdQ, grpMoScQ, grpPcQ,
       ]);
 
       const depositsTrend = calcTrend(curDepositsRes.count || 0, prevDepositsRes.count || 0);
@@ -903,6 +907,7 @@ export default function OverviewPage() {
           const moDepMap = countBy(grpMoDepRes?.data, 'store_id');
           const moWdMap = countBy(grpMoWdRes?.data, 'store_id');
           const moScMap = countBy(grpMoScRes?.data, 'store_id');
+          const pcMap = countBy(grpPcRes?.data, 'store_id');
 
           // Commission: sum net_amount + count entries per store
           const commTotalMap = new Map<string, number>();
@@ -953,6 +958,7 @@ export default function OverviewPage() {
                 depositsThisMonth: 0,
                 withdrawalsThisMonth: 0,
                 stockChecksThisMonth: moScMap.get(sid) || 0,
+                pendingConfirm: 0,
               };
             }
 
@@ -1000,6 +1006,7 @@ export default function OverviewPage() {
               depositsThisMonth: moDepMap.get(sid) || 0,
               withdrawalsThisMonth: moWdMap.get(sid) || 0,
               stockChecksThisMonth: moScMap.get(sid) || 0,
+              pendingConfirm: pcMap.get(sid) || 0,
             };
           });
 
@@ -1196,7 +1203,9 @@ export default function OverviewPage() {
           </div>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {storeStatuses.map((store) => {
-              const hasIssues = store.totalIssues > 0;
+              // Amber tint + badge reflect deposits awaiting bar confirmation —
+              // the one state that actually requires someone to act right now.
+              const hasIssues = store.pendingConfirm > 0;
               const isExpanded = expandedStores.has(store.id);
 
               return (
@@ -1252,7 +1261,7 @@ export default function OverviewPage() {
                       {hasIssues ? (
                         <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                           <CircleDot className="h-3 w-3" />
-                          {t('storeStatus.pendingItems', { count: store.totalIssues })}
+                          {t('storeStatus.pendingItems', { count: store.pendingConfirm })}
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
