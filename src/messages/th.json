@@ -1638,6 +1638,7 @@
     "rejectionReason": "เหตุผล: {reason}",
     "cancelled": "ยกเลิกแล้ว",
     "completedStatus": "เสร็จสิ้นแล้ว",
+    "statusReceivedAwaitingReturn": "รับเหล้าที่ยืมมาแล้ว โปรดเบิกเหล้าไปคืน",
     "specifyApprovedQty": "ระบุจำนวนที่อนุมัติ",
     "approve": "อนุมัติ",
     "reject": "ปฏิเสธ",

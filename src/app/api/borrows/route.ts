@@ -1,10 +1,37 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { pushToStaffGroup, type LineMessage } from '@/lib/line/messaging';
 import { borrowRequestFlex } from '@/lib/line/flex-templates';
 import { notifyStoreStaff, notifyBorrowWatchers } from '@/lib/notifications/service';
 import { sendBotMessage, buildBorrowActionCard } from '@/lib/chat/bot';
+
+const BORROW_CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+function randomBorrowSuffix(length = 5): string {
+  let s = '';
+  for (let i = 0; i < length; i++) {
+    s += BORROW_CODE_CHARS.charAt(Math.floor(Math.random() * BORROW_CODE_CHARS.length));
+  }
+  return s;
+}
+
+async function generateUniqueBorrowCode(
+  client: SupabaseClient,
+  fromCode: string,
+  toCode: string,
+): Promise<string> {
+  // Retry a few times to dodge the vanishingly unlikely collision on the
+  // 5-char suffix (36^5 ≈ 60M combinations per store pair).
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = `BRW-${fromCode}-${toCode}-${randomBorrowSuffix()}`;
+    const { data } = await client.from('borrows').select('id').eq('borrow_code', code).maybeSingle();
+    if (!data) return code;
+  }
+  // Fallback — extremely unlikely to reach here
+  return `BRW-${fromCode}-${toCode}-${randomBorrowSuffix(7)}`;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,6 +113,15 @@ export async function POST(request: NextRequest) {
   const serviceClient = createServiceClient();
 
   try {
+    // ----- Generate human-readable borrow_code: BRW-{from_code}-{to_code}-XXXXX
+    const [fromStoreCodeResult, toStoreCodeResult] = await Promise.all([
+      serviceClient.from('stores').select('store_code').eq('id', fromStoreId).single(),
+      serviceClient.from('stores').select('store_code').eq('id', toStoreId).single(),
+    ]);
+    const fromCode = fromStoreCodeResult.data?.store_code || 'XXX';
+    const toCode = toStoreCodeResult.data?.store_code || 'XXX';
+    const borrowCode = await generateUniqueBorrowCode(serviceClient, fromCode, toCode);
+
     // ----- Insert borrow -----
     const { data: borrow, error: borrowError } = await serviceClient
       .from('borrows')
@@ -96,6 +132,7 @@ export async function POST(request: NextRequest) {
         status: 'pending_approval',
         notes: notes || null,
         borrower_photo_url: borrowerPhotoUrl || null,
+        borrow_code: borrowCode,
       })
       .select('*')
       .single();
@@ -234,6 +271,7 @@ export async function POST(request: NextRequest) {
 
       const actionCard = buildBorrowActionCard({
         id: borrow.id,
+        borrow_code: borrow.borrow_code,
         from_store_name: fromStoreName,
         items_preview: preview,
         notes: notes || null,

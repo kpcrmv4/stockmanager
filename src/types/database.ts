@@ -237,6 +237,7 @@ export type BorrowStatus = 'pending_approval' | 'approved' | 'pos_adjusting' | '
 
 export interface Borrow {
   id: string;
+  borrow_code: string | null;
   from_store_id: string;
   to_store_id: string;
   requested_by: string | null;
