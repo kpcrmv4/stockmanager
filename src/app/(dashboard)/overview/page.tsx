@@ -1067,7 +1067,7 @@ export default function OverviewPage() {
           />
           <div className="p-4 sm:p-5">
             {/* Small multiples: per-metric ranking with horizontal bars */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 divide-y divide-gray-100 dark:divide-gray-700 sm:grid-cols-2 sm:gap-5 sm:divide-y-0 lg:grid-cols-3">
               {COMPARISON_METRICS.map((m) => {
                 const ranked = [...storeStatuses]
                   .map((s) => ({
@@ -1078,7 +1078,7 @@ export default function OverviewPage() {
                   .sort((a, b) => b.value - a.value);
                 const max = Math.max(...ranked.map((r) => r.value), 1);
                 return (
-                  <div key={String(m.key)}>
+                  <div key={String(m.key)} className="py-4 first:pt-0 last:pb-0 sm:py-0">
                     <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
                       {t(m.labelKey)}
                     </h4>
