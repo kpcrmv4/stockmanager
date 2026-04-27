@@ -531,6 +531,7 @@ export default function DepositPage() {
           customer_name: d.customer_name,
           deposit_code: d.deposit_code,
           quantity: d.remaining_qty || d.quantity,
+          remaining_percent: d.remaining_percent,
           category: d.category,
         })),
       });

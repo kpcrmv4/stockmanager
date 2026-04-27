@@ -1204,6 +1204,11 @@ function TransferReceiptContent({
               <span>{t('transferReceipt.quantity')} {formatNumber(item.quantity)}</span>
               {item.category && <span>({item.category})</span>}
             </div>
+            {item.remaining_percent !== null && item.remaining_percent !== undefined && (
+              <div style={{ fontSize: '11px', textAlign: 'right', fontWeight: 'bold' }}>
+                คงเหลือ: {item.remaining_percent}%
+              </div>
+            )}
           </div>
         ))}
       </div>
