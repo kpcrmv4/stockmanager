@@ -107,6 +107,13 @@ interface ConfirmDepositState {
   deposit: DepositRow;
   photoUrl: string | null;
   notes: string;
+  /**
+   * Per-bottle remaining percent: { bottle_no → percent (0-100, '' while
+   * editing) }. Initialized to 100 for every bottle when modal opens.
+   * Bar can override per bottle (e.g. one bottle is opened at 80%, others
+   * are sealed at 100).
+   */
+  bottlePercents: Record<number, number | ''>;
 }
 
 // ---------------------------------------------------------------------------
@@ -287,17 +294,39 @@ export default function BarApprovalPage() {
 
   const handleConfirmDeposit = async () => {
     if (!confirmDeposit || !user) return;
+
+    // Validate per-bottle percents
+    const bottleEntries = Object.entries(confirmDeposit.bottlePercents);
+    for (const [bn, p] of bottleEntries) {
+      if (p === '' || isNaN(Number(p)) || Number(p) < 0 || Number(p) > 100) {
+        toast({
+          type: 'warning',
+          title: t('error'),
+          message: `ขวดที่ ${bn}: % ต้องอยู่ระหว่าง 0–100`,
+        });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
       const supabase = createClient();
-      const { deposit, photoUrl, notes } = confirmDeposit;
+      const { deposit, photoUrl, notes, bottlePercents } = confirmDeposit;
+
+      // Aggregate average for the legacy deposits.remaining_percent column
+      const percents = Object.values(bottlePercents).map((v) => Number(v));
+      const avgPercent =
+        percents.length > 0
+          ? Math.round((percents.reduce((s, v) => s + v, 0) / percents.length) * 100) / 100
+          : 100;
 
       const { error } = await supabase
         .from('deposits')
         .update({
           status: 'in_store',
           confirm_photo_url: photoUrl,
+          remaining_percent: avgPercent,
           notes: notes
             ? deposit.notes
               ? `${deposit.notes}\n[บาร์ยืนยัน] ${notes}`
@@ -307,6 +336,24 @@ export default function BarApprovalPage() {
         .eq('id', deposit.id);
 
       if (error) throw error;
+
+      // Update each deposit_bottles row with the bar's per-bottle percent.
+      // 'opened' if < 100, else 'sealed' (still untouched).
+      await Promise.all(
+        Object.entries(bottlePercents).map(([bn, p]) => {
+          const pct = Number(p);
+          return supabase
+            .from('deposit_bottles')
+            .update({
+              remaining_percent: pct,
+              status: pct < 100 ? 'opened' : 'sealed',
+              opened_at: pct < 100 ? new Date().toISOString() : null,
+              opened_by: pct < 100 ? user.id : null,
+            })
+            .eq('deposit_id', deposit.id)
+            .eq('bottle_no', Number(bn));
+        }),
+      );
 
       await logAudit({
         store_id: currentStoreId,
@@ -678,7 +725,11 @@ export default function BarApprovalPage() {
     if (item.type === 'deposit') {
       const deposit = deposits.find((d) => d.id === item.id);
       if (deposit) {
-        setConfirmDeposit({ deposit, photoUrl: null, notes: '' });
+        const initBottles: Record<number, number | ''> = {};
+        for (let n = 1; n <= Math.max(1, Math.floor(deposit.quantity)); n++) {
+          initBottles[n] = 100;
+        }
+        setConfirmDeposit({ deposit, photoUrl: null, notes: '', bottlePercents: initBottles });
       }
     } else {
       const withdrawal = withdrawals.find((w) => w.id === item.id);
@@ -982,13 +1033,18 @@ export default function BarApprovalPage() {
                         className="min-h-[44px] flex-1"
                         variant="primary"
                         icon={<CheckCircle className="h-4 w-4" />}
-                        onClick={() =>
+                        onClick={() => {
+                          const initBottles: Record<number, number | ''> = {};
+                          for (let n = 1; n <= Math.max(1, Math.floor(deposit.quantity)); n++) {
+                            initBottles[n] = 100;
+                          }
                           setConfirmDeposit({
                             deposit,
                             photoUrl: null,
                             notes: '',
-                          })
-                        }
+                            bottlePercents: initBottles,
+                          });
+                        }}
                       >
                         {t('confirmReceive')}
                       </Button>
@@ -1141,6 +1197,61 @@ export default function BarApprovalPage() {
               label={t('confirmPhoto')}
               compact={false}
             />
+
+            {/* Per-bottle remaining-% inputs */}
+            <div>
+              <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                ปริมาณคงเหลือในแต่ละขวด ({Object.keys(confirmDeposit.bottlePercents).length} ขวด)
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {Object.entries(confirmDeposit.bottlePercents)
+                  .sort(([a], [b]) => Number(a) - Number(b))
+                  .map(([bn, val]) => (
+                    <div key={bn} className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 dark:border-gray-700 dark:bg-gray-800">
+                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                        ขวดที่ {bn}/{Object.keys(confirmDeposit.bottlePercents).length}
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={val}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const next: number | '' = raw === '' ? '' : Math.min(100, Math.max(0, Number(raw)));
+                          setConfirmDeposit((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  bottlePercents: { ...prev.bottlePercents, [Number(bn)]: next },
+                                }
+                              : null,
+                          );
+                        }}
+                        className="w-14 rounded-md border border-gray-300 bg-white px-2 py-1 text-right text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                      />
+                      <span className="text-xs text-gray-400">%</span>
+                    </div>
+                  ))}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400"
+                  onClick={() =>
+                    setConfirmDeposit((prev) => {
+                      if (!prev) return null;
+                      const all100: Record<number, number | ''> = {};
+                      for (const k of Object.keys(prev.bottlePercents)) all100[Number(k)] = 100;
+                      return { ...prev, bottlePercents: all100 };
+                    })
+                  }
+                >
+                  ตั้งทุกขวด 100%
+                </button>
+              </div>
+            </div>
 
             <Textarea
               label={t('notesOptional')}
