@@ -2099,6 +2099,7 @@
       "recentPrintJobs": "งานพิมพ์ล่าสุด",
       "jobReceipt": "ใบเสร็จ",
       "jobLabel": "ป้ายขวด",
+      "jobTransfer": "โอนคลัง",
       "jobCompleted": "สำเร็จ",
       "jobFailed": "ล้มเหลว",
       "jobPrinting": "กำลังพิมพ์",

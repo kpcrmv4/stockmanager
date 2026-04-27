@@ -2098,6 +2098,7 @@
       "recentPrintJobs": "Recent Print Jobs",
       "jobReceipt": "Receipt",
       "jobLabel": "Label",
+      "jobTransfer": "Transfer",
       "jobCompleted": "Completed",
       "jobFailed": "Failed",
       "jobPrinting": "Printing",

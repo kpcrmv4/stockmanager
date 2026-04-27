@@ -1523,18 +1523,30 @@ export default function StoreDetailSettingsPage() {
             <div>
               <p className="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">{t('storeDetail.recentPrintJobs')}</p>
               <div className="space-y-1">
-                {recentPrintJobs.map((job) => (
+                {recentPrintJobs.map((job) => {
+                  const typeBadgeClass =
+                    job.job_type === 'receipt'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                      : job.job_type === 'transfer'
+                      ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                      : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
+                  const typeLabel =
+                    job.job_type === 'receipt'
+                      ? t('storeDetail.jobReceipt')
+                      : job.job_type === 'transfer'
+                      ? t('storeDetail.jobTransfer')
+                      : t('storeDetail.jobLabel');
+                  const payload = (job.payload as Record<string, string>) || {};
+                  // Transfer payload uses transfer_code, deposit-related uses deposit_code.
+                  const refCode = payload.transfer_code || payload.deposit_code || '-';
+                  return (
                   <div key={job.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-xs dark:bg-gray-800">
                     <div className="flex items-center gap-2">
-                      <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                        job.job_type === 'receipt'
-                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                          : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                      }`}>
-                        {job.job_type === 'receipt' ? t('storeDetail.jobReceipt') : t('storeDetail.jobLabel')}
+                      <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${typeBadgeClass}`}>
+                        {typeLabel}
                       </span>
                       <span className="text-gray-600 dark:text-gray-300">
-                        {(job.payload as Record<string, string>)?.deposit_code || '-'}
+                        {refCode}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1552,7 +1564,8 @@ export default function StoreDetailSettingsPage() {
                       </span>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
