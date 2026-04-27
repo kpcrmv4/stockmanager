@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardContent } from '@/components/ui';
-import { Inbox, ClipboardCheck, Wine, Package, Repeat, Truck, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
+import { Inbox, ClipboardCheck, Wine, Package, Repeat, Truck, ArrowRight, Loader2, RefreshCw, TrendingUp, AlertTriangle, Banknote } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { cn } from '@/lib/utils/cn';
@@ -30,6 +30,18 @@ interface StoreGroup {
   items: PendingItem[];
 }
 
+interface DailySummary {
+  /** ISO date label of the bar day (yesterday's calendar date in Bangkok) */
+  dateLabel: string;
+  newDeposits: number;
+  completedWithdrawals: number;
+  activeDeposits: number;
+  expiringSoon: number;
+  newBorrows: number;
+  pendingExplanations: number;
+  commissionAmount: number;
+}
+
 const CATEGORY_META: Record<Category, { icon: typeof Inbox; titleKey: string; color: string }> = {
   stock_explain: { icon: ClipboardCheck, titleKey: 'inbox.stockExplain', color: 'amber' },
   bar_confirm: { icon: Wine, titleKey: 'inbox.barConfirm', color: 'emerald' },
@@ -43,6 +55,7 @@ export default function InboxPage() {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<PendingItem[]>([]);
+  const [summary, setSummary] = useState<DailySummary | null>(null);
 
   const fetchPending = useCallback(async () => {
     setLoading(true);
@@ -179,7 +192,91 @@ export default function InboxPage() {
     }
   }, [user?.role]);
 
-  useEffect(() => { fetchPending(); }, [fetchPending]);
+  // Daily summary across all stores — uses the same "bar day" window
+  // as the chat-room daily summary cron: 11:00 yesterday → 05:59 today
+  // Bangkok time, so a late-night bar's stats land on the right day.
+  const fetchSummary = useCallback(async () => {
+    const supabase = createClient();
+    const isPrivileged = user?.role === 'owner' || user?.role === 'accountant';
+    if (!isPrivileged) {
+      setSummary(null);
+      return;
+    }
+
+    const now = new Date();
+    const bangkokOffset = 7 * 60 * 60 * 1000;
+    const bangkokNow = new Date(now.getTime() + bangkokOffset);
+
+    const barStart = new Date(bangkokNow);
+    barStart.setDate(barStart.getDate() - 1);
+    barStart.setHours(11, 0, 0, 0);
+    const barEnd = new Date(bangkokNow);
+    barEnd.setHours(5, 59, 59, 999);
+
+    const startUTC = new Date(barStart.getTime() - bangkokOffset).toISOString();
+    const endUTC = new Date(barEnd.getTime() - bangkokOffset).toISOString();
+
+    const yesterday = new Date(bangkokNow);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dateLabel = yesterday.toLocaleDateString('th-TH', {
+      day: 'numeric', month: 'short', year: 'numeric',
+    });
+
+    const in3Days = new Date(bangkokNow);
+    in3Days.setDate(in3Days.getDate() + 3);
+    const nowUTC = new Date(bangkokNow.getTime() - bangkokOffset).toISOString();
+    const in3DaysUTC = new Date(in3Days.getTime() - bangkokOffset).toISOString();
+
+    // Commission month window for "this calendar month"
+    const monthStart = new Date(bangkokNow.getFullYear(), bangkokNow.getMonth(), 1);
+    const monthStartIso = monthStart.toISOString().slice(0, 10);
+
+    const [
+      newDepositsRes,
+      withdrawalsRes,
+      activeDepositsRes,
+      expiringSoonRes,
+      newBorrowsRes,
+      pendingExplanationsRes,
+      commissionRes,
+    ] = await Promise.all([
+      supabase.from('deposits').select('id', { count: 'exact', head: true })
+        .gte('created_at', startUTC).lte('created_at', endUTC),
+      supabase.from('withdrawals').select('id', { count: 'exact', head: true })
+        .eq('status', 'completed').gte('created_at', startUTC).lte('created_at', endUTC),
+      supabase.from('deposits').select('id', { count: 'exact', head: true })
+        .eq('status', 'in_store'),
+      supabase.from('deposits').select('id', { count: 'exact', head: true })
+        .eq('status', 'in_store').gt('expiry_date', nowUTC).lte('expiry_date', in3DaysUTC),
+      supabase.from('borrows').select('id', { count: 'exact', head: true })
+        .gte('created_at', startUTC).lte('created_at', endUTC),
+      supabase.from('comparisons').select('id', { count: 'exact', head: true })
+        .eq('status', 'pending'),
+      supabase.from('commission_entries').select('net_amount')
+        .is('cancelled_at', null).gte('bill_date', monthStartIso),
+    ]);
+
+    const commissionAmount = (commissionRes.data || []).reduce(
+      (s: number, r: { net_amount: number | null }) => s + (Number(r.net_amount) || 0),
+      0,
+    );
+
+    setSummary({
+      dateLabel,
+      newDeposits: newDepositsRes.count || 0,
+      completedWithdrawals: withdrawalsRes.count || 0,
+      activeDeposits: activeDepositsRes.count || 0,
+      expiringSoon: expiringSoonRes.count || 0,
+      newBorrows: newBorrowsRes.count || 0,
+      pendingExplanations: pendingExplanationsRes.count || 0,
+      commissionAmount,
+    });
+  }, [user?.role]);
+
+  useEffect(() => {
+    fetchPending();
+    fetchSummary();
+  }, [fetchPending, fetchSummary]);
 
   const totalCount = items.reduce((s, x) => s + x.count, 0);
 
@@ -216,7 +313,7 @@ export default function InboxPage() {
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('inbox.subtitle')}</p>
         </div>
         <button
-          onClick={fetchPending}
+          onClick={() => { fetchPending(); fetchSummary(); }}
           className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
         >
           <RefreshCw className="h-3.5 w-3.5" />
@@ -224,7 +321,65 @@ export default function InboxPage() {
         </button>
       </div>
 
-      {/* Daily summary card */}
+      {/* Daily summary — same KPIs as the chat daily-summary cron, but
+          rolled up across all stores so the owner sees one snapshot. */}
+      {summary && (
+        <Card padding="none">
+          <CardHeader
+            title={t('inbox.dailySummaryTitle')}
+            description={t('inbox.dailySummaryDate', { date: summary.dateLabel })}
+          />
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <KpiTile
+                color="emerald"
+                icon={Wine}
+                label={t('inbox.kpiNewDeposits')}
+                value={summary.newDeposits}
+              />
+              <KpiTile
+                color="blue"
+                icon={Package}
+                label={t('inbox.kpiCompletedWithdrawals')}
+                value={summary.completedWithdrawals}
+              />
+              <KpiTile
+                color="indigo"
+                icon={TrendingUp}
+                label={t('inbox.kpiActiveDeposits')}
+                value={summary.activeDeposits}
+              />
+              <KpiTile
+                color="amber"
+                icon={AlertTriangle}
+                label={t('inbox.kpiExpiringSoon')}
+                value={summary.expiringSoon}
+              />
+              <KpiTile
+                color="rose"
+                icon={Repeat}
+                label={t('inbox.kpiNewBorrows')}
+                value={summary.newBorrows}
+              />
+              <KpiTile
+                color="amber"
+                icon={ClipboardCheck}
+                label={t('inbox.kpiPendingExplanations')}
+                value={summary.pendingExplanations}
+              />
+              <KpiTile
+                color="emerald"
+                icon={Banknote}
+                label={t('inbox.kpiCommissionMonth')}
+                value={summary.commissionAmount}
+                format="currency"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending-approvals header card */}
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
@@ -324,6 +479,39 @@ export default function InboxPage() {
           </Card>
         ))
       )}
+    </div>
+  );
+}
+
+interface KpiTileProps {
+  color: 'emerald' | 'blue' | 'indigo' | 'amber' | 'rose';
+  icon: typeof Inbox;
+  label: string;
+  value: number;
+  format?: 'count' | 'currency';
+}
+
+function KpiTile({ color, icon: Icon, label, value, format = 'count' }: KpiTileProps) {
+  // Map to literal classes so Tailwind's JIT picks them up reliably.
+  const palette = {
+    emerald: { bg: 'bg-emerald-50 dark:bg-emerald-900/20', icon: 'text-emerald-600 dark:text-emerald-400' },
+    blue: { bg: 'bg-blue-50 dark:bg-blue-900/20', icon: 'text-blue-600 dark:text-blue-400' },
+    indigo: { bg: 'bg-indigo-50 dark:bg-indigo-900/20', icon: 'text-indigo-600 dark:text-indigo-400' },
+    amber: { bg: 'bg-amber-50 dark:bg-amber-900/20', icon: 'text-amber-600 dark:text-amber-400' },
+    rose: { bg: 'bg-rose-50 dark:bg-rose-900/20', icon: 'text-rose-600 dark:text-rose-400' },
+  }[color];
+  const display = format === 'currency'
+    ? value.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    : value.toLocaleString('th-TH');
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white p-3 dark:border-gray-700/50 dark:bg-gray-800/40">
+      <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg', palette.bg)}>
+        <Icon className={cn('h-5 w-5', palette.icon)} />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-xs text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="text-lg font-bold leading-tight text-gray-900 dark:text-white">{display}</p>
+      </div>
     </div>
   );
 }

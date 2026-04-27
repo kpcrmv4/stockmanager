@@ -490,7 +490,16 @@
     "customerRequest": "Customer requests (LINE)",
     "borrowApproval": "Borrow approvals",
     "transferConfirm": "Transfer confirms",
-    "dateLabel": "Date {date}"
+    "dateLabel": "Date {date}",
+    "dailySummaryTitle": "Daily summary",
+    "dailySummaryDate": "For {date} (11:00 through next morning)",
+    "kpiNewDeposits": "New deposits",
+    "kpiCompletedWithdrawals": "Completed withdrawals",
+    "kpiActiveDeposits": "Active deposits",
+    "kpiExpiringSoon": "Expiring soon",
+    "kpiNewBorrows": "New borrows",
+    "kpiPendingExplanations": "Pending explanations",
+    "kpiCommissionMonth": "Commission this month (THB)"
   },
   "overview": {
     "title": "Overview",

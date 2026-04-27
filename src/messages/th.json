@@ -490,7 +490,16 @@
     "customerRequest": "คำขอลูกค้า (LINE)",
     "borrowApproval": "ขอยืมสินค้า",
     "transferConfirm": "ยืนยันรับโอน",
-    "dateLabel": "วันที่ {date}"
+    "dateLabel": "วันที่ {date}",
+    "dailySummaryTitle": "สรุปประจำวัน",
+    "dailySummaryDate": "ของวันที่ {date} (ช่วง 11:00 ถึงเช้าวันถัดไป)",
+    "kpiNewDeposits": "ฝากใหม่",
+    "kpiCompletedWithdrawals": "เบิกสำเร็จ",
+    "kpiActiveDeposits": "ฝากอยู่ทั้งหมด",
+    "kpiExpiringSoon": "ใกล้หมดอายุ",
+    "kpiNewBorrows": "ยืมใหม่",
+    "kpiPendingExplanations": "รอชี้แจง",
+    "kpiCommissionMonth": "คอมเดือนนี้ (บาท)"
   },
   "overview": {
     "title": "ภาพรวม",
