@@ -196,6 +196,7 @@ const ACTION_ICON_MAP: Record<string, LucideIcon> = {
   DEPOSIT_STATUS_CHANGED: RefreshCw,
   DEPOSIT_BAR_CONFIRMED: CheckCircle2,
   DEPOSIT_BAR_REJECTED: XCircle,
+  VIP_DEPOSIT_EXPIRED: AlertTriangle,
   WITHDRAWAL_COMPLETED: Package,
   WITHDRAWAL_REJECTED: XCircle,
   WITHDRAWAL_REQUESTED: Package,
@@ -265,6 +266,7 @@ const ACTION_COLOR_MAP: Record<string, string> = {
   DEPOSIT_STATUS_CHANGED: 'text-blue-500',
   DEPOSIT_BAR_CONFIRMED: 'text-emerald-500',
   DEPOSIT_BAR_REJECTED: 'text-red-500',
+  VIP_DEPOSIT_EXPIRED: 'text-orange-500',
   WITHDRAWAL_COMPLETED: 'text-emerald-500',
   WITHDRAWAL_REJECTED: 'text-red-500',
   WITHDRAWAL_REQUESTED: 'text-blue-500',
@@ -319,6 +321,7 @@ const KNOWN_ACTION_TYPES = new Set([
   'DEPOSIT_CREATED', 'DEPOSIT_REQUEST_APPROVED', 'DEPOSIT_REQUEST_REJECTED',
   'DEPOSIT_STATUS_CHANGED', 'DEPOSIT_BAR_CONFIRMED', 'DEPOSIT_BAR_REJECTED',
   'WITHDRAWAL_COMPLETED', 'WITHDRAWAL_REJECTED', 'WITHDRAWAL_REQUESTED',
+  'VIP_DEPOSIT_EXPIRED',
   'DEPOSIT_NO_DEPOSIT_CREATED', 'TRANSFER_CREATED', 'TRANSFER_CONFIRMED',
   'TRANSFER_REJECTED', 'CUSTOMER_DEPOSIT_REQUEST', 'CUSTOMER_WITHDRAWAL_REQUEST',
   'CUSTOMER_INQUIRY', 'CRON_DAILY_REMINDER_SENT', 'CRON_EXPIRY_CHECK',
@@ -458,7 +461,7 @@ function getActivityHref(actionType: string, tableName: string | null): string |
   if (actionType === 'DEPOSIT_CREATED' || actionType === 'DEPOSIT_REQUEST_APPROVED' ||
       actionType === 'DEPOSIT_REQUEST_REJECTED' || actionType === 'DEPOSIT_STATUS_CHANGED' ||
       actionType === 'DEPOSIT_BAR_CONFIRMED' || actionType === 'DEPOSIT_BAR_REJECTED' ||
-      actionType === 'DEPOSIT_NO_DEPOSIT_CREATED' ||
+      actionType === 'DEPOSIT_NO_DEPOSIT_CREATED' || actionType === 'VIP_DEPOSIT_EXPIRED' ||
       (actionType === 'INSERT' && tableName === 'deposits')) {
     return '/deposit';
   }
@@ -1535,7 +1538,7 @@ export default function OverviewPage() {
                   <Link
                     key={activity.id}
                     href={href}
-                    className="flex items-start gap-3 px-5 py-3.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-750"
+                    className="flex items-start gap-3 px-5 py-3.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/60"
                   >
                     {content}
                   </Link>

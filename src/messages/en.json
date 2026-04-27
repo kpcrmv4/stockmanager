@@ -595,6 +595,7 @@
       "DEPOSIT_STATUS_CHANGED": "Deposit status changed",
       "DEPOSIT_BAR_CONFIRMED": "Bar confirmed deposit",
       "DEPOSIT_BAR_REJECTED": "Bar rejected deposit",
+      "VIP_DEPOSIT_EXPIRED": "Marked as expired (VIP)",
       "WITHDRAWAL_COMPLETED": "Withdrawal completed",
       "WITHDRAWAL_REJECTED": "Withdrawal rejected",
       "WITHDRAWAL_REQUESTED": "Withdrawal requested",

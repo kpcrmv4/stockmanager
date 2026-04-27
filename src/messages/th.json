@@ -595,6 +595,7 @@
       "DEPOSIT_STATUS_CHANGED": "เปลี่ยนสถานะรับฝาก",
       "DEPOSIT_BAR_CONFIRMED": "บาร์ยืนยันรับฝาก",
       "DEPOSIT_BAR_REJECTED": "บาร์ปฏิเสธรับฝาก",
+      "VIP_DEPOSIT_EXPIRED": "ทำเครื่องหมายหมดอายุ (VIP)",
       "WITHDRAWAL_COMPLETED": "เบิกเหล้าสำเร็จ",
       "WITHDRAWAL_REJECTED": "ปฏิเสธการเบิกเหล้า",
       "WITHDRAWAL_REQUESTED": "ขอเบิกเหล้า",

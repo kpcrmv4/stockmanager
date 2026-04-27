@@ -81,6 +81,7 @@ interface RecentCheck {
 
 export default function StockOverviewPage() {
   const t = useTranslations('stock');
+  const tCommon = useTranslations('common');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const [loading, setLoading] = useState(true);
@@ -1037,7 +1038,7 @@ export default function StockOverviewPage() {
                                 </div>
                                 <div className="mt-2 border-t pt-2 flex items-center justify-between gap-8">
                                   <span className="text-xs text-gray-600 dark:text-gray-400">
-                                    {t('common.total')}
+                                    {tCommon('total')}
                                   </span>
                                   <span className="text-xs font-bold text-gray-900 dark:text-white">
                                     {(payload[0].value as number) + (payload[1].value as number)}

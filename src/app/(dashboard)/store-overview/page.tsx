@@ -426,7 +426,7 @@ export default function StoreOverviewPage() {
           className={cn(
             'flex w-full items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200 transition-colors',
             'hover:bg-gray-50',
-            'dark:bg-gray-800 dark:ring-gray-700 dark:hover:bg-gray-750'
+            'dark:bg-gray-800 dark:ring-gray-700 dark:hover:bg-gray-700/60'
           )}
         >
           <div className="flex items-center gap-3">
@@ -459,7 +459,7 @@ export default function StoreOverviewPage() {
                 onClick={() => handleSelectStore(store.id)}
                 className={cn(
                   'flex w-full items-center gap-3 px-4 py-3 text-left transition-colors',
-                  'hover:bg-gray-50 dark:hover:bg-gray-750',
+                  'hover:bg-gray-50 dark:hover:bg-gray-700/60',
                   store.id === selectedStoreId &&
                     'bg-indigo-50 dark:bg-indigo-900/10'
                 )}
