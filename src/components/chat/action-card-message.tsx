@@ -69,7 +69,11 @@ const PRIORITY_STYLES: Record<string, string> = {
 export const ActionCardMessage = memo(function ActionCardMessage({ message, currentUserId, currentUserName, currentUserRole, roomId, storeId, onStatusChange }: ActionCardMessageProps) {
   const [loading, setLoading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [barRemainingPercent, setBarRemainingPercent] = useState('');
+  // Per-bottle % readings the bar enters at confirm time. Slot count
+  // tracks barConfirmQty (kept in sync via useEffect below). Each slot
+  // is a string so the placeholder shows when nothing has been typed.
+  const [barConfirmQty, setBarConfirmQty] = useState('');
+  const [barConfirmBottlePercents, setBarConfirmBottlePercents] = useState<string[]>([]);
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -104,6 +108,25 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
 
   // Deposit 2-step flow: staff can't claim pending_bar, only bar/manager/owner
   const isDepositCard = meta.action_type === 'deposit_claim';
+  const summaryQty = (() => {
+    const raw = (meta.summary as Record<string, unknown> | undefined)?.quantity;
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? ''));
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  })();
+
+  // When the bar's qty input changes, keep the per-bottle percent slots
+  // the same length so each bottle has its own input.
+  useEffect(() => {
+    const qty = parseInt(barConfirmQty);
+    if (!Number.isFinite(qty) || qty <= 0) return;
+    setBarConfirmBottlePercents((prev) => {
+      if (prev.length === qty) return prev;
+      const next = [...prev];
+      while (next.length < qty) next.push('');
+      next.length = qty;
+      return next;
+    });
+  }, [barConfirmQty]);
   const isWithdrawalCard = meta.action_type === 'withdrawal_claim';
   const canClaimBarStep = isPendingBar && isDepositCard
     && currentUserRole && ['bar', 'manager', 'owner'].includes(currentUserRole);
@@ -343,8 +366,27 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           };
         } else {
           // complete
-          const completeNotes = isBarCompleting && barRemainingPercent
-            ? `คงเหลือ ${barRemainingPercent}%`
+          // For bar-completing the deposit card, use the per-bottle %
+          // entered. Compute average + a compact summary string.
+          let barAvgPercent: number | null = null;
+          let barPercentList: number[] | null = null;
+          let barQtyConfirmed: number | null = null;
+          if (isBarCompleting) {
+            const qty = parseInt(barConfirmQty);
+            barQtyConfirmed = Number.isFinite(qty) && qty > 0 ? qty : summaryQty;
+            barPercentList = [];
+            for (let i = 0; i < barQtyConfirmed; i++) {
+              const raw = barConfirmBottlePercents[i];
+              const n = raw === undefined || raw === '' ? NaN : parseFloat(raw);
+              barPercentList.push(Number.isFinite(n) ? n : 100);
+            }
+            const nonConsumed = barPercentList.filter((p) => p > 0);
+            barAvgPercent = nonConsumed.length > 0
+              ? Math.round((nonConsumed.reduce((a, b) => a + b, 0) / nonConsumed.length) * 100) / 100
+              : 0;
+          }
+          const completeNotes = isBarCompleting && barAvgPercent !== null
+            ? `เฉลี่ย ${barAvgPercent}% (${(barPercentList || []).map((p, i) => `${i + 1}:${p}%`).join(', ')})`
             : null;
           updatedMeta = {
             ...meta,
@@ -353,12 +395,14 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             completion_notes: completeNotes,
             confirmation_photo_url: photoUrl || meta.confirmation_photo_url || null,
           };
-          if (isBarCompleting && barRemainingPercent) {
+          if (isBarCompleting && barAvgPercent !== null) {
             updatedMeta = {
               ...updatedMeta,
               summary: {
                 ...(updatedMeta.summary || {}),
-                remaining_percent: barRemainingPercent,
+                quantity: barQtyConfirmed,
+                remaining_percent: String(barAvgPercent),
+                bottle_percents: barPercentList,
                 confirmed_by: currentUserName,
               },
             };
@@ -388,7 +432,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           else if (action === 'release') auditActionCard(AUDIT_ACTIONS.ACTION_CARD_RELEASED);
           else if (action === 'complete') auditActionCard(AUDIT_ACTIONS.ACTION_CARD_COMPLETED, {
             step: isBarCompleting ? 'bar_confirmed' : 'completed',
-            remaining_percent: barRemainingPercent || undefined,
+            bottle_percents: isBarCompleting ? barConfirmBottlePercents.slice() : undefined,
           });
 
           // Sync photo กลับไปที่ deposit/withdrawal record (fire-and-forget)
@@ -404,27 +448,66 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             }).catch(() => {});
           }
 
-          // Bar completed deposit → update deposit status + notify
+          // Bar completed deposit → update deposit status + notify.
+          // Recompute the per-bottle data here too so the deposit record
+          // and deposit_bottles table reflect what bar entered.
           if (isBarCompleting && storeId) {
             const summary = meta.summary;
+            const qty = parseInt(barConfirmQty);
+            const validQty = Number.isFinite(qty) && qty > 0 ? qty : summaryQty;
+            const percents: number[] = [];
+            for (let i = 0; i < validQty; i++) {
+              const raw = barConfirmBottlePercents[i];
+              const n = raw === undefined || raw === '' ? NaN : parseFloat(raw);
+              percents.push(Number.isFinite(n) ? n : 100);
+            }
+            const nonConsumed = percents.filter((p) => p > 0);
+            const avgPercent = nonConsumed.length > 0
+              ? Math.round((nonConsumed.reduce((a, b) => a + b, 0) / nonConsumed.length) * 100) / 100
+              : 0;
+            const remainingQty = nonConsumed.length;
 
             // Update deposit record: pending_confirm → in_store
             if (meta.reference_table === 'deposits' && meta.reference_id) {
-              supabase
+              const { data: depositRow } = await supabase
                 .from('deposits')
                 .update({
                   status: 'in_store',
                   confirm_photo_url: photoUrl || undefined,
-                  remaining_percent: barRemainingPercent ? Number(barRemainingPercent) : undefined,
+                  remaining_percent: avgPercent,
+                  quantity: validQty,
+                  remaining_qty: remainingQty,
                 })
                 .eq('deposit_code', meta.reference_id)
-                .then(() => {});
+                .select('id')
+                .single();
+
+              // Replace auto-seeded bottle rows with bar's actual readings.
+              if (depositRow?.id) {
+                const now = new Date().toISOString();
+                await supabase
+                  .from('deposit_bottles')
+                  .delete()
+                  .eq('deposit_id', depositRow.id);
+                const newBottleRows = percents.map((pct, i) => ({
+                  deposit_id: depositRow.id,
+                  bottle_no: i + 1,
+                  remaining_percent: pct,
+                  status: pct === 0 ? 'consumed' : pct < 100 ? 'opened' : 'sealed',
+                  opened_at: pct < 100 && pct > 0 ? now : null,
+                  opened_by: pct < 100 && pct > 0 ? currentUserId : null,
+                  consumed_at: pct === 0 ? now : null,
+                  consumed_by: pct === 0 ? currentUserId : null,
+                }));
+                await supabase.from('deposit_bottles').insert(newBottleRows);
+              }
             }
 
+            const percentSummary = percents.map((p, i) => `${i + 1}:${p}%`).join(', ');
             sendChatBotMessage({
               storeId,
               type: 'system',
-              content: `✅ ${currentUserName} ยืนยันรับฝาก ${summary.items || ''} (${meta.reference_id}) — ${summary.customer || ''} — คงเหลือ ${barRemainingPercent || '?'}%`,
+              content: `✅ ${currentUserName} ยืนยันรับฝาก ${summary.items || ''} x${validQty} (${meta.reference_id}) — ${summary.customer || ''} — รายขวด [${percentSummary}] เฉลี่ย ${avgPercent}%`,
             });
 
             // Push notification: bar confirmed deposit
@@ -520,6 +603,12 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   // Bar step: claim pending_bar → sets _bar_step flag
   const handleBarClaim = async () => {
     setLoading(true);
+    // Seed the qty + per-bottle slots from the deposit summary so the bar
+    // sees the right number of inputs immediately after claiming.
+    if (!barConfirmQty) setBarConfirmQty(String(summaryQty));
+    if (barConfirmBottlePercents.length === 0) {
+      setBarConfirmBottlePercents(Array.from({ length: summaryQty }, () => ''));
+    }
     try {
       const supabase = createClient();
 
@@ -1430,25 +1519,74 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                   )}
                 </div>
 
-                {isClaimedByMe && (
+                {isClaimedByMe && (() => {
+                  const isBarStep = !!(meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step;
+                  const qtyNum = parseInt(barConfirmQty);
+                  const validQty = Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : summaryQty;
+                  const allBottlesFilled = isBarStep
+                    ? Array.from({ length: validQty }).every((_, i) => {
+                        const raw = barConfirmBottlePercents[i];
+                        if (raw === undefined || raw === '') return false;
+                        const n = parseFloat(raw);
+                        return Number.isFinite(n) && n >= 0 && n <= 100;
+                      })
+                    : true;
+                  return (
                   <div className="space-y-2">
-                    {/* Bar step: require %remaining + photo */}
-                    {(meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step && (
-                      <div className="space-y-2">
+                    {/* Bar step: editable qty + per-bottle % + photo */}
+                    {isBarStep && (
+                      <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800/40">
                         <div className="flex items-center gap-2">
                           <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                            % คงเหลือ *
+                            จำนวนขวด *
                           </label>
                           <input
                             type="number"
-                            min={0}
-                            max={100}
-                            value={barRemainingPercent}
-                            onChange={(e) => setBarRemainingPercent(e.target.value)}
-                            placeholder="เช่น 80"
-                            className="w-20 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-center text-xs text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                            min={1}
+                            value={barConfirmQty}
+                            onChange={(e) => setBarConfirmQty(e.target.value)}
+                            placeholder={String(summaryQty)}
+                            className="w-16 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-center text-xs text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                           />
-                          <span className="text-xs text-gray-400">%</span>
+                          <span className="text-xs text-gray-400">ขวด</span>
+                        </div>
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">% คงเหลือรายขวด *</p>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {Array.from({ length: validQty }).map((_, i) => {
+                              const val = barConfirmBottlePercents[i] ?? '';
+                              return (
+                                <div
+                                  key={i}
+                                  className="flex items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-1 dark:border-gray-700 dark:bg-gray-900"
+                                >
+                                  <span className="text-[10px] font-semibold text-gray-600 dark:text-gray-300">
+                                    {i + 1}
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    value={val}
+                                    onChange={(e) => {
+                                      const raw = e.target.value;
+                                      setBarConfirmBottlePercents((prev) => {
+                                        const next = [...prev];
+                                        while (next.length < validQty) next.push('');
+                                        next[i] = raw;
+                                        next.length = validQty;
+                                        return next;
+                                      });
+                                    }}
+                                    placeholder="100"
+                                    className="ml-auto w-9 rounded border border-gray-200 bg-white px-1 py-0.5 text-right text-[11px] text-gray-900 focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                                  />
+                                  <span className="text-[9px] text-gray-400">%</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <p className="mt-1 text-[10px] text-gray-400">0% = เบิกแล้ว, 100% = ขวดยังไม่เปิด</p>
                         </div>
                       </div>
                     )}
@@ -1456,11 +1594,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                       value={photoUrl}
                       onChange={setPhotoUrl}
                       folder="confirmations"
-                      placeholder={
-                        (meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step
-                          ? 'ถ่ายรูปเหล้า (บังคับ)'
-                          : 'ถ่ายรูปยืนยัน (ไม่บังคับ)'
-                      }
+                      placeholder={isBarStep ? 'ถ่ายรูปเหล้า (บังคับ)' : 'ถ่ายรูปยืนยัน (ไม่บังคับ)'}
                       compact
                     />
                     <div className="flex gap-2">
@@ -1470,16 +1604,10 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                         className="flex-1"
                         icon={<CheckCircle className="h-3.5 w-3.5" />}
                         isLoading={loading}
-                        disabled={
-                          (meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step
-                            ? !photoUrl || !barRemainingPercent
-                            : false
-                        }
+                        disabled={isBarStep ? (!photoUrl || !allBottlesFilled) : false}
                         onClick={() => handleAction('complete')}
                       >
-                        {(meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step
-                          ? 'ยืนยันรับฝาก'
-                          : photoUrl ? 'เสร็จ + ส่งรูป' : 'เสร็จแล้ว'}
+                        {isBarStep ? 'ยืนยันรับฝาก' : photoUrl ? 'เสร็จ + ส่งรูป' : 'เสร็จแล้ว'}
                       </Button>
                       <Button
                         size="sm"
@@ -1492,7 +1620,8 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                       </Button>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 
