@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, Badge, Modal, toast } from '@/components/ui';
+import { Button, Card, CardContent, Badge, Modal, ModalFooter, Textarea, toast } from '@/components/ui';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { Loader2, Trash2, Image, ChevronDown, ChevronRight, Layers, XCircle, RotateCcw } from 'lucide-react';
@@ -169,6 +169,13 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
   const [isGrouped, setIsGrouped] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
+  // Cancel/restore modals — styled instead of native prompt/confirm
+  const [cancelEntryId, setCancelEntryId] = useState<string | null>(null);
+  const [cancelEntryReason, setCancelEntryReason] = useState('');
+  const [cancellingEntry, setCancellingEntry] = useState(false);
+  const [restoreEntryId, setRestoreEntryId] = useState<string | null>(null);
+  const [restoringEntry, setRestoringEntry] = useState(false);
+
   const canDelete = user?.role === 'owner' || user?.role === 'accountant';
 
   const fetchEntries = useCallback(async () => {
@@ -239,37 +246,74 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
     }, {} as Record<string, { type: string, profile: any, entries: CommissionEntry[], totalAmount: number, unpaidAmount: number }>);
   };
 
-  async function handleCancelEntry(id: string) {
-    const reason = window.prompt(t('entryList.cancelPrompt')) ?? '';
-    const res = await fetch(`/api/commission/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cancel', reason }),
-    });
-    if (res.ok) {
-      toast({ type: 'success', title: t('entryList.cancelEntrySuccess') });
-      logAudit({ store_id: currentStoreId, action_type: AUDIT_ACTIONS.COMMISSION_ENTRY_CANCELLED, table_name: 'commission_entries', record_id: id, new_value: { reason }, changed_by: user?.id });
-      fetchEntries();
-    } else {
-      const err = await res.json().catch(() => ({}));
-      toast({ type: 'error', title: err.error || t('entryList.cancelFailed') });
+  // Open the styled cancel modal — actual mutation happens in
+  // confirmCancelEntry once the user confirms with an optional reason.
+  function handleCancelEntry(id: string) {
+    setCancelEntryId(id);
+    setCancelEntryReason('');
+  }
+
+  async function confirmCancelEntry() {
+    if (!cancelEntryId) return;
+    setCancellingEntry(true);
+    try {
+      const res = await fetch(`/api/commission/${cancelEntryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel', reason: cancelEntryReason }),
+      });
+      if (res.ok) {
+        toast({ type: 'success', title: t('entryList.cancelEntrySuccess') });
+        logAudit({
+          store_id: currentStoreId,
+          action_type: AUDIT_ACTIONS.COMMISSION_ENTRY_CANCELLED,
+          table_name: 'commission_entries',
+          record_id: cancelEntryId,
+          new_value: { reason: cancelEntryReason },
+          changed_by: user?.id,
+        });
+        setCancelEntryId(null);
+        setCancelEntryReason('');
+        fetchEntries();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast({ type: 'error', title: err.error || t('entryList.cancelFailed') });
+      }
+    } finally {
+      setCancellingEntry(false);
     }
   }
 
-  async function handleRestoreEntry(id: string) {
-    if (!confirm(t('entryList.confirmRestore'))) return;
-    const res = await fetch(`/api/commission/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore' }),
-    });
-    if (res.ok) {
-      toast({ type: 'success', title: t('entryList.restoreSuccess') });
-      logAudit({ store_id: currentStoreId, action_type: AUDIT_ACTIONS.COMMISSION_ENTRY_RESTORED, table_name: 'commission_entries', record_id: id, changed_by: user?.id });
-      fetchEntries();
-    } else {
-      const err = await res.json().catch(() => ({}));
-      toast({ type: 'error', title: err.error || t('entryList.restoreFailed') });
+  function handleRestoreEntry(id: string) {
+    setRestoreEntryId(id);
+  }
+
+  async function confirmRestoreEntry() {
+    if (!restoreEntryId) return;
+    setRestoringEntry(true);
+    try {
+      const res = await fetch(`/api/commission/${restoreEntryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore' }),
+      });
+      if (res.ok) {
+        toast({ type: 'success', title: t('entryList.restoreSuccess') });
+        logAudit({
+          store_id: currentStoreId,
+          action_type: AUDIT_ACTIONS.COMMISSION_ENTRY_RESTORED,
+          table_name: 'commission_entries',
+          record_id: restoreEntryId,
+          changed_by: user?.id,
+        });
+        setRestoreEntryId(null);
+        fetchEntries();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast({ type: 'error', title: err.error || t('entryList.restoreFailed') });
+      }
+    } finally {
+      setRestoringEntry(false);
     }
   }
 
@@ -448,6 +492,52 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
 
       <Modal isOpen={!!photoModal} onClose={() => setPhotoModal(null)} title={t('entryList.receiptPhoto')} size="lg">
         {photoModal && <div className="flex justify-center"><img src={photoModal} alt="Receipt" className="max-h-[70vh] rounded-lg object-contain" /></div>}
+      </Modal>
+
+      {/* Cancel-entry modal — soft-cancels a single bill with optional reason */}
+      <Modal
+        isOpen={!!cancelEntryId}
+        onClose={() => { setCancelEntryId(null); setCancelEntryReason(''); }}
+        title={t('entryList.confirmCancelEntry')}
+        size="sm"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">{t('entryList.confirmCancelEntryDesc')}</p>
+          <Textarea
+            label={t('entryList.cancelPrompt')}
+            value={cancelEntryReason}
+            onChange={(e) => setCancelEntryReason(e.target.value)}
+            rows={2}
+          />
+        </div>
+        <ModalFooter>
+          <Button variant="ghost" onClick={() => { setCancelEntryId(null); setCancelEntryReason(''); }}>
+            {t('payment.dontCancel')}
+          </Button>
+          <Button variant="danger" onClick={confirmCancelEntry} disabled={cancellingEntry}>
+            {cancellingEntry ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {t('payment.confirmCancelBtn')}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Restore-entry modal */}
+      <Modal
+        isOpen={!!restoreEntryId}
+        onClose={() => setRestoreEntryId(null)}
+        title={t('entryList.confirmRestore')}
+        size="sm"
+      >
+        <p className="text-sm text-gray-600 dark:text-gray-400">{t('entryList.restoreDesc')}</p>
+        <ModalFooter>
+          <Button variant="ghost" onClick={() => setRestoreEntryId(null)}>
+            {t('entryForm.cancel')}
+          </Button>
+          <Button variant="primary" onClick={confirmRestoreEntry} disabled={restoringEntry}>
+            {restoringEntry ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {t('entryList.restore')}
+          </Button>
+        </ModalFooter>
       </Modal>
     </div>
   );

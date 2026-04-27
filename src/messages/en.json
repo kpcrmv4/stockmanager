@@ -2726,7 +2726,8 @@
       "restore": "Restore",
       "restoreSuccess": "Entry restored",
       "restoreFailed": "Failed to restore",
-      "confirmRestore": "Restore this entry?"
+      "confirmRestore": "Restore entry",
+      "restoreDesc": "Restored entries are counted in totals again and can be paid out."
     },
     "ae": {
       "searchPlaceholder": "Search AE...",

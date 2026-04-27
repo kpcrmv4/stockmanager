@@ -2727,7 +2727,8 @@
       "restore": "กู้คืน",
       "restoreSuccess": "กู้คืนรายการสำเร็จ",
       "restoreFailed": "กู้คืนไม่สำเร็จ",
-      "confirmRestore": "ยืนยันกู้คืนรายการนี้?"
+      "confirmRestore": "ยืนยันกู้คืนรายการ",
+      "restoreDesc": "รายการที่กู้คืนจะกลับมาถูกนับในยอดรวมและสามารถทำจ่ายได้อีกครั้ง"
     },
     "ae": {
       "searchPlaceholder": "ค้นหา AE...",
