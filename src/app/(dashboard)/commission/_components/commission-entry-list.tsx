@@ -162,6 +162,8 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
   const setMonth = setInternalMonth;
   const isMonthControlled = monthProp !== undefined;
   const [typeFilter, setTypeFilter] = useState<string>('');
+  // Status filter: '' = all, 'active' = not cancelled, 'cancelled' = only cancelled
+  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'cancelled'>('');
   const [total, setTotal] = useState(0);
   const [photoModal, setPhotoModal] = useState<string | null>(null);
   
@@ -317,8 +319,16 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
     }
   }
 
-  const aeGroups = groupByType(entries, 'ae_commission');
-  const bottleGroups = groupByType(entries, 'bottle_commission');
+  // Apply status filter before grouping. The grouping logic always
+  // excludes cancelled entries from totals, but cancelled entries
+  // themselves are kept inside `entries[]` so they render visibly.
+  const filteredEntries = statusFilter === 'active'
+    ? entries.filter((e) => !e.cancelled_at)
+    : statusFilter === 'cancelled'
+      ? entries.filter((e) => !!e.cancelled_at)
+      : entries;
+  const aeGroups = groupByType(filteredEntries, 'ae_commission');
+  const bottleGroups = groupByType(filteredEntries, 'bottle_commission');
 
   return (
     <div className="space-y-4">
@@ -331,7 +341,16 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
           <option value="ae_commission">AE Commission</option>
           <option value="bottle_commission">Bottle Commission</option>
         </select>
-        
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'cancelled')}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+        >
+          <option value="">{t('entryList.allStatuses')}</option>
+          <option value="active">{t('entryList.statusActive')}</option>
+          <option value="cancelled">{t('entryList.cancelled')}</option>
+        </select>
+
         {/* Toggle Grouping */}
         <button
           onClick={() => setIsGrouped(!isGrouped)}

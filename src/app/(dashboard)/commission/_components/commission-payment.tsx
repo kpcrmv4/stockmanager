@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button, Card, CardHeader, CardContent, Badge, Modal, ModalFooter, toast, PhotoUpload, Textarea } from '@/components/ui';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { Loader2, Banknote, Clock, Search, CheckCircle2, XCircle, Eye, Image, ChevronDown, ChevronRight } from 'lucide-react';
+import { Loader2, Banknote, Clock, Search, CheckCircle2, XCircle, Eye, Image, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { useTranslations } from 'next-intl';
@@ -155,6 +155,13 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
   const [cancelEntryReason, setCancelEntryReason] = useState('');
   const [cancellingEntry, setCancellingEntry] = useState(false);
 
+  // Cancelled-entries section (off by default — opt-in via toggle).
+  // We fetch entries via /api/commission rather than the summary API
+  // because summary excludes cancelled rows from its aggregations.
+  const [showCancelled, setShowCancelled] = useState(false);
+  const [cancelledEntries, setCancelledEntries] = useState<Array<Record<string, any>>>([]);
+  const [restoringEntry, setRestoringEntry] = useState<string | null>(null);
+
   // Expansion state
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
@@ -181,6 +188,46 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
   }, [month, currentStoreId, refreshKey]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Fetch cancelled entries on demand (only when the section is opened).
+  const fetchCancelled = useCallback(async () => {
+    if (!showCancelled) return;
+    const params = new URLSearchParams({ month });
+    if (currentStoreId) params.set('store_id', currentStoreId);
+    const res = await fetch(`/api/commission?${params}`);
+    if (!res.ok) return;
+    const json = await res.json();
+    const cancelled = (json.data || []).filter((e: { cancelled_at?: string | null }) => !!e.cancelled_at);
+    setCancelledEntries(cancelled);
+  }, [showCancelled, month, currentStoreId, refreshKey]);
+  useEffect(() => { fetchCancelled(); }, [fetchCancelled]);
+
+  async function handleRestoreEntry(id: string) {
+    setRestoringEntry(id);
+    try {
+      const res = await fetch(`/api/commission/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore' }),
+      });
+      if (res.ok) {
+        toast({ type: 'success', title: t('entryList.restoreSuccess') });
+        logAudit({
+          store_id: currentStoreId,
+          action_type: AUDIT_ACTIONS.COMMISSION_ENTRY_RESTORED,
+          table_name: 'commission_entries',
+          record_id: id,
+          changed_by: user?.id,
+        });
+        fetchCancelled();
+        fetchData();
+      } else {
+        toast({ type: 'error', title: t('entryList.restoreFailed') });
+      }
+    } finally {
+      setRestoringEntry(null);
+    }
+  }
 
   // Calculate unpaid from summary minus active payments
   const paidAEIds = new Set(payments.filter(p => p.status === 'paid' && p.type === 'ae_commission').map(p => p.ae_id));
@@ -332,6 +379,17 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
         </Card>
       </div>
 
+      {/* Show-cancelled toggle — pulls cancelled entries for the month */}
+      <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+        <input
+          type="checkbox"
+          checked={showCancelled}
+          onChange={(e) => setShowCancelled(e.target.checked)}
+          className="rounded"
+        />
+        {t('payment.showCancelled')}
+      </label>
+
       {/* Unpaid AE list */}
       {unpaidAE.length > 0 && (
         <Card>
@@ -469,6 +527,59 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cancelled entries — opt-in via the toggle. Same stacked layout
+          as the unpaid sections so it scans the same on small screens.
+          Each row gets a restore button that calls /api/commission/[id]
+          with action='restore'. */}
+      {showCancelled && (
+        <Card>
+          <CardHeader title={t('payment.cancelledThisMonth')} />
+          <CardContent>
+            {cancelledEntries.length === 0 ? (
+              <p className="py-3 text-center text-sm text-gray-400">{t('payment.noCancelled')}</p>
+            ) : (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {cancelledEntries.map((e) => {
+                  const isAE = e.type === 'ae_commission';
+                  const name = isAE
+                    ? (e.ae_profile?.name || 'Unknown AE')
+                    : (e.staff_profile?.display_name || e.staff_profile?.username || t('entryList.unspecifiedStaff'));
+                  return (
+                    <div key={e.id} className="flex items-start justify-between gap-2 px-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Badge variant="danger" size="sm">{t('entryList.cancelled')}</Badge>
+                          <Badge variant={isAE ? 'warning' : 'default'} size="sm">{isAE ? 'AE' : 'Bottle'}</Badge>
+                          <span className="text-xs text-gray-400">{formatThaiDate(e.bill_date)}</span>
+                          {e.receipt_no && <span className="font-mono text-xs text-gray-500">#{e.receipt_no}</span>}
+                        </div>
+                        <p className="mt-1 text-sm font-medium text-gray-700 line-through dark:text-gray-300">{name}</p>
+                        {e.cancel_reason && (
+                          <p className="mt-0.5 text-[11px] text-red-500 dark:text-red-400">{t('entryList.cancelReason')}: {e.cancel_reason}</p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <span className="text-sm font-bold text-gray-400 line-through dark:text-gray-500">{formatCurrency(Number(e.net_amount))}</span>
+                        <button
+                          onClick={() => handleRestoreEntry(e.id)}
+                          disabled={restoringEntry === e.id}
+                          className="rounded p-1 text-gray-300 hover:bg-emerald-50 hover:text-emerald-500 disabled:opacity-50 dark:hover:bg-emerald-900/30"
+                          title={t('entryList.restore')}
+                        >
+                          {restoringEntry === e.id
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <RotateCcw className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

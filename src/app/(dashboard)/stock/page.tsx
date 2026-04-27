@@ -984,8 +984,12 @@ export default function StockOverviewPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
               </div>
             ) : trendData.length > 0 ? (
-              <div className="h-[250px] sm:h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
+              // ResponsiveContainer with width="99%" + minWidth={0} to dodge
+              // the recharts "width(-1) and height(-1)" warning that fires
+              // when the parent's percentage size hasn't been measured yet
+              // on first paint (Next.js 16 / React 19 with Tailwind classes).
+              <div className="h-[250px] w-full sm:h-[300px]">
+                <ResponsiveContainer width="99%" height="100%" minWidth={0}>
                   <BarChart
                     data={trendData}
                     margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
