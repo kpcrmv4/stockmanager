@@ -11,10 +11,7 @@ import { Button, Input, Badge, Card, CardHeader, Tabs, EmptyState, Textarea, toa
 import { formatThaiDate, formatNumber, formatPercent } from '@/lib/utils/format';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyOwners } from '@/lib/notifications/client';
-import {
-  notifyChatExplanationSubmitted,
-  notifyChatStockAwaitingApproval,
-} from '@/lib/chat/bot-client';
+import { notifyChatExplanationSubmitted } from '@/lib/chat/bot-client';
 import type { Comparison } from '@/types/database';
 import {
   ArrowLeft,
@@ -126,33 +123,10 @@ export default function ExplanationPage() {
     setExplanations((prev) => ({ ...prev, [id]: value }));
   };
 
-  // Send a "stock_approve" action card to the store chat for the given date.
-  // Aggregates current explained items (post-update) so owner sees a count.
-  const sendApprovalCardForDate = useCallback(
-    (compDate: string) => {
-      if (!currentStoreId) return;
-      // Read latest comparisons state via setComparisons callback to avoid stale-closure
-      setComparisons((prev) => {
-        const explainedForDate = prev.filter(
-          (c) => c.comp_date === compDate && c.status === 'explained',
-        );
-        if (explainedForDate.length === 0) return prev;
-        const preview =
-          explainedForDate
-            .slice(0, 3)
-            .map((c) => c.product_name || c.product_code)
-            .join(', ') +
-          (explainedForDate.length > 3 ? ` +${explainedForDate.length - 3} อื่นๆ` : '');
-        notifyChatStockAwaitingApproval(currentStoreId, {
-          comp_date: compDate,
-          explained_count: explainedForDate.length,
-          items_preview: preview,
-        });
-        return prev;
-      });
-    },
-    [currentStoreId],
-  );
+  // Note: approval-action-cards are no longer dispatched to the store
+  // chat. They duplicated information owners already saw in their push
+  // notification + approval inbox, while spamming the store chat that
+  // staff use day-to-day. Owners now see pending approvals at /inbox.
 
   const handleSubmitSingle = async (comparisonId: string) => {
     const explanation = explanations[comparisonId]?.trim();
@@ -211,7 +185,7 @@ export default function ExplanationPage() {
         message: t('explanation.saveSuccessMsg'),
       });
 
-      // Notify owners about the submitted explanation
+      // Notify owners (push) — they review at /inbox or /stock/approval.
       const comparison = comparisons.find((c) => c.id === comparisonId);
       if (comparison) {
         notifyOwners({
@@ -230,15 +204,18 @@ export default function ExplanationPage() {
           },
         });
 
-        // ส่ง system message เข้าห้องแชทสาขา
+        // System message in the store chat — single batched line per
+        // (staff, comp_date) instead of per-row spam. Recompute the
+        // explained count for that date from latest local state.
+        const explainedCount = comparisons.filter(
+          (c) => c.comp_date === comparison.comp_date
+            && (c.id === comparisonId || c.status === 'explained'),
+        ).length;
         notifyChatExplanationSubmitted(currentStoreId!, {
-          product_name: comparison.product_name || t('explanation.unspecified'),
-          difference: comparison.difference ?? 0,
           submitted_by_name: user?.displayName || user?.username || t('explanation.staff'),
+          count: explainedCount,
+          comp_date: comparison.comp_date,
         });
-
-        // ส่ง action card รออนุมัติเข้าแชท (1 ใบต่อ comp_date)
-        sendApprovalCardForDate(comparison.comp_date);
       }
     } catch (error) {
       console.error('Error submitting explanation:', error);
@@ -317,7 +294,7 @@ export default function ExplanationPage() {
         message: t('explanation.batchSaveSuccessMsg', { count: itemsToSubmit.length }),
       });
 
-      // Notify owners once for the batch submission
+      // Notify owners once for the batch submission (push only).
       const firstDate = itemsToSubmit[0]?.comp_date;
       notifyOwners({
         storeId: currentStoreId!,
@@ -327,9 +304,17 @@ export default function ExplanationPage() {
         data: { url: firstDate ? `/stock/approval?date=${firstDate}` : '/stock/approval' },
       });
 
-      // ส่ง action card รออนุมัติ (1 ใบต่อ comp_date) — รวมทุกวันที่ที่กระทบ
+      // System message in store chat — one batched line per affected date.
+      const submitterName = user?.displayName || user?.username || t('explanation.staff');
       const datesAffected = Array.from(new Set(itemsToSubmit.map((i) => i.comp_date)));
-      datesAffected.forEach((d) => sendApprovalCardForDate(d));
+      for (const d of datesAffected) {
+        const countForDate = itemsToSubmit.filter((i) => i.comp_date === d).length;
+        notifyChatExplanationSubmitted(currentStoreId!, {
+          submitted_by_name: submitterName,
+          count: countForDate,
+          comp_date: d,
+        });
+      }
     } catch (error) {
       console.error('Error submitting all explanations:', error);
       toast({

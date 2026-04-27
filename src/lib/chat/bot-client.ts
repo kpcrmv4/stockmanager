@@ -250,20 +250,41 @@ export function notifyChatTransferCreated(
 }
 
 /**
- * ส่ง system message ว่ามีคำชี้แจงสต๊อกใหม่
+ * Post a system message to the store chat summarising a batch of stock
+ * explanations the staff just submitted.
+ *
+ * Format: "📝 <staff_name> ชี้แจงผลต่าง <count> รายการ ของวันที่ <date>"
+ *
+ * Earlier this fired once per product (one chat line per row) which spammed
+ * the store chat — and the message text was per-row data the owner already
+ * sees in the approval queue. Owners are notified separately via push +
+ * the approval inbox; the store chat just needs a heads-up.
  */
 export function notifyChatExplanationSubmitted(
   storeId: string,
   data: {
-    product_name: string;
-    difference: number;
     submitted_by_name: string;
+    count: number;
+    comp_date: string;
   }
 ): void {
+  // Render the date as "26 เม.ย. 2569" for chat readability.
+  let displayDate = data.comp_date;
+  try {
+    const d = new Date(data.comp_date);
+    if (!Number.isNaN(d.getTime())) {
+      displayDate = d.toLocaleDateString('th-TH', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Asia/Bangkok',
+      });
+    }
+  } catch { /* fall back to ISO */ }
   sendChatBotMessage({
     storeId,
     type: 'system',
-    content: `📝 ${data.submitted_by_name} ส่งคำชี้แจง "${data.product_name}" (ส่วนต่าง ${data.difference > 0 ? '+' : ''}${data.difference})`,
+    content: `📝 ${data.submitted_by_name} ชี้แจงผลต่าง ${data.count} รายการ ของวันที่ ${displayDate}`,
   });
 }
 
@@ -359,43 +380,3 @@ export async function maybeCompleteStockApproveCard(params: {
   }
 }
 
-/**
- * ส่ง Action Card "รออนุมัติคำชี้แจง" ไปห้องแชทสาขา
- * เรียกหลังจาก staff submit explanation ใน /stock/explanation
- */
-export function notifyChatStockAwaitingApproval(
-  storeId: string,
-  data: {
-    comp_date: string;
-    explained_count: number;
-    items_preview: string;
-  }
-): void {
-  const meta: ActionCardMetadata = {
-    action_type: 'stock_approve',
-    reference_id: data.comp_date,
-    reference_table: 'comparisons',
-    status: 'pending',
-    claimed_by: null,
-    claimed_by_name: null,
-    claimed_at: null,
-    completed_at: null,
-    timeout_minutes: 240,
-    priority: 'normal',
-    detail_url: `/stock/approval?date=${data.comp_date}`,
-    approval_result: null,
-    approval_reason: null,
-    summary: {
-      items: `${data.explained_count} รายการรออนุมัติ`,
-      note: data.items_preview,
-      comp_date: data.comp_date,
-      explained_count: data.explained_count,
-    },
-  };
-  sendChatBotMessage({
-    storeId,
-    type: 'action_card',
-    content: `✋ คำชี้แจงสต๊อก ${data.explained_count} รายการ รออนุมัติ — วันที่ ${data.comp_date}`,
-    metadata: meta,
-  });
-}

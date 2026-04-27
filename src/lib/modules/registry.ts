@@ -27,6 +27,17 @@ export const modules: ModuleConfig[] = [
     groupKey: 'moduleGroups.main',
   },
   {
+    id: 'inbox',
+    nameKey: 'modules.inbox.name',
+    descriptionKey: 'modules.inbox.description',
+    icon: 'inbox',
+    color: 'fuchsia',
+    href: '/inbox',
+    roles: ['owner'],
+    badge: 'pending_count',
+    groupKey: 'moduleGroups.main',
+  },
+  {
     id: 'chat',
     nameKey: 'modules.chat.name',
     descriptionKey: 'modules.chat.description',

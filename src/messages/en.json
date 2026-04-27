@@ -146,6 +146,10 @@
       "name": "Overview",
       "description": "System overview dashboard"
     },
+    "inbox": {
+      "name": "Approvals",
+      "description": "Pending approvals across all stores"
+    },
     "chat": {
       "name": "Chat",
       "description": "In-store chat and task claim system"
@@ -471,6 +475,22 @@
       "receiverHQ": "Receiver (HQ):",
       "documentNote": "This document serves as proof of bottle transfer"
     }
+  },
+  "inbox": {
+    "title": "Approvals",
+    "subtitle": "Items awaiting owner approval — across all stores and types",
+    "ownerOnly": "Only owner / accountant can access",
+    "refresh": "Refresh",
+    "todayPendingTotal": "Total pending",
+    "acrossStores": "across {count} store(s)",
+    "storeStats": "{count} pending",
+    "empty": "No items awaiting approval",
+    "stockExplain": "Stock explanations",
+    "barConfirm": "Bar confirm deposits",
+    "customerRequest": "Customer requests (LINE)",
+    "borrowApproval": "Borrow approvals",
+    "transferConfirm": "Transfer confirms",
+    "dateLabel": "Date {date}"
   },
   "overview": {
     "title": "Overview",

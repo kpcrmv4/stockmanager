@@ -146,6 +146,10 @@
       "name": "ภาพรวม",
       "description": "แดชบอร์ดภาพรวมระบบ"
     },
+    "inbox": {
+      "name": "กล่องอนุมัติ",
+      "description": "งานที่รออนุมัติ — รวมทุกสาขา"
+    },
     "chat": {
       "name": "แชท",
       "description": "แชทภายในสาขาและระบบ Claim งาน"
@@ -471,6 +475,22 @@
       "receiverHQ": "ผู้รับ (HQ):",
       "documentNote": "เอกสารนี้ใช้เป็นหลักฐานการนำส่งเหล้า"
     }
+  },
+  "inbox": {
+    "title": "กล่องอนุมัติ",
+    "subtitle": "งานที่รอเจ้าของอนุมัติ — รวมทุกสาขา ทุกประเภท",
+    "ownerOnly": "เฉพาะเจ้าของ/บัญชีเข้าถึงได้",
+    "refresh": "รีเฟรช",
+    "todayPendingTotal": "งานค้างรวม",
+    "acrossStores": "ใน {count} สาขา",
+    "storeStats": "{count} งานค้าง",
+    "empty": "ไม่มีงานรออนุมัติ",
+    "stockExplain": "ชี้แจงสต๊อก",
+    "barConfirm": "บาร์ยืนยันรับฝาก",
+    "customerRequest": "คำขอลูกค้า (LINE)",
+    "borrowApproval": "ขอยืมสินค้า",
+    "transferConfirm": "ยืนยันรับโอน",
+    "dateLabel": "วันที่ {date}"
   },
   "overview": {
     "title": "ภาพรวม",
