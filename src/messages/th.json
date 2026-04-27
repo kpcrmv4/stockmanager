@@ -499,7 +499,9 @@
     "kpiExpiringSoon": "ใกล้หมดอายุ",
     "kpiNewBorrows": "ยืมใหม่",
     "kpiPendingExplanations": "รอชี้แจง",
-    "kpiCommissionMonth": "คอมเดือนนี้ (บาท)"
+    "kpiCommissionMonth": "คอมเดือนนี้ (บาท)",
+    "colStore": "สาขา",
+    "colTotal": "รวมทั้งหมด"
   },
   "overview": {
     "title": "ภาพรวม",

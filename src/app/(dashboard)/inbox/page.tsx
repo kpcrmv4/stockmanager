@@ -31,6 +31,18 @@ interface StoreGroup {
   items: PendingItem[];
 }
 
+interface StoreStats {
+  store_id: string;
+  store_name: string;
+  newDeposits: number;
+  completedWithdrawals: number;
+  activeDeposits: number;
+  expiringSoon: number;
+  newBorrows: number;
+  pendingExplanations: number;
+  commissionAmount: number;
+}
+
 interface DailySummary {
   /** ISO date label of the bar day (yesterday's calendar date in Bangkok) */
   dateLabel: string;
@@ -41,6 +53,7 @@ interface DailySummary {
   newBorrows: number;
   pendingExplanations: number;
   commissionAmount: number;
+  perStore: StoreStats[];
 }
 
 const CATEGORY_META: Record<Category, { icon: typeof Inbox; titleKey: string; color: string }> = {
@@ -233,51 +246,95 @@ export default function InboxPage() {
     const monthStart = new Date(bangkokNow.getFullYear(), bangkokNow.getMonth(), 1);
     const monthStartIso = monthStart.toISOString().slice(0, 10);
 
-    const [
-      newDepositsRes,
-      withdrawalsRes,
-      activeDepositsRes,
-      expiringSoonRes,
-      newBorrowsRes,
-      pendingExplanationsRes,
-      commissionRes,
-    ] = await Promise.all([
-      supabase.from('deposits').select('id', { count: 'exact', head: true })
-        .gte('created_at', startUTC).lte('created_at', endUTC),
-      supabase.from('withdrawals').select('id', { count: 'exact', head: true })
-        .eq('status', 'completed').gte('created_at', startUTC).lte('created_at', endUTC),
-      supabase.from('deposits').select('id', { count: 'exact', head: true })
-        .eq('status', 'in_store'),
-      supabase.from('deposits').select('id', { count: 'exact', head: true })
-        .eq('status', 'in_store').gt('expiry_date', nowUTC).lte('expiry_date', in3DaysUTC),
-      supabase.from('borrows').select('id', { count: 'exact', head: true })
-        .gte('created_at', startUTC).lte('created_at', endUTC),
-      supabase.from('comparisons').select('id', { count: 'exact', head: true })
-        .eq('status', 'pending'),
-      supabase.from('commission_entries').select('net_amount')
-        .is('cancelled_at', null).gte('bill_date', monthStartIso),
+    // Pull rows (with store_id) instead of just counts so we can both
+    // total across stores and break down per store in one round trip.
+    const [storesRes, newDepositsRes, withdrawalsRes, activeDepositsRes, expiringSoonRes, newBorrowsRes, pendingExplanationsRes, commissionRes] = await Promise.all([
+      supabase.from('stores').select('id, store_name').eq('active', true),
+      supabase.from('deposits').select('id, store_id').gte('created_at', startUTC).lte('created_at', endUTC),
+      supabase.from('withdrawals').select('id, store_id').eq('status', 'completed').gte('created_at', startUTC).lte('created_at', endUTC),
+      supabase.from('deposits').select('id, store_id').eq('status', 'in_store'),
+      supabase.from('deposits').select('id, store_id').eq('status', 'in_store').gt('expiry_date', nowUTC).lte('expiry_date', in3DaysUTC),
+      supabase.from('borrows').select('id, from_store_id').gte('created_at', startUTC).lte('created_at', endUTC),
+      supabase.from('comparisons').select('id, store_id').eq('status', 'pending'),
+      supabase.from('commission_entries').select('store_id, net_amount').is('cancelled_at', null).gte('bill_date', monthStartIso),
     ]);
 
-    const commissionAmount = (commissionRes.data || []).reduce(
-      (s: number, r: { net_amount: number | null }) => s + (Number(r.net_amount) || 0),
-      0,
+    const stores = (storesRes.data || []) as Array<{ id: string; store_name: string }>;
+    // Initialise an empty StoreStats for every active store so the table
+    // shows all branches even if some had zero activity.
+    const perStoreMap = new Map<string, StoreStats>();
+    for (const s of stores) {
+      perStoreMap.set(s.id, {
+        store_id: s.id,
+        store_name: s.store_name,
+        newDeposits: 0,
+        completedWithdrawals: 0,
+        activeDeposits: 0,
+        expiringSoon: 0,
+        newBorrows: 0,
+        pendingExplanations: 0,
+        commissionAmount: 0,
+      });
+    }
+    const bumpStore = (sid: string | null | undefined, key: keyof Omit<StoreStats, 'store_id' | 'store_name'>, by = 1) => {
+      if (!sid) return;
+      const row = perStoreMap.get(sid);
+      if (!row) return;
+      (row[key] as number) += by;
+    };
+
+    for (const row of (newDepositsRes.data || []) as Array<{ store_id: string }>) bumpStore(row.store_id, 'newDeposits');
+    for (const row of (withdrawalsRes.data || []) as Array<{ store_id: string }>) bumpStore(row.store_id, 'completedWithdrawals');
+    for (const row of (activeDepositsRes.data || []) as Array<{ store_id: string }>) bumpStore(row.store_id, 'activeDeposits');
+    for (const row of (expiringSoonRes.data || []) as Array<{ store_id: string }>) bumpStore(row.store_id, 'expiringSoon');
+    for (const row of (newBorrowsRes.data || []) as Array<{ from_store_id: string }>) bumpStore(row.from_store_id, 'newBorrows');
+    for (const row of (pendingExplanationsRes.data || []) as Array<{ store_id: string }>) bumpStore(row.store_id, 'pendingExplanations');
+    for (const row of (commissionRes.data || []) as Array<{ store_id: string; net_amount: number | null }>) {
+      bumpStore(row.store_id, 'commissionAmount', Number(row.net_amount) || 0);
+    }
+
+    const perStore = Array.from(perStoreMap.values()).sort((a, b) => a.store_name.localeCompare(b.store_name));
+    const totals = perStore.reduce(
+      (acc, s) => ({
+        newDeposits: acc.newDeposits + s.newDeposits,
+        completedWithdrawals: acc.completedWithdrawals + s.completedWithdrawals,
+        activeDeposits: acc.activeDeposits + s.activeDeposits,
+        expiringSoon: acc.expiringSoon + s.expiringSoon,
+        newBorrows: acc.newBorrows + s.newBorrows,
+        pendingExplanations: acc.pendingExplanations + s.pendingExplanations,
+        commissionAmount: acc.commissionAmount + s.commissionAmount,
+      }),
+      { newDeposits: 0, completedWithdrawals: 0, activeDeposits: 0, expiringSoon: 0, newBorrows: 0, pendingExplanations: 0, commissionAmount: 0 },
     );
 
     setSummary({
       dateLabel,
-      newDeposits: newDepositsRes.count || 0,
-      completedWithdrawals: withdrawalsRes.count || 0,
-      activeDeposits: activeDepositsRes.count || 0,
-      expiringSoon: expiringSoonRes.count || 0,
-      newBorrows: newBorrowsRes.count || 0,
-      pendingExplanations: pendingExplanationsRes.count || 0,
-      commissionAmount,
+      ...totals,
+      perStore,
     });
   }, [user?.role]);
 
   useEffect(() => {
     fetchPending();
     fetchSummary();
+  }, [fetchPending, fetchSummary]);
+
+  // Auto-refresh: poll every 60s + on tab focus so the page stays
+  // close to live without an explicit realtime subscription.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchPending();
+      fetchSummary();
+    }, 60_000);
+    const onFocus = () => {
+      fetchPending();
+      fetchSummary();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [fetchPending, fetchSummary]);
 
   const totalCount = items.reduce((s, x) => s + x.count, 0);
@@ -377,6 +434,52 @@ export default function InboxPage() {
                 format="currency"
               />
             </div>
+
+            {/* Per-store breakdown — same KPI columns but per branch */}
+            {summary.perStore.length > 1 && (
+              <div className="mt-4 -mx-4 sm:-mx-5 overflow-x-auto">
+                <table className="w-full min-w-[640px] text-xs">
+                  <thead>
+                    <tr className="border-y border-gray-100 bg-gray-50/50 text-left text-gray-500 dark:border-gray-700 dark:bg-gray-800/30 dark:text-gray-400">
+                      <th className="px-3 py-2 font-medium">{t('inbox.colStore')}</th>
+                      <th className="px-2 py-2 text-right font-medium">{t('inbox.kpiNewDeposits')}</th>
+                      <th className="px-2 py-2 text-right font-medium">{t('inbox.kpiCompletedWithdrawals')}</th>
+                      <th className="px-2 py-2 text-right font-medium">{t('inbox.kpiActiveDeposits')}</th>
+                      <th className="px-2 py-2 text-right font-medium">{t('inbox.kpiExpiringSoon')}</th>
+                      <th className="px-2 py-2 text-right font-medium">{t('inbox.kpiNewBorrows')}</th>
+                      <th className="px-2 py-2 text-right font-medium">{t('inbox.kpiPendingExplanations')}</th>
+                      <th className="px-2 py-2 text-right font-medium">{t('inbox.kpiCommissionMonth')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-gray-700 dark:divide-gray-700 dark:text-gray-300">
+                    {summary.perStore.map((s) => (
+                      <tr key={s.store_id}>
+                        <td className="px-3 py-2 font-medium text-gray-900 dark:text-white">{s.store_name}</td>
+                        <td className="px-2 py-2 text-right">{s.newDeposits.toLocaleString('th-TH')}</td>
+                        <td className="px-2 py-2 text-right">{s.completedWithdrawals.toLocaleString('th-TH')}</td>
+                        <td className="px-2 py-2 text-right">{s.activeDeposits.toLocaleString('th-TH')}</td>
+                        <td className={cn('px-2 py-2 text-right', s.expiringSoon > 0 && 'font-medium text-amber-600 dark:text-amber-400')}>{s.expiringSoon.toLocaleString('th-TH')}</td>
+                        <td className="px-2 py-2 text-right">{s.newBorrows.toLocaleString('th-TH')}</td>
+                        <td className={cn('px-2 py-2 text-right', s.pendingExplanations > 0 && 'font-medium text-amber-600 dark:text-amber-400')}>{s.pendingExplanations.toLocaleString('th-TH')}</td>
+                        <td className="px-2 py-2 text-right">{s.commissionAmount.toLocaleString('th-TH', { maximumFractionDigits: 0 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-200 bg-gray-50/50 font-bold text-gray-900 dark:border-gray-600 dark:bg-gray-800/30 dark:text-white">
+                      <td className="px-3 py-2">{t('inbox.colTotal')}</td>
+                      <td className="px-2 py-2 text-right">{summary.newDeposits.toLocaleString('th-TH')}</td>
+                      <td className="px-2 py-2 text-right">{summary.completedWithdrawals.toLocaleString('th-TH')}</td>
+                      <td className="px-2 py-2 text-right">{summary.activeDeposits.toLocaleString('th-TH')}</td>
+                      <td className="px-2 py-2 text-right">{summary.expiringSoon.toLocaleString('th-TH')}</td>
+                      <td className="px-2 py-2 text-right">{summary.newBorrows.toLocaleString('th-TH')}</td>
+                      <td className="px-2 py-2 text-right">{summary.pendingExplanations.toLocaleString('th-TH')}</td>
+                      <td className="px-2 py-2 text-right">{summary.commissionAmount.toLocaleString('th-TH', { maximumFractionDigits: 0 })}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

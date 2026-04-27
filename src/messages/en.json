@@ -499,7 +499,9 @@
     "kpiExpiringSoon": "Expiring soon",
     "kpiNewBorrows": "New borrows",
     "kpiPendingExplanations": "Pending explanations",
-    "kpiCommissionMonth": "Commission this month (THB)"
+    "kpiCommissionMonth": "Commission this month (THB)",
+    "colStore": "Store",
+    "colTotal": "Total"
   },
   "overview": {
     "title": "Overview",
