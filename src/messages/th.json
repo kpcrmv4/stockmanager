@@ -2070,7 +2070,7 @@
       "psNotConfigured": "ยังไม่ได้ตั้งค่า Print Server",
       "psNotConfiguredDesc": "ดาวน์โหลดและติดตั้งโปรแกรม Print Server เพื่อเริ่มใช้งาน",
       "printerNameLabel": "ชื่อเครื่องพิมพ์",
-      "printerNameHint": "ชื่อเครื่องพิมพ์ในระบบ Windows (เช่น POS80)",
+      "printerNameHint": "ชื่อเครื่องพิมพ์ใน Windows (เช่น POS80) — เปลี่ยนแล้วต้องกด \"ดาวน์โหลด Config ใหม่\" และติดตั้งทับเครื่อง Print Server",
       "workingHoursLabel": "เวลาทำการ",
       "toTime": "ถึง",
       "save": "บันทึก",

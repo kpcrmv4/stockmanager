@@ -292,6 +292,12 @@ export default function StoreDetailSettingsPage() {
       .eq('store_id', storeId)
       .single();
     setPrintServerStatus(psStatus as PrintServerStatus | null);
+    // Pre-fill the printer-name input with the actual name reported by the
+    // Windows print server (via heartbeat). Otherwise the input always shows
+    // the hardcoded 'POS80' default and looks like 'save didn't work'.
+    if (psStatus?.printer_name) {
+      setPrintServerPrinterName(psStatus.printer_name);
+    }
 
     // Check if service account exists
     const psAccountId = settings?.print_server_account_id;
