@@ -8,6 +8,7 @@ import { Inbox, ClipboardCheck, Wine, Package, Repeat, Truck, ArrowRight, Loader
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { cn } from '@/lib/utils/cn';
+import { formatThaiDate } from '@/lib/utils/format';
 
 type Category = 'stock_explain' | 'bar_confirm' | 'customer_request' | 'borrow_approval' | 'transfer_confirm';
 
@@ -218,9 +219,10 @@ export default function InboxPage() {
 
     const yesterday = new Date(bangkokNow);
     yesterday.setDate(yesterday.getDate() - 1);
-    const dateLabel = yesterday.toLocaleDateString('th-TH', {
-      day: 'numeric', month: 'short', year: 'numeric',
-    });
+    // Use the same formatter as the rest of the app so the date reads
+    // "26 เม.ย. 2569" everywhere instead of an ISO string here, locale-
+    // formatted strings in other places.
+    const dateLabel = formatThaiDate(yesterday);
 
     const in3Days = new Date(bangkokNow);
     in3Days.setDate(in3Days.getDate() + 3);
@@ -453,7 +455,7 @@ export default function InboxPage() {
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium text-gray-900 dark:text-white">
                                 {item.comp_date
-                                  ? t('inbox.dateLabel', { date: item.comp_date })
+                                  ? t('inbox.dateLabel', { date: formatThaiDate(item.comp_date) })
                                   : item.reference_id
                                     ? `#${item.reference_id}`
                                     : item.preview || '-'}
