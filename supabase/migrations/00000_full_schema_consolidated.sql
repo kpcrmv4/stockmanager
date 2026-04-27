@@ -259,6 +259,7 @@ WITH base AS (
   WHERE c.store_id = p_store_id
     AND c.comp_date >= CURRENT_DATE - p_days
     AND c.difference IS NOT NULL
+    AND c.manual_quantity IS NOT NULL  -- skip POS-only commodities (water/soda)
 ), agg AS (
   SELECT product_code,
          MAX(product_name) AS product_name,
