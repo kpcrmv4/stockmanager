@@ -729,6 +729,11 @@ CREATE POLICY "Owner manages profiles" ON profiles FOR ALL USING (get_user_role(
 -- ========== stores ==========
 CREATE POLICY "Admin see all stores" ON stores FOR SELECT USING (is_admin());
 CREATE POLICY "Users see assigned stores" ON stores FOR SELECT USING (id IN (SELECT get_user_store_ids()));
+-- Central-warehouse rows are system-wide; any authenticated user (e.g. bar at
+-- a branch) must be able to look one up to set as a transfer destination,
+-- without being explicitly added to user_stores for the central warehouse.
+CREATE POLICY "All users see central stores" ON stores FOR SELECT TO authenticated
+  USING (is_central = true AND active = true);
 CREATE POLICY "Owner manages stores" ON stores FOR ALL USING (get_user_role() = 'owner');
 
 -- ========== user_stores ==========

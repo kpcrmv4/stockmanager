@@ -361,7 +361,15 @@ export default function TransferPage() {
   // -----------------------------------------------------------------------
 
   const handleSubmitTransfer = async () => {
-    if (!currentStoreId || !centralStoreId || !user || selectedIds.size === 0) return;
+    if (!currentStoreId || !user || selectedIds.size === 0) return;
+    if (!centralStoreId) {
+      toast({
+        type: 'error',
+        title: t('transferFailed'),
+        message: 'ไม่พบคลังกลาง — กรุณาให้ owner ตรวจสอบการตั้งค่าสาขา (is_central)',
+      });
+      return;
+    }
 
     setIsSubmitting(true);
     const supabase = createClient();
@@ -755,11 +763,13 @@ export default function TransferPage() {
               </>
               )}
 
-              {/* Floating action bar */}
+              {/* Floating action bar — sticky to bottom of main scroll
+                  area so it respects sidebar/main column width on desktop
+                  and sits above the mobile bottom-nav (72px) on mobile. */}
               {selectedIds.size > 0 && (
-                <div className="fixed inset-x-0 bottom-[72px] z-40 border-t border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                <div className="sticky bottom-[72px] z-40 -mx-4 mt-4 border-t border-gray-200 bg-white p-4 shadow-lg lg:-mx-6 lg:bottom-0 dark:border-gray-700 dark:bg-gray-900">
                   <Button
-                    className="w-full"
+                    className="mx-auto w-full max-w-md"
                     variant="primary"
                     icon={<Send className="h-4 w-4" />}
                     onClick={() => setShowTransferModal(true)}
