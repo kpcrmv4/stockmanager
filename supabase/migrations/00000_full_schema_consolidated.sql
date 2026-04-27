@@ -1414,6 +1414,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE print_queue;
 ALTER PUBLICATION supabase_realtime ADD TABLE print_server_status;
 ALTER PUBLICATION supabase_realtime ADD TABLE borrows;
 ALTER PUBLICATION supabase_realtime ADD TABLE manual_counts;
+ALTER PUBLICATION supabase_realtime ADD TABLE transfers;
+ALTER PUBLICATION supabase_realtime ADD TABLE commission_entries;
 
 -- ==========================================
 -- APP SETTINGS: Central bot config
