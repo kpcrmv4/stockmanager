@@ -159,16 +159,33 @@ export async function PATCH(
     );
   }
 
-  // ----- Fetch current user profile -----
-  const { data: userProfile } = await serviceClient
+  // ----- Fetch current user profile + assigned stores -----
+  // NB: profiles has no store_id column; user→store is many-to-many via
+  // user_stores. Previously this query silently returned undefined for
+  // store_id, making non-owner/non-accountant users always 403 on
+  // confirm_return_receipt and similar store-scoped actions.
+  const profileRaw = await serviceClient
     .from('profiles')
-    .select('display_name, role, store_id')
+    .select('display_name, role')
     .eq('id', user.id)
     .single();
+  const userProfile = profileRaw.data as
+    | { display_name: string | null; role: string | null }
+    | null;
+  const storesRaw = await serviceClient
+    .from('user_stores')
+    .select('store_id')
+    .eq('user_id', user.id);
+  const userStoresData = (storesRaw.data ?? []) as Array<{ store_id: string }>;
 
   const currentUserName = userProfile?.display_name || user.email || 'Unknown';
   const currentUserRole = userProfile?.role as string | undefined;
-  const currentUserStoreId = userProfile?.store_id as string | undefined;
+  const currentUserStoreIds = userStoresData
+    .map((r) => r.store_id)
+    .filter(Boolean);
+  // Back-compat alias: ALL store-scoped guards should use
+  // currentUserStoreIds.includes(X) instead of equality.
+  const currentUserStoreId = currentUserStoreIds[0];
 
   // Human-readable tag used in bot chat messages (falls back to short UUID prefix for legacy rows)
   const borrowTag = borrow.borrow_code
@@ -944,7 +961,7 @@ export async function PATCH(
       const isCrossStoreRole =
         currentUserRole === 'owner' || currentUserRole === 'accountant';
       const lenderStoreId = (borrow as { to_store_id: string }).to_store_id;
-      if (!isCrossStoreRole && currentUserStoreId !== lenderStoreId) {
+      if (!isCrossStoreRole && !currentUserStoreIds.includes(lenderStoreId)) {
         return NextResponse.json(
           { error: 'Only the lender store can confirm return receipt' },
           { status: 403 },
