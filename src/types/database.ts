@@ -426,6 +426,8 @@ export interface TransferPrintPayload {
     customer_name: string | null;
     deposit_code: string | null;
     quantity: number;
+    /** Bottle remaining percent at time of transfer (for partially-consumed bottles) */
+    remaining_percent: number | null;
     category: string | null;
   }>;
 }

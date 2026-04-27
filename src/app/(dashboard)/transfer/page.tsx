@@ -57,6 +57,7 @@ interface ExpiredDeposit {
   category: string | null;
   quantity: number;
   remaining_qty: number;
+  remaining_percent: number | null;
   expiry_date: string | null;
   is_no_deposit: boolean;
   created_at: string;
@@ -70,6 +71,7 @@ interface TransferItem {
   customer_name: string | null;
   deposit_code: string | null;
   quantity: number | null;
+  remaining_percent: number | null;
   notes: string | null;
   photo_url: string | null;
   confirm_photo_url: string | null;
@@ -227,7 +229,7 @@ export default function TransferPage() {
 
     const { data } = await supabase
       .from('deposits')
-      .select('id, deposit_code, customer_name, product_name, category, quantity, remaining_qty, expiry_date, is_no_deposit, created_at')
+      .select('id, deposit_code, customer_name, product_name, category, quantity, remaining_qty, remaining_percent, expiry_date, is_no_deposit, created_at')
       .eq('store_id', currentStoreId)
       .eq('status', 'expired')
       .order('expiry_date', { ascending: true });
@@ -252,16 +254,28 @@ export default function TransferPage() {
 
     if (!data || !mountedRef.current) return [];
 
-    // Resolve deposit info
+    // Resolve deposit info (incl. remaining_percent for the print receipt)
     const depositIds = data.map((t) => t.deposit_id).filter(Boolean) as string[];
-    let depositMap = new Map<string, { customer_name: string; deposit_code: string }>();
+    let depositMap = new Map<
+      string,
+      { customer_name: string; deposit_code: string; remaining_percent: number | null }
+    >();
     if (depositIds.length > 0) {
       const { data: deposits } = await supabase
         .from('deposits')
-        .select('id, customer_name, deposit_code')
+        .select('id, customer_name, deposit_code, remaining_percent')
         .in('id', depositIds);
       if (deposits) {
-        depositMap = new Map(deposits.map((d) => [d.id, { customer_name: d.customer_name, deposit_code: d.deposit_code }]));
+        depositMap = new Map(
+          deposits.map((d) => [
+            d.id,
+            {
+              customer_name: d.customer_name,
+              deposit_code: d.deposit_code,
+              remaining_percent: d.remaining_percent ?? null,
+            },
+          ]),
+        );
       }
     }
 
@@ -275,6 +289,7 @@ export default function TransferPage() {
         customer_name: info?.customer_name || null,
         deposit_code: info?.deposit_code || null,
         quantity: t.quantity,
+        remaining_percent: info?.remaining_percent ?? null,
         notes: t.notes,
         photo_url: t.photo_url,
         confirm_photo_url: t.confirm_photo_url,
@@ -437,6 +452,7 @@ export default function TransferPage() {
           customer_name: d.customer_name,
           deposit_code: d.deposit_code,
           quantity: d.remaining_qty || d.quantity,
+          remaining_percent: d.remaining_percent,
           category: d.category,
         })),
       });
@@ -1266,6 +1282,7 @@ export default function TransferPage() {
                     customer_name: t.customer_name,
                     deposit_code: t.deposit_code,
                     quantity: t.quantity || 0,
+                    remaining_percent: t.remaining_percent,
                     category: null,
                   })),
                 });

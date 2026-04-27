@@ -143,6 +143,9 @@ class HtmlRenderer {
 
     let itemsHtml = '';
     items.forEach((item, idx) => {
+      const pct = (item.remaining_percent !== null && item.remaining_percent !== undefined)
+        ? `<span style="font-weight:bold;color:#000;">คงเหลือ: ${item.remaining_percent}%</span>`
+        : '';
       itemsHtml += `<div style="margin-bottom:3px;padding-bottom:3px;${idx < items.length - 1 ? 'border-bottom:1px dotted #ccc;' : ''}">` +
         `<div style="font-weight:bold;">${idx + 1}. ${item.product_name || '-'}</div>` +
         `<div style="display:flex;justify-content:space-between;font-size:10pt;">` +
@@ -153,6 +156,7 @@ class HtmlRenderer {
         `<span>จำนวน: ${item.quantity || '-'}</span>` +
         (item.category ? `<span>(${item.category})</span>` : '') +
         `</div>` +
+        (pct ? `<div style="font-size:10pt;text-align:right;">${pct}</div>` : '') +
         `</div>`;
     });
 
