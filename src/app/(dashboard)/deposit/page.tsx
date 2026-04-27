@@ -826,45 +826,51 @@ export default function DepositPage() {
         />
       ) : (
         <>
-          {/* Batch action bar for expired tab */}
-          {activeTab === 'expired' && filteredDeposits.length > 0 && user && user.role !== 'customer' && (
-            <div className="flex items-center justify-between rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200 dark:bg-amber-900/10 dark:ring-amber-800">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const expiredIds = filteredDeposits.filter((d) => d.status === 'expired').map((d) => d.id);
-                    if (batchSelectedIds.size === expiredIds.length) {
-                      setBatchSelectedIds(new Set());
-                    } else {
-                      setBatchSelectedIds(new Set(expiredIds));
-                    }
-                  }}
-                  className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400"
-                >
-                  {batchSelectedIds.size === filteredDeposits.filter((d) => d.status === 'expired').length && batchSelectedIds.size > 0 ? (
-                    <CheckSquare className="h-5 w-5" />
-                  ) : (
-                    <Square className="h-5 w-5" />
-                  )}
-                  {batchSelectedIds.size > 0
-                    ? t('batch.selectedCount', { count: batchSelectedIds.size })
-                    : t('batch.selectAll')}
-                </button>
+          {/* Batch action bar — expired tab (transfer expired) + VIP tab (transfer VIP) */}
+          {(activeTab === 'expired' || activeTab === 'vip') && filteredDeposits.length > 0 && user && user.role !== 'customer' && (() => {
+            const eligibleIds = filteredDeposits
+              .filter((d) =>
+                activeTab === 'expired'
+                  ? d.status === 'expired'
+                  : d.is_vip && d.status === 'in_store',
+              )
+              .map((d) => d.id);
+            const allSelected = eligibleIds.length > 0 && batchSelectedIds.size === eligibleIds.length;
+            return (
+              <div className="flex items-center justify-between rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200 dark:bg-amber-900/10 dark:ring-amber-800">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (allSelected) setBatchSelectedIds(new Set());
+                      else setBatchSelectedIds(new Set(eligibleIds));
+                    }}
+                    className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400"
+                  >
+                    {allSelected ? (
+                      <CheckSquare className="h-5 w-5" />
+                    ) : (
+                      <Square className="h-5 w-5" />
+                    )}
+                    {batchSelectedIds.size > 0
+                      ? t('batch.selectedCount', { count: batchSelectedIds.size })
+                      : t('batch.selectAll')}
+                  </button>
+                </div>
+                {batchSelectedIds.size > 0 && (
+                  <Button
+                    size="sm"
+                    icon={<Warehouse className="h-4 w-4" />}
+                    className="bg-amber-600 hover:bg-amber-700"
+                    isLoading={isBatchTransferring}
+                    onClick={() => setShowTransferModal(true)}
+                  >
+                    {t('batch.transferToHQ', { count: batchSelectedIds.size })}
+                  </Button>
+                )}
               </div>
-              {batchSelectedIds.size > 0 && (
-                <Button
-                  size="sm"
-                  icon={<Warehouse className="h-4 w-4" />}
-                  className="bg-amber-600 hover:bg-amber-700"
-                  isLoading={isBatchTransferring}
-                  onClick={() => setShowTransferModal(true)}
-                >
-                  {t('batch.transferToHQ', { count: batchSelectedIds.size })}
-                </Button>
-              )}
-            </div>
-          )}
+            );
+          })()}
 
           {/* Transfer Pending Batch View — replaces default list when on transfer_pending tab */}
           {activeTab === 'transfer_pending' && (
@@ -1000,6 +1006,9 @@ export default function DepositPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100 dark:border-gray-700">
+                      {(activeTab === 'expired' || activeTab === 'vip') && user && user.role !== 'customer' && (
+                        <th className="w-10 px-3 py-3"></th>
+                      )}
                       <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                         {t('table.depositCode')}
                       </th>
@@ -1016,7 +1025,7 @@ export default function DepositPage() {
                         {t('table.status')}
                       </th>
                       <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                        {t('table.expiryDate')}
+                        {activeTab === 'vip' ? 'ฝากมาแล้ว' : t('table.expiryDate')}
                       </th>
                       <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                         {t('table.actions')}
@@ -1027,13 +1036,42 @@ export default function DepositPage() {
                     {filteredDeposits.map((deposit) => {
                       const expiryDays = deposit.expiry_date ? daysUntil(deposit.expiry_date) : null;
                       const isExpiringSoon = expiryDays !== null && expiryDays <= 7 && expiryDays > 0 && deposit.status === 'in_store';
+                      const eligibleForBatch = user && user.role !== 'customer' && (
+                        (activeTab === 'expired' && deposit.status === 'expired') ||
+                        (activeTab === 'vip' && deposit.is_vip && deposit.status === 'in_store')
+                      );
+                      const rowChecked = batchSelectedIds.has(deposit.id);
 
                       return (
                         <tr
                           key={deposit.id}
-                          className="cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                          className={cn(
+                            'cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30',
+                            rowChecked && 'bg-amber-50/60 dark:bg-amber-900/10',
+                          )}
                           onClick={() => setSelectedDeposit(deposit)}
                         >
+                          {(activeTab === 'expired' || activeTab === 'vip') && user && user.role !== 'customer' && (
+                            <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
+                              {eligibleForBatch ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBatchSelectedIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(deposit.id)) next.delete(deposit.id);
+                                      else next.add(deposit.id);
+                                      return next;
+                                    });
+                                  }}
+                                  className="flex items-center justify-center text-amber-600 dark:text-amber-400"
+                                  aria-label="select"
+                                >
+                                  {rowChecked ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
+                                </button>
+                              ) : null}
+                            </td>
+                          )}
                           <td className="whitespace-nowrap px-5 py-4">
                             <span className="font-mono text-sm font-medium text-indigo-600 dark:text-indigo-400">
                               {deposit.deposit_code}
@@ -1087,9 +1125,20 @@ export default function DepositPage() {
                             </div>
                           </td>
                           <td className="whitespace-nowrap px-5 py-4">
-                            {deposit.is_vip ? (
-                              <span className="text-sm font-medium text-amber-600 dark:text-amber-400">{t('mobile.noExpiry')}</span>
-                            ) : deposit.expiry_date ? (
+                            {deposit.is_vip ? (() => {
+                              const days = Math.max(
+                                0,
+                                Math.floor(
+                                  (Date.now() - new Date(deposit.created_at).getTime()) /
+                                    (1000 * 60 * 60 * 24),
+                                ),
+                              );
+                              return (
+                                <span className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                                  {days} วัน
+                                </span>
+                              );
+                            })() : deposit.expiry_date ? (
                               <div>
                                 <p className={cn(
                                   'text-sm',
@@ -1135,7 +1184,11 @@ export default function DepositPage() {
               const expiryDays = deposit.expiry_date ? daysUntil(deposit.expiry_date) : null;
               const isExpiringSoon = expiryDays !== null && expiryDays <= 7 && expiryDays > 0 && deposit.status === 'in_store';
 
-              const showCheckbox = activeTab === 'expired' && deposit.status === 'expired' && user && user.role !== 'customer';
+              const showCheckbox =
+                user && user.role !== 'customer' && (
+                  (activeTab === 'expired' && deposit.status === 'expired') ||
+                  (activeTab === 'vip' && deposit.is_vip && deposit.status === 'in_store')
+                );
               const isChecked = batchSelectedIds.has(deposit.id);
 
               return (
@@ -1203,9 +1256,20 @@ export default function DepositPage() {
                       <span>
                         {t('mobile.remaining', { remaining: formatNumber(deposit.remaining_qty), total: formatNumber(deposit.quantity) })}
                       </span>
-                      {deposit.is_vip ? (
-                        <span className="font-medium text-amber-600 dark:text-amber-400">{t('mobile.noExpiry')}</span>
-                      ) : deposit.expiry_date ? (
+                      {deposit.is_vip ? (() => {
+                        const days = Math.max(
+                          0,
+                          Math.floor(
+                            (Date.now() - new Date(deposit.created_at).getTime()) /
+                              (1000 * 60 * 60 * 24),
+                          ),
+                        );
+                        return (
+                          <span className="font-medium text-amber-600 dark:text-amber-400">
+                            ฝากมาแล้ว {days} วัน
+                          </span>
+                        );
+                      })() : deposit.expiry_date ? (
                         <span className={cn(isExpiringSoon && 'font-medium text-red-500 dark:text-red-400')}>
                           {isExpiringSoon
                             ? t('mobile.expiresIn', { days: expiryDays })
