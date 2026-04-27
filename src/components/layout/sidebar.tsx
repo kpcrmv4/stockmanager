@@ -29,12 +29,14 @@ import {
   PieChart,
   BookOpen,
   HandCoins,
+  Inbox,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { getModuleColors } from '@/lib/utils/module-colors';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { getAccessibleModules } from '@/lib/modules/registry';
+import { useInboxCount } from '@/hooks/use-inbox-count';
 import { StoreSwitcher } from './store-switcher';
 import { LanguageSwitcher } from './language-switcher';
 import type { Store } from '@/types/database';
@@ -60,6 +62,7 @@ const iconMap: Record<string, LucideIcon> = {
   'pie-chart': PieChart,
   'book-open': BookOpen,
   'hand-coins': HandCoins,
+  inbox: Inbox,
 };
 
 interface SidebarProps {
@@ -72,6 +75,9 @@ export function Sidebar({ stores }: SidebarProps) {
   const t = useTranslations();
   const { user, logout } = useAuthStore();
   const { sidebarOpen, toggleSidebar, theme, toggleTheme } = useAppStore();
+  // Live count of items pending owner approval — drives the red badge
+  // on the "กล่องอนุมัติ" menu entry. Returns 0 for non-privileged users.
+  const inboxCount = useInboxCount();
 
   // เห็นโมดูลตาม role + permission ส่วนตัวที่ได้รับเพิ่ม
   const modules = useMemo(
@@ -152,6 +158,11 @@ export function Sidebar({ stores }: SidebarProps) {
                   pathname === mod.href || pathname.startsWith(mod.href + '/');
                 const colors = getModuleColors(mod.color);
                 const modName = t(mod.nameKey);
+                // Inbox count drives the red badge — shown both expanded
+                // (full pill next to label) and collapsed (small dot at
+                // the icon's top-right corner).
+                const badgeCount = mod.badge === 'pending_count' && mod.id === 'inbox' ? inboxCount : 0;
+                const showBadge = badgeCount > 0;
 
                 return (
                   <li key={mod.id}>
@@ -159,7 +170,7 @@ export function Sidebar({ stores }: SidebarProps) {
                       href={mod.href}
                       title={collapsed ? modName : undefined}
                       className={cn(
-                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
+                        'relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
                         'transition-colors duration-150',
                         isActive
                           ? cn(colors.bg, colors.text)
@@ -167,15 +178,31 @@ export function Sidebar({ stores }: SidebarProps) {
                         collapsed && 'justify-center px-2'
                       )}
                     >
-                      <Icon
-                        className={cn(
-                          'h-[18px] w-[18px] shrink-0',
-                          isActive
-                            ? colors.text
-                            : 'text-gray-400 dark:text-gray-500'
+                      <div className="relative shrink-0">
+                        <Icon
+                          className={cn(
+                            'h-[18px] w-[18px]',
+                            isActive
+                              ? colors.text
+                              : 'text-gray-400 dark:text-gray-500'
+                          )}
+                        />
+                        {showBadge && collapsed && (
+                          <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white dark:ring-gray-900">
+                            {badgeCount > 99 ? '99+' : badgeCount}
+                          </span>
                         )}
-                      />
-                      {!collapsed && <span className="truncate">{modName}</span>}
+                      </div>
+                      {!collapsed && (
+                        <>
+                          <span className="truncate">{modName}</span>
+                          {showBadge && (
+                            <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+                              {badgeCount > 99 ? '99+' : badgeCount}
+                            </span>
+                          )}
+                        </>
+                      )}
                     </Link>
                   </li>
                 );
