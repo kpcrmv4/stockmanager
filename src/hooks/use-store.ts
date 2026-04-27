@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import type { Store } from '@/types/database';
 
 export function useStore() {
-  const { currentStoreId, setCurrentStoreId } = useAppStore();
+  const { currentStoreId, setCurrentStoreId, _hasHydrated } = useAppStore();
   const { user } = useAuthStore();
   const [stores, setStores] = useState<Store[]>([]);
   const [currentStore, setCurrentStore] = useState<Store | null>(null);
@@ -29,7 +29,9 @@ export function useStore() {
       const storeList = data || [];
       setStores(storeList);
 
-      if (storeList.length > 0 && !currentStoreId) {
+      // Wait for persist hydration before auto-selecting; otherwise the
+      // persisted choice gets overwritten with stores[0].
+      if (_hasHydrated && storeList.length > 0 && !currentStoreId) {
         setCurrentStoreId(storeList[0].id);
       }
 
@@ -37,7 +39,7 @@ export function useStore() {
     }
 
     loadStores();
-  }, [user, currentStoreId, setCurrentStoreId]);
+  }, [user, currentStoreId, setCurrentStoreId, _hasHydrated]);
 
   useEffect(() => {
     const store = stores.find((s) => s.id === currentStoreId) || null;

@@ -17,16 +17,18 @@ export function StoreSwitcher({ stores, collapsed = false }: StoreSwitcherProps)
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const t = useTranslations();
-  const { currentStoreId, setCurrentStoreId } = useAppStore();
+  const { currentStoreId, setCurrentStoreId, _hasHydrated } = useAppStore();
   const { user } = useAuthStore();
 
   const currentStore = stores.find((s) => s.id === currentStoreId);
 
   useEffect(() => {
-    if (!currentStoreId && stores.length > 0) {
+    // Don't auto-select before persist hydration — otherwise we clobber the
+    // user's saved store selection with stores[0] every page navigation.
+    if (_hasHydrated && !currentStoreId && stores.length > 0) {
       setCurrentStoreId(stores[0].id);
     }
-  }, [currentStoreId, stores, setCurrentStoreId]);
+  }, [_hasHydrated, currentStoreId, stores, setCurrentStoreId]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

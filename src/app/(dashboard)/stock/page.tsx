@@ -318,7 +318,10 @@ export default function StockOverviewPage() {
   }, [currentStoreId, user?.role, user?.storeIds, businessDate, t]);
 
   const fetchTrendData = useCallback(async () => {
-    if (!user?.storeIds || user.storeIds.length === 0) return;
+    // Trend reflects the *currently selected* store. Aggregating across
+    // user.storeIds confused users — switching stores didn't change the
+    // chart, and other stores' spikes appeared on the wrong dashboard.
+    if (!currentStoreId) return;
 
     setTrendLoading(true);
     try {
@@ -336,7 +339,7 @@ export default function StockOverviewPage() {
       const { data: trendComparisons, error: trendError } = await supabase
         .from('comparisons')
         .select('comp_date, difference')
-        .in('store_id', user.storeIds)
+        .eq('store_id', currentStoreId)
         .gte('comp_date', startOfMonth)
         .lt('comp_date', startOfNextMonth)
         .order('comp_date', { ascending: true });
@@ -366,7 +369,7 @@ export default function StockOverviewPage() {
     } finally {
       setTrendLoading(false);
     }
-  }, [selectedMonth, user?.role, user?.storeIds]);
+  }, [selectedMonth, currentStoreId]);
 
   useEffect(() => {
     fetchData();
