@@ -393,7 +393,6 @@ function CreateBorrowModal({
   const [targetStore, setTargetStore] = useState('');
   const [items, setItems] = useState<FormItem[]>([{ ...EMPTY_FORM_ITEM }]);
   const [notes, setNotes] = useState('');
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Product autocomplete state
@@ -433,7 +432,6 @@ function CreateBorrowModal({
     setTargetStore('');
     setItems([{ ...EMPTY_FORM_ITEM }]);
     setNotes('');
-    setPhotoUrl(null);
     setBranchProducts([]);
     setActiveDropdown(null);
   };
@@ -494,7 +492,6 @@ function CreateBorrowModal({
           unit: it.unit || null,
         })),
         notes: notes.trim() || null,
-        borrowerPhotoUrl: photoUrl,
       };
 
       const res = await fetch('/api/borrows', {
@@ -660,15 +657,6 @@ function CreateBorrowModal({
             {t('addItem')}
           </button>
         </div>
-
-        {/* Photo (optional) */}
-        <PhotoUpload
-          value={photoUrl}
-          onChange={setPhotoUrl}
-          folder="borrows/request"
-          label={t('createBorrowPhotoLabel')}
-          compact
-        />
 
         {/* Notes */}
         <Textarea

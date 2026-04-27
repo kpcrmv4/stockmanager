@@ -724,6 +724,11 @@ $$ LANGUAGE plpgsql SET search_path = public;
 -- ========== profiles ==========
 CREATE POLICY "Users view own profile" ON profiles FOR SELECT USING (id = (SELECT auth.uid()));
 CREATE POLICY "Admin view all profiles" ON profiles FOR SELECT USING (is_admin());
+-- Cross-store flows (borrow, transfer) join profiles to show requester /
+-- approver display_name. Non-admin users couldn't see profiles outside
+-- their own store, so joins returned null. Open SELECT for active profiles.
+CREATE POLICY "All users browse active profiles" ON profiles FOR SELECT TO authenticated
+  USING (active = true);
 CREATE POLICY "Owner manages profiles" ON profiles FOR ALL USING (get_user_role() = 'owner');
 
 -- ========== stores ==========
@@ -734,6 +739,11 @@ CREATE POLICY "Users see assigned stores" ON stores FOR SELECT USING (id IN (SEL
 -- without being explicitly added to user_stores for the central warehouse.
 CREATE POLICY "All users see central stores" ON stores FOR SELECT TO authenticated
   USING (is_central = true AND active = true);
+-- Borrow flow: any authenticated user must be able to pick a source store
+-- across the chain to request items from, even if they aren't assigned to it.
+-- (Single-tenant install — store names aren't sensitive.)
+CREATE POLICY "All users browse active stores" ON stores FOR SELECT TO authenticated
+  USING (active = true);
 CREATE POLICY "Owner manages stores" ON stores FOR ALL USING (get_user_role() = 'owner');
 
 -- ========== user_stores ==========
@@ -758,6 +768,9 @@ CREATE POLICY "Staff manage withdrawals" ON withdrawals FOR ALL USING (store_id 
 -- ========== products ==========
 CREATE POLICY "Staff see store products" ON products FOR SELECT USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
 CREATE POLICY "Admin manage products" ON products FOR ALL USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
+-- Borrow flow: pick from any branch's active product list. Read-only.
+CREATE POLICY "All users browse active products" ON products FOR SELECT TO authenticated
+  USING (active = true);
 
 -- ========== comparisons ==========
 CREATE POLICY "Staff see store comparisons" ON comparisons FOR SELECT USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
