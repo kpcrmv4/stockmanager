@@ -77,9 +77,19 @@ interface DepositForWithdraw {
   category: string | null;
 }
 
+interface BottleRow {
+  id: string;
+  bottle_no: number;
+  remaining_percent: number;
+  status: 'sealed' | 'opened' | 'consumed';
+}
+
 interface WithdrawItem {
   deposit: DepositForWithdraw;
   qty: string;
+  /** Per-bottle picker: bottles loaded for this deposit + which ids are selected to consume */
+  bottles: BottleRow[];
+  selectedBottleIds: Set<string>;
 }
 
 const statusVariantMap: Record<string, 'warning' | 'success' | 'default' | 'danger' | 'info'> = {
@@ -269,12 +279,33 @@ export default function WithdrawalsPage() {
     setManualWithdrawalType(blockedDayInfo?.blocked ? 'take_home' : 'in_store');
   };
 
-  const toggleDeposit = (deposit: DepositForWithdraw) => {
-    setWithdrawItems((prev) => {
-      const exists = prev.find((w) => w.deposit.id === deposit.id);
-      if (exists) return prev.filter((w) => w.deposit.id !== deposit.id);
-      return [...prev, { deposit, qty: String(deposit.remaining_qty) }];
-    });
+  const toggleDeposit = async (deposit: DepositForWithdraw) => {
+    const exists = withdrawItems.find((w) => w.deposit.id === deposit.id);
+    if (exists) {
+      setWithdrawItems((prev) => prev.filter((w) => w.deposit.id !== deposit.id));
+      return;
+    }
+    // Pull live bottles for this deposit; pick all non-consumed by default
+    // (matches the legacy "qty = remaining_qty" behavior).
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('deposit_bottles')
+      .select('id, bottle_no, remaining_percent, status')
+      .eq('deposit_id', deposit.id)
+      .order('bottle_no');
+    const bottles = (data || []) as BottleRow[];
+    const defaultSelected = new Set(
+      bottles.filter((b) => b.status !== 'consumed').map((b) => b.id),
+    );
+    setWithdrawItems((prev) => [
+      ...prev,
+      {
+        deposit,
+        qty: String(deposit.remaining_qty),
+        bottles,
+        selectedBottleIds: defaultSelected,
+      },
+    ]);
   };
 
   const updateItemQty = (depositId: string, qty: string) => {
@@ -343,15 +374,39 @@ export default function WithdrawalsPage() {
         return;
       }
 
-      // Update deposit remaining quantity
-      const newRemaining = Math.max(0, dep.remaining_qty - qty);
-      const newPercent = dep.quantity > 0 ? (newRemaining / dep.quantity) * 100 : 0;
-      const newStatus = newRemaining <= 0 ? 'withdrawn' : 'in_store';
+      // Mark selected bottles as consumed (per-bottle tracking).
+      const selectedIds = Array.from(item.selectedBottleIds);
+      if (selectedIds.length > 0) {
+        await supabase
+          .from('deposit_bottles')
+          .update({
+            status: 'consumed',
+            remaining_percent: 0,
+            consumed_at: new Date().toISOString(),
+            consumed_by: user.id,
+          })
+          .in('id', selectedIds);
+      }
+
+      // Re-derive deposit aggregates from bottles (source of truth now).
+      const { data: liveBottles } = await supabase
+        .from('deposit_bottles')
+        .select('status, remaining_percent')
+        .eq('deposit_id', dep.id);
+      const remaining = (liveBottles || []).filter((b) => b.status !== 'consumed');
+      const newRemainingQty = remaining.length;
+      const newPercent =
+        remaining.length > 0
+          ? Math.round(
+              (remaining.reduce((s, b) => s + Number(b.remaining_percent), 0) / remaining.length) * 100,
+            ) / 100
+          : 0;
+      const newStatus = newRemainingQty <= 0 ? 'withdrawn' : 'in_store';
 
       await supabase
         .from('deposits')
         .update({
-          remaining_qty: newRemaining,
+          remaining_qty: newRemainingQty,
           remaining_percent: newPercent,
           status: newStatus,
         })
@@ -1087,6 +1142,54 @@ export default function WithdrawalsPage() {
                         <span className="text-xs text-red-500">{t('withdrawals.manual.exceedsRemaining')}</span>
                       )}
                     </div>
+
+                    {/* Per-bottle selector */}
+                    {item.bottles.length > 0 && (
+                      <div className="mt-3 border-t border-gray-100 pt-2 dark:border-gray-700">
+                        <p className="mb-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                          เลือกขวดที่จะเบิก ({item.selectedBottleIds.size} / {item.bottles.filter(b => b.status !== 'consumed').length})
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {item.bottles.map((b) => {
+                            const isConsumed = b.status === 'consumed';
+                            const isSelected = item.selectedBottleIds.has(b.id);
+                            return (
+                              <button
+                                key={b.id}
+                                type="button"
+                                disabled={isConsumed}
+                                onClick={() => {
+                                  setWithdrawItems((prev) =>
+                                    prev.map((w) => {
+                                      if (w.deposit.id !== item.deposit.id) return w;
+                                      const next = new Set(w.selectedBottleIds);
+                                      if (next.has(b.id)) next.delete(b.id);
+                                      else next.add(b.id);
+                                      return { ...w, qty: String(next.size), selectedBottleIds: next };
+                                    }),
+                                  );
+                                }}
+                                className={cn(
+                                  'flex flex-col items-center gap-0.5 rounded-md border px-2 py-1.5 text-[11px] transition-colors',
+                                  isConsumed
+                                    ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-600'
+                                    : isSelected
+                                      ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                      : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300',
+                                )}
+                              >
+                                <span className="font-semibold">
+                                  {b.bottle_no}/{item.bottles.length}
+                                </span>
+                                <span className="text-[10px]">
+                                  {isConsumed ? 'เบิกแล้ว' : `${b.remaining_percent}%`}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
