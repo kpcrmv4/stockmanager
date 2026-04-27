@@ -90,6 +90,7 @@ interface TransferBatchItem {
   product_name: string | null;
   customer_name: string | null;
   quantity: number | null;
+  remaining_percent: number | null;
   notes: string | null;
   photo_url: string | null;
   created_at: string;
@@ -294,16 +295,28 @@ export default function DepositPage() {
       return;
     }
 
-    // Resolve deposit info
+    // Resolve deposit info (incl. remaining_percent for the print receipt)
     const depositIds = data.map((t) => t.deposit_id).filter(Boolean) as string[];
-    let depositMap = new Map<string, { customer_name: string; deposit_code: string }>();
+    let depositMap = new Map<
+      string,
+      { customer_name: string; deposit_code: string; remaining_percent: number | null }
+    >();
     if (depositIds.length > 0) {
       const { data: deps } = await supabase
         .from('deposits')
-        .select('id, customer_name, deposit_code')
+        .select('id, customer_name, deposit_code, remaining_percent')
         .in('id', depositIds);
       if (deps) {
-        depositMap = new Map(deps.map((d) => [d.id, { customer_name: d.customer_name, deposit_code: d.deposit_code }]));
+        depositMap = new Map(
+          deps.map((d) => [
+            d.id,
+            {
+              customer_name: d.customer_name,
+              deposit_code: d.deposit_code,
+              remaining_percent: d.remaining_percent ?? null,
+            },
+          ]),
+        );
       }
     }
 
@@ -320,6 +333,7 @@ export default function DepositPage() {
         product_name: t.product_name,
         customer_name: info?.customer_name || null,
         quantity: t.quantity,
+        remaining_percent: info?.remaining_percent ?? null,
         notes: t.notes,
         photo_url: t.photo_url,
         created_at: t.created_at,
@@ -1334,6 +1348,7 @@ export default function DepositPage() {
                     customer_name: t.customer_name,
                     deposit_code: t.deposit_code,
                     quantity: t.quantity || 0,
+                    remaining_percent: t.remaining_percent,
                     category: null,
                   })),
                 });
