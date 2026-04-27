@@ -29,6 +29,7 @@ import {
   Store,
   Calendar,
   Info,
+  Pin,
 } from 'lucide-react';
 import {
   BarChart,
@@ -459,6 +460,15 @@ export default function StockOverviewPage() {
       href: '/stock/approval',
       gradient: 'from-violet-500 to-purple-600',
       shadow: 'shadow-violet-500/25',
+      staffVisible: false,
+    },
+    {
+      label: 'ติดตามผลต่าง',
+      description: 'แนวโน้ม/โน๊ตของสินค้าที่ต้องติดตาม',
+      icon: Pin,
+      href: '/stock/tracking',
+      gradient: 'from-pink-500 to-rose-600',
+      shadow: 'shadow-pink-500/25',
       staffVisible: false,
     },
   ];

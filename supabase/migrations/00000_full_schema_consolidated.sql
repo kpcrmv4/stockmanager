@@ -154,6 +154,136 @@ CREATE TABLE comparisons (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- ── Stock tracking: products flagged for accounting follow-up ──
+CREATE TABLE stock_tracking_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  product_code TEXT NOT NULL,
+  product_name TEXT,
+  is_tracking BOOLEAN NOT NULL DEFAULT TRUE,
+  priority TEXT NOT NULL DEFAULT 'normal'
+    CHECK (priority IN ('low','normal','high','urgent')),
+  reason TEXT,
+  notes TEXT,
+  follow_up_action TEXT,
+  source TEXT NOT NULL DEFAULT 'manual'
+    CHECK (source IN ('manual','auto_pending','auto_rejected','auto_recurring')),
+  resolved_at TIMESTAMPTZ,
+  resolved_by UUID REFERENCES profiles(id),
+  resolution_notes TEXT,
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (store_id, product_code)
+);
+CREATE INDEX idx_stock_tracking_store ON stock_tracking_items(store_id);
+CREATE INDEX idx_stock_tracking_active ON stock_tracking_items(store_id, is_tracking)
+  WHERE is_tracking = true;
+
+CREATE TABLE stock_tracking_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tracking_item_id UUID NOT NULL REFERENCES stock_tracking_items(id) ON DELETE CASCADE,
+  action TEXT NOT NULL CHECK (action IN ('flagged','noted','escalated','resolved','reopened','auto_flagged')),
+  comparison_id UUID REFERENCES comparisons(id),
+  payload JSONB,
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_stock_tracking_history_item ON stock_tracking_history(tracking_item_id);
+
+CREATE OR REPLACE FUNCTION update_stock_tracking_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN NEW.updated_at = now(); RETURN NEW; END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER trg_stock_tracking_updated_at
+  BEFORE UPDATE ON stock_tracking_items
+  FOR EACH ROW EXECUTE FUNCTION update_stock_tracking_timestamp();
+
+ALTER TABLE stock_tracking_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stock_tracking_history ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Staff see store tracking items" ON stock_tracking_items
+  FOR SELECT USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
+CREATE POLICY "Owner/accountant/manager manage tracking" ON stock_tracking_items
+  FOR ALL
+  USING (
+    (store_id IN (SELECT get_user_store_ids()) OR is_admin())
+    AND get_user_role() IN ('owner','accountant','manager','hq')
+  )
+  WITH CHECK (
+    (store_id IN (SELECT get_user_store_ids()) OR is_admin())
+    AND get_user_role() IN ('owner','accountant','manager','hq')
+  );
+CREATE POLICY "Staff see tracking history" ON stock_tracking_history
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM stock_tracking_items i
+      WHERE i.id = stock_tracking_history.tracking_item_id
+        AND (i.store_id IN (SELECT get_user_store_ids()) OR is_admin())
+    )
+  );
+CREATE POLICY "Owner/accountant/manager add tracking history" ON stock_tracking_history
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM stock_tracking_items i
+      WHERE i.id = stock_tracking_history.tracking_item_id
+        AND (i.store_id IN (SELECT get_user_store_ids()) OR is_admin())
+        AND get_user_role() IN ('owner','accountant','manager','hq')
+    )
+  );
+
+-- Aggregate trend per (product_code) over last N days for the tracking dashboard
+CREATE OR REPLACE FUNCTION get_tracking_trend(p_store_id UUID, p_days INT DEFAULT 30)
+RETURNS TABLE (
+  product_code TEXT,
+  product_name TEXT,
+  total_count BIGINT,
+  pending_count BIGINT,
+  rejected_count BIGINT,
+  approved_count BIGINT,
+  total_abs_diff NUMERIC,
+  total_signed_diff NUMERIC,
+  avg_diff NUMERIC,
+  last_diff NUMERIC,
+  last_status comparison_status,
+  last_comp_date DATE,
+  trend_slope NUMERIC,
+  daily_diffs JSONB
+) AS $$
+WITH base AS (
+  SELECT c.product_code, c.product_name, c.comp_date, c.difference, c.status,
+         EXTRACT(EPOCH FROM (c.comp_date::timestamp - (CURRENT_DATE - p_days)::timestamp))/86400 AS day_offset
+  FROM comparisons c
+  WHERE c.store_id = p_store_id
+    AND c.comp_date >= CURRENT_DATE - p_days
+    AND c.difference IS NOT NULL
+), agg AS (
+  SELECT product_code,
+         MAX(product_name) AS product_name,
+         COUNT(*) AS total_count,
+         COUNT(*) FILTER (WHERE status='pending') AS pending_count,
+         COUNT(*) FILTER (WHERE status='rejected') AS rejected_count,
+         COUNT(*) FILTER (WHERE status='approved') AS approved_count,
+         SUM(ABS(difference)) AS total_abs_diff,
+         SUM(difference) AS total_signed_diff,
+         AVG(difference) AS avg_diff,
+         (ARRAY_AGG(difference ORDER BY comp_date DESC))[1] AS last_diff,
+         (ARRAY_AGG(status ORDER BY comp_date DESC))[1] AS last_status,
+         MAX(comp_date) AS last_comp_date,
+         CASE
+           WHEN COUNT(*) >= 2 AND VAR_POP(day_offset) > 0
+           THEN COVAR_POP(day_offset, ABS(difference)) / VAR_POP(day_offset)
+           ELSE 0
+         END AS trend_slope,
+         JSONB_AGG(JSONB_BUILD_OBJECT('date', comp_date, 'diff', difference) ORDER BY comp_date) AS daily_diffs
+  FROM base
+  GROUP BY product_code
+)
+SELECT * FROM agg ORDER BY total_abs_diff DESC NULLS LAST;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
 -- ==========================================
 -- DEPOSIT MODULE
 -- ==========================================
