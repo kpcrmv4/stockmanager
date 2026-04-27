@@ -907,9 +907,38 @@ export async function PATCH(
         const itemsList = ctx.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ');
         const msg = `📦 ${borrowTag}ส่งคืนสินค้ายืม รอยืนยันรับคืน — ${ctx.fromStore?.store_name} → ${ctx.toStore?.store_name}\nรายการ: ${itemsList}\nส่งคืนโดย: ${currentUserName}`;
 
+        // Action card to lender's chat — they can claim, snap a receipt
+        // photo, and confirm receipt directly inside chat instead of having
+        // to navigate to /borrow.
+        const lenderActionCard = {
+          type: 'action_card' as const,
+          content: `📦 ${borrowTag}รอยืนยันรับคืนสินค้า — ${ctx.fromStore?.store_name} → ${ctx.toStore?.store_name}`,
+          metadata: {
+            action_type: 'borrow_return_confirm' as const,
+            reference_id: id,
+            reference_table: 'borrows',
+            status: 'pending' as const,
+            claimed_by: null,
+            claimed_by_name: null,
+            claimed_at: null,
+            completed_at: null,
+            timeout_minutes: 240,
+            priority: 'normal' as const,
+            detail_url: `/borrow?id=${id}`,
+            summary: {
+              customer: ctx.fromStore?.store_name || 'ผู้ยืม',
+              items: itemsList,
+              note: body.returnNotes || undefined,
+              code: updatedBorrow.borrow_code || undefined,
+              return_photo_url: body.photoUrl,
+              returned_by_name: currentUserName,
+            },
+          },
+        };
+
         await Promise.allSettled([
           sendBotMessage({ storeId: updatedBorrow.from_store_id, type: 'system', content: msg }),
-          sendBotMessage({ storeId: updatedBorrow.to_store_id, type: 'system', content: msg }),
+          sendBotMessage({ storeId: updatedBorrow.to_store_id, ...lenderActionCard }),
         ]);
       } catch (err) {
         console.error('[Borrows] Failed to send chat message (return_pending):', err);

@@ -36,6 +36,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof Wine; label: string }> = {
   stock_supplementary: { icon: ScanLine, label: 'นับเพิ่ม' },
   stock_approve: { icon: ClipboardList, label: 'รออนุมัติ' },
   borrow_approve: { icon: Repeat, label: 'ยืมสินค้า' },
+  borrow_return_confirm: { icon: Repeat, label: 'รับคืน' },
   transfer_receive: { icon: Truck, label: 'โอนสต๊อก' },
 };
 

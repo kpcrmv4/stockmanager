@@ -55,6 +55,7 @@ const ACTION_TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; lab
   stock_supplementary: { icon: ScanLine, color: 'sky', label: 'รายการต้องนับเพิ่ม' },
   stock_approve: { icon: ClipboardList, color: 'violet', label: 'รออนุมัติคำชี้แจง' },
   borrow_approve: { icon: Repeat, color: 'violet', label: 'คำขอยืมสินค้า' },
+  borrow_return_confirm: { icon: Repeat, color: 'teal', label: 'รับคืนสินค้ายืม' },
   transfer_receive: { icon: Package, color: 'orange', label: 'โอนสต๊อกเข้าคลังกลาง' },
   generic: { icon: ClipboardCheck, color: 'gray', label: 'งานใหม่' },
 };
@@ -119,6 +120,9 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   const canApproveStock =
     isStockApprove && isPending && currentUserRole &&
     ['owner', 'accountant', 'manager'].includes(currentUserRole);
+
+  // Borrow return-receipt confirmation card (lender side)
+  const isBorrowReturnConfirm = meta.action_type === 'borrow_return_confirm';
 
   // Borrow-specific status
   const isBorrow = meta.action_type === 'borrow_approve';
@@ -1018,6 +1022,166 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                 <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
                   ยกเลิกแล้ว
                 </span>
+              </div>
+            )}
+          </>
+        ) : isBorrowReturnConfirm ? (
+          <>
+            {/* ==========================================
+                BORROW RETURN CONFIRM (lender side)
+                Lender takes a receipt photo and confirms receipt of
+                returned items, transitioning status return_pending → returned
+                ========================================== */}
+
+            {/* Borrower's return photo for review (read-only) */}
+            {typeof meta.summary?.return_photo_url === 'string' && (
+              <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                <img
+                  src={meta.summary.return_photo_url}
+                  alt="รูปสินค้าที่ส่งคืน"
+                  className="w-full max-h-40 object-cover"
+                  loading="lazy"
+                />
+                <div className="bg-gray-50 px-2 py-1 text-[10px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  รูปจาก {(meta.summary.returned_by_name as string) || 'ผู้ยืม'} (ตรวจก่อนยืนยัน)
+                </div>
+              </div>
+            )}
+
+            {/* Detail link */}
+            {!isCompleted && meta.detail_url && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                icon={<ExternalLink className="h-3.5 w-3.5" />}
+                onClick={() => router.push(meta.detail_url!)}
+              >
+                ไปหน้ายืมสินค้า
+              </Button>
+            )}
+
+            {/* Pending — claim button */}
+            {isPending && (
+              <Button
+                size="sm"
+                variant="primary"
+                className="w-full"
+                icon={<Hand className="h-4 w-4" />}
+                isLoading={loading}
+                onClick={() => handleAction('claim')}
+              >
+                {isTimedOut ? 'รับงานต่อ' : 'รับยืนยันรับคืน'}
+              </Button>
+            )}
+
+            {/* Claimed by me — photo + confirm */}
+            {isClaimed && isClaimedByMe && (
+              <div className="space-y-2">
+                <PhotoUpload
+                  value={photoUrl}
+                  onChange={setPhotoUrl}
+                  folder="borrows/return-receipt"
+                  placeholder="ถ่ายรูปยืนยันรับคืน (บังคับ)"
+                  compact
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="flex-1"
+                    icon={<CheckCircle className="h-3.5 w-3.5" />}
+                    isLoading={loading}
+                    disabled={!photoUrl}
+                    onClick={async () => {
+                      if (!photoUrl) return;
+                      setLoading(true);
+                      try {
+                        const res = await fetch(`/api/borrows/${meta.reference_id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'confirm_return_receipt',
+                            photoUrl,
+                          }),
+                        });
+                        if (!res.ok) {
+                          const data = await res.json();
+                          throw new Error(data.error || 'ยืนยันไม่สำเร็จ');
+                        }
+                        // Mark card completed
+                        const supabase = createClient();
+                        const newMeta: ActionCardMetadata = {
+                          ...meta,
+                          status: 'completed',
+                          completed_at: new Date().toISOString(),
+                          confirmation_photo_url: photoUrl,
+                        };
+                        await supabase
+                          .from('chat_messages')
+                          .update({ metadata: newMeta })
+                          .eq('id', message.id);
+                        const updated: ChatMessage = { ...message, metadata: newMeta };
+                        updateMessage(updated);
+                        onStatusChange?.();
+                        await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
+                          type: 'message_updated',
+                          message: updated,
+                        } as unknown as Record<string, unknown>);
+                      } catch (err) {
+                        console.error('confirm_return_receipt error:', err);
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >
+                    ยืนยันรับคืน
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    icon={<XCircle className="h-3.5 w-3.5" />}
+                    isLoading={loading}
+                    onClick={() => handleAction('release')}
+                  >
+                    คืนงาน
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Claimed by someone else */}
+            {isClaimed && !isClaimedByMe && (
+              <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 dark:bg-blue-900/20">
+                <Hand className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                  {meta.claimed_by_name} กำลังยืนยันรับคืน
+                </span>
+              </div>
+            )}
+
+            {/* Completed */}
+            {isCompleted && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
+                  <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                    ยืนยันรับคืนเรียบร้อย
+                  </span>
+                  {meta.claimed_by_name && (
+                    <span className="text-xs text-emerald-500/70">โดย {meta.claimed_by_name}</span>
+                  )}
+                </div>
+                {meta.confirmation_photo_url && (
+                  <div className="overflow-hidden rounded-lg">
+                    <img
+                      src={meta.confirmation_photo_url}
+                      alt="รูปยืนยันรับคืน"
+                      className="w-full max-h-36 object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </>

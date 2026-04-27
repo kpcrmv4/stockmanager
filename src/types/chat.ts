@@ -82,6 +82,7 @@ export interface ActionCardMetadata {
     | 'stock_supplementary'  // POS items not yet manual-counted (after auto-activation)
     | 'stock_approve'        // owner reviews staff explanations
     | 'borrow_approve'
+    | 'borrow_return_confirm' // lender confirms borrower's return (with receipt photo)
     | 'transfer_receive'
     | 'generic';
   reference_id: string;

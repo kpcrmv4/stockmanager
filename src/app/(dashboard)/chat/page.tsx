@@ -180,6 +180,7 @@ function getMessagePreview(msg: typeof undefined extends never ? never : ReturnT
         : actionType === 'stock_supplementary' ? 'นับเพิ่ม'
         : actionType === 'stock_approve' ? 'รออนุมัติ'
         : actionType === 'borrow_approve' ? 'ยืมสินค้า'
+        : actionType === 'borrow_return_confirm' ? 'รับคืนสินค้า'
         : actionType === 'transfer_receive' ? 'โอนสต๊อก'
         : 'งาน';
       const ref = meta?.reference_id ? `#${String(meta.reference_id).slice(-8)}` : '';
@@ -189,6 +190,7 @@ function getMessagePreview(msg: typeof undefined extends never ? never : ReturnT
         actionType === 'stock_explain' ? 'รอชี้แจง'
         : actionType === 'stock_supplementary' ? 'รอนับเพิ่ม'
         : actionType === 'stock_approve' ? 'รออนุมัติ'
+        : actionType === 'borrow_return_confirm' ? 'รอรับคืน'
         : 'รอรับ';
 
       if (status === 'pending') return `${typeLabel} ${ref}${customer} · ${pendingLabel}`;

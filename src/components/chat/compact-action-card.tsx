@@ -32,6 +32,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; label: str
   stock_supplementary: { icon: ScanLine, color: 'sky', label: 'รายการต้องนับเพิ่ม' },
   stock_approve: { icon: ClipboardList, color: 'violet', label: 'รออนุมัติชี้แจง' },
   borrow_approve: { icon: Repeat, color: 'violet', label: 'ยืมสินค้า' },
+  borrow_return_confirm: { icon: Repeat, color: 'teal', label: 'รับคืนสินค้า' },
   transfer_receive: { icon: Truck, color: 'orange', label: 'โอนสต๊อก' },
   generic: { icon: ClipboardCheck, color: 'gray', label: 'งาน' },
 };
@@ -120,6 +121,7 @@ export const CompactActionCard = memo(function CompactActionCard({ message }: Co
     if (info.actionType === 'stock_explain') return 'รอชี้แจง';
     if (info.actionType === 'stock_supplementary') return 'รอนับเพิ่ม';
     if (info.actionType === 'stock_approve') return 'รออนุมัติ';
+    if (info.actionType === 'borrow_return_confirm') return 'รอรับคืน';
     return statusInfo.label;
   })();
 

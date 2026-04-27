@@ -22,6 +22,7 @@ const TYPE_ICON: Record<string, typeof Wine> = {
   stock_supplementary: ScanLine,
   stock_approve: ClipboardList,
   borrow_approve: Repeat,
+  borrow_return_confirm: Repeat,
   transfer_receive: Package,
 };
 
@@ -32,6 +33,7 @@ const TYPE_LABEL: Record<string, string> = {
   stock_supplementary: 'รายการต้องนับเพิ่ม',
   stock_approve: 'รออนุมัติคำชี้แจง',
   borrow_approve: 'คำขอยืม',
+  borrow_return_confirm: 'รับคืน',
   transfer_receive: 'โอนสต๊อก',
 };
 
@@ -42,6 +44,7 @@ const TYPE_COLOR: Record<string, string> = {
   stock_supplementary: 'sky',
   stock_approve: 'violet',
   borrow_approve: 'violet',
+  borrow_return_confirm: 'teal',
   transfer_receive: 'orange',
 };
 

@@ -58,6 +58,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; label: str
   stock_supplementary: { icon: ScanLine, color: 'sky', label: 'นับเพิ่ม', bgClass: 'bg-sky-50 text-sky-700 dark:bg-sky-900/20 dark:text-sky-400' },
   stock_approve: { icon: ClipboardList, color: 'violet', label: 'รออนุมัติ', bgClass: 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400' },
   borrow_approve: { icon: Repeat, color: 'violet', label: 'ยืมสินค้า', bgClass: 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400' },
+  borrow_return_confirm: { icon: Repeat, color: 'teal', label: 'รับคืน', bgClass: 'bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-400' },
   transfer_receive: { icon: Truck, color: 'orange', label: 'โอนสต๊อก', bgClass: 'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400' },
 };
 
