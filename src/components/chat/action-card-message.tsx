@@ -1605,16 +1605,16 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                         </div>
                         <div>
                           <p className="mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">% คงเหลือรายขวด *</p>
-                          <div className="grid grid-cols-3 gap-1.5">
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                             {Array.from({ length: validQty }).map((_, i) => {
                               const val = barConfirmBottlePercents[i] ?? '';
                               return (
                                 <div
                                   key={i}
-                                  className="flex items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-1 dark:border-gray-700 dark:bg-gray-900"
+                                  className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900"
                                 >
-                                  <span className="text-[10px] font-semibold text-gray-600 dark:text-gray-300">
-                                    {i + 1}
+                                  <span className="text-xs font-semibold whitespace-nowrap text-gray-700 dark:text-gray-200">
+                                    ขวด {i + 1}/{validQty}
                                   </span>
                                   <input
                                     type="number"
@@ -1632,9 +1632,9 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                                       });
                                     }}
                                     placeholder="100"
-                                    className="ml-auto w-9 rounded border border-gray-200 bg-white px-1 py-0.5 text-right text-[11px] text-gray-900 focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                                    className="ml-auto w-14 rounded border border-gray-200 bg-white px-2 py-1 text-right text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                                   />
-                                  <span className="text-[9px] text-gray-400">%</span>
+                                  <span className="text-[10px] text-gray-400">%</span>
                                 </div>
                               );
                             })}
