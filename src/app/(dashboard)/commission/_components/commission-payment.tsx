@@ -15,18 +15,30 @@ function formatCurrency(n: number) {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function EntryRow({ e, t }: { e: any, t: any }) {
+function EntryRow({ e, t, onCancel }: { e: any, t: any, onCancel?: (id: string) => void }) {
   return (
     <div className="flex items-center justify-between py-1.5 pl-8 pr-2 text-xs border-t border-gray-50 dark:border-gray-800/50">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
         <Badge variant={e.payment_id ? 'success' : 'outline'} size="sm" className="scale-75 origin-left">
           {e.payment_id ? t('entryList.paid') : t('entryList.unpaid')}
         </Badge>
         <span className="text-gray-400">{formatThaiDate(e.bill_date)}</span>
         {e.receipt_no && <span className="text-gray-500 font-mono">#{e.receipt_no}</span>}
         {e.table_no && <span className="text-gray-400">{t('entryList.table')} {e.table_no}</span>}
+        {e.bottle_product_name && <span className="text-gray-400 truncate">{e.bottle_product_name}</span>}
       </div>
-      <span className="font-medium text-gray-700 dark:text-gray-300">{formatCurrency(Number(e.net_amount))}</span>
+      <div className="flex items-center gap-1.5">
+        <span className="font-medium text-gray-700 dark:text-gray-300">{formatCurrency(Number(e.net_amount))}</span>
+        {onCancel && !e.payment_id && (
+          <button
+            onClick={() => onCancel(e.id)}
+            className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30"
+            title={t('entryList.cancel')}
+          >
+            <XCircle className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -107,11 +119,16 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
   const [detailModal, setDetailModal] = useState<PaymentRecord | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  // Cancel modal
+  // Cancel-payment modal (existing — cancels an entire payment record)
   const [cancelModal, setCancelModal] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
-  
+
+  // Cancel-entry modal (new — soft-cancels a single commission entry)
+  const [cancelEntryModal, setCancelEntryModal] = useState<string | null>(null);
+  const [cancelEntryReason, setCancelEntryReason] = useState('');
+  const [cancellingEntry, setCancellingEntry] = useState(false);
+
   // Expansion state
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
@@ -181,6 +198,37 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
       }
     } finally {
       setPaying(false);
+    }
+  }
+
+  async function handleCancelEntry() {
+    if (!cancelEntryModal) return;
+    setCancellingEntry(true);
+    try {
+      const res = await fetch(`/api/commission/${cancelEntryModal}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel', reason: cancelEntryReason }),
+      });
+      if (res.ok) {
+        toast({ type: 'success', title: t('entryList.cancelEntrySuccess') });
+        logAudit({
+          store_id: currentStoreId,
+          action_type: AUDIT_ACTIONS.COMMISSION_ENTRY_CANCELLED,
+          table_name: 'commission_entries',
+          record_id: cancelEntryModal,
+          new_value: { reason: cancelEntryReason } as Record<string, unknown>,
+          changed_by: user?.id,
+        });
+        setCancelEntryModal(null);
+        setCancelEntryReason('');
+        fetchData();
+      } else {
+        const err = await res.json();
+        toast({ type: 'error', title: err.error || t('payment.error') });
+      }
+    } finally {
+      setCancellingEntry(false);
     }
   }
 
@@ -283,7 +331,7 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
                     </div>
                     {isExpanded && ae.entries && (
                       <div className="bg-gray-50/50 dark:bg-gray-900/20 pb-1">
-                        {ae.entries.map((e: any) => <EntryRow key={e.id} e={e} t={t} />)}
+                        {ae.entries.map((e: any) => <EntryRow key={e.id} e={e} t={t} onCancel={(id) => setCancelEntryModal(id)} />)}
                       </div>
                     )}
                   </div>
@@ -319,7 +367,7 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
                     </div>
                     {isExpanded && b.entries && (
                       <div className="bg-gray-50/50 dark:bg-gray-900/20 pb-1">
-                        {b.entries.map((e: any) => <EntryRow key={e.id} e={e} t={t} />)}
+                        {b.entries.map((e: any) => <EntryRow key={e.id} e={e} t={t} onCancel={(id) => setCancelEntryModal(id)} />)}
                       </div>
                     )}
                   </div>
@@ -428,7 +476,32 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
         )}
       </Modal>
 
-      {/* Cancel confirmation modal */}
+      {/* Cancel-entry confirmation modal — soft-cancels a single bill */}
+      <Modal
+        isOpen={!!cancelEntryModal}
+        onClose={() => { setCancelEntryModal(null); setCancelEntryReason(''); }}
+        title={t('entryList.confirmCancelEntry')}
+        size="sm"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">{t('entryList.confirmCancelEntryDesc')}</p>
+          <Textarea
+            label={t('payment.reasonOptional')}
+            value={cancelEntryReason}
+            onChange={(e) => setCancelEntryReason(e.target.value)}
+            rows={2}
+          />
+        </div>
+        <ModalFooter>
+          <Button variant="ghost" onClick={() => { setCancelEntryModal(null); setCancelEntryReason(''); }}>{t('payment.dontCancel')}</Button>
+          <Button variant="danger" onClick={handleCancelEntry} disabled={cancellingEntry}>
+            {cancellingEntry ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {t('payment.confirmCancelBtn')}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Cancel confirmation modal — cancels the whole payment record */}
       <Modal isOpen={!!cancelModal} onClose={() => { setCancelModal(null); setCancelReason(''); }} title={t('payment.confirmCancel')} size="sm">
         <div className="space-y-3">
           <p className="text-sm text-gray-600 dark:text-gray-400">{t('payment.confirmCancelDesc')}</p>

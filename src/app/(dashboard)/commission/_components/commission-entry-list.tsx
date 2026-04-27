@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, Badge, Modal, toast } from '@/components/ui';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { Loader2, Trash2, Image, ChevronDown, ChevronRight, Layers } from 'lucide-react';
+import { Loader2, Trash2, Image, ChevronDown, ChevronRight, Layers, XCircle, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { useTranslations } from 'next-intl';
@@ -20,7 +20,7 @@ function getCurrentMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function GroupItem({ groupId, group, isExpanded, onToggle, t, canDelete, onDelete, onViewPhoto }: any) {
+function GroupItem({ groupId, group, isExpanded, onToggle, t, canDelete, onDelete, onViewPhoto, onCancel, onRestore }: any) {
   const profileName = group.type === 'ae_commission' 
     ? (group.profile?.name || 'Unknown AE')
     : (group.profile?.display_name || group.profile?.username || 'Unknown Staff');
@@ -67,48 +67,79 @@ function GroupItem({ groupId, group, isExpanded, onToggle, t, canDelete, onDelet
       {/* Group Content (Collapsible) */}
       {isExpanded && (
         <div className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
-          {group.entries.map((entry: CommissionEntry) => (
-            <div key={entry.id} className="p-3 pl-11">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge variant={entry.payment_id ? 'success' : 'outline'} size="sm">
-                      {entry.payment_id ? t('entryList.paid') : t('entryList.unpaid')}
-                    </Badge>
-                    <span className="text-xs text-gray-400">{formatThaiDate(entry.bill_date)}</span>
-                    {entry.store && <span className="text-xs text-gray-400">{entry.store.store_code}</span>}
+          {group.entries.map((entry: CommissionEntry) => {
+            const isCancelled = !!entry.cancelled_at;
+            return (
+              <div
+                key={entry.id}
+                className={cn('p-3 pl-11', isCancelled && 'bg-red-50/40 dark:bg-red-900/10')}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {isCancelled ? (
+                        <Badge variant="danger" size="sm">{t('entryList.cancelled')}</Badge>
+                      ) : (
+                        <Badge variant={entry.payment_id ? 'success' : 'outline'} size="sm">
+                          {entry.payment_id ? t('entryList.paid') : t('entryList.unpaid')}
+                        </Badge>
+                      )}
+                      <span className="text-xs text-gray-400">{formatThaiDate(entry.bill_date)}</span>
+                      {entry.store && <span className="text-xs text-gray-400">{entry.store.store_code}</span>}
+                    </div>
+                    <div className={cn('mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400', isCancelled && 'line-through')}>
+                      {entry.receipt_no && <span>#{entry.receipt_no}</span>}
+                      {entry.table_no && <span>{t('entryList.table')} {entry.table_no}</span>}
+                      {entry.subtotal_amount && <span>{t('entryList.subtotal')} {formatCurrency(Number(entry.subtotal_amount))}</span>}
+                      {entry.type === 'bottle_commission' && entry.bottle_count && (
+                        <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                          {entry.bottle_count} {t('entryList.bottles')}
+                        </span>
+                      )}
+                      {entry.bottle_product_name && (
+                        <span className="text-indigo-500/80 dark:text-indigo-300/80">{entry.bottle_product_name}</span>
+                      )}
+                    </div>
+                    {isCancelled && entry.cancel_reason && (
+                      <p className="mt-1 text-[11px] text-red-500 dark:text-red-400">{t('entryList.cancelReason')}: {entry.cancel_reason}</p>
+                    )}
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    {entry.receipt_no && <span>#{entry.receipt_no}</span>}
-                    {entry.table_no && <span>{t('entryList.table')} {entry.table_no}</span>}
-                    {entry.subtotal_amount && <span>{t('entryList.subtotal')} {formatCurrency(Number(entry.subtotal_amount))}</span>}
-                    {entry.type === 'bottle_commission' && entry.bottle_count && (
-                      <span className="text-indigo-600 dark:text-indigo-400 font-medium">
-                        {entry.bottle_count} {t('entryList.bottles')}
-                      </span>
+                  <div className="flex items-center gap-2">
+                    {entry.receipt_photo_url && (
+                      <button onClick={() => onViewPhoto(entry.receipt_photo_url)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700">
+                        <Image className="h-4 w-4" />
+                      </button>
+                    )}
+                    <div className="text-right">
+                      <p className={cn(
+                        'text-sm font-bold',
+                        isCancelled
+                          ? 'text-gray-400 line-through dark:text-gray-500'
+                          : 'text-amber-600 dark:text-amber-400'
+                      )}>
+                        {formatCurrency(Number(entry.net_amount))}
+                      </p>
+                    </div>
+                    {!entry.payment_id && !isCancelled && onCancel && (
+                      <button onClick={() => onCancel(entry.id)} className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30" title={t('entryList.cancel')}>
+                        <XCircle className="h-4 w-4" />
+                      </button>
+                    )}
+                    {isCancelled && !entry.payment_id && onRestore && (
+                      <button onClick={() => onRestore(entry.id)} className="rounded p-1 text-gray-300 hover:bg-emerald-50 hover:text-emerald-500 dark:hover:bg-emerald-900/30" title={t('entryList.restore')}>
+                        <RotateCcw className="h-4 w-4" />
+                      </button>
+                    )}
+                    {canDelete && !entry.payment_id && (
+                      <button onClick={() => onDelete(entry.id)} className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {entry.receipt_photo_url && (
-                    <button onClick={() => onViewPhoto(entry.receipt_photo_url)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700">
-                      <Image className="h-4 w-4" />
-                    </button>
-                  )}
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-amber-600 dark:text-amber-400">
-                      {formatCurrency(Number(entry.net_amount))}
-                    </p>
-                  </div>
-                  {canDelete && !entry.payment_id && (
-                    <button onClick={() => onDelete(entry.id)} className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </Card>
@@ -179,30 +210,68 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
     }));
   };
 
-  // Group entries helper
+  // Group entries helper. Cancelled entries stay in `entries` so they
+  // render in the history list, but are excluded from totalAmount and
+  // unpaidAmount so the rolled-up numbers reflect only active rows.
   const groupByType = (items: CommissionEntry[], type: 'ae_commission' | 'bottle_commission') => {
     return items.filter(e => e.type === type).reduce((acc, entry) => {
       const id = type === 'ae_commission' ? (entry.ae_id || 'unknown') : (entry.staff_id || 'unknown');
       const groupId = `${type}_${id}`;
-      
+
       if (!acc[groupId]) {
         acc[groupId] = {
           type,
           profile: type === 'ae_commission' ? entry.ae_profile : entry.staff_profile,
           entries: [],
           totalAmount: 0,
-          unpaidAmount: 0
+          unpaidAmount: 0,
         };
       }
       acc[groupId].entries.push(entry);
-      const amount = Number(entry.net_amount) || 0;
-      acc[groupId].totalAmount += amount;
-      if (!entry.payment_id) {
-        acc[groupId].unpaidAmount += amount;
+      if (!entry.cancelled_at) {
+        const amount = Number(entry.net_amount) || 0;
+        acc[groupId].totalAmount += amount;
+        if (!entry.payment_id) {
+          acc[groupId].unpaidAmount += amount;
+        }
       }
       return acc;
     }, {} as Record<string, { type: string, profile: any, entries: CommissionEntry[], totalAmount: number, unpaidAmount: number }>);
   };
+
+  async function handleCancelEntry(id: string) {
+    const reason = window.prompt(t('entryList.cancelPrompt')) ?? '';
+    const res = await fetch(`/api/commission/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'cancel', reason }),
+    });
+    if (res.ok) {
+      toast({ type: 'success', title: t('entryList.cancelEntrySuccess') });
+      logAudit({ store_id: currentStoreId, action_type: AUDIT_ACTIONS.COMMISSION_ENTRY_CANCELLED, table_name: 'commission_entries', record_id: id, new_value: { reason }, changed_by: user?.id });
+      fetchEntries();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast({ type: 'error', title: err.error || t('entryList.cancelFailed') });
+    }
+  }
+
+  async function handleRestoreEntry(id: string) {
+    if (!confirm(t('entryList.confirmRestore'))) return;
+    const res = await fetch(`/api/commission/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'restore' }),
+    });
+    if (res.ok) {
+      toast({ type: 'success', title: t('entryList.restoreSuccess') });
+      logAudit({ store_id: currentStoreId, action_type: AUDIT_ACTIONS.COMMISSION_ENTRY_RESTORED, table_name: 'commission_entries', record_id: id, changed_by: user?.id });
+      fetchEntries();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast({ type: 'error', title: err.error || t('entryList.restoreFailed') });
+    }
+  }
 
   const aeGroups = groupByType(entries, 'ae_commission');
   const bottleGroups = groupByType(entries, 'bottle_commission');
@@ -252,7 +321,7 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
               </div>
               <div className="space-y-3">
                 {Object.entries(aeGroups).map(([groupId, group]) => (
-                  <GroupItem 
+                  <GroupItem
                     key={groupId}
                     groupId={groupId}
                     group={group}
@@ -262,6 +331,8 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
                     canDelete={canDelete}
                     onDelete={handleDelete}
                     onViewPhoto={setPhotoModal}
+                    onCancel={handleCancelEntry}
+                    onRestore={handleRestoreEntry}
                   />
                 ))}
               </div>
@@ -277,7 +348,7 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
               </div>
               <div className="space-y-3">
                 {Object.entries(bottleGroups).map(([groupId, group]) => (
-                  <GroupItem 
+                  <GroupItem
                     key={groupId}
                     groupId={groupId}
                     group={group}
@@ -287,6 +358,8 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
                     canDelete={canDelete}
                     onDelete={handleDelete}
                     onViewPhoto={setPhotoModal}
+                    onCancel={handleCancelEntry}
+                    onRestore={handleRestoreEntry}
                   />
                 ))}
               </div>
@@ -302,27 +375,36 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
             const staff = entry.staff_profile;
             const store = entry.store;
             const isPaid = !!entry.payment_id;
+            const isCancelled = !!entry.cancelled_at;
 
             return (
-              <Card key={entry.id}>
+              <Card key={entry.id} className={cn(isCancelled && 'bg-red-50/40 dark:bg-red-900/10')}>
                 <CardContent className="p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Badge variant={isAE ? 'warning' : 'danger'} size="sm">{isAE ? 'AE' : 'Bottle'}</Badge>
-                        <Badge variant={isPaid ? 'success' : 'outline'} size="sm">{isPaid ? t('entryList.paid') : t('entryList.unpaid')}</Badge>
+                        {isCancelled ? (
+                          <Badge variant="danger" size="sm">{t('entryList.cancelled')}</Badge>
+                        ) : (
+                          <Badge variant={isPaid ? 'success' : 'outline'} size="sm">{isPaid ? t('entryList.paid') : t('entryList.unpaid')}</Badge>
+                        )}
                         <span className="text-xs text-gray-400">{formatThaiDate(entry.bill_date)}</span>
                         {store && <span className="text-xs text-gray-400">{store.store_code}</span>}
                       </div>
-                      <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
+                      <p className={cn('mt-1 text-sm font-medium text-gray-900 dark:text-white', isCancelled && 'line-through opacity-70')}>
                         {isAE ? ae?.name || 'Unknown AE' : staff?.display_name || staff?.username || t('entryList.unspecifiedStaff')}
                       </p>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      <div className={cn('mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400', isCancelled && 'line-through')}>
                         {entry.receipt_no && <span>#{entry.receipt_no}</span>}
                         {entry.table_no && <span>{t('entryList.table')} {entry.table_no}</span>}
                         {isAE && entry.subtotal_amount && <span>{t('entryList.subtotal')} {formatCurrency(Number(entry.subtotal_amount))}</span>}
                         {!isAE && entry.bottle_count && <span>{entry.bottle_count} {t('entryList.bottles')}</span>}
+                        {entry.bottle_product_name && <span className="text-indigo-500/80 dark:text-indigo-300/80">{entry.bottle_product_name}</span>}
                       </div>
+                      {isCancelled && entry.cancel_reason && (
+                        <p className="mt-1 text-[11px] text-red-500 dark:text-red-400">{t('entryList.cancelReason')}: {entry.cancel_reason}</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {entry.receipt_photo_url && (
@@ -331,10 +413,25 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
                         </button>
                       )}
                       <div className="text-right">
-                        <p className={cn('text-sm font-bold', isAE ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400')}>
+                        <p className={cn(
+                          'text-sm font-bold',
+                          isCancelled
+                            ? 'text-gray-400 line-through dark:text-gray-500'
+                            : isAE ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
+                        )}>
                           {formatCurrency(Number(entry.net_amount))}
                         </p>
                       </div>
+                      {!isPaid && !isCancelled && (
+                        <button onClick={() => handleCancelEntry(entry.id)} className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30" title={t('entryList.cancel')}>
+                          <XCircle className="h-4 w-4" />
+                        </button>
+                      )}
+                      {isCancelled && !isPaid && (
+                        <button onClick={() => handleRestoreEntry(entry.id)} className="rounded p-1 text-gray-300 hover:bg-emerald-50 hover:text-emerald-500 dark:hover:bg-emerald-900/30" title={t('entryList.restore')}>
+                          <RotateCcw className="h-4 w-4" />
+                        </button>
+                      )}
                       {canDelete && !isPaid && (
                         <button onClick={() => handleDelete(entry.id)} className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30">
                           <Trash2 className="h-4 w-4" />

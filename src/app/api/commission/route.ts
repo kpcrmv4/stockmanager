@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from('commission_entries')
-    .select('*, ae_profile:ae_profiles(*), staff_profile:profiles!commission_entries_staff_id_fkey(id, display_name, username), store:stores!commission_entries_store_id_fkey(id, store_name, store_code)', { count: 'exact' })
+    .select('*, ae_profile:ae_profiles(*), staff_profile:profiles!commission_entries_staff_id_fkey(id, display_name, username, role), store:stores!commission_entries_store_id_fkey(id, store_name, store_code)', { count: 'exact' })
     .order('bill_date', { ascending: false })
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { store_id, type, ae_id, staff_id, bill_date, receipt_no, receipt_photo_url, table_no, subtotal_amount, commission_rate, tax_rate, bottle_count, bottle_rate, notes } = body;
+  const { store_id, type, ae_id, staff_id, bill_date, receipt_no, receipt_photo_url, table_no, subtotal_amount, commission_rate, tax_rate, bottle_count, bottle_rate, bottle_product_id, bottle_product_name, bottle_product_category, notes } = body;
 
   if (!store_id || !type || !bill_date) {
     return NextResponse.json({ error: 'store_id, type, bill_date จำเป็นต้องกรอก' }, { status: 400 });
@@ -89,10 +89,13 @@ export async function POST(req: NextRequest) {
       net_amount,
       bottle_count: type === 'bottle_commission' ? (bottle_count ?? 1) : null,
       bottle_rate: type === 'bottle_commission' ? (bottle_rate ?? 500) : null,
+      bottle_product_id: type === 'bottle_commission' ? (bottle_product_id || null) : null,
+      bottle_product_name: type === 'bottle_commission' ? (bottle_product_name?.trim() || null) : null,
+      bottle_product_category: type === 'bottle_commission' ? (bottle_product_category?.trim() || null) : null,
       notes: notes?.trim() || null,
       created_by: user.id,
     })
-    .select('*, ae_profile:ae_profiles(*), staff_profile:profiles!commission_entries_staff_id_fkey(id, display_name, username), store:stores!commission_entries_store_id_fkey(id, store_name, store_code)')
+    .select('*, ae_profile:ae_profiles(*), staff_profile:profiles!commission_entries_staff_id_fkey(id, display_name, username, role), store:stores!commission_entries_store_id_fkey(id, store_name, store_code)')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -19,9 +19,11 @@ export async function GET(req: NextRequest) {
   const end = new Date(y, m, 0).toISOString().split('T')[0];
 
   // Fetch all entries for the month
+  // — only active (non-cancelled) entries count toward totals and unpaid lists.
   let query = supabase
     .from('commission_entries')
-    .select('*, ae_profile:ae_profiles(id, name, nickname, bank_name, bank_account_no, bank_account_name), staff_profile:profiles!commission_entries_staff_id_fkey(id, display_name, username), store:stores!commission_entries_store_id_fkey(id, store_name, store_code)')
+    .select('*, ae_profile:ae_profiles(id, name, nickname, bank_name, bank_account_no, bank_account_name), staff_profile:profiles!commission_entries_staff_id_fkey(id, display_name, username, role), store:stores!commission_entries_store_id_fkey(id, store_name, store_code)')
+    .is('cancelled_at', null)
     .gte('bill_date', start)
     .lte('bill_date', end)
     .order('bill_date', { ascending: true });

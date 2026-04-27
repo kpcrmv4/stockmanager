@@ -54,9 +54,15 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
   const [bottleCount, setBottleCount] = useState('1');
   const [bottleRate, setBottleRate] = useState('500');
 
-  // Staff list
-  const [staffList, setStaffList] = useState<Array<{ id: string; display_name: string | null; username: string }>>([]);
+  // Staff list (with role filter — pick role first, then staff)
+  const [staffList, setStaffList] = useState<Array<{ id: string; display_name: string | null; username: string; role: string }>>([]);
+  const [selectedStaffRole, setSelectedStaffRole] = useState('');
   const [selectedStaffId, setSelectedStaffId] = useState('');
+
+  // Bottle product picker — products of the current store
+  const [productList, setProductList] = useState<Array<{ id: string; product_name: string; category: string | null }>>([]);
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
 
   // Quick-add AE (full fields)
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -78,19 +84,56 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
   }, [aeSearch, searchAE]);
 
   useEffect(() => {
-    if (type === 'bottle_commission' && staffList.length === 0) {
-      import('@/lib/supabase/client').then(({ createClient }) => {
-        const supabase = createClient();
+    if (type !== 'bottle_commission') return;
+
+    import('@/lib/supabase/client').then(({ createClient }) => {
+      const supabase = createClient();
+
+      // Staff (all positions that can serve bottles — role filter is applied
+      // client-side so users can switch role without re-querying).
+      if (staffList.length === 0) {
         supabase
           .from('profiles')
-          .select('id, display_name, username')
+          .select('id, display_name, username, role')
           .in('role', ['staff', 'bar', 'manager'])
           .eq('active', true)
           .order('display_name')
           .then(({ data }) => { if (data) setStaffList(data); });
-      });
-    }
-  }, [type, staffList.length]);
+      }
+
+      // Products of the current store, only ones available to count.
+      if (currentStoreId && productList.length === 0) {
+        supabase
+          .from('products')
+          .select('id, product_name, category')
+          .eq('store_id', currentStoreId)
+          .eq('active', true)
+          .order('category', { ascending: true })
+          .order('product_name', { ascending: true })
+          .then(({ data }) => { if (data) setProductList(data); });
+      }
+    });
+  }, [type, staffList.length, productList.length, currentStoreId]);
+
+  // Reset selectedStaffId when role changes (so the staff dropdown
+  // doesn't keep a value that's no longer in the filtered list).
+  useEffect(() => {
+    if (!selectedStaffRole) return;
+    const stillValid = staffList.find((s) => s.id === selectedStaffId)?.role === selectedStaffRole;
+    if (!stillValid) setSelectedStaffId('');
+  }, [selectedStaffRole, staffList, selectedStaffId]);
+
+  const filteredStaffList = selectedStaffRole
+    ? staffList.filter((s) => s.role === selectedStaffRole)
+    : staffList;
+
+  const categories = Array.from(
+    new Set(productList.map((p) => p.category || 'ไม่ระบุหมวด'))
+  ).sort();
+  const filteredProducts = selectedCategory
+    ? productList.filter((p) => (p.category || 'ไม่ระบุหมวด') === selectedCategory)
+    : productList;
+  const selectedProduct = productList.find((p) => p.id === selectedProductId) || null;
 
   const subtotal = parseFloat(subtotalAmount) || 0;
   const cRate = parseFloat(commissionRate) / 100 || 0.10;
@@ -159,6 +202,11 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
         payload.staff_id = selectedStaffId || null;
         payload.bottle_count = bCount;
         payload.bottle_rate = bRate;
+        if (selectedProduct) {
+          payload.bottle_product_id = selectedProduct.id;
+          payload.bottle_product_name = selectedProduct.product_name;
+          payload.bottle_product_category = selectedProduct.category || null;
+        }
       }
 
       const res = await fetch('/api/commission', {
@@ -173,7 +221,8 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
         logAudit({ store_id: currentStoreId, action_type: AUDIT_ACTIONS.COMMISSION_ENTRY_CREATED, table_name: 'commission_entries', record_id: created.id, new_value: payload as Record<string, unknown>, changed_by: user?.id });
         setReceiptNo(''); setReceiptPhoto(null); setTableNo(''); setNotes('');
         setSubtotalAmount(''); setSelectedAE(null); setAeSearch('');
-        setBottleCount('1'); setSelectedStaffId('');
+        setBottleCount('1'); setSelectedStaffId(''); setSelectedStaffRole('');
+        setSelectedProductId(''); setSelectedCategory('');
         onSuccess();
       } else {
         const err = await res.json();
@@ -266,12 +315,34 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
         </Card>
       )}
 
-      {/* Staff selection */}
+      {/* Staff selection — pick role, then staff filtered by that role */}
       {type === 'bottle_commission' && (
         <Card>
           <CardHeader title={t('entryForm.staff')} />
-          <CardContent className="p-4">
-            <Select label={t('entryForm.selectStaff')} value={selectedStaffId} onChange={(e) => setSelectedStaffId(e.target.value)} options={[{ value: '', label: t('entryForm.selectStaffOptional') }, ...staffList.map((s) => ({ value: s.id, label: s.display_name || s.username }))]} />
+          <CardContent className="space-y-3 p-4">
+            <Select
+              label={t('entryForm.selectRole')}
+              value={selectedStaffRole}
+              onChange={(e) => setSelectedStaffRole(e.target.value)}
+              options={[
+                { value: '', label: t('entryForm.allRoles') },
+                { value: 'manager', label: t('entryForm.roleManager') },
+                { value: 'bar', label: t('entryForm.roleBar') },
+                { value: 'staff', label: t('entryForm.roleStaff') },
+              ]}
+            />
+            <Select
+              label={t('entryForm.selectStaff')}
+              value={selectedStaffId}
+              onChange={(e) => setSelectedStaffId(e.target.value)}
+              options={[
+                { value: '', label: t('entryForm.selectStaffOptional') },
+                ...filteredStaffList.map((s) => ({
+                  value: s.id,
+                  label: s.display_name || s.username,
+                })),
+              ]}
+            />
           </CardContent>
         </Card>
       )}
@@ -292,10 +363,30 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
         <Card>
           <CardHeader title={t('entryForm.calculateCommission')} />
           <CardContent className="space-y-3 p-4">
-            <Input label={t('entryForm.subtotalBeforeVat')} type="number" value={subtotalAmount} onChange={(e) => setSubtotalAmount(e.target.value)} placeholder="17,050" required />
+            <Input
+              label={t('entryForm.subtotalBeforeVat')}
+              type="text"
+              inputMode="decimal"
+              value={subtotalAmount}
+              onChange={(e) => setSubtotalAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+              placeholder="17050"
+              required
+            />
             <div className="grid grid-cols-2 gap-3">
-              <Input label="Cashback %" type="number" value={commissionRate} onChange={(e) => setCommissionRate(e.target.value)} />
-              <Input label={t('entryForm.taxPercent')} type="number" value={taxRate} onChange={(e) => setTaxRate(e.target.value)} />
+              <Input
+                label="Cashback %"
+                type="text"
+                inputMode="decimal"
+                value={commissionRate}
+                onChange={(e) => setCommissionRate(e.target.value.replace(/[^0-9.]/g, ''))}
+              />
+              <Input
+                label={t('entryForm.taxPercent')}
+                type="text"
+                inputMode="decimal"
+                value={taxRate}
+                onChange={(e) => setTaxRate(e.target.value.replace(/[^0-9.]/g, ''))}
+              />
             </div>
             {subtotal > 0 && (
               <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
@@ -313,9 +404,47 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
         <Card>
           <CardHeader title="Bottle Commission" />
           <CardContent className="space-y-3 p-4">
+            {/* Product picker — pick category, then product. Stored as
+                bottle_product_id + denormalized name + category so the
+                history tab can show what was sold even if the product
+                later gets renamed or deactivated. */}
+            <Select
+              label={t('entryForm.category')}
+              value={selectedCategory}
+              onChange={(e) => { setSelectedCategory(e.target.value); setSelectedProductId(''); }}
+              options={[
+                { value: '', label: t('entryForm.allCategories') },
+                ...categories.map((c) => ({ value: c, label: c })),
+              ]}
+            />
+            <Select
+              label={t('entryForm.product')}
+              value={selectedProductId}
+              onChange={(e) => setSelectedProductId(e.target.value)}
+              options={[
+                { value: '', label: t('entryForm.selectProductOptional') },
+                ...filteredProducts.map((p) => ({
+                  value: p.id,
+                  label: p.category ? `${p.product_name} — ${p.category}` : p.product_name,
+                })),
+              ]}
+            />
             <div className="grid grid-cols-2 gap-3">
-              <Input label={t('entryForm.bottleCount')} type="number" value={bottleCount} onChange={(e) => setBottleCount(e.target.value)} required />
-              <Input label={t('entryForm.bottleRate')} type="number" value={bottleRate} onChange={(e) => setBottleRate(e.target.value)} />
+              <Input
+                label={t('entryForm.bottleCount')}
+                type="text"
+                inputMode="numeric"
+                value={bottleCount}
+                onChange={(e) => setBottleCount(e.target.value.replace(/[^0-9]/g, ''))}
+                required
+              />
+              <Input
+                label={t('entryForm.bottleRate')}
+                type="text"
+                inputMode="decimal"
+                value={bottleRate}
+                onChange={(e) => setBottleRate(e.target.value.replace(/[^0-9.]/g, ''))}
+              />
             </div>
             <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
               <div className="flex justify-between text-sm font-semibold text-rose-600 dark:text-rose-400"><span>{t('entryForm.netAmount')}</span><span>{formatCurrency(netBottle)}</span></div>

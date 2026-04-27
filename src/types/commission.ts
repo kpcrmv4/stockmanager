@@ -33,14 +33,21 @@ export interface CommissionEntry {
   net_amount: number;
   bottle_count: number | null;
   bottle_rate: number | null;
+  bottle_product_id: string | null;
+  bottle_product_name: string | null;
+  bottle_product_category: string | null;
   notes: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
   payment_id: string | null;
+  // soft-cancel
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancel_reason: string | null;
   // joined fields
   ae_profile?: AEProfile;
-  staff_profile?: { id: string; display_name: string | null; username: string };
+  staff_profile?: { id: string; display_name: string | null; username: string; role?: string };
   store?: { id: string; store_name: string; store_code: string };
 }
 
