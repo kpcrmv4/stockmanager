@@ -268,9 +268,16 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   const expiryDays = deposit.expiry_date ? daysUntil(deposit.expiry_date) : null;
   const isExpiringSoon = expiryDays !== null && expiryDays <= 7 && expiryDays > 0 && deposit.status === 'in_store';
   const isExpired = expiryDays !== null && expiryDays <= 0;
+  // Bottle-count ratio (e.g. 2 of 3 bottles still in store).
   const remainingPercent = deposit.quantity > 0
     ? Math.round((deposit.remaining_qty / deposit.quantity) * 100)
     : 0;
+  // Liquor-level inside the current/last bottle (set by bar on confirm
+  // or withdrawal — separate metric from the bottle-count ratio above).
+  const bottleLevelPercent =
+    deposit.remaining_percent !== null && deposit.remaining_percent !== undefined
+      ? Math.round(deposit.remaining_percent)
+      : null;
 
   // Determine current timeline step
   const currentStatusIndex = statusTimelineKeys.findIndex((s) => s.key === deposit.status);
@@ -992,17 +999,22 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{t('detail.quantity')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      {formatNumber(deposit.remaining_qty)} / {formatNumber(deposit.quantity)}
+                      {formatNumber(deposit.remaining_qty)} / {formatNumber(deposit.quantity)} ขวด
                     </p>
+                    {bottleLevelPercent !== null && (
+                      <p className="mt-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                        ปริมาณในขวด {bottleLevelPercent}%
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Remaining bar */}
+              {/* Bottle-count progress bar */}
               <div>
                 <div className="mb-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                  <span>{t('detail.remaining')}</span>
-                  <span>{remainingPercent}%</span>
+                  <span>ขวดที่เหลือ</span>
+                  <span>{remainingPercent}% ({formatNumber(deposit.remaining_qty)}/{formatNumber(deposit.quantity)})</span>
                 </div>
                 <div className="h-2.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                   <div
