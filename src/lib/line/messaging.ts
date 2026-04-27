@@ -17,6 +17,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import {
   depositConfirmedFlex,
+  depositRejectedFlex,
   withdrawalCompletedFlex,
   depositExpiryWarningFlex,
   newDepositNotifyFlex,
@@ -54,6 +55,10 @@ interface StoreLineConfig {
 
 interface StoreSettings {
   line_notify_enabled: boolean;
+  customer_notify_deposit_enabled: boolean;
+  customer_notify_deposit_rejected_enabled: boolean;
+  customer_notify_withdrawal_enabled: boolean;
+  customer_notify_expiry_enabled: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -324,10 +329,49 @@ function resolveStoreToken(storeConfig: StoreLineConfig): string | null {
 
 type DepositEventType =
   | 'confirmed'
+  | 'rejected'
   | 'withdrawal_completed'
   | 'expiry_warning'
   | 'new_deposit'
   | 'withdrawal_request';
+
+/**
+ * Map a deposit event to the per-store opt-in flag the owner sees in
+ * settings → notifications. Customer-facing events respect the
+ * matching `customer_notify_*_enabled` flag; staff-facing events
+ * (new_deposit, withdrawal_request) respect only the master
+ * `line_notify_enabled` toggle.
+ *
+ * Returns `null` for staff events where only the master flag matters.
+ */
+function customerToggleColumnFor(type: DepositEventType): keyof StoreSettings | null {
+  switch (type) {
+    case 'confirmed': return 'customer_notify_deposit_enabled';
+    case 'rejected': return 'customer_notify_deposit_rejected_enabled';
+    case 'withdrawal_completed': return 'customer_notify_withdrawal_enabled';
+    case 'expiry_warning': return 'customer_notify_expiry_enabled';
+    case 'new_deposit':
+    case 'withdrawal_request':
+    default:
+      return null;
+  }
+}
+
+async function fetchStoreNotifySettings(storeId: string): Promise<StoreSettings | null> {
+  try {
+    const supabase = createServiceClient();
+    const { data, error } = await supabase
+      .from('store_settings')
+      .select('line_notify_enabled, customer_notify_deposit_enabled, customer_notify_deposit_rejected_enabled, customer_notify_withdrawal_enabled, customer_notify_expiry_enabled')
+      .eq('store_id', storeId)
+      .single();
+    if (error || !data) return null;
+    return data as StoreSettings;
+  } catch (error) {
+    console.error('[LINE] fetchStoreNotifySettings error:', error);
+    return null;
+  }
+}
 
 interface NotifyDepositEventParams {
   type: DepositEventType;
@@ -347,10 +391,19 @@ interface NotifyDepositEventParams {
 export async function notifyDepositEvent(params: NotifyDepositEventParams): Promise<void> {
   const { type, storeId, data } = params;
 
-  // 1. Check if LINE notifications are enabled for this store
-  const enabled = await isLineNotifyEnabled(storeId);
-  if (!enabled) {
-    console.log(`[LINE] Notifications disabled for store ${storeId}, skipping`);
+  // 1. Check master + per-event opt-in for this store.
+  const settings = await fetchStoreNotifySettings(storeId);
+  if (!settings) {
+    console.log(`[LINE] No store_settings for store ${storeId}, skipping`);
+    return;
+  }
+  if (!settings.line_notify_enabled) {
+    console.log(`[LINE] Master line_notify_enabled=false for store ${storeId}, skipping`);
+    return;
+  }
+  const customerToggleColumn = customerToggleColumnFor(type);
+  if (customerToggleColumn && settings[customerToggleColumn] === false) {
+    console.log(`[LINE] Per-event flag ${customerToggleColumn}=false for store ${storeId}, skipping`);
     return;
   }
 
@@ -383,6 +436,24 @@ export async function notifyDepositEvent(params: NotifyDepositEventParams): Prom
         quantity: data.quantity,
         store_name: data.store_name,
         expiry_date: data.expiry_date,
+      });
+
+      await sendLinePush(lineUserId, [message as unknown as LineMessage], token);
+      break;
+    }
+
+    case 'rejected': {
+      // Send to customer's LINE userId
+      const lineUserId = data.line_user_id as string | undefined;
+      if (!lineUserId) {
+        console.warn('[LINE] No line_user_id for deposit rejected notification');
+        return;
+      }
+
+      const message = depositRejectedFlex({
+        product_name: data.product_name,
+        store_name: data.store_name,
+        reason: data.reason,
       });
 
       await sendLinePush(lineUserId, [message as unknown as LineMessage], token);

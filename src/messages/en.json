@@ -2180,6 +2180,8 @@
       "expiryDaysHint": "How many days before expiry to send notification",
       "depositLabel": "Deposit Confirmation",
       "depositDesc": "Notify when deposit is confirmed",
+      "depositRejectedLabel": "Deposit Rejected",
+      "depositRejectedDesc": "Notify when bar rejects the deposit, with reason",
       "withdrawalLabel": "Withdrawal Confirmation",
       "withdrawalDesc": "Notify when withdrawal is completed",
       "promotionLabel": "Promotions",

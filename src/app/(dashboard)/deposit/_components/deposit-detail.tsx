@@ -477,6 +477,14 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       completedByName: displayName,
     });
 
+    // Send Flex to customer's LINE OA (if linked + per-store toggle on).
+    // Fire-and-forget — failure shouldn't block the confirm flow.
+    fetch('/api/line/notify-deposit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'confirmed', deposit_id: deposit.id }),
+    }).catch(() => {});
+
     // Auto-enqueue print: 1 receipt + N labels (one per bottle).
     // The print server reads `bottles[]` from the payload and renders
     // bottle_no/total + per-bottle remaining_percent on each label,
@@ -806,6 +814,13 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         changed_by: user.id,
       });
       toast({ type: 'success', title: t('detail.rejectSuccess') });
+
+      // Fire-and-forget Flex notification to the customer's LINE OA.
+      fetch('/api/line/notify-deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'rejected', deposit_id: deposit.id, reason: rejectReason }),
+      }).catch(() => {});
     }
 
     setShowRejectModal(false);

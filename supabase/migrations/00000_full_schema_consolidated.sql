@@ -580,6 +580,7 @@ CREATE TABLE store_settings (
   customer_notify_withdrawal_enabled BOOLEAN DEFAULT true,
   customer_notify_deposit_enabled BOOLEAN DEFAULT true,
   customer_notify_promotion_enabled BOOLEAN DEFAULT true,
+  customer_notify_deposit_rejected_enabled BOOLEAN DEFAULT true,
   customer_notify_channels TEXT[] DEFAULT '{pwa,line}',
   /** เปิด/ปิดการส่งแจ้งเตือนผ่าน LINE ทั้งหมดของสาขา */
   line_notify_enabled BOOLEAN DEFAULT true,

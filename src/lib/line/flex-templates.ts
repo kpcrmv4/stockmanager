@@ -197,6 +197,73 @@ export function depositConfirmedFlex(params: DepositConfirmedParams): FlexMessag
 }
 
 // ---------------------------------------------------------------------------
+// (a2) depositRejectedFlex
+// ---------------------------------------------------------------------------
+
+interface DepositRejectedParams {
+  product_name: string;
+  store_name: string;
+  reason: string;
+}
+
+/**
+ * Flex message sent to a customer when the bar rejects their deposit.
+ * Red accent. Shown alongside an apologetic note + the reason staff
+ * entered so the customer knows why and what to do next (typically
+ * walk back to the bar).
+ */
+export function depositRejectedFlex(params: DepositRejectedParams): FlexMessage {
+  const { product_name, store_name, reason } = params;
+
+  return {
+    type: 'flex',
+    altText: `ขออภัย ไม่สามารถรับฝาก ${product_name}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: headerBox('ไม่สามารถรับฝากได้', COLORS.red),
+      body: bodyBox([
+        textComponent(product_name, {
+          size: 'xl',
+          weight: 'bold',
+          color: COLORS.textPrimary,
+          wrap: true,
+        }),
+        textComponent(store_name, {
+          size: 'xs',
+          color: COLORS.textMuted,
+          margin: 'sm',
+        }),
+        separatorComponent(),
+        textComponent('เหตุผล', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          margin: 'md',
+        }),
+        textComponent(reason || '-', {
+          size: 'sm',
+          color: COLORS.textPrimary,
+          wrap: true,
+          margin: 'sm',
+        }),
+      ]),
+      footer: footerBox([
+        textComponent('ขออภัยในความไม่สะดวก กรุณาติดต่อพนักงานที่สาขา', {
+          size: 'xs',
+          color: COLORS.textMuted,
+          wrap: true,
+          align: 'center',
+        }),
+      ]),
+      styles: {
+        header: { backgroundColor: COLORS.red },
+        footer: { separator: true },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // (b) withdrawalCompletedFlex
 // ---------------------------------------------------------------------------
 

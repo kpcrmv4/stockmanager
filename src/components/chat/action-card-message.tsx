@@ -572,6 +572,13 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
               data: { deposit_code: meta.reference_id },
               excludeUserId: currentUserId,
             });
+
+            // Flex push to the customer's LINE OA (per-store toggle).
+            fetch('/api/line/notify-deposit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'confirmed', deposit_code: meta.reference_id }),
+            }).catch(() => {});
           }
 
           // Withdrawal completed → update withdrawal + deposit records
@@ -622,6 +629,17 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                       status: newStatus,
                     })
                     .eq('id', deposit.id);
+
+                  // Flex push to the customer's LINE OA (per-store toggle).
+                  fetch('/api/line/notify-deposit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      type: 'withdrawal_completed',
+                      deposit_id: deposit.id,
+                      actual_qty: qty,
+                    }),
+                  }).catch(() => {});
                 }
               }
 

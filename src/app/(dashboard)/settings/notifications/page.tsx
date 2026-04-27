@@ -21,6 +21,7 @@ interface CustomerNotifSettings {
   customer_notify_expiry_days: number;
   customer_notify_withdrawal_enabled: boolean;
   customer_notify_deposit_enabled: boolean;
+  customer_notify_deposit_rejected_enabled: boolean;
   customer_notify_promotion_enabled: boolean;
   customer_notify_channels: string[];
   line_notify_enabled: boolean;
@@ -31,6 +32,7 @@ const defaults: CustomerNotifSettings = {
   customer_notify_expiry_days: 7,
   customer_notify_withdrawal_enabled: true,
   customer_notify_deposit_enabled: true,
+  customer_notify_deposit_rejected_enabled: true,
   customer_notify_promotion_enabled: true,
   customer_notify_channels: ['pwa', 'line'],
   line_notify_enabled: false,
@@ -50,7 +52,7 @@ export default function NotificationSettingsPage() {
     const supabase = createClient();
     const { data } = await supabase
       .from('store_settings')
-      .select('customer_notify_expiry_enabled, customer_notify_expiry_days, customer_notify_withdrawal_enabled, customer_notify_deposit_enabled, customer_notify_promotion_enabled, customer_notify_channels, line_notify_enabled')
+      .select('customer_notify_expiry_enabled, customer_notify_expiry_days, customer_notify_withdrawal_enabled, customer_notify_deposit_enabled, customer_notify_deposit_rejected_enabled, customer_notify_promotion_enabled, customer_notify_channels, line_notify_enabled')
       .eq('store_id', currentStoreId)
       .single();
 
@@ -60,6 +62,7 @@ export default function NotificationSettingsPage() {
         customer_notify_expiry_days: data.customer_notify_expiry_days ?? 7,
         customer_notify_withdrawal_enabled: data.customer_notify_withdrawal_enabled ?? true,
         customer_notify_deposit_enabled: data.customer_notify_deposit_enabled ?? true,
+        customer_notify_deposit_rejected_enabled: data.customer_notify_deposit_rejected_enabled ?? true,
         customer_notify_promotion_enabled: data.customer_notify_promotion_enabled ?? true,
         customer_notify_channels: data.customer_notify_channels ?? ['pwa', 'line'],
         line_notify_enabled: data.line_notify_enabled ?? false,
@@ -192,6 +195,12 @@ export default function NotificationSettingsPage() {
             description={t('notif.depositDesc')}
             checked={settings.customer_notify_deposit_enabled}
             onChange={() => toggle('customer_notify_deposit_enabled')}
+          />
+          <ToggleRow
+            label={t('notif.depositRejectedLabel')}
+            description={t('notif.depositRejectedDesc')}
+            checked={settings.customer_notify_deposit_rejected_enabled}
+            onChange={() => toggle('customer_notify_deposit_rejected_enabled')}
           />
           <ToggleRow
             label={t('notif.withdrawalLabel')}

@@ -420,6 +420,13 @@ export default function WithdrawalsPage() {
         processed_by_name: user.displayName || user.username || 'พนักงาน',
       });
 
+      // Flex push to the customer's LINE OA (per-store toggle).
+      fetch('/api/line/notify-deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'withdrawal_completed', deposit_id: dep.id, actual_qty: qty }),
+      }).catch(() => {});
+
       await logAudit({
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.WITHDRAWAL_COMPLETED,
@@ -516,6 +523,13 @@ export default function WithdrawalsPage() {
       }
 
       toast({ type: 'success', title: t('withdrawals.processSuccess'), message: t('withdrawals.processSuccessMessage', { qty }) });
+
+      // Flex push to the customer's LINE OA (per-store toggle).
+      fetch('/api/line/notify-deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'withdrawal_completed', deposit_id: selectedWithdrawal.deposit_id, actual_qty: qty }),
+      }).catch(() => {});
 
       // ส่ง system message เข้าห้องแชทสาขา
       notifyChatWithdrawalCompleted(currentStoreId!, {
