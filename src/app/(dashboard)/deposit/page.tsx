@@ -826,8 +826,11 @@ export default function DepositPage() {
         />
       ) : (
         <>
-          {/* Batch action bar — expired tab (transfer expired) + VIP tab (transfer VIP) */}
-          {(activeTab === 'expired' || activeTab === 'vip') && filteredDeposits.length > 0 && user && user.role !== 'customer' && (() => {
+          {/* Batch action bar — expired tab (transfer expired) + VIP tab (transfer VIP).
+              VIP transfer is restricted to owner / accountant / hq only — bar /
+              manager / staff can see the tab but not bulk-move customers' VIPs. */}
+          {(activeTab === 'expired' || activeTab === 'vip') && filteredDeposits.length > 0 && user && user.role !== 'customer' &&
+            (activeTab !== 'vip' || ['owner', 'accountant', 'hq'].includes(user.role)) && (() => {
             const eligibleIds = filteredDeposits
               .filter((d) =>
                 activeTab === 'expired'
@@ -1006,7 +1009,8 @@ export default function DepositPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-100 dark:border-gray-700">
-                      {(activeTab === 'expired' || activeTab === 'vip') && user && user.role !== 'customer' && (
+                      {(activeTab === 'expired' || activeTab === 'vip') && user && user.role !== 'customer' &&
+                       (activeTab !== 'vip' || ['owner', 'accountant', 'hq'].includes(user.role)) && (
                         <th className="w-10 px-3 py-3"></th>
                       )}
                       <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -1038,7 +1042,8 @@ export default function DepositPage() {
                       const isExpiringSoon = expiryDays !== null && expiryDays <= 7 && expiryDays > 0 && deposit.status === 'in_store';
                       const eligibleForBatch = user && user.role !== 'customer' && (
                         (activeTab === 'expired' && deposit.status === 'expired') ||
-                        (activeTab === 'vip' && deposit.is_vip && deposit.status === 'in_store')
+                        (activeTab === 'vip' && deposit.is_vip && deposit.status === 'in_store' &&
+                          ['owner', 'accountant', 'hq'].includes(user.role))
                       );
                       const rowChecked = batchSelectedIds.has(deposit.id);
 
@@ -1051,7 +1056,8 @@ export default function DepositPage() {
                           )}
                           onClick={() => setSelectedDeposit(deposit)}
                         >
-                          {(activeTab === 'expired' || activeTab === 'vip') && user && user.role !== 'customer' && (
+                          {(activeTab === 'expired' || activeTab === 'vip') && user && user.role !== 'customer' &&
+                           (activeTab !== 'vip' || ['owner', 'accountant', 'hq'].includes(user.role)) && (
                             <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
                               {eligibleForBatch ? (
                                 <button
@@ -1187,7 +1193,8 @@ export default function DepositPage() {
               const showCheckbox =
                 user && user.role !== 'customer' && (
                   (activeTab === 'expired' && deposit.status === 'expired') ||
-                  (activeTab === 'vip' && deposit.is_vip && deposit.status === 'in_store')
+                  (activeTab === 'vip' && deposit.is_vip && deposit.status === 'in_store' &&
+                    ['owner', 'accountant', 'hq'].includes(user.role))
                 );
               const isChecked = batchSelectedIds.has(deposit.id);
 
