@@ -48,13 +48,21 @@ export async function runAutoCompare(
     .eq('count_date', date);
 
   // 2. Check POS data (ocr_logs)
-  const { data: ocrLogs } = await supabase
+  // upload_date is timestamptz; match the whole calendar day in BKK so a POS
+  // upload at any time of day still counts. Also: ocr_logs has no created_at
+  // column — order by upload_date instead (was silently failing in PostgREST,
+  // which made the query return null → falsely returned reason='no_pos').
+  const { data: ocrLogs, error: ocrLogsError } = await supabase
     .from('ocr_logs')
     .select('id')
     .eq('store_id', storeId)
-    .eq('upload_date', date)
-    .order('created_at', { ascending: false })
+    .gte('upload_date', `${date}T00:00:00+07:00`)
+    .lt('upload_date', `${date}T24:00:00+07:00`)
+    .order('upload_date', { ascending: false })
     .limit(1);
+  if (ocrLogsError) {
+    console.error('[runAutoCompare] ocr_logs query failed:', ocrLogsError);
+  }
 
   const hasManual = (manualCount || 0) > 0;
   const hasPOS = (ocrLogs?.length || 0) > 0;
@@ -151,11 +159,14 @@ export async function checkExistingPOSUpload(
 ): Promise<{ exists: boolean; logId?: string }> {
   const supabase = createClient();
 
+  // upload_date is timestamptz — use a date-range filter so any time of day matches.
   const { data: ocrLogs } = await supabase
     .from('ocr_logs')
     .select('id')
     .eq('store_id', storeId)
-    .eq('upload_date', date)
+    .gte('upload_date', `${date}T00:00:00+07:00`)
+    .lt('upload_date', `${date}T24:00:00+07:00`)
+    .order('upload_date', { ascending: false })
     .limit(1);
 
   if (ocrLogs && ocrLogs.length > 0) {
