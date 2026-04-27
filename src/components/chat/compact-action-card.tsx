@@ -113,11 +113,23 @@ export const CompactActionCard = memo(function CompactActionCard({ message }: Co
 
   const isUrgent = info.priority === 'urgent';
 
+  // Type-specific status label — generic 'รอรับ' is wrong for stock cards
+  // (they're not 'received', they need explain/count/approve actions).
+  const statusLabel = (() => {
+    if (info.status !== 'pending') return statusInfo.label;
+    if (info.actionType === 'stock_explain') return 'รอชี้แจง';
+    if (info.actionType === 'stock_supplementary') return 'รอนับเพิ่ม';
+    if (info.actionType === 'stock_approve') return 'รออนุมัติ';
+    return statusInfo.label;
+  })();
+
   return (
     <button
       onClick={() => setActiveTab('tasks')}
       className={cn(
-        'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left transition-all active:scale-[0.98]',
+        // max-w-md so the card doesn't span the entire chat column on
+        // wide screens — matches chat bubbles' constrained width.
+        'flex w-full max-w-md items-center gap-2 rounded-xl px-3 py-2 text-left transition-all active:scale-[0.98]',
         'border shadow-sm',
         isUrgent
           ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
@@ -153,7 +165,7 @@ export const CompactActionCard = memo(function CompactActionCard({ message }: Co
         <span className={cn('text-[10px] font-medium', statusInfo.className)}>
           {info.isAssigned && info.assigneeName
             ? info.assigneeName
-            : statusInfo.label}
+            : statusLabel}
         </span>
       </div>
 

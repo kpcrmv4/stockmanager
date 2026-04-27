@@ -176,14 +176,22 @@ function getMessagePreview(msg: typeof undefined extends never ? never : ReturnT
       const typeLabel =
         actionType === 'deposit_claim' ? 'ฝากเหล้า'
         : actionType === 'withdrawal_claim' ? 'เบิกเหล้า'
-        : actionType === 'stock_explain' ? 'สต๊อก'
+        : actionType === 'stock_explain' ? 'สต๊อกไม่ตรง'
+        : actionType === 'stock_supplementary' ? 'นับเพิ่ม'
+        : actionType === 'stock_approve' ? 'รออนุมัติ'
         : actionType === 'borrow_approve' ? 'ยืมสินค้า'
         : actionType === 'transfer_receive' ? 'โอนสต๊อก'
         : 'งาน';
       const ref = meta?.reference_id ? `#${String(meta.reference_id).slice(-8)}` : '';
       const customer = summary?.customer ? ` · ${summary.customer}` : '';
+      // Type-specific 'pending' phrasing — 'รอรับ' is wrong for stock cards.
+      const pendingLabel =
+        actionType === 'stock_explain' ? 'รอชี้แจง'
+        : actionType === 'stock_supplementary' ? 'รอนับเพิ่ม'
+        : actionType === 'stock_approve' ? 'รออนุมัติ'
+        : 'รอรับ';
 
-      if (status === 'pending') return `${typeLabel} ${ref}${customer} · รอรับ`;
+      if (status === 'pending') return `${typeLabel} ${ref}${customer} · ${pendingLabel}`;
       if (status === 'pending_bar') return `${typeLabel} ${ref}${customer} · รอBarยืนยัน`;
       if (status === 'claimed') return `${typeLabel} ${ref} · ${meta?.claimed_by_name || 'มีคน'} กำลังทำ`;
       if (status === 'completed') {
