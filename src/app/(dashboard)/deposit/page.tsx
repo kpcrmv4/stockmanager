@@ -156,6 +156,11 @@ export default function DepositPage() {
   // null = no sort (insertion order), asc = oldest first, desc = newest first
   const [vipDaysSort, setVipDaysSort] = useState<'asc' | 'desc' | null>(null);
 
+  // Sub-filter for the VIP tab:
+  //   'all'         = every VIP deposit (current + transferred + expired)
+  //   'transferred' = VIPs that have been moved to HQ already (transfer_pending or transferred_out)
+  const [vipStatusFilter, setVipStatusFilter] = useState<'all' | 'transferred'>('all');
+
   // Transfer batches for "รอนำส่ง HQ" tab
   const [transferBatches, setTransferBatches] = useState<TransferBatchGroup[]>([]);
   const [expandedTransferBatches, setExpandedTransferBatches] = useState<Set<string>>(new Set());
@@ -696,6 +701,11 @@ export default function DepositPage() {
     // Filter by tab
     if (activeTab === 'vip') {
       result = result.filter((d) => d.is_vip);
+      if (vipStatusFilter === 'transferred') {
+        result = result.filter(
+          (d) => d.status === 'transferred_out' || d.status === 'transfer_pending',
+        );
+      }
     } else if (activeTab !== 'all') {
       result = result.filter((d) => d.status === activeTab);
     }
@@ -722,7 +732,7 @@ export default function DepositPage() {
     }
 
     return result;
-  }, [deposits, activeTab, searchQuery, dateFilterEnabled, dateFrom, dateTo, vipDaysSort]);
+  }, [deposits, activeTab, searchQuery, dateFilterEnabled, dateFrom, dateTo, vipDaysSort, vipStatusFilter]);
 
   const depositTabs = DEPOSIT_TAB_IDS.map((id) => ({ id, label: t(DEPOSIT_TAB_KEYS[id]) }));
   const tabsWithCounts = depositTabs.map((tab) => {
@@ -876,6 +886,35 @@ export default function DepositPage() {
                 onChange={(e) => handleDateToChange(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               />
+            </div>
+          )}
+          {/* VIP-only sub-status filter */}
+          {activeTab === 'vip' && (
+            <div className="flex shrink-0 items-center gap-1 rounded-lg bg-gray-100 p-0.5 dark:bg-gray-800">
+              <button
+                type="button"
+                onClick={() => setVipStatusFilter('all')}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                  vipStatusFilter === 'all'
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200',
+                )}
+              >
+                ทั้งหมด
+              </button>
+              <button
+                type="button"
+                onClick={() => setVipStatusFilter('transferred')}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                  vipStatusFilter === 'transferred'
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200',
+                )}
+              >
+                โอนคลังกลางแล้ว
+              </button>
             </div>
           )}
         </div>
