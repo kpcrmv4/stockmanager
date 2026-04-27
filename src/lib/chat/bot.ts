@@ -166,15 +166,93 @@ export function buildStockExplainActionCard(comparison: {
     completed_at: null,
     timeout_minutes: 60, // สต๊อกให้เวลามากกว่า
     priority: 'normal',
+    detail_url: `/stock/explanation?date=${comparison.comp_date}`,
     summary: {
       items: `${comparison.discrepancy_count} รายการไม่ตรง`,
       note: comparison.items_preview,
+      comp_date: comparison.comp_date,
+      discrepancy_count: comparison.discrepancy_count,
     },
   };
 
   return {
     type: 'action_card',
     content: `สต๊อกไม่ตรง ${comparison.discrepancy_count} รายการ — วันที่ ${comparison.comp_date}`,
+    metadata: meta,
+  };
+}
+
+/**
+ * สร้าง Action Card สำหรับ "POS มีรายการที่ยังไม่ได้นับมือ"
+ * เกิดเมื่ออัพโหลด POS แล้วเจอสินค้า active ที่ตอนนับ manual ยังไม่อยู่
+ */
+export function buildStockSupplementaryActionCard(input: {
+  comp_date: string;
+  store_id: string;
+  pending_count: number;
+  items_preview: string;
+}): Omit<SendBotMessageParams, 'storeId'> {
+  const meta: ActionCardMetadata = {
+    action_type: 'stock_supplementary',
+    reference_id: input.comp_date,
+    reference_table: 'manual_counts',
+    status: 'pending',
+    claimed_by: null,
+    claimed_by_name: null,
+    claimed_at: null,
+    completed_at: null,
+    timeout_minutes: 60,
+    priority: 'normal',
+    detail_url: `/stock/daily-check?date=${input.comp_date}&supplementary=1`,
+    summary: {
+      items: `${input.pending_count} รายการยังไม่ได้นับ`,
+      note: input.items_preview,
+      comp_date: input.comp_date,
+      pending_count: input.pending_count,
+    },
+  };
+
+  return {
+    type: 'action_card',
+    content: `📋 มี ${input.pending_count} รายการต้องนับเพิ่ม — วันที่ ${input.comp_date}`,
+    metadata: meta,
+  };
+}
+
+/**
+ * สร้าง Action Card สำหรับ owner รออนุมัติคำชี้แจงสต๊อก
+ */
+export function buildStockApproveActionCard(input: {
+  comp_date: string;
+  store_id: string;
+  explained_count: number;
+  items_preview: string;
+}): Omit<SendBotMessageParams, 'storeId'> {
+  const meta: ActionCardMetadata = {
+    action_type: 'stock_approve',
+    reference_id: input.comp_date,
+    reference_table: 'comparisons',
+    status: 'pending',
+    claimed_by: null,
+    claimed_by_name: null,
+    claimed_at: null,
+    completed_at: null,
+    timeout_minutes: 240, // owner ให้เวลามากที่สุด
+    priority: 'normal',
+    detail_url: `/stock/approval?date=${input.comp_date}`,
+    approval_result: null,
+    approval_reason: null,
+    summary: {
+      items: `${input.explained_count} รายการรออนุมัติ`,
+      note: input.items_preview,
+      comp_date: input.comp_date,
+      explained_count: input.explained_count,
+    },
+  };
+
+  return {
+    type: 'action_card',
+    content: `✋ คำชี้แจงสต๊อก ${input.explained_count} รายการ รออนุมัติ — วันที่ ${input.comp_date}`,
     metadata: meta,
   };
 }

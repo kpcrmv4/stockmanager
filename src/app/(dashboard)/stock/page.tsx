@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { Button, Badge, Card, CardHeader, CardContent, EmptyState, toast } from '@/components/ui';
 import { formatThaiDate, formatNumber } from '@/lib/utils/format';
-import { yesterdayBangkok } from '@/lib/utils/date';
+import { businessDateBangkok } from '@/lib/utils/date';
 import { useTranslations } from 'next-intl';
 import {
   Package,
@@ -28,6 +28,7 @@ import {
   Upload,
   Store,
   Calendar,
+  Info,
 } from 'lucide-react';
 import {
   BarChart,
@@ -96,8 +97,15 @@ export default function StockOverviewPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  // Today's business date status card
-  const businessDate = yesterdayBangkok();
+  // Per-store closing-hour cutoff (loaded from store_settings.print_server_working_hours)
+  const [closingHour, setClosingHour] = useState({ endHour: 6, endMinute: 0 });
+
+  // User-selectable business date. Default = most-recently-completed business
+  // day for this store. User can change to view past dates.
+  const [businessDate, setBusinessDate] = useState<string>(() =>
+    businessDateBangkok(),
+  );
+
   const [todayStatus, setTodayStatus] = useState<{
     manualCount: number;
     totalProducts: number;
@@ -115,6 +123,40 @@ export default function StockOverviewPage() {
     missingCount: 0,
     surplusCount: 0,
   });
+
+  const shiftBusinessDate = useCallback(
+    (delta: number) => {
+      const [y, m, d] = businessDate.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      dt.setDate(dt.getDate() + delta);
+      const today = businessDateBangkok(closingHour.endHour, closingHour.endMinute);
+      const next = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      if (next > today) return;
+      setBusinessDate(next);
+    },
+    [businessDate, closingHour.endHour, closingHour.endMinute],
+  );
+
+  // ── Load per-store closing-hour cutoff and reset selected date to that store's
+  //    current business date when switching stores ──
+  useEffect(() => {
+    if (!currentStoreId) return;
+    const supabase = createClient();
+    void (async () => {
+      const { data } = await supabase
+        .from('store_settings')
+        .select('print_server_working_hours')
+        .eq('store_id', currentStoreId)
+        .maybeSingle();
+      const wh = data?.print_server_working_hours as
+        | { endHour?: number; endMinute?: number }
+        | null;
+      const endHour = typeof wh?.endHour === 'number' ? wh.endHour : 6;
+      const endMinute = typeof wh?.endMinute === 'number' ? wh.endMinute : 0;
+      setClosingHour({ endHour, endMinute });
+      setBusinessDate(businessDateBangkok(endHour, endMinute));
+    })();
+  }, [currentStoreId]);
 
   const fetchData = useCallback(async () => {
     if (!currentStoreId) {
@@ -177,11 +219,13 @@ export default function StockOverviewPage() {
         .eq('active', true)
         .eq('count_status', 'active');
 
+      // upload_date is timestamptz; match the whole calendar day in BKK
       const { data: posLogs } = await supabase
         .from('ocr_logs')
         .select('id')
         .eq('store_id', currentStoreId)
-        .eq('upload_date', businessDate)
+        .gte('upload_date', `${businessDate}T00:00:00+07:00`)
+        .lt('upload_date', `${businessDate}T24:00:00+07:00`)
         .limit(1);
 
       const { data: compData } = await supabase
@@ -274,22 +318,32 @@ export default function StockOverviewPage() {
   }, [currentStoreId, user?.role, user?.storeIds, businessDate, t]);
 
   const fetchTrendData = useCallback(async () => {
-    const _isStaffOrBar = user?.role === 'staff' || user?.role === 'bar';
-    if (_isStaffOrBar || !user?.storeIds || user.storeIds.length === 0) return;
+    if (!user?.storeIds || user.storeIds.length === 0) return;
 
     setTrendLoading(true);
     try {
       const supabase = createClient();
+      // Use [start-of-month, start-of-next-month) to avoid invalid dates like
+      // 2026-04-31 which Postgres rejects (silently returning no rows).
+      const [yStr, mStr] = selectedMonth.split('-');
+      const y = Number(yStr);
+      const m = Number(mStr);
       const startOfMonth = `${selectedMonth}-01`;
-      const endOfMonth = `${selectedMonth}-31`;
+      const nextY = m === 12 ? y + 1 : y;
+      const nextM = m === 12 ? 1 : m + 1;
+      const startOfNextMonth = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
 
-      const { data: trendComparisons } = await supabase
+      const { data: trendComparisons, error: trendError } = await supabase
         .from('comparisons')
         .select('comp_date, difference')
         .in('store_id', user.storeIds)
         .gte('comp_date', startOfMonth)
-        .lte('comp_date', endOfMonth)
+        .lt('comp_date', startOfNextMonth)
         .order('comp_date', { ascending: true });
+
+      if (trendError) {
+        console.error('Trend fetch error:', trendError);
+      }
 
       if (trendComparisons) {
         const trendMap = trendComparisons.reduce<Record<string, TrendDataItem>>((acc, item) => {
@@ -536,6 +590,41 @@ export default function StockOverviewPage() {
       <Card>
         <CardHeader
           title={`${t('stockStatusTitle')} — ${formatThaiDate(businessDate)}`}
+          action={
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={t('previousDay')}
+                onClick={() => shiftBusinessDate(-1)}
+                className="h-8 w-8 p-0"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <input
+                type="date"
+                value={businessDate}
+                max={businessDateBangkok(closingHour.endHour, closingHour.endMinute)}
+                onChange={(e) => {
+                  if (e.target.value) setBusinessDate(e.target.value);
+                }}
+                className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={t('nextDay')}
+                onClick={() => shiftBusinessDate(1)}
+                disabled={
+                  businessDate >=
+                  businessDateBangkok(closingHour.endHour, closingHour.endMinute)
+                }
+                className="h-8 w-8 p-0"
+              >
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          }
         />
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -747,6 +836,12 @@ export default function StockOverviewPage() {
               </div>
             </div>
           </div>
+          <p className="mt-3 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+            <Info className="h-3.5 w-3.5 shrink-0" />
+            {t('businessDateHint', {
+              endTime: `${String(closingHour.endHour).padStart(2, '0')}:${String(closingHour.endMinute).padStart(2, '0')}`,
+            })}
+          </p>
         </CardContent>
       </Card>
 
@@ -840,9 +935,8 @@ export default function StockOverviewPage() {
         </Card>
       )}
 
-      {/* Discrepancy Trend Graph */}
-      {!isStaffOrBar && (
-        <Card>
+      {/* Discrepancy Trend Graph — visible to all roles incl. bar/staff */}
+      <Card>
           <CardHeader
             title={t('discrepancyTrend')}
             className="flex-col items-center text-center space-y-3 sm:flex-row sm:items-center sm:text-left sm:space-y-0"
@@ -977,7 +1071,6 @@ export default function StockOverviewPage() {
             )}
           </CardContent>
         </Card>
-      )}
 
       {/* Quick Actions */}
       <div className={cn(

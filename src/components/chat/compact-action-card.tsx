@@ -13,6 +13,8 @@ import {
   AlertTriangle,
   XCircle,
   ChevronRight,
+  ScanLine,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useChatStore } from '@/stores/chat-store';
@@ -27,6 +29,8 @@ const TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; label: str
   deposit_claim: { icon: Wine, color: 'emerald', label: 'ฝากเหล้า' },
   withdrawal_claim: { icon: Package, color: 'blue', label: 'เบิกเหล้า' },
   stock_explain: { icon: ClipboardCheck, color: 'amber', label: 'สต๊อกไม่ตรง' },
+  stock_supplementary: { icon: ScanLine, color: 'sky', label: 'รายการต้องนับเพิ่ม' },
+  stock_approve: { icon: ClipboardList, color: 'violet', label: 'รออนุมัติชี้แจง' },
   borrow_approve: { icon: Repeat, color: 'violet', label: 'ยืมสินค้า' },
   transfer_receive: { icon: Truck, color: 'orange', label: 'โอนสต๊อก' },
   generic: { icon: ClipboardCheck, color: 'gray', label: 'งาน' },

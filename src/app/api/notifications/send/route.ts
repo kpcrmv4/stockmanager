@@ -61,6 +61,9 @@ export async function POST(request: NextRequest) {
         await notifyStoreStaff(params);
         break;
       case 'notifyBorrowWatchers':
+      case 'notifyStoreOwners':
+        // Owner notifications go through notifyBorrowWatchers, which uses
+        // stores.borrow_notification_roles (default ['owner','manager']).
         await notifyBorrowWatchers(params);
         break;
       default:

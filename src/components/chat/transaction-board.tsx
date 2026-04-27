@@ -14,6 +14,8 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  ScanLine,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useChatStore } from '@/stores/chat-store';
@@ -47,12 +49,14 @@ function getNormalizedStatus(meta: Record<string, unknown>): 'pending' | 'pendin
   if (status === 'rejected' || status === 'expired' || status === 'cancelled' || status === 'partial') return 'other';
   return 'other';
 }
-type FilterType = 'all' | 'deposit_claim' | 'withdrawal_claim' | 'stock_explain' | 'borrow_approve' | 'transfer_receive';
+type FilterType = 'all' | 'deposit_claim' | 'withdrawal_claim' | 'stock_explain' | 'stock_supplementary' | 'stock_approve' | 'borrow_approve' | 'transfer_receive';
 
 const TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; label: string; bgClass: string }> = {
   deposit_claim: { icon: Wine, color: 'emerald', label: 'ฝากเหล้า', bgClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400' },
   withdrawal_claim: { icon: Package, color: 'blue', label: 'เบิกเหล้า', bgClass: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
   stock_explain: { icon: ClipboardCheck, color: 'amber', label: 'สต๊อก', bgClass: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
+  stock_supplementary: { icon: ScanLine, color: 'sky', label: 'นับเพิ่ม', bgClass: 'bg-sky-50 text-sky-700 dark:bg-sky-900/20 dark:text-sky-400' },
+  stock_approve: { icon: ClipboardList, color: 'violet', label: 'รออนุมัติ', bgClass: 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400' },
   borrow_approve: { icon: Repeat, color: 'violet', label: 'ยืมสินค้า', bgClass: 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400' },
   transfer_receive: { icon: Truck, color: 'orange', label: 'โอนสต๊อก', bgClass: 'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400' },
 };

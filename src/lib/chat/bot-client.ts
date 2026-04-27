@@ -287,3 +287,115 @@ export function notifyChatApprovalResult(
     content: `${status} คำชี้แจง "${data.product_name}" โดย ${data.approved_by_name}${reason}`,
   });
 }
+
+/**
+ * Mark the open `stock_approve` action card for (store, comp_date) as completed.
+ *
+ * Called from /stock/approval after the owner finishes processing all
+ * explanations for a date. If no remaining 'explained' rows exist for the date,
+ * the stock_approve card is closed.
+ */
+export async function maybeCompleteStockApproveCard(params: {
+  storeId: string;
+  compDate: string;
+  byUserId: string;
+  byUserName: string;
+}): Promise<void> {
+  try {
+    const { createClient } = await import('@/lib/supabase/client');
+    const supabase = createClient();
+
+    // 1. Any remaining 'explained' rows for this date?
+    const { count: remaining } = await supabase
+      .from('comparisons')
+      .select('id', { count: 'exact', head: true })
+      .eq('store_id', params.storeId)
+      .eq('comp_date', params.compDate)
+      .eq('status', 'explained');
+    if ((remaining ?? 0) > 0) return; // still pending — keep card open
+
+    // 2. Find the room for this store
+    const { data: room } = await supabase
+      .from('chat_rooms')
+      .select('id')
+      .eq('store_id', params.storeId)
+      .eq('type', 'store')
+      .maybeSingle();
+    if (!room) return;
+
+    // 3. Find open stock_approve cards for this comp_date
+    const { data: cards } = await supabase
+      .from('chat_messages')
+      .select('id, metadata')
+      .eq('room_id', room.id)
+      .eq('type', 'action_card')
+      .order('created_at', { ascending: false })
+      .limit(20);
+    if (!cards) return;
+
+    for (const card of cards) {
+      const meta = card.metadata as ActionCardMetadata | null;
+      if (
+        !meta ||
+        meta.action_type !== 'stock_approve' ||
+        meta.reference_id !== params.compDate ||
+        meta.status === 'completed'
+      ) continue;
+
+      const newMeta: ActionCardMetadata = {
+        ...meta,
+        status: 'completed',
+        claimed_by: params.byUserId,
+        claimed_by_name: params.byUserName,
+        completed_at: new Date().toISOString(),
+      };
+      await supabase
+        .from('chat_messages')
+        .update({ metadata: newMeta })
+        .eq('id', card.id);
+    }
+  } catch (err) {
+    console.error('[Chat] maybeCompleteStockApproveCard failed:', err);
+  }
+}
+
+/**
+ * ส่ง Action Card "รออนุมัติคำชี้แจง" ไปห้องแชทสาขา
+ * เรียกหลังจาก staff submit explanation ใน /stock/explanation
+ */
+export function notifyChatStockAwaitingApproval(
+  storeId: string,
+  data: {
+    comp_date: string;
+    explained_count: number;
+    items_preview: string;
+  }
+): void {
+  const meta: ActionCardMetadata = {
+    action_type: 'stock_approve',
+    reference_id: data.comp_date,
+    reference_table: 'comparisons',
+    status: 'pending',
+    claimed_by: null,
+    claimed_by_name: null,
+    claimed_at: null,
+    completed_at: null,
+    timeout_minutes: 240,
+    priority: 'normal',
+    detail_url: `/stock/approval?date=${data.comp_date}`,
+    approval_result: null,
+    approval_reason: null,
+    summary: {
+      items: `${data.explained_count} รายการรออนุมัติ`,
+      note: data.items_preview,
+      comp_date: data.comp_date,
+      explained_count: data.explained_count,
+    },
+  };
+  sendChatBotMessage({
+    storeId,
+    type: 'action_card',
+    content: `✋ คำชี้แจงสต๊อก ${data.explained_count} รายการ รออนุมัติ — วันที่ ${data.comp_date}`,
+    metadata: meta,
+  });
+}

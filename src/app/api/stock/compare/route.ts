@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { notifyBorrowWatchers, notifyStoreStaff } from '@/lib/notifications/service';
-import { sendBotMessage, buildStockExplainActionCard } from '@/lib/chat/bot';
+import {
+  sendBotMessage,
+  buildStockExplainActionCard,
+  buildStockSupplementaryActionCard,
+} from '@/lib/chat/bot';
 
 export async function POST(request: NextRequest) {
   const supabase = createServiceClient();
@@ -202,7 +206,12 @@ export async function POST(request: NextRequest) {
         manual_quantity: manualQty,
         pos_quantity: posQty,
         difference,
-        diff_percent: diffPercent !== null ? Math.round(diffPercent * 100) / 100 : null,
+        // Clamp to ±99,999,999.99 to fit numeric(10,2). Uncapped values
+        // overflow when manual_qty >> pos_qty (e.g. pos=0.20 vs manual=6 = 2900%).
+        diff_percent:
+          diffPercent !== null
+            ? Math.max(-99999999.99, Math.min(99999999.99, Math.round(diffPercent * 100) / 100))
+            : null,
         status,
       });
     }
@@ -319,15 +328,17 @@ export async function POST(request: NextRequest) {
         console.error('[Compare] Failed to notify staff for supplementary count:', notifyErr);
       }
 
-      // Bot message แจ้งในแชทสาขา
+      // Action card แจ้งในแชทสาขา (มีปุ่ม "ไปนับเพิ่ม")
       try {
-        await sendBotMessage({
-          storeId: store_id,
-          type: 'system',
-          content: `⚠️ พบ ${posOnlyCount} รายการจาก POS ที่ยังไม่ได้นับมือ (${comp_date})\n${preview}\n\nกรุณาเข้าหน้านับสต๊อกเพื่อนับรายการเพิ่มเติม`,
+        const card = buildStockSupplementaryActionCard({
+          comp_date,
+          store_id,
+          pending_count: posOnlyCount,
+          items_preview: preview,
         });
+        await sendBotMessage({ storeId: store_id, ...card });
       } catch (chatErr) {
-        console.error('[Compare] Failed to send supplementary count bot message:', chatErr);
+        console.error('[Compare] Failed to send supplementary action card:', chatErr);
       }
     }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronUp, Wine, Package, ClipboardCheck, Repeat } from 'lucide-react';
+import { ChevronDown, ChevronUp, Wine, Package, ClipboardCheck, Repeat, ScanLine, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { ActionCardMessage } from './action-card-message';
 import type { ChatMessage, ActionCardMetadata } from '@/types/chat';
@@ -19,6 +19,8 @@ const TYPE_ICON: Record<string, typeof Wine> = {
   deposit_claim: Wine,
   withdrawal_claim: Package,
   stock_explain: ClipboardCheck,
+  stock_supplementary: ScanLine,
+  stock_approve: ClipboardList,
   borrow_approve: Repeat,
   transfer_receive: Package,
 };
@@ -27,6 +29,8 @@ const TYPE_LABEL: Record<string, string> = {
   deposit_claim: 'รายการฝาก',
   withdrawal_claim: 'คำขอเบิก',
   stock_explain: 'สต๊อก',
+  stock_supplementary: 'รายการต้องนับเพิ่ม',
+  stock_approve: 'รออนุมัติคำชี้แจง',
   borrow_approve: 'คำขอยืม',
   transfer_receive: 'โอนสต๊อก',
 };
@@ -35,6 +39,8 @@ const TYPE_COLOR: Record<string, string> = {
   deposit_claim: 'emerald',
   withdrawal_claim: 'blue',
   stock_explain: 'amber',
+  stock_supplementary: 'sky',
+  stock_approve: 'violet',
   borrow_approve: 'violet',
   transfer_receive: 'orange',
 };

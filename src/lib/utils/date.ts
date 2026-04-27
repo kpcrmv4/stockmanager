@@ -79,6 +79,39 @@ export function yesterdayBangkok(): string {
 }
 
 /**
+ * Returns the most-recently-completed **business date** for a bar/restaurant
+ * given its closing-hour cutoff.
+ *
+ * A bar's business day spans evening → next morning. Business day D ends at
+ * endHour:endMinute on calendar day (D + 1). The "most recently completed"
+ * business day is the largest D whose end-time is ≤ now.
+ *
+ *   now hour ≥ endHour → today − 1 (today's calendar yesterday already closed)
+ *   now hour <  endHour → today − 2 (yesterday's business is still in progress;
+ *                                    the most recent fully-closed day was the
+ *                                    day before that)
+ *
+ * Examples (endHour=6):
+ *   2026-04-27 11:00 → 2026-04-26   (just past noon, Apr 26 closed at 06:00)
+ *   2026-04-28 03:00 → 2026-04-26   (still in Apr 27 business, closes 06:00)
+ *   2026-04-28 07:00 → 2026-04-27   (Apr 27 just closed)
+ *
+ * @param endHour   closing hour 0-23 (e.g. 6 means 06:00). Default 6.
+ * @param endMinute closing minute 0-59. Default 0.
+ */
+export function businessDateBangkok(endHour = 6, endMinute = 0): string {
+  const d = nowBangkok();
+  const isBeforeCutoff =
+    d.getHours() < endHour ||
+    (d.getHours() === endHour && d.getMinutes() < endMinute);
+  d.setDate(d.getDate() - (isBeforeCutoff ? 2 : 1));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
  * Convert a Date to an ISO-8601 string **in the Bangkok timezone** (+07:00).
  * Useful when storing timestamps that must reflect the Bangkok wall-clock.
  */

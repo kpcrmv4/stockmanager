@@ -71,6 +71,8 @@ const ENABLED_MAP: Record<string, keyof ChatBotSettings> = {
   deposit_claim: 'chat_bot_deposit_enabled',
   withdrawal_claim: 'chat_bot_withdrawal_enabled',
   stock_explain: 'chat_bot_stock_enabled',
+  stock_supplementary: 'chat_bot_stock_enabled',
+  stock_approve: 'chat_bot_stock_enabled',
   borrow_approve: 'chat_bot_borrow_enabled',
   transfer_receive: 'chat_bot_transfer_enabled',
 };
@@ -80,6 +82,8 @@ const TIMEOUT_MAP: Record<string, keyof ChatBotSettings> = {
   deposit_claim: 'chat_bot_timeout_deposit',
   withdrawal_claim: 'chat_bot_timeout_withdrawal',
   stock_explain: 'chat_bot_timeout_stock',
+  stock_supplementary: 'chat_bot_timeout_stock',
+  stock_approve: 'chat_bot_timeout_stock',
   borrow_approve: 'chat_bot_timeout_borrow',
   transfer_receive: 'chat_bot_timeout_transfer',
 };
@@ -89,6 +93,8 @@ const PRIORITY_MAP: Record<string, keyof ChatBotSettings> = {
   deposit_claim: 'chat_bot_priority_deposit',
   withdrawal_claim: 'chat_bot_priority_withdrawal',
   stock_explain: 'chat_bot_priority_stock',
+  stock_supplementary: 'chat_bot_priority_stock',
+  stock_approve: 'chat_bot_priority_stock',
   borrow_approve: 'chat_bot_priority_borrow',
   transfer_receive: 'chat_bot_priority_transfer',
 };

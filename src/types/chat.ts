@@ -75,7 +75,15 @@ export interface ChatPinnedMessage {
 }
 
 export interface ActionCardMetadata {
-  action_type: 'deposit_claim' | 'withdrawal_claim' | 'stock_explain' | 'borrow_approve' | 'transfer_receive' | 'generic';
+  action_type:
+    | 'deposit_claim'
+    | 'withdrawal_claim'
+    | 'stock_explain'
+    | 'stock_supplementary'  // POS items not yet manual-counted (after auto-activation)
+    | 'stock_approve'        // owner reviews staff explanations
+    | 'borrow_approve'
+    | 'transfer_receive'
+    | 'generic';
   reference_id: string;
   reference_table: string;
   status: ActionCardStatus;
@@ -89,10 +97,15 @@ export interface ActionCardMetadata {
   confirmation_photo_url?: string | null;
   timeout_minutes: number;
   priority: ActionCardPriority;
+  // Deep-link target for "ดูรายละเอียด" button (relative app URL, e.g. /stock/explanation?date=2026-04-19)
+  detail_url?: string | null;
   // Borrow-specific fields
   borrow_status?: 'pending_approval' | 'approved' | 'rejected' | 'cancelled';
   borrow_approved_by?: string | null;
   borrow_rejected_reason?: string | null;
+  // Stock-approve-specific outcome
+  approval_result?: 'approved' | 'rejected' | null;
+  approval_reason?: string | null;
   summary: {
     customer?: string;
     items?: string;

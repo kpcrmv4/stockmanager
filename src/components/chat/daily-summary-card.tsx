@@ -1,8 +1,17 @@
 'use client';
 
 import { memo } from 'react';
-import { Wine, Package, Warehouse, AlertTriangle, BarChart3 } from 'lucide-react';
+import { Wine, Package, Warehouse, AlertTriangle, BarChart3, Repeat, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
+
+export interface BorrowReturnItem {
+  borrow_id: string;
+  borrow_code?: string | null;
+  lender_store_name: string;  // ที่ต้องคืน
+  items_preview: string;      // เช่น "Johnnie Walker x2, Vodka x1"
+  status: 'completed' | 'pos_adjusting' | 'return_pending';
+}
 
 export interface DailySummaryData {
   type: 'daily_summary';
@@ -14,6 +23,11 @@ export interface DailySummaryData {
   expiring_days: number;
   pending_explanations?: number;
   active_borrows?: number;
+  /**
+   * รายการยืมที่ "สาขานี้ต้องคืน" ให้สาขาผู้ให้ยืม
+   * (เฉพาะ borrows ที่ to_store_id = สาขานี้ และ status ยังไม่ returned)
+   */
+  borrow_returns?: BorrowReturnItem[];
 }
 
 interface DailySummaryCardProps {
@@ -132,6 +146,60 @@ export const DailySummaryCard = memo(function DailySummaryCard({ data, time }: D
                 🔄 ยืมสินค้า {data.active_borrows}
               </span>
             )}
+          </div>
+        )}
+
+        {/* Borrow returns section — items the current store must return */}
+        {data.borrow_returns && data.borrow_returns.length > 0 && (
+          <div className="border-t-2 border-dashed border-violet-200 bg-gradient-to-br from-violet-50/60 to-purple-50/60 px-4 py-3 dark:border-violet-800 dark:from-violet-900/15 dark:to-purple-900/15">
+            <div className="mb-2 flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-violet-500">
+                <Repeat className="h-3.5 w-3.5 text-white" />
+              </div>
+              <span className="text-xs font-bold text-violet-800 dark:text-violet-300">
+                ต้องคืน {data.borrow_returns.length} รายการ
+              </span>
+              <Link
+                href="/borrow"
+                className="ml-auto inline-flex items-center gap-0.5 text-[10px] font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+              >
+                ดูทั้งหมด
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+            <ul className="space-y-1.5">
+              {data.borrow_returns.slice(0, 5).map((b) => (
+                <li
+                  key={b.borrow_id}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-[11px] dark:bg-gray-800/40',
+                    b.status === 'return_pending' &&
+                      'ring-1 ring-amber-300 dark:ring-amber-700',
+                  )}
+                >
+                  <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-gray-800 dark:text-gray-200">
+                      {b.items_preview}
+                    </p>
+                    <p className="truncate text-[10px] text-gray-500 dark:text-gray-400">
+                      คืนให้ {b.lender_store_name}
+                      {b.borrow_code ? ` · ${b.borrow_code}` : ''}
+                    </p>
+                  </div>
+                  {b.status === 'return_pending' && (
+                    <span className="shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                      รอ Lender
+                    </span>
+                  )}
+                </li>
+              ))}
+              {data.borrow_returns.length > 5 && (
+                <li className="text-center text-[10px] text-violet-600/70 dark:text-violet-400/70">
+                  +{data.borrow_returns.length - 5} รายการอื่น
+                </li>
+              )}
+            </ul>
           </div>
         )}
       </div>

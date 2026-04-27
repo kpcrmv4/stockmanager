@@ -27,6 +27,9 @@ import {
   Ban,
   ChevronDown,
   ChevronUp,
+  ArrowRight,
+  ScanLine,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { notifyStaff } from '@/lib/notifications/client';
@@ -49,6 +52,8 @@ const ACTION_TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; lab
   deposit_claim: { icon: Wine, color: 'emerald', label: 'ฝากเหล้า' },
   withdrawal_claim: { icon: Package, color: 'blue', label: 'คำขอเบิกเหล้า' },
   stock_explain: { icon: ClipboardCheck, color: 'amber', label: 'สต๊อกไม่ตรง' },
+  stock_supplementary: { icon: ScanLine, color: 'sky', label: 'รายการต้องนับเพิ่ม' },
+  stock_approve: { icon: ClipboardList, color: 'violet', label: 'รออนุมัติคำชี้แจง' },
   borrow_approve: { icon: Repeat, color: 'violet', label: 'คำขอยืมสินค้า' },
   transfer_receive: { icon: Package, color: 'orange', label: 'โอนสต๊อกเข้าคลังกลาง' },
   generic: { icon: ClipboardCheck, color: 'gray', label: 'งานใหม่' },
@@ -105,9 +110,82 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   const canApproveWithdrawal = isWithdrawalCard && isPending
     && currentUserRole && ['bar', 'manager', 'owner'].includes(currentUserRole);
 
+  // Stock card variants
+  const isStockExplain = meta.action_type === 'stock_explain';
+  const isStockSupplementary = meta.action_type === 'stock_supplementary';
+  const isStockApprove = meta.action_type === 'stock_approve';
+  const isAnyStockCard = isStockExplain || isStockSupplementary || isStockApprove;
+  // Owner-level approval card visibility
+  const canApproveStock =
+    isStockApprove && isPending && currentUserRole &&
+    ['owner', 'accountant', 'manager'].includes(currentUserRole);
+
   // Borrow-specific status
   const isBorrow = meta.action_type === 'borrow_approve';
   const borrowStatus = meta.borrow_status || (isPending ? 'pending_approval' : undefined);
+
+  // Stock-explain "เสร็จสิ้น" gate: live-check whether all comparisons for the
+  // date have been approved. Until then, the staff cannot mark the card done.
+  const [stockAllApproved, setStockAllApproved] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!isStockExplain || !isClaimedByMe || !storeId) return;
+    let cancelled = false;
+    const supabase = createClient();
+    const compDate =
+      (meta.summary as { comp_date?: string } | undefined)?.comp_date ||
+      meta.reference_id;
+    void supabase
+      .from('comparisons')
+      .select('status', { count: 'exact', head: false })
+      .eq('store_id', storeId)
+      .eq('comp_date', compDate)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const allApproved = data.length > 0 && data.every((r) => r.status === 'approved');
+        setStockAllApproved(allApproved);
+      });
+    return () => { cancelled = true; };
+  }, [isStockExplain, isClaimedByMe, storeId, meta.reference_id, meta.summary]);
+
+  // Stock-supplementary "เสร็จสิ้น" gate: live-check that all POS-only items
+  // for the date now have a manual_count entry. Until then, can't mark done.
+  const [supAllCounted, setSupAllCounted] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!isStockSupplementary || !isClaimedByMe || !storeId) return;
+    let cancelled = false;
+    const supabase = createClient();
+    const compDate =
+      (meta.summary as { comp_date?: string } | undefined)?.comp_date ||
+      meta.reference_id;
+    void (async () => {
+      // POS-only product codes = comparisons where manual_quantity IS NULL
+      const { data: posOnly } = await supabase
+        .from('comparisons')
+        .select('product_code')
+        .eq('store_id', storeId)
+        .eq('comp_date', compDate)
+        .is('manual_quantity', null);
+      if (cancelled) return;
+      if (!posOnly || posOnly.length === 0) { setSupAllCounted(true); return; }
+      const codes = posOnly.map((r) => r.product_code);
+      const { data: counted } = await supabase
+        .from('manual_counts')
+        .select('product_code')
+        .eq('store_id', storeId)
+        .eq('count_date', compDate)
+        .in('product_code', codes);
+      if (cancelled) return;
+      const countedSet = new Set((counted || []).map((r) => r.product_code));
+      setSupAllCounted(codes.every((c) => countedSet.has(c)));
+    })();
+    return () => { cancelled = true; };
+  }, [isStockSupplementary, isClaimedByMe, storeId, meta.reference_id, meta.summary]);
+
+  const completeDisabledReason: string | null = (() => {
+    if (isStockExplain && stockAllApproved === false) return 'รอ Owner อนุมัติคำชี้แจงทั้งหมดก่อน';
+    if (isStockSupplementary && supAllCounted === false) return 'ยังนับรายการเพิ่มไม่ครบ';
+    return null;
+  })();
 
   // Borrow items state (fetch on mount for pending borrows)
   interface BorrowItem { id: string; product_name: string; quantity: number; unit: string | null; }
@@ -940,6 +1018,114 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                 <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
                   ยกเลิกแล้ว
                 </span>
+              </div>
+            )}
+          </>
+        ) : isAnyStockCard ? (
+          <>
+            {/* ==========================================
+                STOCK ACTION CARDS UI
+                stock_explain / stock_supplementary / stock_approve
+                ========================================== */}
+
+            {/* Detail link — always visible while card is not completed */}
+            {!isCompleted && meta.detail_url && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                icon={<ExternalLink className="h-3.5 w-3.5" />}
+                onClick={() => router.push(meta.detail_url!)}
+              >
+                {isStockSupplementary
+                  ? 'ไปนับเพิ่ม'
+                  : isStockApprove
+                    ? 'ไปอนุมัติ'
+                    : 'ไปชี้แจง'}
+              </Button>
+            )}
+
+            {/* Pending block — claim button (skip for stock_approve) */}
+            {isPending && !isStockApprove && (
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  className="flex-1"
+                  icon={<Hand className="h-4 w-4" />}
+                  isLoading={loading}
+                  onClick={() => handleAction('claim')}
+                >
+                  {isTimedOut ? 'รับงานต่อ' : 'รับรายการนี้'}
+                </Button>
+              </div>
+            )}
+
+            {/* Pending — stock_approve: only owner-level can mark approved/rejected via /stock/approval; show hint */}
+            {isPending && isStockApprove && !canApproveStock && (
+              <div className="rounded-lg bg-gray-100 px-3 py-2 text-center text-xs text-gray-500 dark:bg-gray-700/50 dark:text-gray-400">
+                รอ Owner / Manager พิจารณาอนุมัติ
+              </div>
+            )}
+
+            {/* Claimed — show claimer + complete button (gated for explain/supplementary) */}
+            {isClaimed && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 dark:bg-blue-900/20">
+                  <Hand className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                    {meta.claimed_by_name} กำลังทำ
+                  </span>
+                </div>
+                {isClaimedByMe && (
+                  <>
+                    {completeDisabledReason && (
+                      <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-900/20">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                          {completeDisabledReason}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        className="flex-1"
+                        icon={<CheckCircle className="h-3.5 w-3.5" />}
+                        isLoading={loading}
+                        disabled={!!completeDisabledReason}
+                        onClick={() => handleAction('complete')}
+                      >
+                        เสร็จแล้ว
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        icon={<XCircle className="h-3.5 w-3.5" />}
+                        isLoading={loading}
+                        onClick={() => handleAction('release')}
+                      >
+                        คืนงาน
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Completed */}
+            {isCompleted && (
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
+                <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                  เสร็จสิ้น
+                </span>
+                {meta.claimed_by_name && (
+                  <span className="text-xs text-emerald-500/70">
+                    โดย {meta.claimed_by_name}
+                  </span>
+                )}
               </div>
             )}
           </>

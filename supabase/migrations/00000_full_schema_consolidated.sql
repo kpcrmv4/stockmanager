@@ -144,7 +144,7 @@ CREATE TABLE comparisons (
   pos_quantity NUMERIC(10,2),
   manual_quantity NUMERIC(10,2),
   difference NUMERIC(10,2),
-  diff_percent NUMERIC(5,2),
+  diff_percent NUMERIC(10,2),  -- widened from (5,2): pos≪manual produces large %s (e.g. 2900%)
   status comparison_status DEFAULT 'pending',
   explanation TEXT,
   explained_by UUID REFERENCES profiles(id),

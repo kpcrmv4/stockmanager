@@ -2791,6 +2791,10 @@
     "storePerformance": "Store Performance",
     "dailyDiscrepancy": "Daily Discrepancy",
     "noData": "No data for this month",
+    "selectBusinessDate": "Business date",
+    "businessDateHint": "Covers yesterday's working hours through closing time {endTime} of the selected date",
+    "previousDay": "Previous day",
+    "nextDay": "Next day",
     "approval": {
       "allReviewed": "All explanations have been reviewed",
       "approveSuccess": "Approved",

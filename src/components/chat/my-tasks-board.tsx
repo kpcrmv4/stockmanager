@@ -11,6 +11,8 @@ import {
   ClipboardCheck,
   Repeat,
   Truck,
+  ScanLine,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useChatStore } from '@/stores/chat-store';
@@ -31,6 +33,8 @@ const TYPE_CONFIG: Record<string, { icon: typeof Wine; label: string }> = {
   deposit_claim: { icon: Wine, label: 'ฝากเหล้า' },
   withdrawal_claim: { icon: Package, label: 'เบิกเหล้า' },
   stock_explain: { icon: ClipboardCheck, label: 'สต๊อก' },
+  stock_supplementary: { icon: ScanLine, label: 'นับเพิ่ม' },
+  stock_approve: { icon: ClipboardList, label: 'รออนุมัติ' },
   borrow_approve: { icon: Repeat, label: 'ยืมสินค้า' },
   transfer_receive: { icon: Truck, label: 'โอนสต๊อก' },
 };

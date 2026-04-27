@@ -11,7 +11,7 @@ import { Button, Input, Badge, Card, CardHeader, Tabs, EmptyState, toast } from 
 import { formatThaiDate, formatNumber, formatPercent } from '@/lib/utils/format';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { sendNotification } from '@/lib/notifications/client';
-import { notifyChatApprovalResult } from '@/lib/chat/bot-client';
+import { notifyChatApprovalResult, maybeCompleteStockApproveCard } from '@/lib/chat/bot-client';
 import type { Comparison } from '@/types/database';
 import {
   ArrowLeft,
@@ -216,6 +216,17 @@ export default function ApprovalPage() {
           result: 'approved',
           approved_by_name: user?.displayName || user?.username || t('approval.owner'),
         });
+
+        // Auto-close stock_approve action card if all comparisons for this
+        // date are now resolved (no remaining 'explained' rows).
+        if (user) {
+          void maybeCompleteStockApproveCard({
+            storeId: currentStoreId!,
+            compDate: compItem.comp_date,
+            byUserId: user.id,
+            byUserName: user.displayName || user.username || 'Owner',
+          });
+        }
       }
     } catch (error) {
       console.error('Error approving:', error);
@@ -320,6 +331,15 @@ export default function ApprovalPage() {
           approved_by_name: user?.displayName || user?.username || t('approval.owner'),
           reason: notes,
         });
+
+        if (user) {
+          void maybeCompleteStockApproveCard({
+            storeId: currentStoreId!,
+            compDate: rejItem.comp_date,
+            byUserId: user.id,
+            byUserName: user.displayName || user.username || 'Owner',
+          });
+        }
       }
     } catch (error) {
       console.error('Error rejecting:', error);
@@ -437,6 +457,19 @@ export default function ApprovalPage() {
         });
       });
 
+      // Auto-close stock_approve cards for affected dates
+      if (user) {
+        const dates = Array.from(new Set(approvedItems.map((c) => c.comp_date)));
+        dates.forEach((d) =>
+          maybeCompleteStockApproveCard({
+            storeId: currentStoreId!,
+            compDate: d,
+            byUserId: user.id,
+            byUserName: user.displayName || user.username || 'Owner',
+          }),
+        );
+      }
+
       setSelectedIds(new Set());
     } catch (error) {
       console.error('Error batch approving:', error);
@@ -533,6 +566,19 @@ export default function ApprovalPage() {
           },
         });
       });
+
+      // Auto-close stock_approve cards for affected dates
+      if (user) {
+        const dates = Array.from(new Set(rejectedItems.map((c) => c.comp_date)));
+        dates.forEach((d) =>
+          maybeCompleteStockApproveCard({
+            storeId: currentStoreId!,
+            compDate: d,
+            byUserId: user.id,
+            byUserName: user.displayName || user.username || 'Owner',
+          }),
+        );
+      }
 
       setSelectedIds(new Set());
     } catch (error) {

@@ -11,7 +11,10 @@ import { Button, Input, Badge, Card, CardHeader, Tabs, EmptyState, Textarea, toa
 import { formatThaiDate, formatNumber, formatPercent } from '@/lib/utils/format';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyOwners } from '@/lib/notifications/client';
-import { notifyChatExplanationSubmitted } from '@/lib/chat/bot-client';
+import {
+  notifyChatExplanationSubmitted,
+  notifyChatStockAwaitingApproval,
+} from '@/lib/chat/bot-client';
 import type { Comparison } from '@/types/database';
 import {
   ArrowLeft,
@@ -123,6 +126,34 @@ export default function ExplanationPage() {
     setExplanations((prev) => ({ ...prev, [id]: value }));
   };
 
+  // Send a "stock_approve" action card to the store chat for the given date.
+  // Aggregates current explained items (post-update) so owner sees a count.
+  const sendApprovalCardForDate = useCallback(
+    (compDate: string) => {
+      if (!currentStoreId) return;
+      // Read latest comparisons state via setComparisons callback to avoid stale-closure
+      setComparisons((prev) => {
+        const explainedForDate = prev.filter(
+          (c) => c.comp_date === compDate && c.status === 'explained',
+        );
+        if (explainedForDate.length === 0) return prev;
+        const preview =
+          explainedForDate
+            .slice(0, 3)
+            .map((c) => c.product_name || c.product_code)
+            .join(', ') +
+          (explainedForDate.length > 3 ? ` +${explainedForDate.length - 3} อื่นๆ` : '');
+        notifyChatStockAwaitingApproval(currentStoreId, {
+          comp_date: compDate,
+          explained_count: explainedForDate.length,
+          items_preview: preview,
+        });
+        return prev;
+      });
+    },
+    [currentStoreId],
+  );
+
   const handleSubmitSingle = async (comparisonId: string) => {
     const explanation = explanations[comparisonId]?.trim();
     if (!explanation) {
@@ -195,7 +226,7 @@ export default function ExplanationPage() {
           data: {
             comparison_id: comparisonId,
             product_name: comparison.product_name,
-            url: '/stock/approval',
+            url: `/stock/approval?date=${comparison.comp_date}`,
           },
         });
 
@@ -205,6 +236,9 @@ export default function ExplanationPage() {
           difference: comparison.difference ?? 0,
           submitted_by_name: user?.displayName || user?.username || t('explanation.staff'),
         });
+
+        // ส่ง action card รออนุมัติเข้าแชท (1 ใบต่อ comp_date)
+        sendApprovalCardForDate(comparison.comp_date);
       }
     } catch (error) {
       console.error('Error submitting explanation:', error);
@@ -284,13 +318,18 @@ export default function ExplanationPage() {
       });
 
       // Notify owners once for the batch submission
+      const firstDate = itemsToSubmit[0]?.comp_date;
       notifyOwners({
         storeId: currentStoreId!,
         type: 'explanation_submitted',
         title: t('explanation.notifyOwnerTitle'),
         body: t('explanation.notifyOwnerBatchBody', { count: itemsToSubmit.length }),
-        data: { url: '/stock/approval' },
+        data: { url: firstDate ? `/stock/approval?date=${firstDate}` : '/stock/approval' },
       });
+
+      // ส่ง action card รออนุมัติ (1 ใบต่อ comp_date) — รวมทุกวันที่ที่กระทบ
+      const datesAffected = Array.from(new Set(itemsToSubmit.map((i) => i.comp_date)));
+      datesAffected.forEach((d) => sendApprovalCardForDate(d));
     } catch (error) {
       console.error('Error submitting all explanations:', error);
       toast({

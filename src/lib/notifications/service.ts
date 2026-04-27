@@ -88,6 +88,10 @@ interface UserStoreRow {
   };
 }
 
+interface StoreLineRow {
+  line_token: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Type-to-preference column mapping
 // ---------------------------------------------------------------------------
@@ -241,17 +245,22 @@ export async function notifyStoreStaff(params: NotifyGroupParams): Promise<void>
   try {
     const supabase = createServiceClient();
 
-    // Find all users in this store with target roles
-    const { data: userStores, error } = await supabase
-      .from('user_stores')
-      .select('user_id, profiles!inner(id, role, line_user_id)')
-      .eq('store_id', storeId)
-      .in('profiles.role', targetRoles);
+    // Find all users in this store with target roles + load LINE token
+    const [usersRes, storeRes] = await Promise.all([
+      supabase
+        .from('user_stores')
+        .select('user_id, profiles!inner(id, role, line_user_id)')
+        .eq('store_id', storeId)
+        .in('profiles.role', targetRoles),
+      supabase.from('stores').select('line_token').eq('id', storeId).single(),
+    ]);
 
-    if (error) {
-      console.error('[Notify] Failed to fetch store staff:', error.message);
+    if (usersRes.error) {
+      console.error('[Notify] Failed to fetch store staff:', usersRes.error.message);
       return;
     }
+    const userStores = usersRes.data;
+    const lineToken = (storeRes.data as StoreLineRow | null)?.line_token || undefined;
 
     if (!userStores || userStores.length === 0) {
       return;
@@ -268,6 +277,7 @@ export async function notifyStoreStaff(params: NotifyGroupParams): Promise<void>
           body,
           data,
           lineUserId: us.profiles.line_user_id || undefined,
+          lineToken,
         }),
       );
 
@@ -293,10 +303,10 @@ export async function notifyBorrowWatchers(
   try {
     const supabase = createServiceClient();
 
-    // 1. Get store settings
+    // 1. Get store settings + LINE token (for personal LINE push)
     const { data: store, error: storeError } = await supabase
       .from('stores')
-      .select('borrow_notification_roles')
+      .select('borrow_notification_roles, line_token')
       .eq('id', storeId)
       .single();
 
@@ -309,6 +319,8 @@ export async function notifyBorrowWatchers(
     const targetRoles = store?.borrow_notification_roles || ['owner', 'manager'];
 
     if (targetRoles.length === 0) return;
+
+    const lineToken = (store as StoreLineRow | null)?.line_token || undefined;
 
     // 2. Find all users in this store with the target roles
     const { data: userStores, error } = await supabase
@@ -335,6 +347,7 @@ export async function notifyBorrowWatchers(
         body,
         data,
         lineUserId: us.profiles.line_user_id || undefined,
+        lineToken,
       }),
     );
 
