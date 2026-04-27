@@ -115,13 +115,21 @@ function GroupItem({ groupId, group, isExpanded, onToggle, t, canDelete, onDelet
   );
 }
 
-export function CommissionEntryList() {
+interface CommissionEntryListProps {
+  month?: string;
+  refreshKey?: number;
+}
+
+export function CommissionEntryList({ month: monthProp, refreshKey }: CommissionEntryListProps = {}) {
   const t = useTranslations('commission');
   const { currentStoreId } = useAppStore();
   const { user } = useAuthStore();
   const [entries, setEntries] = useState<CommissionEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [month, setMonth] = useState(getCurrentMonth());
+  const [internalMonth, setInternalMonth] = useState(getCurrentMonth());
+  const month = monthProp ?? internalMonth;
+  const setMonth = setInternalMonth;
+  const isMonthControlled = monthProp !== undefined;
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [total, setTotal] = useState(0);
   const [photoModal, setPhotoModal] = useState<string | null>(null);
@@ -147,7 +155,7 @@ export function CommissionEntryList() {
     } finally {
       setLoading(false);
     }
-  }, [month, currentStoreId, typeFilter]);
+  }, [month, currentStoreId, typeFilter, refreshKey]);
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
@@ -202,7 +210,9 @@ export function CommissionEntryList() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white" />
+        {!isMonthControlled && (
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white" />
+        )}
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white">
           <option value="">{t('entryList.allTypes')}</option>
           <option value="ae_commission">AE Commission</option>

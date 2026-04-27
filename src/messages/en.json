@@ -2598,12 +2598,18 @@
   "commission": {
     "title": "Commission System",
     "subtitle": "AE Commission & Bottle Commission",
+    "tabPending": "Pending",
+    "tabHistory": "History",
+    "tabAE": "Manage AE",
+    "recordBill": "Record Bill",
+    "history": {
+      "bills": "Bills",
+      "payments": "Payments"
+    },
     "tabDashboard": "Dashboard",
     "tabRecord": "Record",
     "tabList": "Entries",
     "tabPayment": "Payment",
-    "tabHistory": "History",
-    "tabAE": "Manage AE",
     "entryForm": {
       "save": "Save",
       "cancel": "Cancel",

@@ -2599,12 +2599,18 @@
   "commission": {
     "title": "ระบบคอมมิชชั่น",
     "subtitle": "AE Commission & Bottle Commission",
+    "tabPending": "ค้างจ่าย",
+    "tabHistory": "ประวัติ",
+    "tabAE": "จัดการ AE",
+    "recordBill": "บันทึกบิลใหม่",
+    "history": {
+      "bills": "บิล",
+      "payments": "การจ่าย"
+    },
     "tabDashboard": "สรุปยอด",
     "tabRecord": "บันทึก",
     "tabList": "รายการ",
     "tabPayment": "ทำจ่าย",
-    "tabHistory": "ประวัติ",
-    "tabAE": "จัดการ AE",
     "entryForm": {
       "save": "บันทึก",
       "cancel": "ยกเลิก",

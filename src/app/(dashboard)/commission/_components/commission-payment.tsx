@@ -36,6 +36,11 @@ function getCurrentMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
+interface CommissionPaymentProps {
+  month?: string;
+  refreshKey?: number;
+}
+
 interface SummaryData {
   ae_summary: Array<{
     ae_id: string;
@@ -79,11 +84,14 @@ interface PaymentRecord {
   entries?: Array<Record<string, unknown>>;
 }
 
-export function CommissionPayment() {
+export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPaymentProps = {}) {
   const t = useTranslations('commission');
   const { currentStoreId } = useAppStore();
   const { user } = useAuthStore();
-  const [month, setMonth] = useState(getCurrentMonth());
+  const [internalMonth, setInternalMonth] = useState(getCurrentMonth());
+  const month = monthProp ?? internalMonth;
+  const setMonth = setInternalMonth;
+  const isMonthControlled = monthProp !== undefined;
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -127,7 +135,7 @@ export function CommissionPayment() {
     } finally {
       setLoading(false);
     }
-  }, [month, currentStoreId]);
+  }, [month, currentStoreId, refreshKey]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -212,11 +220,13 @@ export function CommissionPayment() {
 
   return (
     <div className="space-y-4">
-      {/* Month picker */}
-      <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('payment.month')}</label>
-        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white" />
-      </div>
+      {/* Month picker — only when uncontrolled (legacy standalone use) */}
+      {!isMonthControlled && (
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('payment.month')}</label>
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white" />
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3">

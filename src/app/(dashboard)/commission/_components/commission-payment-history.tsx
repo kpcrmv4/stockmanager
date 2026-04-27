@@ -31,25 +31,33 @@ interface PaymentRecord {
   entries?: Array<Record<string, unknown>>;
 }
 
-export function CommissionPaymentHistory() {
+interface CommissionPaymentHistoryProps {
+  month?: string;
+  refreshKey?: number;
+}
+
+export function CommissionPaymentHistory({ month: monthProp, refreshKey }: CommissionPaymentHistoryProps = {}) {
   const t = useTranslations('commission');
   const { currentStoreId } = useAppStore();
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [detailModal, setDetailModal] = useState<PaymentRecord | null>(null);
+  const isMonthControlled = monthProp !== undefined;
 
   const fetchHistory = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ year });
+      const params = new URLSearchParams();
+      if (monthProp) params.set('month', monthProp);
+      else params.set('year', year);
       if (currentStoreId) params.set('store_id', currentStoreId);
       const res = await fetch(`/api/commission/payment?${params}`);
       if (res.ok) setPayments(await res.json());
     } finally {
       setLoading(false);
     }
-  }, [year, currentStoreId]);
+  }, [year, currentStoreId, monthProp, refreshKey]);
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
@@ -73,14 +81,18 @@ export function CommissionPaymentHistory() {
 
   return (
     <div className="space-y-4">
-      {/* Year picker + summary */}
+      {/* Year picker + summary (year picker hidden when parent controls month) */}
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('paymentHistory.year')}</label>
-        <select value={year} onChange={(e) => setYear(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white">
-          {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-            <option key={y} value={y}>{y + 543}</option>
-          ))}
-        </select>
+        {!isMonthControlled && (
+          <>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('paymentHistory.year')}</label>
+            <select value={year} onChange={(e) => setYear(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                <option key={y} value={y}>{y + 543}</option>
+              ))}
+            </select>
+          </>
+        )}
         <span className="text-sm text-gray-500 dark:text-gray-400">
           {t('paymentHistory.paidTotal')} {formatCurrency(totalPaid)} | {t('paymentHistory.cancelledTotal')} {formatCurrency(totalCancelled)}
         </span>
