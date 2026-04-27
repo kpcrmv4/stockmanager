@@ -168,11 +168,12 @@ export async function notifyUser(params: NotifyUserParams): Promise<void> {
     }
 
     // ----- 2. Check user notification preferences -----
+    // .maybeSingle() so missing rows return null instead of throwing 406.
     const { data: prefs } = await supabase
       .from('notification_preferences')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     // If no preferences row exists, default to all enabled
     const prefColumn = TYPE_TO_PREF[type];

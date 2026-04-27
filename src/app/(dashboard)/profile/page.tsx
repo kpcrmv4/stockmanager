@@ -174,7 +174,7 @@ export default function ProfilePage() {
       .from('notification_preferences')
       .select('*')
       .eq('user_id', authUser.id)
-      .single();
+      .maybeSingle();
 
     if (data) {
       setPrefs({

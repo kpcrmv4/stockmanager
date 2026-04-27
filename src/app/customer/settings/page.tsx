@@ -50,7 +50,7 @@ export default function CustomerSettingsPage() {
       .from('notification_preferences')
       .select('*')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
     if (data) {
       setPrefs({
