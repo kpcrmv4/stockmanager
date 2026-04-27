@@ -189,7 +189,7 @@ export const DailySummaryCard = memo(function DailySummaryCard({ data, time }: D
                   </div>
                   {b.status === 'return_pending' && (
                     <span className="shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
-                      รอ Lender
+                      รอรับคืน
                     </span>
                   )}
                 </li>
