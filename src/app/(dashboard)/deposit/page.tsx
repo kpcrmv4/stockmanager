@@ -44,12 +44,14 @@ import {
   XCircle,
   Image as ImageIcon,
   X,
+  AlertCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { DepositForm } from './_components/deposit-form';
 import { DepositDetail } from './_components/deposit-detail';
 import { notifyChatTransferBatch, notifyChatTransferSubmitted } from '@/lib/chat/transfer-bot-client';
+import { sendChatBotMessage } from '@/lib/chat/bot-client';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { generateTransferCode } from '@/lib/utils/transfer-code';
 import type { TransferCardItem } from '@/types/transfer-chat';
@@ -149,6 +151,10 @@ export default function DepositPage() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferNote, setTransferNote] = useState('');
   const [transferPhoto, setTransferPhoto] = useState<string | null>(null);
+
+  // Sort state for the VIP tab "ฝากมาแล้ว" column.
+  // null = no sort (insertion order), asc = oldest first, desc = newest first
+  const [vipDaysSort, setVipDaysSort] = useState<'asc' | 'desc' | null>(null);
 
   // Transfer batches for "รอนำส่ง HQ" tab
   const [transferBatches, setTransferBatches] = useState<TransferBatchGroup[]>([]);
@@ -591,6 +597,65 @@ export default function DepositPage() {
     }
   };
 
+  // ── Batch action: mark selected VIP deposits as expired ──
+  // VIPs never auto-expire, so the only way to retire them is manual.
+  // Only owner/accountant/hq are gated to this action (UI gate elsewhere).
+  const handleBatchMarkVipExpired = async () => {
+    if (!currentStoreId || !user || batchSelectedIds.size === 0) return;
+    setIsBatchTransferring(true);
+    try {
+      const supabase = createClient();
+      const selected = deposits.filter((d) => batchSelectedIds.has(d.id));
+
+      const { error } = await supabase
+        .from('deposits')
+        .update({ status: 'expired' })
+        .in('id', [...batchSelectedIds]);
+      if (error) throw error;
+
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: 'VIP_DEPOSIT_EXPIRED',
+        table_name: 'deposits',
+        new_value: {
+          count: selected.length,
+          deposit_codes: selected.map((d) => d.deposit_code),
+          reason: 'manual_vip_expire',
+        },
+        changed_by: user.id,
+      });
+
+      const submitterName = user.displayName || user.username || 'พนักงาน';
+      const itemsList = selected
+        .slice(0, 3)
+        .map((d) => `${d.product_name} (${d.deposit_code})`)
+        .join(', ');
+      const more = selected.length > 3 ? ` +${selected.length - 3} อื่นๆ` : '';
+      // Append "(VIP)" suffix as requested
+      sendChatBotMessage({
+        storeId: currentStoreId,
+        type: 'system',
+        content: `⚠️ ${submitterName} ทำเครื่องหมายหมดอายุ ${selected.length} รายการ — ${itemsList}${more} (VIP)`,
+      });
+
+      toast({
+        type: 'success',
+        title: 'ทำเครื่องหมายหมดอายุสำเร็จ',
+        message: `${selected.length} รายการ`,
+      });
+      setBatchSelectedIds(new Set());
+      loadDeposits();
+    } catch (err) {
+      toast({
+        type: 'error',
+        title: t('loadError'),
+        message: err instanceof Error ? err.message : t('transfer.error'),
+      });
+    } finally {
+      setIsBatchTransferring(false);
+    }
+  };
+
   // Count inactive deposits already loaded
   const loadedInactiveCount = useMemo(
     () => deposits.filter((d) => !ACTIVE_STATUSES.includes(d.status)).length,
@@ -646,8 +711,18 @@ export default function DepositPage() {
       );
     }
 
+    // Sort by days-since-deposit on the VIP tab
+    if (activeTab === 'vip' && vipDaysSort) {
+      result = [...result].sort((a, b) => {
+        const aT = new Date(a.created_at).getTime();
+        const bT = new Date(b.created_at).getTime();
+        // 'asc' = oldest first → larger 'days deposited' first → smaller created_at first
+        return vipDaysSort === 'asc' ? aT - bT : bT - aT;
+      });
+    }
+
     return result;
-  }, [deposits, activeTab, searchQuery, dateFilterEnabled, dateFrom, dateTo]);
+  }, [deposits, activeTab, searchQuery, dateFilterEnabled, dateFrom, dateTo, vipDaysSort]);
 
   const depositTabs = DEPOSIT_TAB_IDS.map((id) => ({ id, label: t(DEPOSIT_TAB_KEYS[id]) }));
   const tabsWithCounts = depositTabs.map((tab) => {
@@ -861,15 +936,27 @@ export default function DepositPage() {
                   </button>
                 </div>
                 {batchSelectedIds.size > 0 && (
-                  <Button
-                    size="sm"
-                    icon={<Warehouse className="h-4 w-4" />}
-                    className="bg-amber-600 hover:bg-amber-700"
-                    isLoading={isBatchTransferring}
-                    onClick={() => setShowTransferModal(true)}
-                  >
-                    {t('batch.transferToHQ', { count: batchSelectedIds.size })}
-                  </Button>
+                  activeTab === 'vip' ? (
+                    <Button
+                      size="sm"
+                      icon={<AlertCircle className="h-4 w-4" />}
+                      className="bg-red-600 hover:bg-red-700"
+                      isLoading={isBatchTransferring}
+                      onClick={handleBatchMarkVipExpired}
+                    >
+                      หมดอายุ ({batchSelectedIds.size})
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      icon={<Warehouse className="h-4 w-4" />}
+                      className="bg-amber-600 hover:bg-amber-700"
+                      isLoading={isBatchTransferring}
+                      onClick={() => setShowTransferModal(true)}
+                    >
+                      {t('batch.transferToHQ', { count: batchSelectedIds.size })}
+                    </Button>
+                  )
                 )}
               </div>
             );
@@ -1029,7 +1116,24 @@ export default function DepositPage() {
                         {t('table.status')}
                       </th>
                       <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                        {activeTab === 'vip' ? 'ฝากมาแล้ว' : t('table.expiryDate')}
+                        {activeTab === 'vip' ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setVipDaysSort((prev) =>
+                                prev === 'desc' ? 'asc' : prev === 'asc' ? null : 'desc',
+                              )
+                            }
+                            className="inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                          >
+                            ฝากมาแล้ว
+                            <span className="text-[10px]">
+                              {vipDaysSort === 'desc' ? '↓' : vipDaysSort === 'asc' ? '↑' : '↕'}
+                            </span>
+                          </button>
+                        ) : (
+                          t('table.expiryDate')
+                        )}
                       </th>
                       <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                         {t('table.actions')}
