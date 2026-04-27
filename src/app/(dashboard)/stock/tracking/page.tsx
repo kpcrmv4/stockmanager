@@ -57,6 +57,7 @@ interface TrackingItem {
   follow_up_action: string | null;
   source: string;
   resolved_at: string | null;
+  resolved_by: string | null;
   resolution_notes: string | null;
   created_at: string;
   updated_at: string;
