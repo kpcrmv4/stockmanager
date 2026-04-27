@@ -84,33 +84,43 @@ const PRIORITY_CONFIG: Record<TrackingItem['priority'], { label: string; bg: str
   low: { label: 'ต่ำ', bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400' },
 };
 
-// Sparkline: render a 30-day diff bar chart in inline SVG
-function Sparkline({ data, width = 140, height = 32 }: { data: Array<{ date: string; diff: number }>; width?: number; height?: number }) {
-  if (data.length === 0) return null;
-  const max = Math.max(...data.map((d) => Math.abs(d.diff)), 1);
-  const barWidth = width / Math.max(data.length, 1);
-  const midY = height / 2;
+// RecentDiffChips: show last N daily diffs as colored numerical chips —
+// easier to read at a glance than a tiny sparkline. Newest on the right.
+function RecentDiffChips({
+  data,
+  limit = 7,
+}: {
+  data: Array<{ date: string; diff: number }>;
+  limit?: number;
+}) {
+  if (data.length === 0) {
+    return <span className="text-[10px] text-gray-400">—</span>;
+  }
+  // Take last `limit` items (already ascending by date from query)
+  const recent = data.slice(-limit);
   return (
-    <svg width={width} height={height} className="overflow-visible">
-      <line x1={0} y1={midY} x2={width} y2={midY} stroke="currentColor" strokeWidth={0.5} className="text-gray-300 dark:text-gray-600" />
-      {data.map((d, i) => {
-        const h = (Math.abs(d.diff) / max) * (height / 2 - 1);
-        const isShort = d.diff < 0;
-        const y = isShort ? midY : midY - h;
+    <div className="flex items-center gap-0.5">
+      {recent.map((d, i) => {
+        const v = Number(d.diff);
+        const isShort = v < 0;
+        const isSurplus = v > 0;
+        const text = v === 0 ? '0' : isShort ? `${v}` : `+${v}`;
         return (
-          <rect
+          <span
             key={i}
-            x={i * barWidth}
-            y={y}
-            width={Math.max(1, barWidth - 1)}
-            height={h}
+            title={`${d.date}: ${text}`}
             className={cn(
-              isShort ? 'fill-red-500' : d.diff > 0 ? 'fill-amber-500' : 'fill-emerald-400',
+              'inline-flex min-w-[24px] items-center justify-center rounded px-1 py-0.5 text-[10px] font-medium tabular-nums',
+              isShort && 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+              isSurplus && 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+              v === 0 && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
             )}
-          />
+          >
+            {text}
+          </span>
         );
       })}
-    </svg>
+    </div>
   );
 }
 
@@ -546,8 +556,9 @@ export default function StockTrackingPage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <Sparkline data={row.daily_diffs} />
-                          <p className="mt-1 text-[10px] text-gray-400">{row.daily_diffs.length} วัน</p>
+                          <p className="mb-0.5 text-[10px] text-gray-400">7 วันล่าสุด</p>
+                          <RecentDiffChips data={row.daily_diffs} />
+                          <p className="mt-1 text-[10px] text-gray-400">รวม {row.daily_diffs.length} วัน</p>
                         </div>
                       </div>
 
