@@ -191,6 +191,68 @@ CREATE TABLE deposits (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Per-bottle tracking for multi-bottle deposits.
+-- One row per physical bottle. bottle_no is 1-indexed, unique per deposit.
+CREATE TABLE deposit_bottles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  deposit_id UUID NOT NULL REFERENCES deposits(id) ON DELETE CASCADE,
+  bottle_no INTEGER NOT NULL CHECK (bottle_no >= 1),
+  remaining_percent NUMERIC(5,2) NOT NULL DEFAULT 100 CHECK (remaining_percent >= 0 AND remaining_percent <= 100),
+  status TEXT NOT NULL DEFAULT 'sealed' CHECK (status IN ('sealed', 'opened', 'consumed')),
+  opened_at TIMESTAMPTZ,
+  opened_by UUID REFERENCES profiles(id),
+  consumed_at TIMESTAMPTZ,
+  consumed_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (deposit_id, bottle_no)
+);
+
+CREATE INDEX idx_deposit_bottles_deposit_id ON deposit_bottles(deposit_id);
+CREATE INDEX idx_deposit_bottles_status ON deposit_bottles(status);
+
+ALTER TABLE deposit_bottles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Staff manage bottles via deposit" ON deposit_bottles
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM deposits d
+      WHERE d.id = deposit_bottles.deposit_id
+        AND (d.store_id IN (SELECT get_user_store_ids()) OR is_admin())
+    )
+  );
+
+-- Auto-create bottles when a new deposit is inserted.
+CREATE OR REPLACE FUNCTION auto_create_deposit_bottles()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO deposit_bottles (deposit_id, bottle_no, remaining_percent, status)
+  SELECT NEW.id, gs.n, 100, 'sealed'
+  FROM generate_series(1, NEW.quantity::int) AS gs(n)
+  ON CONFLICT (deposit_id, bottle_no) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_auto_create_deposit_bottles
+  AFTER INSERT ON deposits
+  FOR EACH ROW
+  WHEN (NEW.quantity > 0)
+  EXECUTE FUNCTION auto_create_deposit_bottles();
+
+CREATE OR REPLACE FUNCTION update_deposit_bottle_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_deposit_bottles_updated_at
+  BEFORE UPDATE ON deposit_bottles
+  FOR EACH ROW
+  EXECUTE FUNCTION update_deposit_bottle_timestamp();
+
 CREATE TABLE withdrawals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   deposit_id UUID REFERENCES deposits(id),
