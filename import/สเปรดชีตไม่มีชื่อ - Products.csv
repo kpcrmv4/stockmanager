@@ -1,0 +1,233 @@
+product_id,product_code,barcode,product_name,category,unit,cost_price,selling_price,min_stock,image_url,active,count_status
+84fabadc-a97c-455d-b60e-aa152a645ecc,M000172,,Fermet Branca,MAT-Aperitif,bottle(700),"1,168.23",0,0,,FALSE,excluded
+5e1d83d2-e6a1-47f0-9ca6-44ab2ad21e9a,M0100,,1757 Rosso,MAT-Aperitif,bottle(1000),"1,144.00",0,0,,TRUE,excluded
+42468138-6340-48e6-8c4c-4cc4b3eb4fe9,M0104,,Campari,MAT-Aperitif,bottle(750),"1,209.90",0,0,,TRUE,excluded
+050c6d49-b858-486e-981a-e8e0f4bd43dd,M0111,,1757 Extra Dry,MAT-Aperitif,bottle(1000),"1,144.00",0,0,,TRUE,excluded
+7e094402-db1d-48d7-909e-e0858a2b1d26,M0131,,Jagermeister,MAT-Aperitif,bottle(700),990.01,0,0,,FALSE,excluded
+8ecf9332-a368-4060-9fbc-517651c9846f,M0132,,SAMBUCA,MAT-Aperitif,bottle(750),821.03,0,0,,FALSE,excluded
+8cc28f6e-5c2a-4445-afdd-29c1149f7a36,M0133,,Aperol,MAT-Aperitif,bottle(700),"1,218.98",0,0,,TRUE,excluded
+13faa41b-19d3-4d04-80e1-6cbdab491775,M0164,,LIllet,MAT-Aperitif,bottle(750),0,0,0,,FALSE,excluded
+e97b2710-9e4a-4130-8cfd-a9d1ade6a426,M0165,,ST german,MAT-Aperitif,Bottle(700MI),"1,470.00",0,0,,FALSE,excluded
+d794a040-2bb5-4e4f-8222-40da54cd1afd,M0166,,Lafee Absinthe,MAT-Aperitif,Bottle(700MI),0,0,0,,FALSE,excluded
+42d70f30-e4b2-4c93-8cc9-579743652fa4,M0066,,Singha,MAT-Beer,bottle(320),32.42,0,0,,FALSE,excluded
+9ca6716a-8169-4275-966d-911c93bbb0f8,M0117,,Ginger Beer,MAT-Beer,bottle(200),0.26,0,0,,FALSE,excluded
+77679fbc-8bb1-45aa-8ea4-ee31459116f3,M0126,,Singha Draft Beer,MAT-Beer,Tank (30L),"3,225.00",0,0,,TRUE,excluded
+9e518e82-6549-476f-a2c1-910bc8d3a41a,M0127,,Asahi Draft Beer,MAT-Beer,ถัง(15L.),0,0,0,,FALSE,excluded
+9b599591-afae-4554-9ce9-4fc5736668b9,M0128,,Carlsberg Draft Beer,MAT-Beer,ถัง(22.9L.),0,0,0,,FALSE,excluded
+eca2a007-b469-4b2e-8f1c-87ab056bfa45,M1121,,Asahi Btl,MAT-Beer,Bottle(330),39.17,0,0,,FALSE,excluded
+8582b43d-0053-45a0-bf7e-fd3fa90ceed2,M1123,,Singha can,MAT-Beer,Can(320),0,0,0,,FALSE,excluded
+c8a25e30-1bad-4010-8623-602bb01a108d,M1124,,Kirin,MAT-Beer,ขวด,75,0,0,,TRUE,active
+6665094d-b84b-4516-8bb9-c687b84886c6,M1125,,Peroni,MAT-Beer,ขวด,45.05,0,0,,TRUE,active
+81758abb-77d4-46c3-bc29-b65438753b06,M1126,,Corona,MAT-Beer,ขวด,75,0,0,,TRUE,active
+5eccfb93-a71e-4295-85ef-4b2c8ef10af3,M1127,,Paulaner Oktoberfest,MAT-Beer,Tank (30L),"9,000.00",0,0,,TRUE,excluded
+92a52ff0-7356-4283-ae40-fee76afd7202,M1128,,Paulaner Weissbier,MAT-Beer,Tank (30L),"9,000.00",0,0,,TRUE,excluded
+e9fea268-0587-49c2-8516-8d9ca3a96f9d,M1129,,Stella Draft,MAT-Beer,Tank (20L),"4,590.00",0,0,,TRUE,active
+39a5d3e7-fbea-4ba0-9f04-b5bc607327d7,M1130,,Leffe Draft,MAT-Beer,Tank (20L),"3,142.00",0,0,,TRUE,excluded
+6e3adb69-4837-4f1a-8db8-abf0c7f229c3,M1131,,Hoegaarden,MAT-Beer,Tank (20L),"5,616.00",0,0,,TRUE,active
+6fabb255-d5f4-4f12-8d00-9952b0ae9b3e,M0101,,Angostura,MAT-Bitter,bottle(200),"1,190.00",0,0,,TRUE,excluded
+fa97fe26-d7e9-4e09-ad42-3e6984480e70,M0028,,Jim Beam,MAT-Bourbon,bottle(700),635.53,0,0,,TRUE,active
+81933942-8644-4747-a018-dc48b952121a,M0029,,Bulliet Bourbon,MAT-Bourbon,bottle(700),"1,327.97",0,0,,TRUE,active
+398290f0-f277-47fe-87e1-071d1e8f6a89,M0030,,Wild Turkey,MAT-Bourbon,bottle(750),"1,420.58",0,0,,FALSE,excluded
+b81f6265-cb94-493c-b007-89e62a9b24e9,M0031,,Makers Mark,MAT-Bourbon,bottle(750),"1,420.58",0,0,,TRUE,active
+457b0f75-cf70-4701-947b-3db34d349bdf,M0032,,Woodford Reserve,MAT-Bourbon,bottle(750),2.85,0,0,,FALSE,excluded
+af5b360b-1c12-4938-a7b0-47bb0db8298d,M0033,,Martell VSOP,MAT-Brandy,bottle(700),"2,785.02",0,0,,TRUE,active
+d6ce227a-5830-4994-93c5-036a851a15c1,M0034,,Hennessy VSOP,MAT-Brandy,bottle(700),"2,850.47",0,0,,TRUE,active
+ca577ff9-5507-4a7a-9a39-6de2c31a0885,M0035,,Martell XO,MAT-Brandy,bottle(700),"8,802.99",0,0,,FALSE,excluded
+623da782-f28d-4c63-b477-24f6d43b1ace,M0036,,Hennessy XO,MAT-Brandy,bottle(700),"8,752.31",0,0,,TRUE,active
+dbf04f88-37a6-4d38-a06d-5a709061eefe,M0091,,Regency (500ml),MAT-Brandy,bottle(500),580,0,0,,TRUE,active
+41dcadb0-ce2c-457b-8368-8b3eb8c10c81,M0130,,Hundred reserve,MAT-Brandy,bottle(750),564.6,0,0,,TRUE,excluded
+75b5bcdf-8921-4406-bcd1-a00d8747664f,M0230,,Remy Vsop,MAT-Brandy,Bottle (700MI),"2,821.98",0,0,,FALSE,excluded
+51711c3d-b092-4b73-9fea-90ffe2227f91,M0231,,Remy XO,MAT-Brandy,Bottle (700MI),"9,897.16",0,0,,FALSE,excluded
+6cdb02c5-3a82-464d-9c21-980d65d8a010,M1153,,Louis XIII,MAT-Brandy,bottle(750),"170,000.03",0,0,,FALSE,excluded
+863e6e53-957d-4bab-8541-99fc2903c09c,M00182,,D rock Brut,MAT-Champagne,bottle(750),"9,432.00",0,0,,FALSE,excluded
+8adbc8d0-ece5-4ad7-9ebb-538718dba408,M00183,,D rock Rose,MAT-Champagne,bottle(750),"14,021.03",0,0,,FALSE,excluded
+6c5b6dbe-106e-44b7-9899-ea99b99bc285,M00184,,Dom Perginon Rose Luminas,MAT-Champagne,bottle(750),"14,880.00",0,0,,FALSE,excluded
+5c24cc8f-ba84-4379-b549-cecafdb8df0b,M0053,,Desir Champagne Brut,MAT-Champagne,bottle(750),"2,484.00",0,0,,TRUE,active
+887082a5-c269-44b5-b93a-64a5a249a6db,M0054,,Moet & Chandon Brut Imperial,MAT-Champagne,bottle(750),"1,877.03",0,0,,TRUE,active
+496c22ac-6282-4ab0-9f1f-2a89ca345ba4,M0055,,Dom Perginon Luminas,MAT-Champagne,bottle(750),"10,184.03",0,0,,TRUE,active
+f3f2e747-b076-4b6d-baca-a46a6d953769,M0056,,Louis Roederer Cristal,MAT-Champagne,bottle(750),"9,999.98",0,0,,TRUE,active
+81a96607-37cd-4489-b660-d63944b86dc0,M0057,,Armand De Brignac Brut Gold,MAT-Champagne,bottle(750),"16,457.03",0,0,,FALSE,active
+f99e4921-9174-45f0-be2a-082697d4c206,M0180,,Moet mini,MAT-Champagne,bottle(200),0,0,0,,FALSE,excluded
+295fdc21-3c39-493b-a580-e44d1d44c0e5,M0181,,Moet & Chandon Brut Imperial EX1.5,MAT-Champagne,Bottle (1.500),"4,129.50",0,0,,FALSE,excluded
+a4e8f2dc-ea0f-4cd6-ae04-51ecf3663f15,M0182,,Moet & Chandon ICE,MAT-Champagne,ขวด,"2,464.00",0,0,,FALSE,excluded
+995c77b3-3207-4394-a940-7bd38ce16225,M0129,,X-rate,MAT-General,bottle(750),0,0,0,,FALSE,excluded
+6de58f3f-3fb6-4550-8c5d-a5670c28d5fc,M0001,,Bombay,MAT-Gin,Bottle(700MI),"1,092.98",0,0,,TRUE,active
+aaa42a12-73b5-4462-a46c-3a4ce31c4529,M0003,,Lady Trieu,MAT-Gin,bottle(750),1.8,0,0,,FALSE,excluded
+7781a302-7f42-4b54-a181-c6c9acaf9d88,M0004,,Tanqueray No.10,MAT-Gin,bottle(750),"1,695.98",0,0,,TRUE,active
+8c6777a7-5672-4d58-a309-eb6b4da0ef35,M0005,,Hendricks Gin,MAT-Gin,bottle(700),"1,901.90",0,0,,TRUE,active
+715e3c51-c4f8-4338-81af-5f4fbf4d51c1,M0006,,Monkey 47,MAT-Gin,bottle(500),"1,934.40",0,0,,TRUE,active
+6f2b1698-6909-428b-bb1e-a0f685342364,M0007,,No.3 London Dry Gin,MAT-Gin,bottle(700),"2,824.01",0,0,,TRUE,active
+669ad81d-b80b-47fb-b825-474ee8c2cc45,M0094,,Gilbeys Gin,MAT-Gin,bottle(1000),435,0,0,,TRUE,excluded
+c8f706cf-61ea-4808-a46a-c06e305b9e6d,M0194,,Tanqueray,MAT-Gin,Bottle(700MI),"1,060.99",0,0,,FALSE,excluded
+ed94dcb2-f97d-4e88-9dcb-adee23c3c017,M1100,,Saneha,MAT-Gin,Bottle(700MI),0,0,0,,FALSE,excluded
+ea05a9c9-be6c-4ecc-b1fc-01233306cf9e,M0084,,Orange Juice,MAT-Juice,bottle(1000),0,0,0,,FALSE,excluded
+c3787286-6b1b-4445-bc15-e15f5d835668,M0085,,Cranberry Juice,MAT-Juice,bottle(1000),0,0,0,,TRUE,excluded
+01ad3086-98ff-43c0-af8d-ee06de727787,M0087,,Pineapple Juice,MAT-Juice,bottle(1000),0,0,0,,TRUE,excluded
+6b6c4cc1-c129-4a02-8a49-09f2e2612262,M0088,,Orange Juice,MAT-Juice,bottle(1000),0,0,0,,FALSE,excluded
+fca4b129-f727-400b-89ed-c94f234ab12a,M0089,,Passionfruit Juice,MAT-Juice,bottle(1000),0,0,0,,FALSE,excluded
+d93635f7-57dd-47fa-82b0-d0c218819f2f,M0098,,Apple Juice,MAT-Juice,bottle(1000),0,0,0,,FALSE,excluded
+d386be37-308c-46e1-ae7e-8721c6e80629,M0113,,Pink Grapefruit,MAT-Juice,bottle(750),0,0,0,,FALSE,excluded
+3e27add6-3579-48ca-8c88-ae1c2415e487,M0120,,Fresh Lime,MAT-Juice,bottle(750),0,0,0,,FALSE,excluded
+e3ef5741-6d67-4f60-a584-790d7f55bb74,M0121,,Lime Juice,MAT-Juice,bottle(750),0,0,0,,TRUE,excluded
+1b6daede-74b3-41db-8396-6597abd99349,M0122,,Coconut Milk,MAT-Juice,bottle(750),0,0,0,,TRUE,excluded
+0f32f557-e4fb-4120-96d7-6d52344db1cc,M00169,,Benedictine D.o.m,MAT-Lique,bottle(700),"1,750.00",0,0,,FALSE,excluded
+84ac502a-acdd-41f8-9fa4-787f7cb3854f,M00170,,Hendrick's Grand Cabaret,MAT-Lique,bottle(700),"1,957.97",0,0,,FALSE,excluded
+c40002c3-5a56-44a3-87b9-997a473be2af,M00171,,Cherry Herring,MAT-Lique,Bottle(700MI),"1,350.02",0,0,,FALSE,excluded
+191dd716-4fe6-43aa-a3e9-d56661df0587,M00172,,Luxardo Marachino,MAT-Lique,bottle(1000),"1,486.00",0,0,,FALSE,excluded
+654bf03e-2a7d-4bae-8cc4-772bf9762d95,M00173,,Peach schnapps H.W.,MAT-Lique,bottle(750),0,0,0,,FALSE,excluded
+cb2af5a0-9299-4870-9d22-faa92efb7e55,M0116,,Cointreu,MAT-Lique,bottle(700),949.97,0,0,,TRUE,excluded
+817c2d47-4ea4-4172-b06b-4095f1d072fd,M0119,,Malibu,MAT-Lique,bottle(750),"1,257.00",0,0,,TRUE,excluded
+114e0d2e-6373-4977-96cd-c8dc302c09ed,M0134,,Baileys,MAT-Lique,bottle(750),995.03,0,0,,FALSE,excluded
+88483985-b1d3-4ac1-8209-87a1face84fa,M0135,,Kahlua,MAT-Lique,bottle(700),"1,228.99",0,0,,FALSE,excluded
+d18b4042-4d2f-4a22-b572-be3d22f31b72,M0137,,H.W Peach Snapps Liqueur,MAT-Lique,bottle(750),188.85,0,0,,FALSE,excluded
+0ec7faab-4a93-472d-8e35-3367e3c7506d,M0150,,Disaronno Liqueur,MAT-Lique,bottle(700),8.89,0,0,,TRUE,excluded
+621eec0f-21d6-4edc-b7fa-6d06cad3d04d,M0155,,Giffard Blue,MAT-Lique,Bottle(700MI),0,0,0,,FALSE,excluded
+4a63134e-769a-4f0e-84ae-d3115489d72f,M0156,,Giffard apple,MAT-Lique,Bottle(700MI),0,0,0,,FALSE,excluded
+e3ed5509-4f68-4242-9b37-df86c77dd202,M0157,,Giffard Cherry,MAT-Lique,Bottle(700MI),0,0,0,,FALSE,excluded
+f700eb15-f5bc-450b-a517-a73a3e0c6be8,M0158,,Giffard Lilchee,MAT-Lique,Bottle(700MI),0,0,0,,FALSE,excluded
+7b9df90b-2d82-45e4-88b4-e9b4befabcca,M0159,,Giffard Cassis,MAT-Lique,Bottle(700MI),0,0,0,,FALSE,excluded
+f99c88fb-98e7-4ad2-af46-e46564b9351c,M0160,,Bols Dry Orange,MAT-Lique,Bottle(700MI),0,0,0,,FALSE,excluded
+949fafbb-2724-4bb3-b930-68082e55bd4e,M0161,,Weneker Blue,MAT-Lique,Bottle(700MI),0,0,0,,FALSE,excluded
+9c32a5ef-5400-412e-befa-3961bf20541e,M0162,,Midori,MAT-Lique,Bottle(700MI),"1,121.47",0,0,,FALSE,excluded
+902e882f-b612-4a58-9a40-128567626508,M0163,,Weneker Peach,MAT-Lique,Bottle(700MI),0,0,0,,FALSE,excluded
+e3348117-d06d-4e0b-9cb0-aa282a3cb4d9,M0168,,Kwai Feh Lychee,MAT-Lique,Bottle(700MI),759.99,0,0,,FALSE,excluded
+a11af912-c82c-429d-a326-fc118f482964,M0136,,milk,MAT-Other,bottle(2L),0,0,0,,FALSE,excluded
+1df55c83-cfcd-42a3-807a-1ea78bf13632,M0190,,Geonbae Fresh,MAT-Other,bottle(360),0,0,0,,FALSE,excluded
+c19f3afb-d1c9-40b0-8292-b1d26a4a82d4,M0191,,Fusion Seltzer lemon Berries,MAT-Other,Can(320),0,0,0,,FALSE,excluded
+304c13cd-38d6-4989-bc71-10ee89a602cf,M0008,,Mekhong,MAT-Rum,bottle(750),0.68,0,0,,TRUE,excluded
+b3f395c5-47ca-4a1c-a6e8-7873846ce4c2,M0009,,Zacapa Centenario 23 YR,MAT-Rum,bottle(750),"2,772.00",0,0,,FALSE,excluded
+5ad0419d-5938-469c-9372-f42a932f4c13,M0110,,Bacardi,MAT-Rum,bottle(750),"1,290.00",0,0,,TRUE,active
+7cf65b12-7d48-4251-83dd-96c4f5e968c6,M0152,,Nusa Canna,MAT-Rum,bottle(750),0,0,0,,FALSE,excluded
+8b0cf02d-4ee7-4805-afb9-14f89c2fffd0,M0153,,Captian Mogan Dark rum,MAT-Rum,bottle(750),890.03,0,0,,FALSE,excluded
+73505047-4ebc-4bca-8d11-a4a870b4cd79,M273,,pisco,MAT-Rum,Bottle(700MI),"1,284.01",0,0,,TRUE,excluded
+6d16ec44-a5ad-4017-950b-f01ae2715e56,M274,,Canario Cachaca,MAT-Rum,bottle(1000),"1,037.40",0,0,,FALSE,excluded
+3a5f2584-310b-439e-bee6-bbc64ffb4f68,M00058,,SINGLETON 15 YR,MAT-Singal Malt,Bottle (700MI),4.41,0,0,,FALSE,excluded
+5463e6b9-08cd-41e5-8458-d4ccf022affa,M00079,,SINGLETON 12 YR,MAT-Singal Malt,Bottle (700MI),3.22,0,0,,FALSE,excluded
+7410c223-5d50-42ca-8d26-201e232eeab6,M0043,,Balvenie 12 YR,MAT-Singal Malt,bottle(700),"3,592.19",0,0,,TRUE,active
+d8b547af-8f45-4c1b-accb-40b2df796b1d,M0044,,Glenfiddich 12 YR,MAT-Singal Malt,bottle(700),"2,196.25",0,0,,TRUE,active
+5063c406-df5f-4aff-9462-74eb2e268f22,M0046,,Glenfiddich 15 YR,MAT-Singal Malt,bottle(700),"3,317.79",0,0,,TRUE,active
+b0386c58-419a-4d65-b89e-68cd67107c28,M0047,,Glefiddich 18 YR,MAT-Singal Malt,bottle(700),"5,369.14",0,0,,FALSE,excluded
+621d2a24-c903-4682-b890-fbe87ea4bba5,M0048,,Bowmore 12 YR,MAT-Singal Malt,bottle(700),3.78,0,0,,FALSE,excluded
+600848e6-9eea-472f-a61c-b48a872a1fec,M0049,,Bowmore 15 YR,MAT-Singal Malt,bottle(700),6.09,0,0,,FALSE,excluded
+c6f56241-ddc8-41c6-b2b5-aed183afa50f,M0050,,Macallan 12 YR,MAT-Singal Malt,bottle(700),"5,047.00",0,0,,TRUE,active
+5badb495-8d82-4873-abf5-8d91813b8176,M0051,,Macallan 15 YR,MAT-Singal Malt,bottle(700),"8,528.03",0,0,,TRUE,active
+2ba6104f-20a3-42ef-869d-5ed175782860,M0052,,Macallan Sherry Oak 18 YR,MAT-Singal Malt,bottle(700),"21,521.99",0,0,,FALSE,excluded
+09e966e3-58c0-4606-8e28-2377f5349747,M00543,,SINGLETON 18 YR,MAT-Singal Malt,Bottle (700MI),5.81,0,0,,FALSE,excluded
+b8b4daa5-1ee6-42ff-9785-112aa36b5e51,M0154,,Laphoaig 10Y,MAT-Singal Malt,bottle(750),0,0,0,,FALSE,excluded
+e4798acf-d5eb-4865-a37f-47badfb10b26,M00180,,Coconut,MAT-Soft Drink,ลูก,45,0,0,,TRUE,active
+a08253a9-b330-4d44-a25a-a6b8700c1e5a,M0068,,Coke,MAT-Soft Drink,กระป๋อง (325),13.55,0,0,,TRUE,excluded
+621cb717-4e53-4662-a3e5-e72e6bb43379,M0069,,Coke Zero,MAT-Soft Drink,กระป๋อง (325),14.01,0,0,,TRUE,excluded
+3ce7e77a-2dbd-4db0-9a1c-82eccf2940cd,M0070,,Sprite,MAT-Soft Drink,กระป๋อง (325),13.55,0,0,,TRUE,excluded
+db3585ab-4a94-4be8-b8ce-b3ab074d7208,M0071,,Ginger Ale,MAT-Soft Drink,กระป๋อง (325),14.24,0,0,,TRUE,excluded
+9ee98a48-2683-4a6b-a7dc-1accc05514f7,M0072,,Soda Singha,MAT-Soft Drink,bottle(325),7.77,0,0,,TRUE,excluded
+5fde696b-0bdc-4a2e-83a7-d481d3d8734d,M0073,,Schweppes Lemon Soda,MAT-Soft Drink,Can(320),14.82,0,0,,FALSE,excluded
+6f36253c-6b03-44cb-ba81-e6fece81cefd,M0074,,Schweppes Tonice Water,MAT-Soft Drink,กระป๋อง (325),14.24,0,0,,TRUE,excluded
+ef60e636-a533-49c4-aec4-96efb270ae6e,M0075,,S. Pellegrino Tonic Water,MAT-Soft Drink,bottle(200),0.22,0,0,,FALSE,excluded
+86aba800-d212-4c9b-ae00-86d2eb0fe2fa,M0076,,S. Pellegrino Sparkling Water,MAT-Soft Drink,bottle(500),65,0,0,,TRUE,excluded
+048a8e5e-7c3a-4dac-87d3-e4e7c2048099,M0077,,Aqua Panna Water,MAT-Soft Drink,bottle(500),39,0,0,,TRUE,excluded
+48340899-fa3c-43cf-8084-039511a353a0,M0078,,Mont Fleur Water,MAT-Soft Drink,bottle(500),0,0,0,,FALSE,excluded
+44a28e30-4470-47d7-b4bd-b5cd1b5d798f,M0080,,Redbull,MAT-Soft Drink,กระป๋อง (250),65,0,0,,TRUE,excluded
+2ac29bfa-48e0-44d6-aa5d-8a36ea92a284,M0081,,Ice Bucket,MAT-Soft Drink,ถุง(10kg),0,0,0,,FALSE,excluded
+cf2baebb-3a52-4e45-a0ad-7e34abd4fa2f,M0179,,Water 24BLVD,MAT-Soft Drink,bottle(500),4.95,0,0,,TRUE,excluded
+c098f1e1-c27e-4516-963d-214481edd7cb,M0059,,Louis Perdrier Brut,MAT-Sparkling wine,bottle(750),450,0,0,,TRUE,active
+b06c1ff8-1aab-4645-9b75-bcf8bd430f59,M0060,,Louis Perdrier Rose,MAT-Sparkling wine,bottle(750),500.03,0,0,,TRUE,active
+b47cd838-bed8-4ab2-97fc-019658a93a1b,M0102,,Peach Syrup,MAT-Syrup,bottle(1000),0,0,0,,FALSE,excluded
+969bfe12-bf80-412c-977c-986a20d8be25,M0103,,Rasberry Syrup,MAT-Syrup,bottle(1000),0,0,0,,FALSE,excluded
+f3d6d697-e71d-47e6-a7e9-4b6d6129f982,M0107,,Yuzu Puree,MAT-Syrup,bottle(1000),0,0,0,,FALSE,excluded
+dd370605-a96a-4570-8f04-fb8f50c7019a,M0108,,Strawberry Syrup,MAT-Syrup,bottle(1000),0,0,0,,FALSE,excluded
+7971a920-9a6f-4c0b-8c51-c8132fa01148,M0112,,Vanilla Syrup,MAT-Syrup,bottle(1000),0,0,0,,FALSE,excluded
+89a1fd20-226a-49f4-b281-601374d626ca,M0115,,Syrup,MAT-Syrup,bottle(500),0,0,0,,FALSE,excluded
+9601e83c-0578-448d-98ec-823486ff4948,M0124,,Honey,MAT-Syrup,bottle(300),0,0,0,,FALSE,excluded
+e93cb4be-cf62-475c-9d96-409b4110c046,M0125,,Ginger Syrup,MAT-Syrup,bottle(1000),0,0,0,,FALSE,excluded
+0084e995-5aee-49a6-b55a-b69506eafe5d,M0169,,Monin Strawberry,MAT-Syrup,Bottle(700MI),0,0,0,,FALSE,excluded
+50e7c240-8311-4873-8e14-7b3eda3aafec,M0170,,Monin almond,MAT-Syrup,Bottle(700MI),0,0,0,,FALSE,excluded
+b35f545e-cd36-47f8-be75-20c278b5fc83,M0171,,Monin Melon,MAT-Syrup,Bottle(700MI),0,0,0,,FALSE,excluded
+f1dc453e-9346-46ad-9e51-a473a1dfa3ce,M0172,,Monin Watermelon,MAT-Syrup,bottle(700),0,0,0,,FALSE,excluded
+a018794a-a289-458e-bd2c-18f74c457c64,M0173,,Monin Peach,MAT-Syrup,Bottle(700MI),0,0,0,,FALSE,excluded
+38346d74-297d-4770-a1f8-90fff29c9cb3,M0174,,Monin Lychee,MAT-Syrup,Bottle(700MI),0,0,0,,FALSE,excluded
+26026be4-ead1-4cb1-9587-dd668540a38d,M0175,,Monin Grenadine,MAT-Syrup,Bottle(700MI),0,0,0,,FALSE,excluded
+b821d812-3f5c-42e2-9e7e-f851880c69bf,M0176,,Monin Popcron,MAT-Syrup,Bottle(700MI),0,0,0,,FALSE,excluded
+c3f058a0-5949-40fd-9b3a-9dbcf79892fd,M0177,,Monin Pineapple,MAT-Syrup,Bottle(700MI),0,0,0,,FALSE,excluded
+8df8d478-3c05-4868-ae1e-e3bec9b1990d,M0178,,Monin Vanilla,MAT-Syrup,Bottle(700MI),0,0,0,,FALSE,excluded
+7a71fcb6-354e-4df8-9c6e-7af8b4480b7f,M00018,,Jose Cuervo Reposado,MAT-Tequila,ขวด,819,0,0,,FALSE,excluded
+1f199e88-1263-4e02-9b07-13bed79b33c8,M0017,,Jose Cuervo Silver,MAT-Tequila,bottle(700),819,0,0,,TRUE,active
+58480d20-f8cb-454e-a15f-a466d4409c77,M0018,,Patron Silver,MAT-Tequila,bottle(700),0.98,0,0,,FALSE,excluded
+c7ce8000-03f3-4472-be3e-25e81f9032fe,M0019,,1800 Tequila Cristalino,MAT-Tequila,bottle(750),"3,999.00",0,0,,FALSE,excluded
+a4976ef1-fa41-473e-ab90-fc953d645c49,M0020,,Parton El Alto,MAT-Tequila,bottle(750),"8,224.28",0,0,,FALSE,excluded
+8d3a8550-5ddb-4cbf-95f2-f93533694ffc,M0021,,818 Reposado,MAT-Tequila,bottle(750),"3,239.03",0,0,,TRUE,active
+10c5a844-7153-440b-bc4d-3c834ff1e639,M0022,,818 Anejo,MAT-Tequila,bottle(750),"4,598.03",0,0,,FALSE,excluded
+c5d7b00f-eb92-4062-8834-dd7cb70ab510,M0023,,Eight Reserve by 818,MAT-Tequila,bottle(750),"12,876.45",0,0,,FALSE,excluded
+3ec83bd6-850a-432b-96c8-28939dd46312,M0024,,Don Julio Reposado,MAT-Tequila,bottle(750),"2,897.18",0,0,,TRUE,active
+8b3ec4c4-4cd2-4d82-88b2-7d7ac5e25929,M0025,,Don Julio 1942,MAT-Tequila,bottle(750),"9,803.85",0,0,,FALSE,excluded
+5f7624e4-e93a-43be-ba68-e062a7b12344,M0026,,Clase Azul Reposado,MAT-Tequila,bottle(750),"10,917.98",0,0,,FALSE,excluded
+38101ccf-cf3d-45cf-9450-7d7002e3fb20,M0027,,Clase Azul Gold,MAT-Tequila,bottle(750),"23,072.03",0,0,,FALSE,excluded
+03f68a3d-611a-4e23-af97-f96a9a66e78a,M0095,,บังยี่ขัน,MAT-Tequila,bottle(640),134.98,0,0,,FALSE,excluded
+20d7605e-151e-435e-ad66-ff79d27212fa,M0096,,Clase Azul Ultra,MAT-Tequila,bottle(750),"129,999.98",0,0,,FALSE,excluded
+1160feb4-ccc2-4fbd-938b-12c986817509,M0193,,Don Julio Blanco,MAT-Tequila,bottle(750),"2,181.00",0,0,,TRUE,active
+0c7b3099-28b3-48e6-a65f-7629512f5dc3,M0211,,Clase Azul reposado 200MI,MAT-Tequila,bottle(200),"4,672.90",0,0,,FALSE,excluded
+fc419ec7-7e5b-4648-87cb-ff41ca2635ef,M0215,,Patron reposado,MAT-Tequila,bottle(700),"3,065.44",0,0,,FALSE,excluded
+65b0de99-6124-4d69-9f8b-10a4d4aa0671,M0218,,Don Julio Ultima Reserva,MAT-Tequila,bottle(750),"24,162.00",0,0,,FALSE,excluded
+1667cf60-eb05-4538-b001-a0731b84bffc,M213,,Los 7 Angal,MAT-Tequila,bottle(750),"8,000.03",0,0,,FALSE,excluded
+a507be23-55e1-47c6-89b3-44c53211149c,M214,,Komos Reposado Rosa,MAT-Tequila,bottle(750),"9,966.08",0,0,,FALSE,excluded
+dc8f972f-4c7f-4b1d-94cc-b3a1de96b0f4,M215,,Komos Anejo Cristalino,MAT-Tequila,bottle(750),"11,410.13",0,0,,FALSE,excluded
+8e413a2a-91f9-4873-809a-8d354702e290,M216,,Komos Extra Anejo,MAT-Tequila,bottle(750),"31,167.00",0,0,,FALSE,excluded
+96fef607-3244-46db-983c-586a6b8d5cb8,M217,,Patron El cielo,MAT-Tequila,bottle(750),"6,999.00",0,0,,FALSE,excluded
+21c7bb14-f6b7-4fd8-a6e9-3698804b95e7,M218,,Komos Anejo Reserva,MAT-Tequila,bottle(750),15.23,0,0,,FALSE,excluded
+4b6b91bb-8cf5-47f3-98b7-0f56a26e6e1f,M219,,Patron Anejo,MAT-Tequila,bottle(750),0,0,0,,FALSE,excluded
+aa693f1a-d09f-4434-aed2-a22f5bce2800,M220,,Patron El Alto Ex1.75,MAT-Tequila,bottle(1750),0,0,0,,FALSE,excluded
+16dd2d2d-46eb-42af-9f1d-e6e087ebf4e2,M0011,,Grey Goose Vodka,MAT-Vodka,bottle(750),"1,855.13",0,0,,TRUE,active
+3335d0f0-6e63-41e6-8712-82ca5ad73853,M0012,,Belvedere Vodka,MAT-Vodka,bottle(700),"1,760.01",0,0,,TRUE,active
+038a982f-973c-4c19-8457-33e883d636b6,M0013,,Elit Vodka 1.75L.,MAT-Vodka,bottle(1750),1.75,0,0,,FALSE,excluded
+587bd942-e4c9-4939-b076-ea4745c6218e,M0014,,Grey Goose Vodka Extra 1.75L,MAT-Vodka,bottle(1750),"4,347.00",0,0,,FALSE,excluded
+2562120b-a4f3-4028-ba68-279687a9699f,M0015,,Belvedere Vodka Extra 1.75L,MAT-Vodka,bottle(1750),"4,646.95",0,0,,FALSE,excluded
+c10b3fa1-69fd-4dc4-894a-c68a9a8a10d4,M0016,,Grey Goose Altius,MAT-Vodka,bottle(750),"6,869.03",0,0,,FALSE,excluded
+6eda51b7-db31-42f8-87c9-8b90ecfa6846,M002104,,Grey Goose Altius 1.75 L,MAT-Vodka,bottle(1750),"15,835.93",0,0,,FALSE,excluded
+1637fbd5-c9c0-4538-af0f-172a51eae1ca,M0093,,Gilbeys Vodka,MAT-Vodka,bottle(1000),408,0,0,,TRUE,excluded
+006085ba-f877-46fe-b146-092dc177f80c,M0195,,Ciroc,MAT-Vodka,bottle(750),"1,866.08",0,0,,FALSE,excluded
+8a06e2f8-5920-4ed4-9911-a9e9697b9a40,M02103,,Beluga,MAT-Vodka,Bottle(700MI),"1,904.00",0,0,,TRUE,active
+c26244e3-b85f-4d64-b69e-1a3b497262fa,M201,,Smirnoff,MAT-Vodka,Bottle(700MI),0.77,0,0,,FALSE,excluded
+13ac7048-a6d8-4054-b9d9-b4425caad040,M0037,,Monkey Shoulder,MAT-Whisky,bottle(750),"1,457.93",0,0,,TRUE,active
+b9165b1d-3772-4982-9821-668f8f664b8d,M0038,,JW. Gold Label,MAT-Whisky,bottle(750),"2,028.00",0,0,,TRUE,active
+2bd62201-46a8-4929-9364-0fc1b74f0412,M0039,,Chivas Regal 18 YR,MAT-Whisky,bottle(700),"2,801.89",0,0,,TRUE,active
+8fa11c1c-0508-40ee-b867-c9eefdf3f730,M0040,,Hibiki Harmony,MAT-Whisky,bottle(700),"4,990.02",0,0,,TRUE,active
+55888966-5ca8-4cb1-8c32-d90184d0fbcc,M0042,,JW. Blue Label,MAT-Whisky,bottle(750),"9,168.98",0,0,,FALSE,active
+6b5848ea-35f1-4b56-9e2d-09b8a8737a13,M0138,,Golden Stag,MAT-Whisky,Bottle(700MI),377.02,0,0,,TRUE,excluded
+906c1e7d-4c94-4d14-b9a0-9acb7c6a0712,M0139,,Chivas Regal 12YR,MAT-Whisky,Bottle(700MI),"1,252.37",0,0,,TRUE,active
+a933d7db-3061-4518-9849-68b46d4f76e7,M0140,,Suntory Whiskey,MAT-Whisky,ขวด,989.99,0,0,,TRUE,active
+6ad9745e-9ea6-4fbd-8991-f1701b37eeab,M00084,,Terre di mario vini blanco,MAT-Wine,bottle(750),410.03,0,0,,FALSE,excluded
+3279c19b-69d3-400c-bcb4-428253594758,M00085,,El Miracle No.1,MAT-Wine,bottle(750),515.03,0,0,,FALSE,active
+8b16e0f8-11bf-461d-ac11-45cba8aa6ebd,M00086,,Astrale rosso D'italia,MAT-Wine,bottle(750),527.03,0,0,,FALSE,excluded
+b22ae1c9-6efd-417e-8175-505a4afae49a,M00087,,Tempranillo Garnacha,MAT-Wine,bottle(750),440.03,0,0,,FALSE,excluded
+8b8bc051-ce75-4af0-a02a-390fbb78ad02,M00088,,Macabeo/Sauvignon,MAT-Wine,bottle(750),420,0,0,,FALSE,excluded
+414659a1-96da-4aeb-a9ca-8368c9478834,M00089,,Roodeberg Black 2021,MAT-Wine,bottle(750),594.98,0,0,,FALSE,excluded
+71e53f8d-8c1c-48de-a656-043f3045ddb2,M00090,,Espania sauvigon blanc,MAT-Wine,bottle(750),440.03,0,0,,TRUE,active
+29693a93-f8dd-4888-97b9-080ee9ef4659,M00091,,Espania Tempranillo Garnacha,MAT-Wine,bottle(750),420,0,0,,TRUE,active
+75df69b8-f6b1-41b8-b343-2c2cd2f70767,M00093,,Gran Sello Tempranillo,MAT-Wine,bottle(750),699.98,0,0,,TRUE,active
+6dfab828-715d-4f93-bbb7-661607af2feb,M00094,,Contrapunto Albarino,MAT-Wine,bottle(750),699.98,0,0,,FALSE,active
+b15b9bb6-8c88-4921-a00b-09d80af14827,M00095,,Gerard bertrand art de vivre red,MAT-Wine,bottle(750),960,0,0,,TRUE,active
+b71ae1e0-2839-40d5-9606-cab4a7c2802b,M00096,,Gerard bertrand art de vivre rose,MAT-Wine,bottle(750),960,0,0,,TRUE,active
+9ebd0404-6e40-4453-b61a-ad3f8e15195c,M00097,,Gerard bertrand art de vivre White,MAT-Wine,bottle(750),960,0,0,,TRUE,active
+e408cacb-79db-438c-bf5c-b2da322dee43,M0061,,Chablis AOC,MAT-Wine,bottle(750),"1,070.03",0,0,,TRUE,active
+48c66a97-50eb-47ac-9fa4-cfd0b045a13e,M0062,,Reguta white,MAT-Wine,bottle(750),699.98,0,0,,TRUE,active
+f20cfd64-8479-4728-8be0-c4eb17f70e17,M0063,,Reguta Red,MAT-Wine,bottle(750),750,0,0,,TRUE,active
+589da3a3-0711-4c8b-824e-cc3343c85556,M0064,,Quattronotti Appassimento,MAT-Wine,bottle(750),660.9,0,0,,TRUE,active
+6037d8ce-f275-404e-ad26-523902c29845,M0079,,Chateau Cantenac brown 2016,MAT-Wine,bottle(750),"4,230.00",0,0,,FALSE,excluded
+6f873fde-891e-42ec-876b-c15e29da8298,M0082,,"CIOS DU MARQUIS,2011",MAT-Wine,bottle(750),"4,050.00",0,0,,FALSE,excluded
+97349286-1c33-4a7c-81c5-fb734788be54,M0083,,Alter EGO Chateau 2019,MAT-Wine,bottle(750),"6,095.03",0,0,,FALSE,excluded
+b60f0d3a-cc9c-4931-b3c6-08d1522d0f84,M190,,สเปย์ปรับอากาศกลิ่นฟอรัส,MAT-แม่บ้าน,ขวด,0,0,0,,FALSE,excluded
+c49b912a-dd7f-48f9-ac12-ae0811879b7c,M191,,กระดาษชำระ/ม้วน,MAT-แม่บ้าน,ม้วน,0,0,0,,FALSE,excluded
+2334a9be-8311-43ae-9c3a-39f7d13f4d15,M192,,กระดาษเช็ดปาก,MAT-แม่บ้าน,แพ็ค,0,0,0,,FALSE,excluded
+5f464f2f-4000-4fec-a4e6-746ce43754d5,M193,,ถุงขยะ 24x28,MAT-แม่บ้าน,แพ็ค,0,0,0,,FALSE,excluded
+f53c28ae-f0a2-42e6-9b4e-95d4f91d2d5b,M194,,กระดาษเช็ดมือ,MAT-แม่บ้าน,กล่อง,0,0,0,,FALSE,excluded
+fe914754-6721-4231-9e42-a7010291954c,M195,,สเปย์ปรับอากาศกลิ่นออเร้นจ์,MAT-แม่บ้าน,ขวด,0,0,0,,FALSE,excluded
+a8204676-de7a-40b7-8e8f-b5189ff177d7,M196,,ถุงขยะ 36x45,MAT-แม่บ้าน,แพ็ค,0,0,0,,FALSE,excluded
+033bf833-7872-4215-b730-305b8317327c,M197,,น้ำยาถูพื้น,MAT-แม่บ้าน,ลิตร(5.2),0,0,0,,FALSE,excluded
+d8e6b507-a5d4-46c5-a45b-a637db7de554,M198,,สบู่เหลวล้างมือ 3M,MAT-แม่บ้าน,L(3.8),0,0,0,,FALSE,excluded
+99f5194b-f98c-4471-90dd-9da8305b0f65,M199,,น้ำยาเช็ดกระจก,MAT-แม่บ้าน,L(5),0,0,0,,FALSE,excluded
+0c94c842-cfcf-45c9-b7f7-a7c1071eeb43,M200,,สบู่เหลวล้างมือ ตราเวียล่า,MAT-แม่บ้าน,L(3.8),0,0,0,,FALSE,excluded
+3e883784-5543-4382-8706-8ebec246c914,WO0001,,Leitz Reisling 0%,MAT-Wine 0%,,0,0,0,,TRUE,active
+445534e6-315c-4d34-9fa1-89878f54d4e2,WO0002,,Leitz Pinot Noir 0%,MAT-Wine 0%,bottle(700),0,0,0,,TRUE,active
+e72de30c-37a0-41a2-bc45-06989a8cd219,WO0003,,Noughty Chardonnay,MAT-Wine 0%,bottle(750),0,0,0,,TRUE,active
+07a8d5f5-dbb6-49a5-b86a-a042b8302784,WO0004,,Noughty Rose,MAT-Wine 0%,bottle(750),0,0,0,,TRUE,active
+70dbda60-3150-4558-96d0-c1b452ebc4c8,M222,,818 Blanco,MAT-Tequila,bottle(750),0,0,0,,TRUE,active
+c037ee3b-c758-4e58-8f87-077118320ebb,M02104,,Sawasdee,MAT-Vodka,bottle(700),0,0,0,,TRUE,active

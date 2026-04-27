@@ -687,7 +687,10 @@ export default function ImportDepositsPage() {
           };
         });
 
-        const { error } = await supabase.from('deposits').insert(records);
+        const { data: insertedRows, error } = await supabase
+          .from('deposits')
+          .insert(records)
+          .select('id, deposit_code, quantity, remaining_qty, status');
         if (error) {
           errorList.push(
             t('importDeposits.rowError', { from: i + 1, to: i + batch.length, error: error.message })
@@ -695,6 +698,40 @@ export default function ImportDepositsPage() {
           skippedCount += batch.length;
         } else {
           successCount += batch.length;
+          // Per-bottle reconciliation (approach A): trigger creates all
+          // bottles sealed @ 100%; mark bottles past remaining_qty as
+          // consumed (legacy data has no per-bottle history). Final-state
+          // statuses (withdrawn/expired/transferred_out) → all bottles
+          // consumed.
+          if (insertedRows) {
+            await Promise.all(
+              insertedRows.map((d) => {
+                const isFinal = ['withdrawn', 'expired', 'transferred_out'].includes(
+                  d.status as string,
+                );
+                if (isFinal) {
+                  return supabase
+                    .from('deposit_bottles')
+                    .update({
+                      status: 'consumed',
+                      remaining_percent: 0,
+                      consumed_at: new Date().toISOString(),
+                    })
+                    .eq('deposit_id', d.id);
+                }
+                // bottle_no > remaining_qty are already consumed
+                return supabase
+                  .from('deposit_bottles')
+                  .update({
+                    status: 'consumed',
+                    remaining_percent: 0,
+                    consumed_at: new Date().toISOString(),
+                  })
+                  .eq('deposit_id', d.id)
+                  .gt('bottle_no', d.remaining_qty);
+              }),
+            );
+          }
         }
       }
     } else if (importTable === 'deposit_history') {
@@ -737,7 +774,10 @@ export default function ImportDepositsPage() {
           };
         });
 
-        const { error } = await supabase.from('deposits').insert(records);
+        const { data: insertedRows, error } = await supabase
+          .from('deposits')
+          .insert(records)
+          .select('id');
         if (error) {
           errorList.push(
             t('importDeposits.rowError', { from: i + 1, to: i + batch.length, error: error.message })
@@ -745,6 +785,18 @@ export default function ImportDepositsPage() {
           skippedCount += batch.length;
         } else {
           successCount += batch.length;
+          // History rows are always final-state — every bottle consumed.
+          if (insertedRows && insertedRows.length > 0) {
+            const ids = insertedRows.map((d) => d.id);
+            await supabase
+              .from('deposit_bottles')
+              .update({
+                status: 'consumed',
+                remaining_percent: 0,
+                consumed_at: new Date().toISOString(),
+              })
+              .in('deposit_id', ids);
+          }
         }
       }
     } else if (importTable === 'withdrawals') {
