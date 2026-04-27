@@ -128,7 +128,9 @@ export default function ComparisonPage() {
   });
   const [detailDate, setDetailDate] = useState<string | null>(null);
   const [posFileUrl, setPosFileUrl] = useState<string | null>(null);
-  const [trendRange, setTrendRange] = useState<'week' | 'month'>('week');
+  // Trend always shows the current calendar month — the week/month toggle
+  // was confusing (entering on a fresh week showed an empty state) and the
+  // month range gives enough resolution for daily-stock workflows.
   const [productViewSearch, setProductViewSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
@@ -338,20 +340,7 @@ export default function ComparisonPage() {
   // ── Trend chart data (week / month) ──
   const trendChartData = useMemo(() => {
     const now = nowBangkok();
-    let startDate: string;
-
-    if (trendRange === 'week') {
-      // Current week: Monday to Sunday
-      const day = now.getDay();
-      const diff = day === 0 ? 6 : day - 1; // Monday = 0
-      const monday = new Date(now);
-      monday.setDate(now.getDate() - diff);
-      startDate = monday.toISOString().slice(0, 10);
-    } else {
-      // Current month
-      startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    }
-
+    const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     const endDate = now.toISOString().slice(0, 10);
 
     const dateGroups = new Map<string, Comparison[]>();
@@ -373,10 +362,9 @@ export default function ComparisonPage() {
     }> = [];
 
     for (const [date, items] of dateGroups) {
-      const dayOfWeek = new Date(date).toLocaleDateString('th-TH', { weekday: 'short', timeZone: 'Asia/Bangkok' });
       result.push({
         date,
-        label: trendRange === 'week' ? dayOfWeek : date.slice(8, 10),
+        label: date.slice(8, 10),
         total: items.length,
         match: items.filter((i) => i.difference === 0 || i.difference === null).length,
         withinTolerance: items.filter(
@@ -390,24 +378,13 @@ export default function ComparisonPage() {
 
     result.sort((a, b) => a.date.localeCompare(b.date));
     return result;
-  }, [comparisons, trendRange]);
+  }, [comparisons]);
 
   // ── Per-product cross-day view ──
   const productCrossDayData = useMemo(() => {
-    // Use same date range as trend
+    // Use same date range as trend (current calendar month)
     const now = nowBangkok();
-    let startDate: string;
-
-    if (trendRange === 'week') {
-      const day = now.getDay();
-      const diff = day === 0 ? 6 : day - 1;
-      const monday = new Date(now);
-      monday.setDate(now.getDate() - diff);
-      startDate = monday.toISOString().slice(0, 10);
-    } else {
-      startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    }
-
+    const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     const endDate = now.toISOString().slice(0, 10);
     const rangeComps = comparisons.filter((c) => c.comp_date >= startDate && c.comp_date <= endDate);
 
@@ -465,7 +442,7 @@ export default function ComparisonPage() {
     }
 
     return { products: products.slice(0, 50), allDates };
-  }, [comparisons, trendRange, productViewSearch]);
+  }, [comparisons, productViewSearch]);
 
   // ── Selected product history (for modal) ──
   const selectedProductHistory = useMemo(() => {
@@ -775,37 +752,9 @@ export default function ComparisonPage() {
         )}
       </Card>
 
-      {/* ── Trend Chart ── */}
+      {/* ── Trend Chart ── (always current month) */}
       <Card padding="none">
-        <CardHeader
-          title={t('comparison.trendTitle')}
-          action={
-            <div className="flex rounded-lg bg-gray-100 p-0.5 dark:bg-gray-700">
-              <button
-                onClick={() => setTrendRange('week')}
-                className={cn(
-                  'rounded-md px-3 py-1 text-xs font-medium transition-colors',
-                  trendRange === 'week'
-                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-600 dark:text-white'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400',
-                )}
-              >
-                {t('comparison.thisWeek')}
-              </button>
-              <button
-                onClick={() => setTrendRange('month')}
-                className={cn(
-                  'rounded-md px-3 py-1 text-xs font-medium transition-colors',
-                  trendRange === 'month'
-                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-600 dark:text-white'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400',
-                )}
-              >
-                {t('comparison.thisMonth')}
-              </button>
-            </div>
-          }
-        />
+        <CardHeader title={t('comparison.trendTitle')} />
         {trendChartData.length === 0 ? (
           <div className="px-4 pb-4 text-center text-xs text-gray-400">
             {t('comparison.noDataThisPeriod')}
@@ -855,7 +804,7 @@ export default function ComparisonPage() {
       <Card padding="none">
         <CardHeader
           title={t('comparison.productView')}
-          description={t('comparison.productViewDesc', { range: trendRange === 'week' ? t('comparison.thisWeek') : t('comparison.thisMonth') })}
+          description={t('comparison.productViewDesc', { range: t('comparison.thisMonth') })}
         />
         <div className="px-4 pb-2">
           <Input
