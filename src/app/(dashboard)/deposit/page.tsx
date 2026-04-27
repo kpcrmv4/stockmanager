@@ -157,9 +157,12 @@ export default function DepositPage() {
   const [vipDaysSort, setVipDaysSort] = useState<'asc' | 'desc' | null>(null);
 
   // Sub-filter for the VIP tab:
-  //   'all'         = every VIP deposit (current + transferred + expired)
-  //   'transferred' = VIPs that have been moved to HQ already (transfer_pending or transferred_out)
-  const [vipStatusFilter, setVipStatusFilter] = useState<'all' | 'transferred'>('all');
+  //   'all'      = every VIP deposit (current + retired)
+  //   'retired'  = VIPs that are no longer actively held — status in
+  //                (expired, transferred_out, transfer_pending). Matches
+  //                whatever the batch 'หมดอายุ' action produced as well as
+  //                any older transferred-to-HQ records.
+  const [vipStatusFilter, setVipStatusFilter] = useState<'all' | 'retired'>('all');
 
   // Transfer batches for "รอนำส่ง HQ" tab
   const [transferBatches, setTransferBatches] = useState<TransferBatchGroup[]>([]);
@@ -667,12 +670,18 @@ export default function DepositPage() {
     [deposits]
   );
 
-  // When switching to "all" tab, ensure inactive deposits (withdrawn, transferred_out) are loaded
+  // Load inactive deposits (withdrawn, transferred_out) when on the 'all' tab,
+  // or on the VIP tab with the 'retired' sub-filter selected — otherwise
+  // transferred-out VIPs wouldn't show up because the default loader filters
+  // by ACTIVE_STATUSES only.
   useEffect(() => {
-    if (activeTab === 'all' && hasMore && loadedInactiveCount === 0 && !isLoadingMore) {
+    const needsInactive =
+      activeTab === 'all' ||
+      (activeTab === 'vip' && vipStatusFilter === 'retired');
+    if (needsInactive && hasMore && loadedInactiveCount === 0 && !isLoadingMore) {
       loadInactiveDeposits(0);
     }
-  }, [activeTab, hasMore, loadedInactiveCount, isLoadingMore, loadInactiveDeposits]);
+  }, [activeTab, vipStatusFilter, hasMore, loadedInactiveCount, isLoadingMore, loadInactiveDeposits]);
 
   // Validate and correct date range
   const handleDateFromChange = (value: string) => {
@@ -701,9 +710,12 @@ export default function DepositPage() {
     // Filter by tab
     if (activeTab === 'vip') {
       result = result.filter((d) => d.is_vip);
-      if (vipStatusFilter === 'transferred') {
+      if (vipStatusFilter === 'retired') {
         result = result.filter(
-          (d) => d.status === 'transferred_out' || d.status === 'transfer_pending',
+          (d) =>
+            d.status === 'expired' ||
+            d.status === 'transferred_out' ||
+            d.status === 'transfer_pending',
         );
       }
     } else if (activeTab !== 'all') {
@@ -905,15 +917,15 @@ export default function DepositPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setVipStatusFilter('transferred')}
+                onClick={() => setVipStatusFilter('retired')}
                 className={cn(
                   'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                  vipStatusFilter === 'transferred'
+                  vipStatusFilter === 'retired'
                     ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
                     : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200',
                 )}
               >
-                โอนคลังกลางแล้ว
+                หมดอายุ/โอนแล้ว
               </button>
             </div>
           )}
