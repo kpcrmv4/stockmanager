@@ -8,6 +8,14 @@
     {
       "path": "/api/cron/chat-archive",
       "schedule": "0 4 * * 0"
+    },
+    {
+      "path": "/api/cron/stock-tracking-alerts",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/stock-tracking-weekly",
+      "schedule": "0 2 * * 1"
     }
   ]
 }

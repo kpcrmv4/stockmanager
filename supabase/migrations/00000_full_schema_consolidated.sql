@@ -234,6 +234,57 @@ CREATE POLICY "Owner/accountant/manager add tracking history" ON stock_tracking_
     )
   );
 
+-- Auto-flag: when a comparison is rejected, upsert tracking item at high priority
+CREATE OR REPLACE FUNCTION auto_flag_tracking_on_rejection()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_tracking_id UUID;
+  v_product_name TEXT;
+BEGIN
+  IF NEW.status = 'rejected' AND (OLD.status IS DISTINCT FROM 'rejected') THEN
+    SELECT product_name INTO v_product_name
+    FROM products WHERE store_id = NEW.store_id AND product_code = NEW.product_code
+    LIMIT 1;
+    IF v_product_name IS NULL THEN v_product_name := NEW.product_name; END IF;
+    INSERT INTO stock_tracking_items (
+      store_id, product_code, product_name,
+      is_tracking, priority, source,
+      reason, created_by, created_at
+    )
+    VALUES (
+      NEW.store_id, NEW.product_code, v_product_name,
+      TRUE, 'high', 'auto_rejected',
+      'เจ้าของไม่อนุมัติคำชี้แจง — auto-flag',
+      NEW.approved_by, now()
+    )
+    ON CONFLICT (store_id, product_code) DO UPDATE
+      SET is_tracking = TRUE,
+          priority = CASE WHEN stock_tracking_items.priority = 'urgent' THEN 'urgent' ELSE 'high' END,
+          updated_at = now()
+    RETURNING id INTO v_tracking_id;
+    INSERT INTO stock_tracking_history (
+      tracking_item_id, action, comparison_id, payload, created_by, created_at
+    ) VALUES (
+      v_tracking_id, 'auto_flagged', NEW.id,
+      JSONB_BUILD_OBJECT(
+        'comp_date', NEW.comp_date,
+        'difference', NEW.difference,
+        'manual_quantity', NEW.manual_quantity,
+        'pos_quantity', NEW.pos_quantity,
+        'owner_notes', NEW.owner_notes
+      ),
+      NEW.approved_by, now()
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE TRIGGER trg_auto_flag_on_rejection
+  AFTER UPDATE OF status ON comparisons
+  FOR EACH ROW
+  EXECUTE FUNCTION auto_flag_tracking_on_rejection();
+
 -- Aggregate trend per (product_code) over last N days for the tracking dashboard
 CREATE OR REPLACE FUNCTION get_tracking_trend(p_store_id UUID, p_days INT DEFAULT 30)
 RETURNS TABLE (

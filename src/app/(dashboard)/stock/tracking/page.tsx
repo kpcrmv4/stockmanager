@@ -20,6 +20,10 @@ import {
   Package,
   ArrowUpDown,
   X,
+  HelpCircle,
+  History,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 const TRACKING_ROLES = ['owner', 'accountant', 'manager', 'hq'];
@@ -148,6 +152,48 @@ export default function StockTrackingPage() {
     product_name: string;
     existing: TrackingItem | null;
   } | null>(null);
+
+  const [showHelp, setShowHelp] = useState(false);
+
+  // Per-card history toggle
+  interface HistoryEvent {
+    id: string;
+    action: string;
+    payload: Record<string, unknown> | null;
+    created_at: string;
+    created_by_name?: string | null;
+  }
+  const [expandedHistory, setExpandedHistory] = useState<Record<string, HistoryEvent[] | 'loading'>>({});
+
+  const toggleHistory = useCallback(async (trackingItemId: string) => {
+    if (expandedHistory[trackingItemId]) {
+      // Collapse
+      setExpandedHistory((prev) => {
+        const next = { ...prev };
+        delete next[trackingItemId];
+        return next;
+      });
+      return;
+    }
+    setExpandedHistory((prev) => ({ ...prev, [trackingItemId]: 'loading' }));
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('stock_tracking_history')
+      .select('id, action, payload, created_at, profile:profiles!stock_tracking_history_created_by_fkey(display_name, username)')
+      .eq('tracking_item_id', trackingItemId)
+      .order('created_at', { ascending: false });
+    const events: HistoryEvent[] = (data || []).map((d) => {
+      const pr = d.profile as { display_name?: string; username?: string } | null;
+      return {
+        id: d.id,
+        action: d.action,
+        payload: d.payload as Record<string, unknown> | null,
+        created_at: d.created_at,
+        created_by_name: pr?.display_name || pr?.username || null,
+      };
+    });
+    setExpandedHistory((prev) => ({ ...prev, [trackingItemId]: events }));
+  }, [expandedHistory]);
 
   const [editForm, setEditForm] = useState({
     is_tracking: true,
@@ -439,6 +485,14 @@ export default function StockTrackingPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<HelpCircle className="h-3.5 w-3.5" />}
+            onClick={() => setShowHelp(true)}
+          >
+            วิธีใช้
+          </Button>
           {canEdit && (
             <Button
               variant="outline"
@@ -583,16 +637,140 @@ export default function StockTrackingPage() {
                     </div>
 
                     {/* Right: action */}
-                    <div className="flex shrink-0 gap-2">
+                    <div className="flex shrink-0 flex-col gap-2">
                       <Button size="sm" variant={tracking?.is_tracking ? 'outline' : 'primary'} onClick={() => openEdit(row)} disabled={!canEdit}>
                         {tracking?.is_tracking ? 'แก้ไข' : tracking ? 'เปิดอีกครั้ง' : 'flag'}
                       </Button>
+                      {tracking && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          icon={<History className="h-3.5 w-3.5" />}
+                          onClick={() => toggleHistory(tracking.id)}
+                        >
+                          ประวัติ
+                          {expandedHistory[tracking.id] && expandedHistory[tracking.id] !== 'loading'
+                            ? <ChevronUp className="ml-1 h-3 w-3" />
+                            : <ChevronDown className="ml-1 h-3 w-3" />}
+                        </Button>
+                      )}
                     </div>
                   </div>
+
+                  {/* History timeline */}
+                  {tracking && expandedHistory[tracking.id] && (
+                    <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-700">
+                      {expandedHistory[tracking.id] === 'loading' ? (
+                        <div className="flex justify-center py-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                        </div>
+                      ) : (expandedHistory[tracking.id] as HistoryEvent[]).length === 0 ? (
+                        <p className="text-center text-xs text-gray-400">ไม่มีประวัติ</p>
+                      ) : (
+                        <ul className="space-y-1.5">
+                          {(expandedHistory[tracking.id] as HistoryEvent[]).map((ev) => (
+                            <HistoryRow key={ev.id} ev={ev} />
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* Help modal */}
+      {showHelp && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center" onClick={() => setShowHelp(false)}>
+          <div className="my-8 w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+            <Card>
+              <CardHeader
+                title="วิธีใช้งานระบบติดตาม"
+                description="แนวคิด + การทำงาน + ขั้นตอน"
+                action={
+                  <button onClick={() => setShowHelp(false)} className="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-800">
+                    <X className="h-4 w-4" />
+                  </button>
+                }
+              />
+              <CardContent>
+                <div className="space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                  <div>
+                    <h3 className="mb-1 font-semibold text-gray-900 dark:text-white">📌 ระบบนี้ทำอะไร</h3>
+                    <p>
+                      เก็บประวัติสินค้าที่มีผลต่างซ้ำๆ ให้ owner/accountant ติดตามได้ระยะยาว
+                      แทนที่จะดู comparison รายวันแยกกัน — รวมเป็น "ภาพรวมต่อสินค้า" ใน 30 วัน
+                      พร้อมโน๊ต บทสรุป และ history ทุก action
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-1 font-semibold text-gray-900 dark:text-white">🎯 ขั้นตอนใช้งาน</h3>
+                    <ol className="list-decimal space-y-1 pl-5">
+                      <li>ดูสินค้าที่ chip เป็น <span className="rounded bg-red-100 px-1 text-red-700 dark:bg-red-900/30 dark:text-red-400">-2</span> ติดกันหลายวัน หรือมี <strong>ค้างชี้แจง</strong>/<strong>ปฏิเสธ</strong> สูง</li>
+                      <li>กดปุ่ม <strong>flag</strong> ที่การ์ดนั้น → กรอกเหตุผล + Priority + สิ่งที่ต้องติดตาม</li>
+                      <li>เมื่อ comparison ใหม่ๆ เข้ามา → กลับมา <strong>แก้ไข</strong> เพิ่มโน๊ต / เปลี่ยน priority</li>
+                      <li>เมื่อปัญหาแก้ได้ → uncheck <strong>กำลังติดตาม</strong> + กรอก <strong>บทสรุป (resolution)</strong> → ปิดเคส</li>
+                      <li>ถ้าปัญหากลับมา → กดเปิดเคสอีกครั้ง — ระบบจะเก็บ history ของรอบเก่าไว้</li>
+                    </ol>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-1 font-semibold text-gray-900 dark:text-white">🤖 Auto-flag</h3>
+                    <p>
+                      กดปุ่มมุมขวาบน — ระบบสแกนสินค้าใน 30 วันหา:
+                    </p>
+                    <ul className="ml-5 mt-1 list-disc">
+                      <li>เจ้าของไม่อนุมัติคำชี้แจง ≥ 1 ครั้ง → flag <strong>priority สูง</strong></li>
+                      <li>ค้างชี้แจง pending ≥ 3 ครั้ง → flag <strong>priority ปกติ</strong></li>
+                    </ul>
+                    <p className="mt-1 text-xs text-gray-500">เฉพาะที่ยังไม่ได้ flag เท่านั้น (ไม่ duplicate)</p>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-1 font-semibold text-gray-900 dark:text-white">🎨 รหัสสีและสัญลักษณ์</h3>
+                    <ul className="space-y-1 text-xs">
+                      <li><span className="rounded bg-red-100 px-1.5 py-0.5 font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">-2</span> = ขาด (manual &lt; POS)</li>
+                      <li><span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">+1</span> = เกิน (manual &gt; POS)</li>
+                      <li><span className="rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">0</span> = ตรงเป๊ะ</li>
+                      <li><span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">↗ แย่ลง</span> = ผลต่างเพิ่มเรื่อยๆ (linear regression slope &gt; 0.05)</li>
+                      <li><span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">↘ ดีขึ้น</span> = ผลต่างลดลง (slope &lt; -0.05)</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-1 font-semibold text-gray-900 dark:text-white">⚙️ ระบบทำงานอัตโนมัติร่วมกัน</h3>
+                    <ul className="ml-5 list-disc space-y-1 text-xs">
+                      <li><strong>Trigger:</strong> ทุกครั้งที่ owner reject คำชี้แจงในหน้า /stock/approval → ระบบ auto-flag สินค้านั้นทันที (priority=high)</li>
+                      <li><strong>Cron daily:</strong> ทุกวัน 08:00 — ตรวจ tracked products ที่ยังเกินเกณฑ์ ส่งแจ้งเตือน owner</li>
+                      <li><strong>Cron weekly:</strong> ทุกจันทร์ 09:00 — ส่งสรุปสินค้าทั้งหมดที่ติดตามเข้าแชทสาขา</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-1 font-semibold text-gray-900 dark:text-white">🔐 สิทธิ์การใช้งาน</h3>
+                    <ul className="ml-5 list-disc space-y-1 text-xs">
+                      <li>owner / accountant / manager / hq — flag/แก้ไข/Auto-flag ได้ทั้งหมด</li>
+                      <li>bar / staff — ดูได้ (read-only)</li>
+                      <li>customer — ไม่เห็นเลย</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-1 font-semibold text-gray-900 dark:text-white">📜 History (ประวัติ)</h3>
+                    <p>กดปุ่ม "ประวัติ" ที่การ์ด → เห็น timeline ทุก action: flagged / noted / resolved / reopened / auto_flagged พร้อมเวลาและคนที่ทำ</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex justify-end">
+                  <Button size="sm" onClick={() => setShowHelp(false)}>เข้าใจแล้ว</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -760,6 +938,52 @@ function Stat({ label, value, color = 'gray' }: { label: string; value: string; 
       <p className="text-[10px] text-gray-400">{label}</p>
       <p className={cn('text-xs font-semibold', colorMap[color])}>{value}</p>
     </div>
+  );
+}
+
+interface HistoryEvent {
+  id: string;
+  action: string;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+  created_by_name?: string | null;
+}
+
+const ACTION_CONFIG: Record<string, { label: string; emoji: string; color: string }> = {
+  flagged: { label: 'เริ่มติดตาม', emoji: '📌', color: 'text-indigo-600 dark:text-indigo-400' },
+  noted: { label: 'อัปเดตโน๊ต', emoji: '📝', color: 'text-blue-600 dark:text-blue-400' },
+  escalated: { label: 'ยกระดับความสำคัญ', emoji: '⚠️', color: 'text-orange-600 dark:text-orange-400' },
+  resolved: { label: 'ปิดเคส', emoji: '✅', color: 'text-emerald-600 dark:text-emerald-400' },
+  reopened: { label: 'เปิดเคสใหม่', emoji: '🔄', color: 'text-amber-600 dark:text-amber-400' },
+  auto_flagged: { label: 'flag อัตโนมัติ', emoji: '🤖', color: 'text-purple-600 dark:text-purple-400' },
+};
+
+function HistoryRow({ ev }: { ev: HistoryEvent }) {
+  const cfg = ACTION_CONFIG[ev.action] || { label: ev.action, emoji: '•', color: 'text-gray-600' };
+  const dt = new Date(ev.created_at);
+  const dateStr = `${dt.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })} ${dt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
+  const reason = (ev.payload?.reason as string) || '';
+  const notes = (ev.payload?.notes as string) || '';
+  const followUp = (ev.payload?.follow_up_action as string) || '';
+  const resolution = (ev.payload?.resolution_notes as string) || '';
+
+  return (
+    <li className="flex gap-2 rounded-md bg-gray-50 px-2 py-1.5 text-xs dark:bg-gray-800/50">
+      <span>{cfg.emoji}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-1.5">
+          <span className={cn('font-medium', cfg.color)}>{cfg.label}</span>
+          {ev.created_by_name && (
+            <span className="text-[10px] text-gray-500">โดย {ev.created_by_name}</span>
+          )}
+          <span className="ml-auto text-[10px] text-gray-400">{dateStr}</span>
+        </div>
+        {reason && <p className="mt-0.5 text-gray-600 dark:text-gray-300"><span className="text-[10px] text-gray-400">เหตุผล:</span> {reason}</p>}
+        {notes && <p className="mt-0.5 text-gray-600 dark:text-gray-300"><span className="text-[10px] text-gray-400">โน๊ต:</span> {notes}</p>}
+        {followUp && <p className="mt-0.5 text-gray-600 dark:text-gray-300"><span className="text-[10px] text-gray-400">ติดตาม:</span> {followUp}</p>}
+        {resolution && <p className="mt-0.5 rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"><span className="text-[10px]">บทสรุป:</span> {resolution}</p>}
+      </div>
+    </li>
   );
 }
 
