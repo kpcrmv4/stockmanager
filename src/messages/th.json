@@ -501,7 +501,9 @@
     "kpiPendingExplanations": "รอชี้แจง",
     "kpiCommissionMonth": "คอมเดือนนี้ (บาท)",
     "colStore": "สาขา",
-    "colTotal": "รวมทั้งหมด"
+    "colTotal": "รวมทั้งหมด",
+    "collapse": "ย่อการ์ด",
+    "expand": "ขยายการ์ด"
   },
   "overview": {
     "title": "ภาพรวม",

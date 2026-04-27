@@ -501,7 +501,9 @@
     "kpiPendingExplanations": "Pending explanations",
     "kpiCommissionMonth": "Commission this month (THB)",
     "colStore": "Store",
-    "colTotal": "Total"
+    "colTotal": "Total",
+    "collapse": "Collapse",
+    "expand": "Expand"
   },
   "overview": {
     "title": "Overview",

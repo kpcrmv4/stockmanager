@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardContent } from '@/components/ui';
-import { Inbox, ClipboardCheck, Wine, Package, Repeat, Truck, ArrowRight, Loader2, RefreshCw, TrendingUp, AlertTriangle, Banknote } from 'lucide-react';
+import { Inbox, ClipboardCheck, Wine, Package, Repeat, Truck, ArrowRight, Loader2, RefreshCw, TrendingUp, AlertTriangle, Banknote, ChevronDown, ChevronUp } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { cn } from '@/lib/utils/cn';
@@ -70,6 +70,16 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<PendingItem[]>([]);
   const [summary, setSummary] = useState<DailySummary | null>(null);
+  // Collapsed store cards — set of store_ids whose card is hidden.
+  const [collapsedStores, setCollapsedStores] = useState<Set<string>>(new Set());
+  const toggleStoreCollapsed = useCallback((storeId: string) => {
+    setCollapsedStores((prev) => {
+      const next = new Set(prev);
+      if (next.has(storeId)) next.delete(storeId);
+      else next.add(storeId);
+      return next;
+    });
+  }, []);
 
   const fetchPending = useCallback(async () => {
     setLoading(true);
@@ -314,28 +324,71 @@ export default function InboxPage() {
     });
   }, [user?.role]);
 
+  // Hold the latest fetchers in refs so the realtime + interval
+  // callbacks always invoke the current closure.
+  const fetchPendingRef = useRef(fetchPending);
+  const fetchSummaryRef = useRef(fetchSummary);
+  useEffect(() => { fetchPendingRef.current = fetchPending; }, [fetchPending]);
+  useEffect(() => { fetchSummaryRef.current = fetchSummary; }, [fetchSummary]);
+
   useEffect(() => {
     fetchPending();
     fetchSummary();
   }, [fetchPending, fetchSummary]);
 
-  // Auto-refresh: poll every 60s + on tab focus so the page stays
-  // close to live without an explicit realtime subscription.
+  // Live updates:
+  //   - Subscribe to Supabase Realtime on the five source tables.
+  //     Any insert/update/delete fires a debounced refetch (~600ms)
+  //     so the badge + table refresh inside ~1s of the staff action.
+  //   - Polling fallback every 60s, paused while the tab is hidden
+  //     so we don't burn quota on background tabs / sleeping devices.
+  //   - Refetch on tab focus / visibilitychange to recover from
+  //     dropped sockets.
   useEffect(() => {
+    const supabase = createClient();
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedRefetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (document.hidden) return;
+        fetchPendingRef.current();
+        fetchSummaryRef.current();
+      }, 600);
+    };
+
+    const channel = supabase
+      .channel('inbox-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comparisons' }, debouncedRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deposits' }, debouncedRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deposit_requests' }, debouncedRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'borrows' }, debouncedRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transfers' }, debouncedRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals' }, debouncedRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'commission_entries' }, debouncedRefetch)
+      .subscribe();
+
     const interval = setInterval(() => {
-      fetchPending();
-      fetchSummary();
+      if (document.hidden) return;
+      fetchPendingRef.current();
+      fetchSummaryRef.current();
     }, 60_000);
-    const onFocus = () => {
-      fetchPending();
-      fetchSummary();
+
+    const onFocusOrVisible = () => {
+      if (document.hidden) return;
+      fetchPendingRef.current();
+      fetchSummaryRef.current();
     };
-    window.addEventListener('focus', onFocus);
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onFocusOrVisible);
+
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onFocusOrVisible);
+      supabase.removeChannel(channel);
     };
-  }, [fetchPending, fetchSummary]);
+  }, []);
 
   const totalCount = items.reduce((s, x) => s + x.count, 0);
 
@@ -528,12 +581,27 @@ export default function InboxPage() {
           </CardContent>
         </Card>
       ) : (
-        storeGroups.map((g) => (
+        storeGroups.map((g) => {
+          const isCollapsed = collapsedStores.has(g.store_id);
+          const totalCountForStore = g.items.reduce((s, x) => s + x.count, 0);
+          return (
           <Card key={g.store_id} padding="none">
             <CardHeader
               title={g.store_name}
-              description={t('inbox.storeStats', { count: g.items.reduce((s, x) => s + x.count, 0) })}
+              description={t('inbox.storeStats', { count: totalCountForStore })}
+              action={
+                <button
+                  type="button"
+                  onClick={() => toggleStoreCollapsed(g.store_id)}
+                  aria-label={isCollapsed ? t('inbox.expand') : t('inbox.collapse')}
+                  title={isCollapsed ? t('inbox.expand') : t('inbox.collapse')}
+                  className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                >
+                  {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                </button>
+              }
             />
+            {!isCollapsed && (
             <CardContent>
               <div className="space-y-1.5">
                 {/* Group items by category */}
@@ -581,8 +649,10 @@ export default function InboxPage() {
                 })}
               </div>
             </CardContent>
+            )}
           </Card>
-        ))
+          );
+        })
       )}
     </div>
   );
