@@ -788,6 +788,19 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     setLoading(true);
 
     const supabase = createClient();
+    // For labels, pull live bottle list so each printed copy shows real
+    // bottle_no + per-bottle remaining_percent rather than a synthetic 1..N
+    // sequence.
+    let bottles: Array<{ bottle_no: number; remaining_percent: number; status: string }> = [];
+    if (jobType === 'label') {
+      const { data } = await supabase
+        .from('deposit_bottles')
+        .select('bottle_no, remaining_percent, status')
+        .eq('deposit_id', deposit.id)
+        .order('bottle_no');
+      bottles = (data || []).filter((b) => b.status !== 'consumed');
+    }
+
     const payload = {
       deposit_code: deposit.deposit_code,
       customer_name: deposit.customer_name,
@@ -803,9 +816,10 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       received_by_name: receivedByName,
       qr_code_image_url: receiptSettings?.qr_code_image_url ?? null,
       line_oa_id: receiptSettings?.line_oa_id ?? null,
+      bottles,  // empty array for receipts; non-empty for labels
     };
 
-    const copies = jobType === 'label' ? (deposit.remaining_qty || 1) : 1;
+    const copies = jobType === 'label' ? (bottles.length || deposit.remaining_qty || 1) : 1;
 
     const { error } = await supabase.from('print_queue').insert({
       store_id: currentStoreId,

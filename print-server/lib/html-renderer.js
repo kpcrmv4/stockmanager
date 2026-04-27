@@ -65,6 +65,7 @@ class HtmlRenderer {
    * ใช้ width:70mm เหมือน receipt (portrait, ไม่หมุน)
    */
   renderLabel(payload, copyNumber = 1, totalCopies = 1) {
+    const bottlePct = payload._bottle?.remaining_percent ?? payload.remaining_percent ?? null;
     return `<html><head><meta charset="UTF-8"></head>` +
       `<body style="font-family:Tahoma,sans-serif;font-size:8pt;width:70mm;margin:0 auto;padding:2mm;">` +
       `<div style="text-align:center;font-size:9pt;font-weight:bold;padding:1mm 0;">${this.storeName} : Deposit</div>` +
@@ -74,6 +75,7 @@ class HtmlRenderer {
       this._labelRow('Alcohol Type', payload.product_name || '-') +
       this._labelRow('Remaining', (payload.remaining_qty || payload.quantity || '-') + ' bottles') +
       this._labelRow('Bottle', `<b>${copyNumber}/${totalCopies}</b>`) +
+      (bottlePct !== null ? this._labelRow('Bottle Remaining', `<b>${bottlePct}%</b>`) : '') +
       this._labelRow('Staff', payload.received_by_name || '-') +
       this._labelRow('Deposit Date', this._formatDateShort(payload.created_at)) +
       this._labelRow('Expiry Date', `<b>${payload.expiry_date ? this._formatDateShort(payload.expiry_date) : '-'}</b>`) +
@@ -95,8 +97,24 @@ class HtmlRenderer {
     }
 
     if (job.job_type === 'label') {
-      if (copies <= 1) {
-        return this.renderLabel(payload, 1, 1);
+      // Per-bottle data — drives bottle_no + remaining_percent on each copy.
+      // Falls back to a synthesized 1..copies array for legacy payloads
+      // that don't include bottles[].
+      const bottles = Array.isArray(payload.bottles) && payload.bottles.length > 0
+        ? payload.bottles
+        : Array.from({ length: copies }, (_, i) => ({
+            bottle_no: i + 1,
+            remaining_percent: payload.remaining_percent ?? 100,
+          }));
+      const totalBottles = payload.quantity || bottles.length;
+
+      if (bottles.length <= 1) {
+        const b = bottles[0] || { bottle_no: 1, remaining_percent: 100 };
+        return this.renderLabel(
+          { ...payload, _bottle: b, _total_bottles: totalBottles },
+          b.bottle_no,
+          totalBottles,
+        );
       }
 
       // Multi-page: each label is a page, same width as receipt
@@ -104,7 +122,7 @@ class HtmlRenderer {
         `<style>@page{size:${this.paperWidth}mm auto;margin:0;} .page{page-break-after:always;} .page:last-child{page-break-after:auto;}</style>` +
         `</head><body style="font-family:Tahoma,sans-serif;font-size:8pt;margin:0;padding:0;">`;
 
-      for (let i = 1; i <= copies; i++) {
+      for (const b of bottles) {
         html += `<div class="page" style="width:70mm;margin:0 auto;padding:2mm;">` +
           `<div style="text-align:center;font-size:9pt;font-weight:bold;padding:1mm 0;">${this.storeName} : Deposit</div>` +
           `<table style="width:100%;border-collapse:collapse;">` +
@@ -112,7 +130,8 @@ class HtmlRenderer {
           this._labelRow('Table', payload.table_number || '-') +
           this._labelRow('Alcohol Type', payload.product_name || '-') +
           this._labelRow('Remaining', (payload.remaining_qty || payload.quantity || '-') + ' bottles') +
-          this._labelRow('Bottle', `<b>${i}/${copies}</b>`) +
+          this._labelRow('Bottle', `<b>${b.bottle_no}/${totalBottles}</b>`) +
+          this._labelRow('Bottle Remaining', `<b>${b.remaining_percent}%</b>`) +
           this._labelRow('Staff', payload.received_by_name || '-') +
           this._labelRow('Deposit Date', this._formatDateShort(payload.created_at)) +
           this._labelRow('Expiry Date', `<b>${payload.expiry_date ? this._formatDateShort(payload.expiry_date) : '-'}</b>`) +
