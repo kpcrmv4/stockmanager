@@ -189,6 +189,21 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   // Receipt settings (for print payload QR)
   const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings | null>(null);
 
+  // Per-bottle tracking
+  interface BottleRow {
+    id: string;
+    bottle_no: number;
+    remaining_percent: number;
+    status: 'sealed' | 'opened' | 'consumed';
+  }
+  const [bottles, setBottles] = useState<BottleRow[]>([]);
+  const [bottleEdits, setBottleEdits] = useState<Record<string, number | ''>>({});
+  const [isSavingBottles, setIsSavingBottles] = useState(false);
+
+  // Only bar/manager/owner/accountant can edit per-bottle %
+  const canEditBottles =
+    !!user && ['bar', 'manager', 'owner', 'accountant'].includes(user.role);
+
   const refreshDeposit = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
@@ -198,6 +213,89 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       .single();
     if (data) setDeposit(data as Deposit);
   }, [deposit.id]);
+
+  const loadBottles = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('deposit_bottles')
+      .select('id, bottle_no, remaining_percent, status')
+      .eq('deposit_id', deposit.id)
+      .order('bottle_no');
+    if (data) {
+      setBottles(data as BottleRow[]);
+      const seedEdits: Record<string, number | ''> = {};
+      for (const b of data as BottleRow[]) seedEdits[b.id] = Number(b.remaining_percent);
+      setBottleEdits(seedEdits);
+    }
+  }, [deposit.id]);
+
+  useEffect(() => {
+    loadBottles();
+  }, [loadBottles]);
+
+  const hasBottleEdits = bottles.some(
+    (b) => bottleEdits[b.id] !== Number(b.remaining_percent),
+  );
+
+  const handleSaveBottles = async () => {
+    if (!user || !canEditBottles) return;
+    setIsSavingBottles(true);
+    try {
+      const supabase = createClient();
+      const updates = bottles
+        .filter((b) => bottleEdits[b.id] !== Number(b.remaining_percent))
+        .map((b) => {
+          const pct = Number(bottleEdits[b.id]);
+          return supabase
+            .from('deposit_bottles')
+            .update({
+              remaining_percent: pct,
+              status: pct === 0 ? 'consumed' : pct < 100 ? 'opened' : 'sealed',
+              opened_at: pct < 100 && pct > 0 ? new Date().toISOString() : null,
+              opened_by: pct < 100 && pct > 0 ? user.id : null,
+              consumed_at: pct === 0 ? new Date().toISOString() : null,
+              consumed_by: pct === 0 ? user.id : null,
+            })
+            .eq('id', b.id);
+        });
+      await Promise.all(updates);
+
+      // Re-derive deposit aggregates from bottles
+      const { data: live } = await supabase
+        .from('deposit_bottles')
+        .select('status, remaining_percent')
+        .eq('deposit_id', deposit.id);
+      if (live) {
+        const remaining = (live as BottleRow[]).filter((b) => b.status !== 'consumed');
+        const newRemainingQty = remaining.length;
+        const newPercent =
+          remaining.length > 0
+            ? Math.round(
+                (remaining.reduce((s, b) => s + Number(b.remaining_percent), 0) / remaining.length) * 100,
+              ) / 100
+            : 0;
+        await supabase
+          .from('deposits')
+          .update({
+            remaining_qty: newRemainingQty,
+            remaining_percent: newPercent,
+          })
+          .eq('id', deposit.id);
+      }
+
+      toast({ type: 'success', title: 'บันทึกปริมาณรายขวดเรียบร้อย' });
+      await refreshDeposit();
+      await loadBottles();
+    } catch (err) {
+      toast({
+        type: 'error',
+        title: 'บันทึกไม่สำเร็จ',
+        message: err instanceof Error ? err.message : 'unknown',
+      });
+    } finally {
+      setIsSavingBottles(false);
+    }
+  };
 
   const loadWithdrawals = useCallback(async () => {
     setIsLoadingWithdrawals(true);
@@ -1023,6 +1121,84 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                   </div>
                 </div>
               </div>
+
+              {/* Per-bottle list (status + editable %) */}
+              {bottles.length > 0 && (
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                      รายขวด ({bottles.length} ขวด)
+                    </span>
+                    {canEditBottles && hasBottleEdits && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={handleSaveBottles}
+                        isLoading={isSavingBottles}
+                        className="h-7 px-2 text-xs"
+                      >
+                        บันทึก
+                      </Button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {bottles.map((b) => {
+                      const isConsumed = b.status === 'consumed';
+                      const editVal = bottleEdits[b.id];
+                      return (
+                        <div
+                          key={b.id}
+                          className={cn(
+                            'flex items-center gap-2 rounded-lg border px-2.5 py-1.5',
+                            isConsumed
+                              ? 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50'
+                              : b.status === 'opened'
+                                ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20'
+                                : 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20',
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'text-xs font-semibold whitespace-nowrap',
+                              isConsumed
+                                ? 'text-gray-400 line-through'
+                                : 'text-gray-700 dark:text-gray-200',
+                            )}
+                          >
+                            ขวด {b.bottle_no}/{bottles.length}
+                          </span>
+                          {canEditBottles ? (
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={editVal}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                const next: number | '' =
+                                  raw === '' ? '' : Math.min(100, Math.max(0, Number(raw)));
+                                setBottleEdits((prev) => ({ ...prev, [b.id]: next }));
+                              }}
+                              className="ml-auto w-12 rounded-md border border-gray-300 bg-white px-1.5 py-0.5 text-right text-xs text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                            />
+                          ) : (
+                            <span className="ml-auto text-xs font-medium text-gray-700 dark:text-gray-300">
+                              {b.remaining_percent}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-gray-400">%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {canEditBottles && (
+                    <p className="mt-1.5 text-[10px] text-gray-400">
+                      0% = เบิกแล้ว, 100% = ขวดยังไม่เปิด
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Bottle-count progress bar */}
               <div>
