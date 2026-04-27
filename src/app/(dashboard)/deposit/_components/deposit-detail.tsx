@@ -47,6 +47,7 @@ import {
   ShieldCheck,
   Warehouse,
   Send,
+  Pencil,
 } from 'lucide-react';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { useTranslations } from 'next-intl';
@@ -185,6 +186,14 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   const [barConfirmQty, setBarConfirmQty] = useState('');
   const [barConfirmPhoto, setBarConfirmPhoto] = useState<string | null>(null);
 
+  // Edit-info modal — same form layout as bar-confirm, but pre-populated
+  // from the deposit's current data so users can correct mistakes.
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editQty, setEditQty] = useState('');
+  const [editBottlePercents, setEditBottlePercents] = useState<string[]>([]);
+  const [editPhoto, setEditPhoto] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
   // Staff/Bar names
   const [receivedByName, setReceivedByName] = useState<string | null>(null);
   const [confirmedByName, setConfirmedByName] = useState<string | null>(null);
@@ -200,8 +209,6 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     status: 'sealed' | 'opened' | 'consumed';
   }
   const [bottles, setBottles] = useState<BottleRow[]>([]);
-  const [bottleEdits, setBottleEdits] = useState<Record<string, number | ''>>({});
-  const [isSavingBottles, setIsSavingBottles] = useState(false);
 
   // Keep barConfirmBottlePercents length in sync with the qty the bar typed
   // — if they bump it from 3 → 5, two extra slots appear; from 3 → 2 trims.
@@ -218,18 +225,27 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     });
   }, [barConfirmQty]);
 
-  // Only bar/manager/owner/accountant can edit per-bottle %, and only after
-  // the bar has confirmed receiving the deposit. Before bar confirms, the
-  // bottle list is just the auto-seeded default of 100% which would be
-  // misleading to expose as editable (the real numbers come from the bar
-  // confirmation step itself).
-  const canEditBottles =
+  // Same idea for the edit modal — qty drives slot count.
+  useEffect(() => {
+    const qty = parseInt(editQty);
+    if (!Number.isFinite(qty) || qty <= 0) return;
+    setEditBottlePercents((prev) => {
+      if (prev.length === qty) return prev;
+      const next = [...prev];
+      while (next.length < qty) next.push('');
+      next.length = qty;
+      return next;
+    });
+  }, [editQty]);
+
+  // Editing the deposit is allowed for everyone except staff/customer.
+  // Per-bottle % is no longer editable inline — the edit button opens
+  // the same modal layout the bar uses to receive the deposit so users
+  // can re-enter qty + per-bottle % + photo together.
+  const canEditDeposit =
     !!user
-    && ['bar', 'manager', 'owner', 'accountant'].includes(user.role)
-    && deposit.status !== 'pending_confirm';
-  const bottleEditingDisabledReason = deposit.status === 'pending_confirm'
-    ? 'รอ Bar ยืนยันรับเข้าระบบก่อนถึงจะแก้ไข %คงเหลือรายขวดได้'
-    : null;
+    && ['bar', 'manager', 'owner', 'accountant', 'hq'].includes(user.role)
+    && (deposit.status === 'in_store' || deposit.status === 'pending_confirm');
 
   const refreshDeposit = useCallback(async () => {
     const supabase = createClient();
@@ -248,81 +264,12 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       .select('id, bottle_no, remaining_percent, status')
       .eq('deposit_id', deposit.id)
       .order('bottle_no');
-    if (data) {
-      setBottles(data as BottleRow[]);
-      const seedEdits: Record<string, number | ''> = {};
-      for (const b of data as BottleRow[]) seedEdits[b.id] = Number(b.remaining_percent);
-      setBottleEdits(seedEdits);
-    }
+    if (data) setBottles(data as BottleRow[]);
   }, [deposit.id]);
 
   useEffect(() => {
     loadBottles();
   }, [loadBottles]);
-
-  const hasBottleEdits = bottles.some(
-    (b) => bottleEdits[b.id] !== Number(b.remaining_percent),
-  );
-
-  const handleSaveBottles = async () => {
-    if (!user || !canEditBottles) return;
-    setIsSavingBottles(true);
-    try {
-      const supabase = createClient();
-      const updates = bottles
-        .filter((b) => bottleEdits[b.id] !== Number(b.remaining_percent))
-        .map((b) => {
-          const pct = Number(bottleEdits[b.id]);
-          return supabase
-            .from('deposit_bottles')
-            .update({
-              remaining_percent: pct,
-              status: pct === 0 ? 'consumed' : pct < 100 ? 'opened' : 'sealed',
-              opened_at: pct < 100 && pct > 0 ? new Date().toISOString() : null,
-              opened_by: pct < 100 && pct > 0 ? user.id : null,
-              consumed_at: pct === 0 ? new Date().toISOString() : null,
-              consumed_by: pct === 0 ? user.id : null,
-            })
-            .eq('id', b.id);
-        });
-      await Promise.all(updates);
-
-      // Re-derive deposit aggregates from bottles
-      const { data: live } = await supabase
-        .from('deposit_bottles')
-        .select('status, remaining_percent')
-        .eq('deposit_id', deposit.id);
-      if (live) {
-        const remaining = (live as BottleRow[]).filter((b) => b.status !== 'consumed');
-        const newRemainingQty = remaining.length;
-        const newPercent =
-          remaining.length > 0
-            ? Math.round(
-                (remaining.reduce((s, b) => s + Number(b.remaining_percent), 0) / remaining.length) * 100,
-              ) / 100
-            : 0;
-        await supabase
-          .from('deposits')
-          .update({
-            remaining_qty: newRemainingQty,
-            remaining_percent: newPercent,
-          })
-          .eq('id', deposit.id);
-      }
-
-      toast({ type: 'success', title: 'บันทึกปริมาณรายขวดเรียบร้อย' });
-      await refreshDeposit();
-      await loadBottles();
-    } catch (err) {
-      toast({
-        type: 'error',
-        title: 'บันทึกไม่สำเร็จ',
-        message: err instanceof Error ? err.message : 'unknown',
-      });
-    } finally {
-      setIsSavingBottles(false);
-    }
-  };
 
   const loadWithdrawals = useCallback(async () => {
     setIsLoadingWithdrawals(true);
@@ -530,6 +477,51 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       completedByName: displayName,
     });
 
+    // Auto-enqueue print: 1 receipt + N labels (one per bottle).
+    // The print server reads `bottles[]` from the payload and renders
+    // bottle_no/total + per-bottle remaining_percent on each label,
+    // so the staff doesn't have to remember to hit the print buttons
+    // after every confirmation.
+    const newBottlesForPrint = newBottleRows
+      .filter((b) => b.status !== 'consumed')
+      .map((b) => ({ bottle_no: b.bottle_no, remaining_percent: b.remaining_percent, status: b.status }));
+    const printPayloadBase = {
+      deposit_code: deposit.deposit_code,
+      customer_name: deposit.customer_name,
+      customer_phone: deposit.customer_phone,
+      product_name: deposit.product_name,
+      category: deposit.category,
+      quantity: qty,
+      remaining_qty: remainingQty,
+      table_number: deposit.table_number,
+      expiry_date: deposit.expiry_date,
+      created_at: deposit.created_at,
+      store_name: storeName,
+      received_by_name: receivedByName,
+      qr_code_image_url: receiptSettings?.qr_code_image_url ?? null,
+      line_oa_id: receiptSettings?.line_oa_id ?? null,
+    };
+    await Promise.all([
+      supabase.from('print_queue').insert({
+        store_id: currentStoreId,
+        deposit_id: deposit.id,
+        job_type: 'receipt',
+        status: 'pending',
+        copies: 1,
+        payload: { ...printPayloadBase, bottles: [] },
+        requested_by: user.id,
+      }),
+      supabase.from('print_queue').insert({
+        store_id: currentStoreId,
+        deposit_id: deposit.id,
+        job_type: 'label',
+        status: 'pending',
+        copies: newBottlesForPrint.length || qty,
+        payload: { ...printPayloadBase, bottles: newBottlesForPrint },
+        requested_by: user.id,
+      }),
+    ]);
+
     toast({ type: 'success', title: t('detail.confirmSuccess') });
     setShowBarConfirmModal(false);
     setBarConfirmBottlePercents([]);
@@ -539,6 +531,123 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     refreshDeposit();
     loadBottles();
     loadStaffNames();
+  };
+
+  // Open edit modal — pre-fill qty and per-bottle % from current state
+  // (or fall back to deposits.quantity + remaining_percent for legacy
+  // rows that pre-date the deposit_bottles table).
+  const openEditModal = () => {
+    if (!canEditDeposit) return;
+    const qty = bottles.length || Math.max(1, Math.floor(Number(deposit.quantity) || 1));
+    setEditQty(String(qty));
+    if (bottles.length > 0) {
+      // Order by bottle_no so input slots line up with the visible list.
+      const sorted = [...bottles].sort((a, b) => a.bottle_no - b.bottle_no);
+      setEditBottlePercents(sorted.map((b) => String(b.remaining_percent)));
+    } else {
+      const fallbackPct = Number(deposit.remaining_percent ?? 100);
+      setEditBottlePercents(Array.from({ length: qty }, () => String(fallbackPct)));
+    }
+    setEditPhoto(deposit.confirm_photo_url || null);
+    setShowEditModal(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!user || !currentStoreId || !canEditDeposit) return;
+    const qty = Number.isFinite(parseInt(editQty)) && parseInt(editQty) > 0
+      ? parseInt(editQty)
+      : deposit.quantity;
+
+    const percents: number[] = [];
+    for (let i = 0; i < qty; i++) {
+      const raw = editBottlePercents[i];
+      if (raw === undefined || raw === '' || raw === null) {
+        toast({ type: 'error', title: 'กรุณาระบุ % คงเหลือทุกขวด' });
+        return;
+      }
+      const n = parseFloat(raw);
+      if (!Number.isFinite(n) || n < 0 || n > 100) {
+        toast({ type: 'error', title: t('detail.errorPercentRange') });
+        return;
+      }
+      percents.push(n);
+    }
+
+    setIsSavingEdit(true);
+    const supabase = createClient();
+
+    const nonConsumed = percents.filter((p) => p > 0);
+    const avgPercent = nonConsumed.length > 0
+      ? Math.round((nonConsumed.reduce((a, b) => a + b, 0) / nonConsumed.length) * 100) / 100
+      : 0;
+    const remainingQty = nonConsumed.length;
+
+    const updateData: Record<string, unknown> = {
+      remaining_percent: avgPercent,
+      quantity: qty,
+      remaining_qty: remainingQty,
+    };
+    if (editPhoto) updateData.confirm_photo_url = editPhoto;
+
+    const { error } = await supabase
+      .from('deposits')
+      .update(updateData)
+      .eq('id', deposit.id);
+
+    if (error) {
+      toast({ type: 'error', title: t('detail.error'), message: error.message });
+      setIsSavingEdit(false);
+      return;
+    }
+
+    // Replace the bottle rows. Same wipe + reinsert pattern as the
+    // bar-confirm path — anyone editing here is overriding what bar
+    // entered, which is the whole point of the action.
+    const now = new Date().toISOString();
+    await supabase.from('deposit_bottles').delete().eq('deposit_id', deposit.id);
+    const newBottleRows = percents.map((pct, i) => ({
+      deposit_id: deposit.id,
+      bottle_no: i + 1,
+      remaining_percent: pct,
+      status: pct === 0 ? 'consumed' : pct < 100 ? 'opened' : 'sealed',
+      opened_at: pct < 100 && pct > 0 ? now : null,
+      opened_by: pct < 100 && pct > 0 ? user.id : null,
+      consumed_at: pct === 0 ? now : null,
+      consumed_by: pct === 0 ? user.id : null,
+    }));
+    await supabase.from('deposit_bottles').insert(newBottleRows);
+
+    await logAudit({
+      action_type: AUDIT_ACTIONS.DEPOSIT_STATUS_CHANGED,
+      record_id: deposit.id,
+      table_name: 'deposits',
+      changed_by: user.id,
+      store_id: currentStoreId,
+      new_value: {
+        deposit_code: deposit.deposit_code,
+        action: 'manual_edit',
+        bottle_percents: percents,
+        quantity: qty,
+        remaining_percent: avgPercent,
+      },
+    });
+
+    const displayName = user.displayName || user.username || 'Staff';
+    const percentSummary = percents.map((p, i) => `${i + 1}:${p}%`).join(', ');
+    sendChatBotMessage({
+      storeId: currentStoreId,
+      type: 'system',
+      content: `✏️ ${displayName} แก้ไขข้อมูลฝาก ${deposit.product_name} x${qty} (${deposit.deposit_code}) — ${deposit.customer_name} — รายขวด [${percentSummary}] เฉลี่ย ${avgPercent}%`,
+    });
+
+    toast({ type: 'success', title: 'แก้ไขข้อมูลสำเร็จ' });
+    setShowEditModal(false);
+    setEditQty('');
+    setEditBottlePercents([]);
+    setEditPhoto(null);
+    setIsSavingEdit(false);
+    refreshDeposit();
+    loadBottles();
   };
 
   const handleWithdrawal = async () => {
@@ -1192,29 +1301,21 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 </div>
               </div>
 
-              {/* Per-bottle list (status + editable %) */}
+              {/* Per-bottle list — display only. Editing the % is now done
+                  via the "แก้ไขข้อมูล" action (which mimics the bar-receive
+                  modal) so users can't tap a value and accidentally
+                  overwrite it. The inline inputs were too easy to misclick
+                  on phones. */}
               {bottles.length > 0 && (
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
                       รายขวด ({bottles.length} ขวด)
                     </span>
-                    {canEditBottles && hasBottleEdits && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={handleSaveBottles}
-                        isLoading={isSavingBottles}
-                        className="h-7 px-2 text-xs"
-                      >
-                        บันทึก
-                      </Button>
-                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {bottles.map((b) => {
                       const isConsumed = b.status === 'consumed';
-                      const editVal = bottleEdits[b.id];
                       return (
                         <div
                           key={b.id}
@@ -1237,41 +1338,19 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                           >
                             ขวด {b.bottle_no}/{bottles.length}
                           </span>
-                          {canEditBottles ? (
-                            <input
-                              type="number"
-                              min={0}
-                              max={100}
-                              step={1}
-                              value={editVal}
-                              onChange={(e) => {
-                                const raw = e.target.value;
-                                const next: number | '' =
-                                  raw === '' ? '' : Math.min(100, Math.max(0, Number(raw)));
-                                setBottleEdits((prev) => ({ ...prev, [b.id]: next }));
-                              }}
-                              className="ml-auto w-12 rounded-md border border-gray-300 bg-white px-1.5 py-0.5 text-right text-xs text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                            />
-                          ) : (
-                            <span className="ml-auto text-xs font-medium text-gray-700 dark:text-gray-300">
-                              {b.remaining_percent}
-                            </span>
-                          )}
+                          <span
+                            className={cn(
+                              'ml-auto text-xs font-medium',
+                              isConsumed ? 'text-gray-400 line-through' : 'text-gray-700 dark:text-gray-300',
+                            )}
+                          >
+                            {b.remaining_percent}
+                          </span>
                           <span className="text-[10px] text-gray-400">%</span>
                         </div>
                       );
                     })}
                   </div>
-                  {canEditBottles && (
-                    <p className="mt-1.5 text-[10px] text-gray-400">
-                      0% = เบิกแล้ว, 100% = ขวดยังไม่เปิด
-                    </p>
-                  )}
-                  {bottleEditingDisabledReason && (
-                    <p className="mt-1.5 text-[10px] text-amber-500 dark:text-amber-400">
-                      {bottleEditingDisabledReason}
-                    </p>
-                  )}
                 </div>
               )}
 
@@ -1563,7 +1642,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           </Card>
 
           {/* การดำเนินการ — consolidated action card */}
-          {user && user.role !== 'customer' && (canBarConfirm || canRejectDeposit || canWithdraw || canMarkExpired || canTransferToHq || canExtendExpiry || canToggleVip) && (
+          {user && user.role !== 'customer' && (canBarConfirm || canRejectDeposit || canWithdraw || canMarkExpired || canTransferToHq || canExtendExpiry || canToggleVip || canEditDeposit) && (
             <Card padding="none">
               <CardHeader title={t("detail.actions")} />
               <CardContent>
@@ -1619,6 +1698,17 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                       isLoading={isSubmitting}
                     >
                       {deposit.is_vip ? t("detail.cancelVip") : t("detail.setVip")}
+                    </Button>
+                  )}
+                  {/* แก้ไขข้อมูล — same form as bar-confirm, pre-filled */}
+                  {canEditDeposit && (
+                    <Button
+                      className="min-h-[44px] w-full justify-center"
+                      variant="outline"
+                      icon={<Pencil className="h-4 w-4" />}
+                      onClick={openEditModal}
+                    >
+                      แก้ไขข้อมูล
                     </Button>
                   )}
                   {/* ขยายวันหมดอายุ */}
@@ -2298,6 +2388,134 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             icon={<ShieldCheck className="h-4 w-4" />}
           >
             {t("detail.confirmReceive")}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Edit-info Modal — same shape as bar-confirm, pre-filled. */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditQty('');
+          setEditBottlePercents([]);
+          setEditPhoto(null);
+        }}
+        title="แก้ไขข้อมูลฝาก"
+        description={`${deposit.deposit_code} — ${deposit.product_name} (${deposit.customer_name})`}
+        size="md"
+      >
+        <div className="space-y-4">
+          <Input
+            label={t("detail.qtyEditable")}
+            type="number"
+            min={1}
+            value={editQty}
+            onChange={(e) => setEditQty(e.target.value)}
+            placeholder={String(deposit.quantity)}
+            hint={`${t("detail.originalQty")}: ${formatNumber(deposit.quantity)}`}
+          />
+
+          {(() => {
+            const qtyNum = parseInt(editQty);
+            const validQty = Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : 0;
+            if (validQty === 0) return null;
+            return (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  % คงเหลือรายขวด <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {Array.from({ length: validQty }).map((_, i) => {
+                    const val = editBottlePercents[i] ?? '';
+                    const num = val === '' ? null : parseFloat(val);
+                    const isInvalid = num !== null && (Number.isNaN(num) || num < 0 || num > 100);
+                    return (
+                      <div
+                        key={i}
+                        className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5 dark:border-gray-700 dark:bg-gray-800"
+                      >
+                        <span className="text-xs font-semibold whitespace-nowrap text-gray-700 dark:text-gray-200">
+                          ขวด {i + 1}/{validQty}
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={val}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setEditBottlePercents((prev) => {
+                              const next = [...prev];
+                              while (next.length < validQty) next.push('');
+                              next[i] = raw;
+                              next.length = validQty;
+                              return next;
+                            });
+                          }}
+                          placeholder="100"
+                          className={cn(
+                            'ml-auto w-12 rounded-md border bg-white px-1.5 py-0.5 text-right text-xs text-gray-900 focus:outline-none focus:ring-1 dark:bg-gray-900 dark:text-white',
+                            isInvalid
+                              ? 'border-red-300 focus:border-red-500 focus:ring-red-500/30 dark:border-red-500'
+                              : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500/30 dark:border-gray-600',
+                          )}
+                        />
+                        <span className="text-[10px] text-gray-400">%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="mt-1.5 text-[10px] text-gray-400">
+                  0% = เบิกแล้ว, 100% = ขวดยังไม่เปิด
+                </p>
+              </div>
+            );
+          })()}
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t("detail.confirmPhoto")} <span className="text-gray-400">(ไม่บังคับ)</span>
+            </label>
+            <PhotoUpload
+              value={editPhoto}
+              onChange={setEditPhoto}
+              folder="deposits"
+              placeholder={t("detail.confirmPhotoPlaceholder")}
+            />
+          </div>
+        </div>
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowEditModal(false);
+              setEditQty('');
+              setEditBottlePercents([]);
+              setEditPhoto(null);
+            }}
+          >
+            {t("detail.cancelBtn")}
+          </Button>
+          <Button
+            onClick={handleEditSave}
+            isLoading={isSavingEdit}
+            disabled={(() => {
+              const qtyNum = parseInt(editQty);
+              const validQty = Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : 0;
+              if (!validQty) return true;
+              for (let i = 0; i < validQty; i++) {
+                const raw = editBottlePercents[i];
+                if (raw === undefined || raw === '') return true;
+                const n = parseFloat(raw);
+                if (!Number.isFinite(n) || n < 0 || n > 100) return true;
+              }
+              return false;
+            })()}
+            icon={<Pencil className="h-4 w-4" />}
+          >
+            บันทึก
           </Button>
         </ModalFooter>
       </Modal>

@@ -500,6 +500,59 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                   consumed_by: pct === 0 ? currentUserId : null,
                 }));
                 await supabase.from('deposit_bottles').insert(newBottleRows);
+
+                // Auto-enqueue print: 1 receipt + N labels (one per bottle).
+                // Pull a few extra fields the print payload needs but that
+                // aren't in the action-card summary (product_name, table,
+                // expiry, store_name etc). Best-effort — print failure
+                // shouldn't block the confirm flow.
+                const { data: depositFull } = await supabase
+                  .from('deposits')
+                  .select('product_name, category, customer_phone, table_number, expiry_date, created_at')
+                  .eq('id', depositRow.id)
+                  .single();
+                const { data: storeRow } = await supabase
+                  .from('stores')
+                  .select('store_name')
+                  .eq('id', storeId)
+                  .single();
+                const printPayloadBase = {
+                  deposit_code: meta.reference_id,
+                  customer_name: summary.customer || '',
+                  customer_phone: depositFull?.customer_phone || null,
+                  product_name: depositFull?.product_name || summary.items || '',
+                  category: depositFull?.category || null,
+                  quantity: validQty,
+                  remaining_qty: remainingQty,
+                  table_number: depositFull?.table_number || null,
+                  expiry_date: depositFull?.expiry_date || null,
+                  created_at: depositFull?.created_at || null,
+                  store_name: storeRow?.store_name || '',
+                  received_by_name: currentUserName,
+                };
+                const labelBottles = newBottleRows
+                  .filter((b) => b.status !== 'consumed')
+                  .map((b) => ({ bottle_no: b.bottle_no, remaining_percent: b.remaining_percent, status: b.status }));
+                await Promise.all([
+                  supabase.from('print_queue').insert({
+                    store_id: storeId,
+                    deposit_id: depositRow.id,
+                    job_type: 'receipt',
+                    status: 'pending',
+                    copies: 1,
+                    payload: { ...printPayloadBase, bottles: [] },
+                    requested_by: currentUserId,
+                  }),
+                  supabase.from('print_queue').insert({
+                    store_id: storeId,
+                    deposit_id: depositRow.id,
+                    job_type: 'label',
+                    status: 'pending',
+                    copies: labelBottles.length || validQty,
+                    payload: { ...printPayloadBase, bottles: labelBottles },
+                    requested_by: currentUserId,
+                  }),
+                ]);
               }
             }
 
