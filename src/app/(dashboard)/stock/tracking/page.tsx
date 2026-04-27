@@ -588,7 +588,8 @@ export default function StockTrackingPage() {
       {/* Edit modal */}
       {editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setEditingItem(null)}>
-          <Card className="w-full max-w-lg" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+          <div className="w-full max-w-lg" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+          <Card>
             <CardHeader
               title={editingItem.existing ? 'แก้ไขการติดตาม' : 'เริ่มติดตาม'}
               description={`${editingItem.product_name} (${editingItem.product_code})`}
@@ -675,6 +676,7 @@ export default function StockTrackingPage() {
               </div>
             </CardContent>
           </Card>
+          </div>
         </div>
       )}
     </div>
