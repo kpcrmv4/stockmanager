@@ -137,6 +137,24 @@ export default function StockTrackingPage() {
   const { currentStoreId } = useAppStore();
   const canEdit = !!user && TRACKING_ROLES.includes(user.role);
 
+  // Page-level role guard — bar/staff/customer cannot view the tracking page
+  if (user && !TRACKING_ROLES.includes(user.role)) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+        <AlertTriangle className="h-10 w-10 text-gray-300 dark:text-gray-600" />
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          ไม่มีสิทธิ์เข้าหน้านี้ — เฉพาะเจ้าของร้าน / บัญชี / ผู้จัดการ
+        </p>
+        <a
+          href="/stock"
+          className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+        >
+          กลับหน้าสต๊อก
+        </a>
+      </div>
+    );
+  }
+
   const [trends, setTrends] = useState<TrendRow[]>([]);
   const [items, setItems] = useState<TrackingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -753,9 +771,9 @@ export default function StockTrackingPage() {
                   <div>
                     <h3 className="mb-1 font-semibold text-gray-900 dark:text-white">🔐 สิทธิ์การใช้งาน</h3>
                     <ul className="ml-5 list-disc space-y-1 text-xs">
-                      <li>owner / accountant / manager / hq — flag/แก้ไข/Auto-flag ได้ทั้งหมด</li>
-                      <li>bar / staff — ดูได้ (read-only)</li>
-                      <li>customer — ไม่เห็นเลย</li>
+                      <li><strong>เห็นเมนู + เข้าหน้านี้ได้:</strong> เฉพาะ owner / accountant / manager / hq</li>
+                      <li><strong>ไม่เห็น/เข้าไม่ได้:</strong> bar / staff / customer</li>
+                      <li>เพราะข้อมูลในนี้เกี่ยวข้องกับการตรวจสอบและตัดสินใจของฝ่ายบริหาร — ไม่ใช่ข้อมูลปฏิบัติการประจำวัน</li>
                     </ul>
                   </div>
 
