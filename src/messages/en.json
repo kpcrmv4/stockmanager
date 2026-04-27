@@ -2704,6 +2704,9 @@
     },
     "entryList": {
       "confirmDelete": "Confirm delete this entry?",
+      "confirmDeleteTitle": "Confirm delete entry",
+      "confirmDeleteDesc": "This entry will be permanently deleted and cannot be restored. Use Cancel instead if you only want a temporary hold.",
+      "deleteBtn": "Delete",
       "deleteSuccess": "Deleted successfully",
       "deleteFailed": "Delete failed",
       "allTypes": "All Types",

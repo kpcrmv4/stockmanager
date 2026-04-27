@@ -2705,6 +2705,9 @@
     },
     "entryList": {
       "confirmDelete": "ยืนยันลบรายการนี้?",
+      "confirmDeleteTitle": "ยืนยันลบรายการคอม",
+      "confirmDeleteDesc": "รายการนี้จะถูกลบถาวร ไม่สามารถกู้คืนได้ หากต้องการยกเลิกชั่วคราวให้ใช้ปุ่มยกเลิกแทน",
+      "deleteBtn": "ลบ",
       "deleteSuccess": "ลบสำเร็จ",
       "deleteFailed": "ลบไม่สำเร็จ",
       "allTypes": "ทุกประเภท",

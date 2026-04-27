@@ -171,12 +171,14 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
   const [isGrouped, setIsGrouped] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
-  // Cancel/restore modals — styled instead of native prompt/confirm
+  // Cancel/restore/delete modals — styled instead of native prompt/confirm
   const [cancelEntryId, setCancelEntryId] = useState<string | null>(null);
   const [cancelEntryReason, setCancelEntryReason] = useState('');
   const [cancellingEntry, setCancellingEntry] = useState(false);
   const [restoreEntryId, setRestoreEntryId] = useState<string | null>(null);
   const [restoringEntry, setRestoringEntry] = useState(false);
+  const [deleteEntryId, setDeleteEntryId] = useState<string | null>(null);
+  const [deletingEntry, setDeletingEntry] = useState(false);
 
   const canDelete = user?.role === 'owner' || user?.role === 'accountant';
 
@@ -199,15 +201,34 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
-  async function handleDelete(id: string) {
-    if (!confirm(t('entryList.confirmDelete'))) return;
-    const res = await fetch(`/api/commission/${id}`, { method: 'DELETE' });
-    if (res.ok) {
-      toast({ type: 'success', title: t('entryList.deleteSuccess') });
-      logAudit({ store_id: currentStoreId, action_type: AUDIT_ACTIONS.COMMISSION_ENTRY_DELETED, table_name: 'commission_entries', record_id: id, changed_by: user?.id });
-      fetchEntries();
-    } else {
-      toast({ type: 'error', title: t('entryList.deleteFailed') });
+  // Open the styled delete-confirmation modal — actual mutation happens
+  // in confirmDeleteEntry. Replaces the native window.confirm() that
+  // bypassed our i18n + theme.
+  function handleDelete(id: string) {
+    setDeleteEntryId(id);
+  }
+
+  async function confirmDeleteEntry() {
+    if (!deleteEntryId) return;
+    setDeletingEntry(true);
+    try {
+      const res = await fetch(`/api/commission/${deleteEntryId}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast({ type: 'success', title: t('entryList.deleteSuccess') });
+        logAudit({
+          store_id: currentStoreId,
+          action_type: AUDIT_ACTIONS.COMMISSION_ENTRY_DELETED,
+          table_name: 'commission_entries',
+          record_id: deleteEntryId,
+          changed_by: user?.id,
+        });
+        setDeleteEntryId(null);
+        fetchEntries();
+      } else {
+        toast({ type: 'error', title: t('entryList.deleteFailed') });
+      }
+    } finally {
+      setDeletingEntry(false);
     }
   }
 
@@ -555,6 +576,25 @@ export function CommissionEntryList({ month: monthProp, refreshKey }: Commission
           <Button variant="primary" onClick={confirmRestoreEntry} disabled={restoringEntry}>
             {restoringEntry ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {t('entryList.restore')}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Delete-entry modal — replaces window.confirm() */}
+      <Modal
+        isOpen={!!deleteEntryId}
+        onClose={() => setDeleteEntryId(null)}
+        title={t('entryList.confirmDeleteTitle')}
+        size="sm"
+      >
+        <p className="text-sm text-gray-600 dark:text-gray-400">{t('entryList.confirmDeleteDesc')}</p>
+        <ModalFooter>
+          <Button variant="ghost" onClick={() => setDeleteEntryId(null)}>
+            {t('entryForm.cancel')}
+          </Button>
+          <Button variant="danger" onClick={confirmDeleteEntry} disabled={deletingEntry}>
+            {deletingEntry ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {t('entryList.deleteBtn')}
           </Button>
         </ModalFooter>
       </Modal>
