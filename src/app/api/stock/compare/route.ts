@@ -101,18 +101,26 @@ export async function POST(request: NextRequest) {
       ...posMap.keys(),
     ]);
 
-    // Fetch product names for all product codes
+    // Fetch product names + count_status for all product codes.
+    // Products with count_status='excluded' are POS-only commodities
+    // (e.g. beer kegs, snacks) where staff have explicitly said "don't
+    // expect a manual count" — they must NOT be flagged as -100%
+    // discrepancies just because POS has a qty and manual_counts has none.
     const productNameMap = new Map<string, string>();
+    const excludedCodes = new Set<string>();
     if (allProductCodes.size > 0) {
       const { data: products } = await supabase
         .from('products')
-        .select('product_code, product_name')
+        .select('product_code, product_name, count_status')
         .eq('store_id', store_id)
         .in('product_code', Array.from(allProductCodes));
 
       if (products) {
         for (const p of products) {
           productNameMap.set(p.product_code, p.product_name);
+          if (p.count_status === 'excluded') {
+            excludedCodes.add(p.product_code);
+          }
         }
       }
     }
@@ -137,6 +145,10 @@ export async function POST(request: NextRequest) {
     let posOnlyCount = 0;
 
     for (const productCode of allProductCodes) {
+      // Skip POS-only commodities entirely — they shouldn't appear in the
+      // comparison table because staff aren't supposed to count them.
+      if (excludedCodes.has(productCode)) continue;
+
       const manualQty = manualMap.has(productCode)
         ? manualMap.get(productCode)!
         : null;
