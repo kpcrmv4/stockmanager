@@ -16,26 +16,52 @@ function formatCurrency(n: number) {
 }
 
 function EntryRow({ e, t, onCancel }: { e: any, t: any, onCancel?: (id: string) => void }) {
+  // Stacked layout matching the history tab: badges + meta wrap onto a
+  // second line on small screens instead of squeezing into one row, and
+  // amount + actions live in a fixed right column.
+  const isAE = e.type === 'ae_commission';
   return (
-    <div className="flex items-center justify-between py-1.5 pl-8 pr-2 text-xs border-t border-gray-50 dark:border-gray-800/50">
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        <Badge variant={e.payment_id ? 'success' : 'outline'} size="sm" className="scale-75 origin-left">
-          {e.payment_id ? t('entryList.paid') : t('entryList.unpaid')}
-        </Badge>
-        <span className="text-gray-400">{formatThaiDate(e.bill_date)}</span>
-        {e.receipt_no && <span className="text-gray-500 font-mono">#{e.receipt_no}</span>}
-        {e.table_no && <span className="text-gray-400">{t('entryList.table')} {e.table_no}</span>}
-        {e.bottle_product_name && <span className="text-gray-400 truncate">{e.bottle_product_name}</span>}
+    <div className="flex items-start justify-between gap-2 border-t border-gray-50 px-3 py-2.5 dark:border-gray-800/50">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant={e.payment_id ? 'success' : 'outline'} size="sm">
+            {e.payment_id ? t('entryList.paid') : t('entryList.unpaid')}
+          </Badge>
+          <span className="text-xs text-gray-400">{formatThaiDate(e.bill_date)}</span>
+          {e.receipt_no && (
+            <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
+              #{e.receipt_no}
+            </span>
+          )}
+          {e.table_no && (
+            <span className="text-xs text-gray-400">{t('entryList.table')} {e.table_no}</span>
+          )}
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          {isAE && e.subtotal_amount && (
+            <span>{t('entryList.subtotal')} {formatCurrency(Number(e.subtotal_amount))}</span>
+          )}
+          {!isAE && e.bottle_count && (
+            <span>{e.bottle_count} {t('entryList.bottles')}</span>
+          )}
+          {e.bottle_product_name && (
+            <span className="text-indigo-500/80 dark:text-indigo-300/80">
+              {e.bottle_product_name}
+            </span>
+          )}
+        </div>
       </div>
-      <div className="flex items-center gap-1.5">
-        <span className="font-medium text-gray-700 dark:text-gray-300">{formatCurrency(Number(e.net_amount))}</span>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span className={`text-sm font-bold ${isAE ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>
+          {formatCurrency(Number(e.net_amount))}
+        </span>
         {onCancel && !e.payment_id && (
           <button
             onClick={() => onCancel(e.id)}
             className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30"
             title={t('entryList.cancel')}
           >
-            <XCircle className="h-3.5 w-3.5" />
+            <XCircle className="h-4 w-4" />
           </button>
         )}
       </div>
@@ -316,15 +342,19 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
                 const isExpanded = !!expandedRows[`unpaid_ae_${ae.ae_id}`];
                 return (
                   <div key={ae.ae_id} className="group">
-                    <div className="flex items-center justify-between px-2 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                      <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleExpand(`unpaid_ae_${ae.ae_id}`)}>
-                        {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{ae.ae_name} {ae.ae_nickname ? `(${ae.ae_nickname})` : ''}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{ae.entry_count} {t('payment.bills')} | {ae.bank_name ? `${ae.bank_name} ${ae.bank_account_no}` : t('payment.noBankInfo')}</p>
+                    <div className="flex items-start justify-between gap-2 px-3 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                        onClick={() => toggleExpand(`unpaid_ae_${ae.ae_id}`)}
+                      >
+                        {isExpanded ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" /> : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />}
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{ae.ae_name}{ae.ae_nickname ? ` (${ae.ae_nickname})` : ''}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 break-words">{ae.entry_count} {t('payment.bills')} · {ae.bank_name ? `${ae.bank_name} ${ae.bank_account_no}` : t('payment.noBankInfo')}</p>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
+                      </button>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
                         <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{formatCurrency(ae.total_net)}</span>
                         <Button size="sm" onClick={() => { setSelectedType('ae'); setSelectedId(ae.ae_id); }}>{t('payment.pay')}</Button>
                       </div>
@@ -352,15 +382,19 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
                 const isExpanded = !!expandedRows[`unpaid_bottle_${b.staff_id}`];
                 return (
                   <div key={b.staff_id} className="group">
-                    <div className="flex items-center justify-between px-2 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                      <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleExpand(`unpaid_bottle_${b.staff_id}`)}>
-                        {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{b.staff_name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{b.total_bottles} {t('payment.bottles')} | {b.entry_count} {t('payment.entries')}</p>
+                    <div className="flex items-start justify-between gap-2 px-3 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                        onClick={() => toggleExpand(`unpaid_bottle_${b.staff_id}`)}
+                      >
+                        {isExpanded ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" /> : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />}
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{b.staff_name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{b.total_bottles} {t('payment.bottles')} · {b.entry_count} {t('payment.entries')}</p>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
+                      </button>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
                         <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatCurrency(b.total_net)}</span>
                         <Button size="sm" onClick={() => { setSelectedType('bottle'); setSelectedId(b.staff_id); }}>{t('payment.pay')}</Button>
                       </div>
