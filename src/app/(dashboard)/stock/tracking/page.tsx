@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { Button, Card, CardHeader, CardContent, EmptyState, Badge, Textarea, toast } from '@/components/ui';
-import { formatNumber } from '@/lib/utils/format';
+import { formatNumber, formatThaiDate } from '@/lib/utils/format';
 import { cn } from '@/lib/utils/cn';
 import {
   Pin,
@@ -108,7 +108,7 @@ function RecentDiffChips({
         return (
           <span
             key={i}
-            title={`${d.date}: ${text}`}
+            title={`${formatThaiDate(d.date)}: ${text}`}
             className={cn(
               'inline-flex min-w-[24px] items-center justify-center rounded px-1 py-0.5 text-[10px] font-medium tabular-nums',
               isShort && 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
