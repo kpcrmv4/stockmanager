@@ -862,7 +862,7 @@ export default function DepositPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <button
           type="button"
           onClick={() => setActiveTab('new_request')}
@@ -911,17 +911,6 @@ export default function DepositPage() {
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.expiredCount}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">{t('expired')}</p>
-            </div>
-          </div>
-        </Card>
-        <Card padding="md">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-900/20">
-              <Package className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.pendingWithdrawalCount}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{t('withdrawalRequests')}</p>
             </div>
           </div>
         </Card>
