@@ -1719,13 +1719,33 @@ interface OpenDepositSystemParams {
   entry_url: string;
   /** Bot display name — kept for back-compat but no longer rendered */
   bot_name?: string;
+  /**
+   * Active deposits to show as a summary list inside the card. When
+   * provided and non-empty, the card renders product name + remaining %
+   * for each (max 5, with a "+N more" line when truncated). When empty
+   * or undefined the card shows the bare welcome / count message.
+   */
+  deposits?: Array<{
+    product_name: string;
+    quantity: number;
+    remaining_qty: number;
+    remaining_percent: number | null;
+    expiry_date?: string | null;
+  }>;
 }
 
 export function openDepositSystemFlex(
   params: OpenDepositSystemParams,
 ): FlexMessage {
-  const { store_name, active_deposit_count, customer_name, entry_url } = params;
+  const { store_name, active_deposit_count, customer_name, entry_url, deposits } = params;
   const hasItems = active_deposit_count > 0;
+  const summaryList = (deposits || []).filter(
+    (d) => (Number(d.remaining_qty) || 0) > 0,
+  );
+  const showList = hasItems && summaryList.length > 0;
+  const MAX_ITEMS = 5;
+  const visible = summaryList.slice(0, MAX_ITEMS);
+  const overflow = summaryList.length - visible.length;
 
   const bodyContents: Record<string, unknown>[] = [
     textComponent('Welcome!', {
@@ -1743,7 +1763,63 @@ export function openDepositSystemFlex(
       : 'You have no bottles stored yet',
     { size: 'sm', align: 'center', color: BK.textMuted, wrap: true, margin: 'md' },
   ));
-  bodyContents.push(bkInfoPill('📦  30-day storage'));
+
+  if (showList) {
+    // Pink summary box listing each active deposit with its qty + %
+    const itemRows: Record<string, unknown>[] = [
+      textComponent(visible.length === 1 ? 'YOUR BOTTLE' : 'YOUR BOTTLES', {
+        size: 'xxs', weight: 'bold', color: BK.textMuted,
+      }),
+    ];
+    for (const d of visible) {
+      const qtyLabel = d.quantity > 1
+        ? `${formatNumber(d.remaining_qty)}/${formatNumber(d.quantity)} bottles`
+        : `${formatNumber(d.remaining_qty)} ${d.remaining_qty === 1 ? 'bottle' : 'bottles'}`;
+      const pct = d.remaining_percent != null ? Math.round(Number(d.remaining_percent)) : null;
+      itemRows.push({
+        type: 'box',
+        layout: 'horizontal',
+        margin: 'sm',
+        contents: [
+          {
+            type: 'box',
+            layout: 'vertical',
+            flex: 4,
+            contents: [
+              textComponent(d.product_name || '—', {
+                size: 'sm', weight: 'bold', color: BK.textDark, wrap: true,
+              }),
+              textComponent(qtyLabel, { size: 'xxs', color: BK.textMuted, margin: 'xs' }),
+            ],
+          },
+          ...(pct != null
+            ? [{
+                type: 'box',
+                layout: 'vertical',
+                flex: 2,
+                contents: [
+                  textComponent(`${pct}%`, {
+                    size: 'sm', weight: 'bold', color: BK.brandRed, align: 'end',
+                  }),
+                  textComponent('Remaining', {
+                    size: 'xxs', color: BK.textMuted, align: 'end', margin: 'xs',
+                  }),
+                ],
+              } as Record<string, unknown>]
+            : []),
+        ],
+      });
+    }
+    if (overflow > 0) {
+      itemRows.push(textComponent(`+ ${overflow} more`, {
+        size: 'xxs', color: BK.textMuted, align: 'center', margin: 'md',
+      }));
+    }
+    bodyContents.push(bkItemBox(itemRows));
+  } else {
+    // No items → keep the friendly storage pill so the card doesn't feel empty
+    bodyContents.push(bkInfoPill('📦  30-day storage'));
+  }
 
   return {
     type: 'flex',
@@ -1753,7 +1829,10 @@ export function openDepositSystemFlex(
       size: 'mega',
       header: bkHeader({ emoji: '🍾', title: 'Bottle Keeper', subtitle: store_name }),
       body: bkBody(bodyContents),
-      footer: bkFooterButton('📱  Open Bottle Keeper', entry_url),
+      footer: bkFooterButton(
+        showList ? '📱  Manage your bottles' : '📱  Open Bottle Keeper',
+        entry_url,
+      ),
       styles: {
         header: { backgroundColor: BK.headerBg },
         body: { backgroundColor: BK.bodyBg },

@@ -492,19 +492,31 @@ async function handleTextMessage(
   // when configured, or falls back to a signed token URL.
   // -----------------------------------------------------------------------
   if (isDepositSystemKeyword(text)) {
-    // Count the customer's active deposits at this branch (if resolvable).
-    // If no store context, count across all stores — still useful info.
-    const countQuery = supabase
+    // Pull the customer's active deposits at this branch (or across all
+    // stores if we couldn't resolve a branch from the bot context). We
+    // grab full rows (capped) so the Flex can render a real summary —
+    // product name + remaining qty + remaining % per item — instead of
+    // just a count, matching the legacy GAS bot.
+    const listQuery = supabase
       .from('deposits')
-      .select('id', { count: 'exact', head: true })
+      .select('product_name, quantity, remaining_qty, remaining_percent, expiry_date, created_at')
       .eq('line_user_id', userId)
-      .in('status', ['in_store', 'pending_confirm', 'pending_withdrawal']);
+      .in('status', ['in_store', 'pending_confirm', 'pending_withdrawal'])
+      .order('created_at', { ascending: false })
+      .limit(20);
 
     if (storeInfo) {
-      countQuery.eq('store_id', storeInfo.id);
+      listQuery.eq('store_id', storeInfo.id);
     }
 
-    const { count } = await countQuery;
+    const { data: depositRows } = await listQuery;
+    const deposits = (depositRows || []).map((d) => ({
+      product_name: String(d.product_name || ''),
+      quantity: Number(d.quantity) || 0,
+      remaining_qty: Number(d.remaining_qty) || 0,
+      remaining_percent: d.remaining_percent != null ? Number(d.remaining_percent) : null,
+      expiry_date: d.expiry_date ?? null,
+    }));
 
     const entryUrl = await buildCustomerEntryUrl({
       lineUserId: userId,
@@ -513,7 +525,8 @@ async function handleTextMessage(
 
     const flex = openDepositSystemFlex({
       store_name: storeInfo?.store_name || 'StockManager',
-      active_deposit_count: count ?? 0,
+      active_deposit_count: deposits.length,
+      deposits,
       entry_url: entryUrl,
     });
 
@@ -558,8 +571,16 @@ async function handleTextMessage(
 // one extra time than to frustrate a customer who typed a near-match.
 // ---------------------------------------------------------------------------
 
+// "alcohol" + the typos customers actually send. The pattern accepts any
+// sequence starting with `al`, optionally containing `c`/`k`, optional
+// repeated `h`, and ending in `ol` — covers `alcohol`, `alchol`,
+// `alchohol`, `alcahol`, `alkohol`, etc. Trailing `ic` makes it tolerate
+// "alcoholic deposit" too.
+const ALCOHOL_WORD = /al[ckh]+[aoh]*l(ic)?/.source;
+
 const DEPOSIT_KEYWORD_PATTERNS: RegExp[] = [
-  // Thai — deposit system entry
+  // Thai — deposit system entry (substring match — Thai has no word
+  // boundaries so an exact-anchor would over-restrict)
   /ฝากเหล้า/,
   /ระบบฝาก/,
   /ของฝาก/,
@@ -573,13 +594,14 @@ const DEPOSIT_KEYWORD_PATTERNS: RegExp[] = [
   /^ช่วย(เหลือ)?$/,
   /^เริ่ม(ต้น)?$/,
   /^สวัสดี(ครับ|ค่ะ)?$/,
-  // English — deposit system phrases (case + whitespace insensitive)
+  // English — deposit system phrases (case + whitespace insensitive,
+  // tolerant of common spelling drift like "alchol", "alchohol")
   /^deposits?$/i,
-  /^alcohol\s*deposits?$/i,
+  new RegExp(`^${ALCOHOL_WORD}\\s*deposits?$`, 'i'),
   /^bottle\s*deposits?$/i,
   /^liquor\s*deposits?$/i,
-  /^check\s*(deposits?|bottles?|alcohol|liquor)$/i,
-  /^my\s*(deposits?|bottles?|alcohol|liquor)$/i,
+  new RegExp(`^check\\s*(deposits?|bottles?|${ALCOHOL_WORD}|liquor)$`, 'i'),
+  new RegExp(`^my\\s*(deposits?|bottles?|${ALCOHOL_WORD}|liquor)$`, 'i'),
   /^view\s*(deposits?|bottles?)$/i,
   // English — menu / help / greeting
   /^menu$/i,
