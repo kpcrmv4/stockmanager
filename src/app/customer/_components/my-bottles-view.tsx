@@ -486,61 +486,69 @@ export function MyBottlesView() {
                 </div>
 
                 <div className="customer-detail-box">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="customer-detail-label">{t('remaining')}</p>
-                      <p className="customer-detail-value accent">
-                        {deposit.remainingPercent}%
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="customer-detail-label">
-                        {t('bottlesLabel')}
-                      </p>
-                      <p className="customer-detail-value dark">
-                        {formatNumber(deposit.remainingQty)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {availableBottles(deposit).length > 1 && (
-                    <>
-                      <div className="customer-detail-separator" />
-                      <div className="flex flex-wrap gap-1.5">
-                        {deposit.bottles.map((b) => {
-                          const isConsumed = b.status === 'consumed';
-                          return (
-                            <span
-                              key={b.id}
-                              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold"
-                              style={{
-                                // Pills sit on the parchment-cream detail
-                                // box, so the active state uses dark wine
-                                // (pops on cream) and consumed uses muted
-                                // brown (subdued strikethrough).
-                                borderColor: isConsumed
-                                  ? 'rgba(122, 110, 85, 0.25)'
-                                  : 'rgba(100, 9, 12, 0.4)',
-                                background: isConsumed
-                                  ? 'rgba(122, 110, 85, 0.08)'
-                                  : 'rgba(100, 9, 12, 0.12)',
-                                color: isConsumed
-                                  ? 'rgba(60, 50, 35, 0.45)'
-                                  : '#64090C',
-                                textDecoration: isConsumed ? 'line-through' : 'none',
-                              }}
-                            >
-                              <span>
-                                #{b.bottleNo}/{deposit.bottles.length}
+                  {/* Multi-bottle deposits: the "average remaining %" is
+                      not very meaningful (a 100% sealed bottle averaged
+                      with a 25% bottle reads as 62.5% which is a fiction).
+                      Show the per-bottle pills in this slot instead, which
+                      tells the customer exactly what they have left. */}
+                  {deposit.bottles.length > 1 ? (
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="customer-detail-label">{t('remaining')}</p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {deposit.bottles.map((b) => {
+                            const isConsumed = b.status === 'consumed';
+                            return (
+                              <span
+                                key={b.id}
+                                className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold"
+                                style={{
+                                  borderColor: isConsumed
+                                    ? 'rgba(122, 110, 85, 0.25)'
+                                    : 'rgba(100, 9, 12, 0.4)',
+                                  background: isConsumed
+                                    ? 'rgba(122, 110, 85, 0.08)'
+                                    : 'rgba(100, 9, 12, 0.12)',
+                                  color: isConsumed
+                                    ? 'rgba(60, 50, 35, 0.45)'
+                                    : '#64090C',
+                                  textDecoration: isConsumed ? 'line-through' : 'none',
+                                }}
+                              >
+                                <span>
+                                  #{b.bottleNo}/{deposit.bottles.length}
+                                </span>
+                                <span>
+                                  {isConsumed ? '—' : `${b.remainingPercent}%`}
+                                </span>
                               </span>
-                              <span>
-                                {isConsumed ? '—' : `${b.remainingPercent}%`}
-                              </span>
-                            </span>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    </>
+                      <div className="shrink-0 text-right">
+                        <p className="customer-detail-label">{t('bottlesLabel')}</p>
+                        <p className="customer-detail-value dark">
+                          {formatNumber(deposit.remainingQty)}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Single-bottle: the % is a real number — show big. */
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="customer-detail-label">{t('remaining')}</p>
+                        <p className="customer-detail-value accent">
+                          {deposit.remainingPercent}%
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="customer-detail-label">{t('bottlesLabel')}</p>
+                        <p className="customer-detail-value dark">
+                          {formatNumber(deposit.remainingQty)}
+                        </p>
+                      </div>
+                    </div>
                   )}
 
                   <div className="customer-detail-separator" />
