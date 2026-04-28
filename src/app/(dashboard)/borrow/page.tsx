@@ -1598,16 +1598,29 @@ export default function BorrowPage() {
   return (
     <div className="space-y-6">
       {/* ----------------------------------------------------------------- */}
-      {/* Header                                                             */}
+      {/* Header — title left, "สร้างคำขอยืม" button right (matches other  */}
+      {/* dashboard pages and avoids being hidden behind the mobile bottom  */}
+      {/* nav on tablet sizes).                                             */}
       {/* ----------------------------------------------------------------- */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {t('title')}
-        </h1>
-        {currentStoreName && (
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {currentStoreName}
-          </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {t('title')}
+          </h1>
+          {currentStoreName && (
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {currentStoreName}
+            </p>
+          )}
+        </div>
+        {activeTab === 'outgoing' && (
+          <Button
+            icon={<Plus className="h-4 w-4" />}
+            onClick={() => setShowCreateModal(true)}
+            className="shrink-0 bg-teal-500 hover:bg-teal-600 active:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600"
+          >
+            <span className="hidden sm:inline">{t('createBorrow')}</span>
+          </Button>
         )}
       </div>
 
@@ -1948,21 +1961,8 @@ export default function BorrowPage() {
         </div>
       )}
 
-      {/* ----------------------------------------------------------------- */}
-      {/* FAB -- only visible in outgoing tab                                */}
-      {/* ----------------------------------------------------------------- */}
-      {activeTab === 'outgoing' && borrows.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setShowCreateModal(true)}
-          className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 text-white shadow-lg shadow-teal-500/30 transition-transform hover:scale-105 active:scale-95 sm:bottom-6 sm:right-6 sm:h-auto sm:w-auto sm:gap-2 sm:rounded-xl sm:px-5 sm:py-3"
-        >
-          <Plus className="h-6 w-6 sm:h-5 sm:w-5" />
-          <span className="hidden sm:inline text-sm font-medium">
-            {t('createBorrow')}
-          </span>
-        </button>
-      )}
+      {/* FAB removed — the create button now lives in the page header so
+          it doesn't get hidden behind the mobile bottom nav. */}
 
       {/* ----------------------------------------------------------------- */}
       {/* Create borrow modal                                                */}
