@@ -108,7 +108,10 @@ export function HistoryView() {
       return;
     }
 
-    // Fall back to LIFF / token API for deposit history
+    // Fall back to LIFF / token API. /api/customer/history returns BOTH
+    // deposits and withdrawals — the deposits endpoint alone misses
+    // bar-approved withdrawals so the History tab looked stuck on
+    // "deposit only" rows.
     if (lineUserId) {
       try {
         const accessToken =
@@ -119,10 +122,10 @@ export function HistoryView() {
         let res: Response | null = null;
         if (token) {
           res = await fetch(
-            `/api/customer/deposits?token=${encodeURIComponent(token)}`,
+            `/api/customer/history?token=${encodeURIComponent(token)}`,
           );
         } else if (accessToken) {
-          res = await fetch('/api/customer/deposits', {
+          res = await fetch('/api/customer/history', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ accessToken }),
@@ -131,19 +134,28 @@ export function HistoryView() {
 
         if (res && res.ok) {
           const data = await res.json();
-          const deposits = (data.deposits || []) as Array<
-            Record<string, unknown>
-          >;
-          const items: HistoryItem[] = deposits.map((d) => ({
-            id: d.id as string,
-            type: 'deposit' as const,
-            product_name: d.product_name as string,
-            quantity: (d.quantity as number) ?? 0,
-            status: d.status as string,
-            created_at: d.created_at as string,
-            deposit_code: d.deposit_code as string,
-            store_name: (d.store as { store_name: string } | null)?.store_name,
-          }));
+          const depositRows = (data.deposits || []) as Array<Record<string, unknown>>;
+          const withdrawalRows = (data.withdrawals || []) as Array<Record<string, unknown>>;
+          const items: HistoryItem[] = [
+            ...depositRows.map((d) => ({
+              id: d.id as string,
+              type: 'deposit' as const,
+              product_name: d.product_name as string,
+              quantity: (d.quantity as number) ?? 0,
+              status: d.status as string,
+              created_at: d.created_at as string,
+              deposit_code: d.deposit_code as string,
+              store_name: (d.store as { store_name: string } | null)?.store_name,
+            })),
+            ...withdrawalRows.map((w) => ({
+              id: w.id as string,
+              type: 'withdrawal' as const,
+              product_name: w.product_name as string,
+              quantity: (w.actual_qty as number) ?? (w.requested_qty as number) ?? 0,
+              status: w.status as string,
+              created_at: w.created_at as string,
+            })),
+          ];
           items.sort(
             (a, b) =>
               new Date(b.created_at).getTime() -

@@ -372,6 +372,7 @@
       "title": "Transaction History",
       "subtitle": "All deposit and withdrawal records",
       "noHistory": "No history yet",
+      "loading": "Loading history",
       "deposit": "Deposit",
       "quantity": "Qty {qty}",
       "statusPending": "Pending",
