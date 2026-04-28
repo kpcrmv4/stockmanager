@@ -17,9 +17,9 @@ interface FlexBubble {
   body: FlexBox;
   footer?: FlexBox;
   styles?: {
-    header?: { backgroundColor: string };
+    header?: Record<string, unknown>;
     body?: Record<string, unknown>;
-    footer?: { separator?: boolean };
+    footer?: Record<string, unknown>;
   };
   [key: string]: unknown;
 }
@@ -155,7 +155,7 @@ function bkFooterButton(label: string, uri: string): FlexBox {
 }
 
 /** Two-column row: muted label on the left, dark value on the right. */
-function bkRow(label: string, value: string, valueColor = BK.textDark): Record<string, unknown> {
+function bkRow(label: string, value: string, valueColor: string = BK.textDark): Record<string, unknown> {
   return {
     type: 'box',
     layout: 'horizontal',
