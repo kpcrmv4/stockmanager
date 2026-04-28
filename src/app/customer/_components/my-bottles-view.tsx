@@ -518,15 +518,19 @@ export function MyBottlesView() {
                               key={b.id}
                               className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold"
                               style={{
+                                // Pills sit on the parchment-cream detail
+                                // box, so the active state uses dark wine
+                                // (pops on cream) and consumed uses muted
+                                // brown (subdued strikethrough).
                                 borderColor: isConsumed
-                                  ? 'rgba(255,255,255,0.08)'
-                                  : 'rgba(248,215,148,0.25)',
+                                  ? 'rgba(122, 110, 85, 0.25)'
+                                  : 'rgba(100, 9, 12, 0.4)',
                                 background: isConsumed
-                                  ? 'rgba(255,255,255,0.04)'
-                                  : 'rgba(248,215,148,0.08)',
+                                  ? 'rgba(122, 110, 85, 0.08)'
+                                  : 'rgba(100, 9, 12, 0.12)',
                                 color: isConsumed
-                                  ? 'rgba(255,255,255,0.35)'
-                                  : '#F8D794',
+                                  ? 'rgba(60, 50, 35, 0.45)'
+                                  : '#64090C',
                                 textDecoration: isConsumed ? 'line-through' : 'none',
                               }}
                             >
@@ -624,7 +628,7 @@ export function MyBottlesView() {
             onClick={() => !isRequesting && setWithdrawModal(null)}
           >
             <div
-              className="w-full max-w-sm rounded-2xl border border-[rgba(248,215,148,0.2)] bg-[#0E0000] p-4 shadow-xl"
+              className="w-full max-w-sm rounded-2xl border border-[rgba(248,215,148,0.25)] bg-[#2A0B10] p-4 shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-3 flex items-start justify-between gap-2">
@@ -664,11 +668,11 @@ export function MyBottlesView() {
                       style={{
                         borderColor: isSelected
                           ? '#F8D794'
-                          : 'rgba(248,215,148,0.15)',
+                          : 'rgba(248,215,148,0.2)',
                         background: isSelected
                           ? 'rgba(248,215,148,0.18)'
-                          : 'rgba(20,0,0,0.6)',
-                        color: isSelected ? '#F8D794' : 'rgba(248,215,148,0.55)',
+                          : 'rgba(74,16,22,0.65)',
+                        color: isSelected ? '#F8D794' : 'rgba(248,215,148,0.7)',
                       }}
                     >
                       <span className="font-bold">

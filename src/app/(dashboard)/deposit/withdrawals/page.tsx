@@ -93,6 +93,80 @@ interface WithdrawItem {
   selectedBottleIds: Set<string>;
 }
 
+/**
+ * Customer LIFF multi-bottle withdrawal creates one `withdrawals` row per
+ * picked bottle (so the schema can link `bottle_id` 1:1). On the bar's
+ * page we collapse those siblings into a single card — bar fulfils them
+ * together anyway, and rendering 3 separate rows for one transaction
+ * spammed the customer's LINE with 3 near-identical Flex confirmations.
+ */
+interface WithdrawalGroup {
+  /** Stable key: deposit_id + status bucket (+ minute-bucket for completed
+   *  history so a re-withdrawal a week later doesn't merge in). */
+  key: string;
+  deposit_id: string;
+  status: string;
+  /** First row in the group — used for display fields that are shared
+   *  across siblings (product_name, customer_name, deposit_code, etc.). */
+  rep: Withdrawal;
+  rows: Withdrawal[];
+  totalRequestedQty: number;
+  totalActualQty: number | null;
+  /** Bottle slot labels like "2/3" (from the deposit's quantity), in
+   *  ascending bottle_no order. Empty when no bottle_id targeting (legacy
+   *  whole-deposit requests). */
+  bottleLabels: string[];
+}
+
+function groupWithdrawals(
+  rows: Withdrawal[],
+  bottleContext: Map<string, { bottle_no: number; remaining_percent: number; deposit_quantity: number; deposit_code: string }>,
+): WithdrawalGroup[] {
+  const map = new Map<string, WithdrawalGroup>();
+  for (const w of rows) {
+    // Bucket completed/rejected by minute so re-uses of the same deposit
+    // (e.g. customer empties bottles 2+3 today, then comes back next week
+    // for bottle 1) don't merge across separate transactions.
+    const bucket = w.status === 'pending' || w.status === 'approved'
+      ? 'pending'
+      : `${w.status}_${w.created_at.slice(0, 16)}`; // 'YYYY-MM-DDTHH:mm'
+    const key = `${w.deposit_id}__${bucket}`;
+    let g = map.get(key);
+    if (!g) {
+      g = {
+        key,
+        deposit_id: w.deposit_id,
+        status: w.status,
+        rep: w,
+        rows: [],
+        totalRequestedQty: 0,
+        totalActualQty: null,
+        bottleLabels: [],
+      };
+      map.set(key, g);
+    }
+    g.rows.push(w);
+    g.totalRequestedQty += Number(w.requested_qty) || 0;
+    if (w.actual_qty !== null) {
+      g.totalActualQty = (g.totalActualQty ?? 0) + Number(w.actual_qty);
+    }
+  }
+  // Build bottle labels in bottle_no order using bottleContext
+  for (const g of map.values()) {
+    const labels: Array<{ no: number; total: number }> = [];
+    for (const row of g.rows) {
+      if (!row.bottle_id) continue;
+      const ctx = bottleContext.get(row.bottle_id);
+      if (ctx) labels.push({ no: ctx.bottle_no, total: ctx.deposit_quantity });
+    }
+    labels.sort((a, b) => a.no - b.no);
+    g.bottleLabels = labels.map((x) => (x.total > 0 ? `${x.no}/${x.total}` : String(x.no)));
+  }
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(b.rep.created_at).getTime() - new Date(a.rep.created_at).getTime(),
+  );
+}
+
 const statusVariantMap: Record<string, 'warning' | 'success' | 'default' | 'danger' | 'info'> = {
   pending: 'warning',
   approved: 'info',
@@ -123,9 +197,11 @@ export default function WithdrawalsPage() {
   // without a bottle_id can show #DEP-...).
   const [depositCodeMap, setDepositCodeMap] = useState<Map<string, string>>(new Map());
 
-  // Process withdrawal modal
+  // Process withdrawal modal — operates on a *group* (multi-bottle requests
+  // collapse into one). selectedGroup.rep mirrors the legacy field for
+  // single-row groups so existing UI bits keep working unchanged.
   const [showProcessModal, setShowProcessModal] = useState(false);
-  const [selectedWithdrawal, setSelectedWithdrawal] = useState<Withdrawal | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<WithdrawalGroup | null>(null);
   const [processAction, setProcessAction] = useState<'complete' | 'reject'>('complete');
   const [actualQty, setActualQty] = useState('');
   const [processNotes, setProcessNotes] = useState('');
@@ -542,19 +618,33 @@ export default function WithdrawalsPage() {
     loadWithdrawals();
   };
 
-  const openProcessModal = (withdrawal: Withdrawal, action: 'complete' | 'reject') => {
-    setSelectedWithdrawal(withdrawal);
+  const openProcessModal = (group: WithdrawalGroup, action: 'complete' | 'reject') => {
+    setSelectedGroup(group);
     setProcessAction(action);
-    setActualQty(action === 'complete' ? String(withdrawal.requested_qty) : '');
+    // Total requested qty across all sibling rows (1 per bottle for
+    // multi-bottle requests).
+    setActualQty(action === 'complete' ? String(group.totalRequestedQty) : '');
     setProcessNotes('');
     setWithdrawalPhotoUrl(null);
     setShowProcessModal(true);
   };
 
+  /**
+   * Process the whole group in one shot — all sibling rows close
+   * simultaneously, exactly one Flex confirmation goes to the customer,
+   * exactly one chat sync. Bar fulfils them together anyway, so this
+   * matches the physical workflow and avoids spamming the customer's
+   * LINE with N near-identical confirmations.
+   */
   const handleProcess = async () => {
-    if (!selectedWithdrawal || !user) return;
+    if (!selectedGroup || !user || !currentStoreId) return;
     setIsSubmitting(true);
     const supabase = createClient();
+    const rep = selectedGroup.rep;
+    const rowIds = selectedGroup.rows.map((r) => r.id);
+    const bottleIds = selectedGroup.rows
+      .map((r) => r.bottle_id)
+      .filter((id): id is string => !!id);
 
     if (processAction === 'complete') {
       const qty = parseFloat(actualQty);
@@ -564,26 +654,54 @@ export default function WithdrawalsPage() {
         return;
       }
 
-      // Update withdrawal
-      const { error: withdrawalError } = await supabase
-        .from('withdrawals')
-        .update({
-          status: 'completed',
-          actual_qty: qty,
-          processed_by: user.id,
-          notes: processNotes || null,
-          photo_url: withdrawalPhotoUrl,
-        })
-        .eq('id', selectedWithdrawal.id);
+      // Per-row qty: distribute across siblings if the bar trimmed the
+      // total below the requested sum (rare); otherwise each row keeps
+      // its requested_qty. Single-row groups behave exactly like before.
+      const totalRequested = selectedGroup.totalRequestedQty;
+      const rowQtys: number[] = selectedGroup.rows.map((r) =>
+        Number(r.requested_qty) || 0,
+      );
+      if (qty !== totalRequested) {
+        // Spread proportionally — keep the math simple, last row absorbs
+        // the rounding remainder.
+        let remaining = qty;
+        for (let i = 0; i < rowQtys.length; i++) {
+          if (i === rowQtys.length - 1) {
+            rowQtys[i] = Math.max(0, remaining);
+          } else {
+            const share = totalRequested > 0
+              ? Math.round((rowQtys[i] / totalRequested) * qty * 100) / 100
+              : 0;
+            rowQtys[i] = share;
+            remaining -= share;
+          }
+        }
+      }
 
-      if (withdrawalError) {
+      // Update every sibling withdrawal in parallel.
+      const updateResults = await Promise.all(
+        selectedGroup.rows.map((row, idx) =>
+          supabase
+            .from('withdrawals')
+            .update({
+              status: 'completed',
+              actual_qty: rowQtys[idx],
+              processed_by: user.id,
+              notes: processNotes || null,
+              photo_url: withdrawalPhotoUrl,
+            })
+            .eq('id', row.id),
+        ),
+      );
+      const firstErr = updateResults.find((r) => r.error);
+      if (firstErr?.error) {
         toast({ type: 'error', title: t('loadError'), message: t('withdrawals.processError') });
         setIsSubmitting(false);
         return;
       }
 
-      // Mark the specific bottle as consumed when the request targets one.
-      if (selectedWithdrawal.bottle_id) {
+      // Mark every targeted bottle consumed in one batch update.
+      if (bottleIds.length > 0) {
         await supabase
           .from('deposit_bottles')
           .update({
@@ -592,61 +710,71 @@ export default function WithdrawalsPage() {
             consumed_at: new Date().toISOString(),
             consumed_by: user.id,
           })
-          .eq('id', selectedWithdrawal.bottle_id);
+          .in('id', bottleIds);
       }
 
-      // Update deposit remaining quantity. Stay in pending_withdrawal
-      // when sibling rows are still pending so the bar page keeps
-      // surfacing them.
+      // Re-derive deposit aggregates from bottles (source of truth) so we
+      // don't drift if any sibling was previously partial-completed.
       const { data: deposit } = await supabase
         .from('deposits')
-        .select('remaining_qty, quantity, deposit_code')
-        .eq('id', selectedWithdrawal.deposit_id)
+        .select('id, deposit_code, quantity')
+        .eq('id', rep.deposit_id)
         .single();
+
       const { count: stillPending } = await supabase
         .from('withdrawals')
         .select('id', { count: 'exact', head: true })
-        .eq('deposit_id', selectedWithdrawal.deposit_id)
+        .eq('deposit_id', rep.deposit_id)
         .eq('status', 'pending');
 
       if (deposit) {
-        const newRemaining = Math.max(0, deposit.remaining_qty - qty);
-        const newPercent = deposit.quantity > 0 ? (newRemaining / deposit.quantity) * 100 : 0;
-        const newStatus = newRemaining <= 0
+        const { data: liveBottles } = await supabase
+          .from('deposit_bottles')
+          .select('status, remaining_percent')
+          .eq('deposit_id', deposit.id);
+        const remaining = (liveBottles || []).filter((b) => b.status !== 'consumed');
+        const newRemainingQty = remaining.length;
+        const newPercent =
+          remaining.length > 0
+            ? Math.round(
+                (remaining.reduce((s, b) => s + Number(b.remaining_percent), 0) / remaining.length) * 100,
+              ) / 100
+            : 0;
+        const newStatus = newRemainingQty <= 0
           ? 'withdrawn'
           : (stillPending && stillPending > 0 ? 'pending_withdrawal' : 'in_store');
 
         await supabase
           .from('deposits')
           .update({
-            remaining_qty: newRemaining,
+            remaining_qty: newRemainingQty,
             remaining_percent: newPercent,
             status: newStatus,
           })
-          .eq('id', selectedWithdrawal.deposit_id);
+          .eq('id', deposit.id);
       }
 
       toast({ type: 'success', title: t('withdrawals.processSuccess'), message: t('withdrawals.processSuccessMessage', { qty }) });
 
-      // Flex push to the customer's LINE OA (per-store toggle).
+      // ONE Flex confirmation — totals + bottle labels are already on the
+      // deposit row (we just updated remaining_qty). The customer no
+      // longer sees N duplicate Flex pushes for one batch withdrawal.
       fetch('/api/line/notify-deposit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'withdrawal_completed', deposit_id: selectedWithdrawal.deposit_id, actual_qty: qty }),
+        body: JSON.stringify({ type: 'withdrawal_completed', deposit_id: rep.deposit_id, actual_qty: qty }),
       }).catch(() => {});
 
-      // ส่ง system message เข้าห้องแชทสาขา
-      notifyChatWithdrawalCompleted(currentStoreId!, {
-        customer_name: selectedWithdrawal.customer_name,
-        product_name: selectedWithdrawal.product_name,
+      // ONE chat system message + ONE card sync.
+      notifyChatWithdrawalCompleted(currentStoreId, {
+        customer_name: rep.customer_name,
+        product_name: rep.product_name,
         actual_qty: qty,
         processed_by_name: user.displayName || user.username || 'พนักงาน',
       });
-
-      // Sync action card ในแชทให้เป็น completed
       if (deposit?.deposit_code) {
         syncChatActionCardStatus({
-          storeId: currentStoreId!,
+          storeId: currentStoreId,
           referenceId: deposit.deposit_code,
           actionType: 'withdrawal_claim',
           newStatus: 'completed',
@@ -655,13 +783,12 @@ export default function WithdrawalsPage() {
         });
       }
 
-      // Notify bar staff about the completed withdrawal
       notifyStaff({
-        storeId: currentStoreId!,
+        storeId: currentStoreId,
         type: 'withdrawal_request',
         title: 'มีคำขอเบิกเหล้า',
-        body: `${selectedWithdrawal.customer_name} ขอเบิก ${selectedWithdrawal.product_name} x${qty}`,
-        data: { withdrawal_id: selectedWithdrawal.id },
+        body: `${rep.customer_name} ขอเบิก ${rep.product_name} x${qty}`,
+        data: { withdrawal_id: rep.id },
         excludeUserId: user?.id,
       });
 
@@ -669,16 +796,18 @@ export default function WithdrawalsPage() {
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.WITHDRAWAL_COMPLETED,
         table_name: 'withdrawals',
-        record_id: selectedWithdrawal.id,
+        record_id: rep.id,
         new_value: {
-          customer_name: selectedWithdrawal.customer_name,
-          product_name: selectedWithdrawal.product_name,
+          customer_name: rep.customer_name,
+          product_name: rep.product_name,
           actual_qty: qty,
+          row_ids: rowIds,
+          bottle_labels: selectedGroup.bottleLabels,
         },
         changed_by: user?.id || null,
       });
     } else {
-      // Reject withdrawal
+      // Reject every sibling row in the group together.
       const { error } = await supabase
         .from('withdrawals')
         .update({
@@ -686,7 +815,7 @@ export default function WithdrawalsPage() {
           processed_by: user.id,
           notes: processNotes || null,
         })
-        .eq('id', selectedWithdrawal.id);
+        .in('id', rowIds);
 
       if (error) {
         toast({ type: 'error', title: t('loadError'), message: t('withdrawals.rejectError') });
@@ -694,23 +823,22 @@ export default function WithdrawalsPage() {
         return;
       }
 
-      // Reset deposit status back to in_store if it was pending_withdrawal
+      // Roll the deposit back to in_store if it was pending_withdrawal.
       const { data: rejectedDeposit } = await supabase
         .from('deposits')
         .select('deposit_code')
-        .eq('id', selectedWithdrawal.deposit_id)
+        .eq('id', rep.deposit_id)
         .single();
 
       await supabase
         .from('deposits')
         .update({ status: 'in_store' })
-        .eq('id', selectedWithdrawal.deposit_id)
+        .eq('id', rep.deposit_id)
         .eq('status', 'pending_withdrawal');
 
       toast({ type: 'warning', title: t('withdrawals.rejectSuccess') });
 
-      // Sync action card ในแชทให้เป็น rejected
-      if (rejectedDeposit?.deposit_code && currentStoreId) {
+      if (rejectedDeposit?.deposit_code) {
         syncChatActionCardStatus({
           storeId: currentStoreId,
           referenceId: rejectedDeposit.deposit_code,
@@ -719,28 +847,26 @@ export default function WithdrawalsPage() {
         });
       }
 
-      // Send LINE Flex card to customer that their withdrawal was cancelled.
-      if (selectedWithdrawal.deposit_id) {
-        fetch('/api/line/notify-deposit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'withdrawal_rejected',
-            deposit_id: selectedWithdrawal.deposit_id,
-            reason: processNotes || 'ยกเลิกจากร้าน',
-          }),
-        }).catch(() => {});
-      }
+      fetch('/api/line/notify-deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'withdrawal_rejected',
+          deposit_id: rep.deposit_id,
+          reason: processNotes || 'ยกเลิกจากร้าน',
+        }),
+      }).catch(() => {});
 
       await logAudit({
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.WITHDRAWAL_REJECTED,
         table_name: 'withdrawals',
-        record_id: selectedWithdrawal.id,
+        record_id: rep.id,
         new_value: {
-          customer_name: selectedWithdrawal.customer_name,
-          product_name: selectedWithdrawal.product_name,
+          customer_name: rep.customer_name,
+          product_name: rep.product_name,
           reason: processNotes || null,
+          row_ids: rowIds,
         },
         changed_by: user?.id || null,
       });
@@ -748,7 +874,7 @@ export default function WithdrawalsPage() {
 
     setIsSubmitting(false);
     setShowProcessModal(false);
-    setSelectedWithdrawal(null);
+    setSelectedGroup(null);
     loadWithdrawals();
   };
 
@@ -762,6 +888,11 @@ export default function WithdrawalsPage() {
     if (activeTab === 'rejected') return withdrawals.filter((w) => w.status === 'rejected');
     return withdrawals;
   }, [withdrawals, activeTab]);
+
+  const groupedWithdrawals = useMemo(
+    () => groupWithdrawals(filteredWithdrawals, bottleContext),
+    [filteredWithdrawals, bottleContext],
+  );
 
   const withdrawalTabs = ['pending', 'completed', 'rejected'].map((id) => ({ id, label: t(WITHDRAWAL_TAB_KEYS[id]) }));
   const tabsWithCounts = withdrawalTabs.map((tab) => {
@@ -882,71 +1013,70 @@ export default function WithdrawalsPage() {
         />
       ) : (
         <div className="space-y-3">
-          {filteredWithdrawals.map((withdrawal) => {
-            const isPending = withdrawal.status === 'pending' || withdrawal.status === 'approved';
-            const isExpanded = isPending || expandedIds.has(withdrawal.id);
+          {groupedWithdrawals.map((group) => {
+            const rep = group.rep;
+            const isPending = rep.status === 'pending' || rep.status === 'approved';
+            const isExpanded = isPending || expandedIds.has(group.key);
+            const code = depositCodeMap.get(rep.deposit_id);
+            const isMulti = group.rows.length > 1;
 
             return (
-              <Card key={withdrawal.id} padding="none">
-                {/* Compact header — always visible, clickable for non-pending */}
+              <Card key={group.key} padding="none">
                 <div
                   className={cn(
                     'flex items-center gap-3 p-4 sm:p-5',
                     !isPending && 'cursor-pointer select-none',
                     isExpanded && !isPending && 'border-b border-gray-100 dark:border-gray-800'
                   )}
-                  onClick={!isPending ? () => toggleExpand(withdrawal.id) : undefined}
+                  onClick={!isPending ? () => toggleExpand(group.key) : undefined}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="truncate font-semibold text-gray-900 dark:text-white">
-                        {withdrawal.product_name}
+                        {rep.product_name}
                       </h3>
-                      <Badge variant={statusVariantMap[withdrawal.status] || 'default'}>
-                        {WITHDRAWAL_STATUS_LABELS[withdrawal.status] || withdrawal.status}
+                      <Badge variant={statusVariantMap[rep.status] || 'default'}>
+                        {WITHDRAWAL_STATUS_LABELS[rep.status] || rep.status}
                       </Badge>
                     </div>
                     <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      {(() => {
-                        const code = depositCodeMap.get(withdrawal.deposit_id);
-                        return code ? <span className="mr-1 font-mono text-gray-400">#{code}</span> : null;
-                      })()}
-                      {withdrawal.customer_name} · x{formatNumber(withdrawal.requested_qty)} · {formatThaiDateTime(withdrawal.created_at)}
-                      {withdrawal.withdrawal_type === 'take_home' && (
+                      {code && <span className="mr-1 font-mono text-gray-400">#{code}</span>}
+                      {rep.customer_name} · x{formatNumber(group.totalRequestedQty)} · {formatThaiDateTime(rep.created_at)}
+                      {rep.withdrawal_type === 'take_home' && (
                         <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                           <Home className="h-2.5 w-2.5" /> {t('withdrawals.takeHome')}
                         </span>
                       )}
                     </p>
-                    {(() => {
-                      const ctx = withdrawal.bottle_id ? bottleContext.get(withdrawal.bottle_id) : null;
-                      if (!ctx) return null;
-                      // Once approved, the bottle is consumed and its
-                      // remaining_percent is 0 — showing "0%" beside
-                      // every completed row was confusing, so we only
-                      // surface the % chip while the request is still
-                      // pending (where it tells the bar what % the
-                      // bottle has right now).
-                      const showPct = withdrawal.status === 'pending' || withdrawal.status === 'approved';
-                      const pctClass = ctx.remaining_percent >= 70
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                        : ctx.remaining_percent >= 30
-                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                          : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300';
-                      return (
-                        <p className="mt-1 flex items-center gap-1.5 text-[11px]">
-                          <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
-                            <Wine className="h-3 w-3" />
-                            {t('withdrawals.bottleNoLabel', { no: ctx.bottle_no, total: ctx.deposit_quantity })}
-                          </span>
-                          {showPct && (
-                            <span className={cn('inline-block rounded-full px-2 py-0.5 font-semibold', pctClass)}>
-                              {ctx.remaining_percent}%
+                    {/* Bottle pills — show one chip per row in the group so
+                        bar sees "Bombay x2 (2/3, 3/3)" instead of two cards. */}
+                    {group.rows.some((r) => r.bottle_id) && (
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {group.rows.map((row) => {
+                          const ctx = row.bottle_id ? bottleContext.get(row.bottle_id) : null;
+                          if (!ctx) return null;
+                          const showPct = row.status === 'pending' || row.status === 'approved';
+                          const pctClass = ctx.remaining_percent >= 70
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                            : ctx.remaining_percent >= 30
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                              : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300';
+                          return (
+                            <span key={row.id} className="inline-flex items-center gap-1 text-[11px]">
+                              <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                <Wine className="h-3 w-3" />
+                                {t('withdrawals.bottleNoLabel', { no: ctx.bottle_no, total: ctx.deposit_quantity })}
+                              </span>
+                              {showPct && (
+                                <span className={cn('inline-block rounded-full px-1.5 py-0.5 font-semibold', pctClass)}>
+                                  {ctx.remaining_percent}%
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </p>
-                      );
-                    })()}
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   {!isPending && (
                     <ChevronDown
@@ -958,79 +1088,81 @@ export default function WithdrawalsPage() {
                   )}
                 </div>
 
-                {/* Expanded details */}
                 {isExpanded && (
                   <div className="p-4 pt-0 sm:p-5 sm:pt-0">
-                    {/* Details Grid */}
                     <div className="mb-4 mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
                       <div>
                         <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.customerLabel')}</span>
                         <p className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
                           <User className="h-3.5 w-3.5 text-gray-400" />
-                          {withdrawal.customer_name}
+                          {rep.customer_name}
                         </p>
                       </div>
                       <div>
                         <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.requestedQty')}</span>
                         <p className="font-medium text-gray-900 dark:text-white">
-                          {formatNumber(withdrawal.requested_qty)}
+                          {formatNumber(group.totalRequestedQty)}
+                          {isMulti && (
+                            <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                              ({group.rows.length} {t('withdrawals.bottlesUnitShort') || 'ขวด'})
+                            </span>
+                          )}
                         </p>
                       </div>
-                      {withdrawal.actual_qty !== null && (
+                      {group.totalActualQty !== null && (
                         <div>
                           <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.actualQty')}</span>
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {formatNumber(withdrawal.actual_qty)}
+                            {formatNumber(group.totalActualQty)}
                           </p>
                         </div>
                       )}
-                      {withdrawal.table_number && (
+                      {rep.table_number && (
                         <div>
                           <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.tableLabel')}</span>
-                          <p className="font-medium text-gray-900 dark:text-white">{withdrawal.table_number}</p>
+                          <p className="font-medium text-gray-900 dark:text-white">{rep.table_number}</p>
                         </div>
                       )}
                       <div>
                         <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.dateLabel')}</span>
                         <p className="font-medium text-gray-900 dark:text-white">
-                          {formatThaiDateTime(withdrawal.created_at)}
+                          {formatThaiDateTime(rep.created_at)}
                         </p>
                       </div>
-                      {withdrawal.processed_by_name && (
+                      {rep.processed_by_name && (
                         <div>
                           <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.processedBy')}</span>
                           <p className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
                             <User className="h-3.5 w-3.5 text-gray-400" />
-                            {withdrawal.processed_by_name}
+                            {rep.processed_by_name}
                           </p>
                         </div>
                       )}
                     </div>
 
-                    {withdrawal.photo_url && (
+                    {rep.photo_url && (
                       <div className="mb-3">
                         <img
-                          src={withdrawal.photo_url}
+                          src={rep.photo_url}
                           alt={t('withdrawals.photoAlt')}
                           className="h-20 w-20 rounded-lg object-cover"
                         />
                       </div>
                     )}
 
-                    {withdrawal.notes && (
+                    {rep.notes && (
                       <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                        {t('withdrawals.notesPrefix', { notes: withdrawal.notes })}
+                        {t('withdrawals.notesPrefix', { notes: rep.notes })}
                       </p>
                     )}
 
-                    {/* Action Buttons for Pending */}
                     {isPending && (
                       <div className="flex gap-2">
                         <Button
                           className="min-h-[44px] flex-1"
                           variant="danger"
                           icon={<XCircle className="h-4 w-4" />}
-                          onClick={() => openProcessModal(withdrawal, 'reject')}
+                          onClick={() => openProcessModal(group, 'reject')}
                         >
                           {t('withdrawals.rejectButton')}
                         </Button>
@@ -1038,7 +1170,7 @@ export default function WithdrawalsPage() {
                           className="min-h-[44px] flex-1"
                           variant="primary"
                           icon={<CheckCircle2 className="h-4 w-4" />}
-                          onClick={() => openProcessModal(withdrawal, 'complete')}
+                          onClick={() => openProcessModal(group, 'complete')}
                         >
                           {t('withdrawals.processButton')}
                         </Button>
@@ -1057,22 +1189,21 @@ export default function WithdrawalsPage() {
         isOpen={showProcessModal}
         onClose={() => {
           setShowProcessModal(false);
-          setSelectedWithdrawal(null);
+          setSelectedGroup(null);
         }}
         title={processAction === 'complete' ? t('withdrawals.processTitle') : t('withdrawals.rejectTitle')}
         description={
-          selectedWithdrawal
-            ? `${selectedWithdrawal.product_name} - ${selectedWithdrawal.customer_name}`
+          selectedGroup
+            ? `${selectedGroup.rep.product_name} - ${selectedGroup.rep.customer_name}`
             : undefined
         }
         size="md"
       >
         <div className="space-y-4">
-          {/* Summary */}
-          {selectedWithdrawal && (() => {
-            const ctx = selectedWithdrawal.bottle_id ? bottleContext.get(selectedWithdrawal.bottle_id) : null;
-            const showPct = selectedWithdrawal.status === 'pending' || selectedWithdrawal.status === 'approved';
-            const code = depositCodeMap.get(selectedWithdrawal.deposit_id);
+          {/* Summary — group-aware: lists every bottle in the request */}
+          {selectedGroup && (() => {
+            const rep = selectedGroup.rep;
+            const code = depositCodeMap.get(rep.deposit_id);
             return (
               <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
                 <div className="space-y-2 text-sm">
@@ -1084,36 +1215,45 @@ export default function WithdrawalsPage() {
                   )}
                   <div className="flex justify-between">
                     <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.productLabel')}</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{selectedWithdrawal.product_name}</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{rep.product_name}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.customerLabel')}</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{selectedWithdrawal.customer_name}</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{rep.customer_name}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.requestedQty')}</span>
                     <span className="font-medium text-gray-900 dark:text-white">
-                      {formatNumber(selectedWithdrawal.requested_qty)}
+                      {formatNumber(selectedGroup.totalRequestedQty)}
                     </span>
                   </div>
-                  {ctx && (
-                    <div className="flex items-center justify-between border-t border-gray-200 pt-2 dark:border-gray-600">
+                  {selectedGroup.rows.some((r) => r.bottle_id) && (
+                    <div className="border-t border-gray-200 pt-2 dark:border-gray-600">
                       <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.bottleLabel')}</span>
-                      <span className="flex items-center gap-2">
-                        <span className="font-semibold text-gray-900 dark:text-white">
-                          {t('withdrawals.bottleNoLabel', { no: ctx.bottle_no, total: ctx.deposit_quantity })}
-                        </span>
-                        {showPct && (
-                          <span className={cn(
-                            'rounded-full px-2 py-0.5 text-xs font-semibold',
-                            ctx.remaining_percent >= 70 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                              : ctx.remaining_percent >= 30 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                              : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-                          )}>
-                            {ctx.remaining_percent}%
-                          </span>
-                        )}
-                      </span>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {selectedGroup.rows.map((row) => {
+                          const ctx = row.bottle_id ? bottleContext.get(row.bottle_id) : null;
+                          if (!ctx) return null;
+                          const showPct = row.status === 'pending' || row.status === 'approved';
+                          const pctClass = ctx.remaining_percent >= 70
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                            : ctx.remaining_percent >= 30
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                              : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300';
+                          return (
+                            <span key={row.id} className="inline-flex items-center gap-1">
+                              <span className="rounded-md bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                {t('withdrawals.bottleNoLabel', { no: ctx.bottle_no, total: ctx.deposit_quantity })}
+                              </span>
+                              {showPct && (
+                                <span className={cn('rounded-full px-1.5 py-0.5 text-[11px] font-semibold', pctClass)}>
+                                  {ctx.remaining_percent}%
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1160,7 +1300,7 @@ export default function WithdrawalsPage() {
             variant="outline"
             onClick={() => {
               setShowProcessModal(false);
-              setSelectedWithdrawal(null);
+              setSelectedGroup(null);
             }}
           >
             {t('cancel')}

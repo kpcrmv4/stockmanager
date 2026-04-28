@@ -272,10 +272,13 @@
   letter-spacing: 0.4px;
 }
 
-/* White inner detail box inside dark card */
+/* Cream inner detail box inside dark card.
+   Pure white was too bright at night — and the cream bottle pills (cream
+   text on a cream-tinted bg) disappeared into it. A soft parchment tone
+   keeps the dark text readable while letting the cream pills pop. */
 .customer-detail-box {
-  background: #FFFFFF;
-  border: 1px solid #E5E5E5;
+  background: #EFE6CE;
+  border: 1px solid #D9CDAE;
   border-radius: 8px;
   padding: 10px 12px;
   margin-top: 10px;
@@ -283,7 +286,7 @@
 }
 .customer-detail-label {
   font-size: 9px;
-  color: #888888;
+  color: #7A6E55;
   margin: 0;
   line-height: 1.2;
 }
@@ -294,14 +297,14 @@
   line-height: 1.2;
 }
 .customer-detail-value.accent {
-  color: #C28A2C;
+  color: #A0681C;
 }
 .customer-detail-value.dark {
-  color: #333333;
+  color: #2A1A1A;
 }
 .customer-detail-separator {
   height: 1px;
-  background: #F0F0F0;
+  background: #D9CDAE;
   margin: 8px 0;
 }
 
