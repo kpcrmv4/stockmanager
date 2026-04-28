@@ -55,27 +55,18 @@ interface DepositItem {
   showDropdown: boolean;
 }
 
-// Static map for non-component contexts (e.g. ProductSearchInput)
-const CATEGORY_LABEL_MAP: Record<string, string> = {
-  whisky: 'Whisky', vodka: 'Vodka', brandy: 'Brandy', rum: 'Rum',
-  gin: 'Gin', tequila: 'Tequila', wine: 'Wine', beer: 'Beer',
-  sake: 'Sake', soju: 'Soju', other: 'Other',
-};
-
-function getCategoryOptions(t: (key: string) => string) {
+// Build the category dropdown from whatever categories actually exist
+// in the store's products table (free-form strings like "MAT-Wine"),
+// not a hardcoded enum, so auto-fill matches what stock/products shows.
+function buildCategoryOptions(t: (key: string) => string, products: ProductOption[]) {
+  const seen = new Set<string>();
+  for (const p of products) {
+    if (p.category) seen.add(p.category);
+  }
+  const sorted = Array.from(seen).sort((a, b) => a.localeCompare(b));
   return [
     { value: '', label: t('form.selectCategory'), disabled: true },
-    { value: 'whisky', label: t('form.catWhisky') },
-    { value: 'vodka', label: t('form.catVodka') },
-    { value: 'brandy', label: t('form.catBrandy') },
-    { value: 'rum', label: t('form.catRum') },
-    { value: 'gin', label: t('form.catGin') },
-    { value: 'tequila', label: t('form.catTequila') },
-    { value: 'wine', label: t('form.catWine') },
-    { value: 'beer', label: t('form.catBeer') },
-    { value: 'sake', label: t('form.catSake') },
-    { value: 'soju', label: t('form.catSoju') },
-    { value: 'other', label: t('form.catOther') },
+    ...sorted.map((c) => ({ value: c, label: c })),
   ];
 }
 
@@ -319,7 +310,7 @@ function ProductSearchInput({
               </span>
               {product.category && (
                 <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-                  {CATEGORY_LABEL_MAP[product.category] || product.category}
+                  {product.category}
                 </span>
               )}
             </button>
@@ -343,7 +334,6 @@ function ProductSearchInput({
 
 export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
   const t = useTranslations('deposit');
-  const categoryOptions = getCategoryOptions(t);
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
 
@@ -363,6 +353,7 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
   // ----- Products from DB -----
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const categoryOptions = buildCategoryOptions(t, products);
 
   // ----- Customers from previous deposits -----
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
