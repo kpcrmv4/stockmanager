@@ -21,16 +21,47 @@ class HtmlRenderer {
 
   /**
    * ใบรับฝากเหล้า (Deposit Receipt)
-   * เหมือน GAS: inline style, width:70mm, Tahoma 11pt
+   * One page per bottle when payload.bottles[] has > 1 entry, so a
+   * 3-bottle deposit prints 3 receipts numbered 1/3, 2/3, 3/3 — each
+   * carrying the per-bottle remaining_percent at confirm time. Single-
+   * bottle deposits keep the GAS-style single page.
    */
   renderReceipt(payload) {
-    const showQr = this.settings.show_qr && this.settings.qr_code_image_url;
-    const lineOaId = this.settings.line_oa_id || '';
+    const bottles = Array.isArray(payload.bottles) && payload.bottles.length > 0
+      ? payload.bottles
+      : null;
+    const totalBottles = payload.quantity || (bottles ? bottles.length : 1);
 
-    // GAS exact format: inline styles, no <head> CSS
+    if (bottles && bottles.length > 1) {
+      let html = `<html><head><meta charset="UTF-8">` +
+        `<style>@page{size:${this.paperWidth}mm auto;margin:0;} .page{page-break-after:always;} .page:last-child{page-break-after:auto;}</style>` +
+        `</head><body style="font-family:Tahoma,sans-serif;font-size:11pt;margin:0;padding:0;">`;
+      for (const b of bottles) {
+        html += `<div class="page" style="width:70mm;margin:0 auto;padding:3mm;">` +
+          this._receiptBody(payload, { bottleNo: b.bottle_no, totalBottles, bottlePercent: b.remaining_percent }) +
+          `</div>`;
+      }
+      html += `</body></html>`;
+      return html;
+    }
+
+    // Single-bottle / legacy path
+    const single = bottles && bottles.length === 1
+      ? { bottleNo: bottles[0].bottle_no, totalBottles, bottlePercent: bottles[0].remaining_percent }
+      : { bottleNo: null, totalBottles, bottlePercent: null };
     return `<html><head><meta charset="UTF-8"></head>` +
       `<body style="font-family:Tahoma,sans-serif;font-size:11pt;width:70mm;margin:0 auto;padding:3mm;">` +
-      `<center style="font-size:10pt;">${this.storeName}</center>` +
+      this._receiptBody(payload, single) +
+      `</body></html>`;
+  }
+
+  _receiptBody(payload, { bottleNo, totalBottles, bottlePercent }) {
+    const showQr = this.settings.show_qr && this.settings.qr_code_image_url;
+    const lineOaId = this.settings.line_oa_id || '';
+    const showBottleRow = bottleNo !== null && totalBottles > 1;
+    const showPctRow = bottlePercent !== null && bottlePercent !== undefined;
+
+    return `<center style="font-size:10pt;">${this.storeName}</center>` +
       `<center><b style="font-size:14pt;">DEPOSIT RECEIPT</b></center>` +
       `<hr>` +
       `<center><b style="font-size:16pt;">${payload.deposit_code}</b></center>` +
@@ -40,6 +71,8 @@ class HtmlRenderer {
       (payload.customer_phone ? `<tr><td>Phone:</td><td>${payload.customer_phone}</td></tr>` : '') +
       `<tr><td>Product:</td><td>${payload.product_name || '-'}</td></tr>` +
       `<tr><td>Qty:</td><td>${payload.remaining_qty || payload.quantity || '-'}</td></tr>` +
+      (showBottleRow ? `<tr><td>Bottle:</td><td><b>${bottleNo}/${totalBottles}</b></td></tr>` : '') +
+      (showPctRow ? `<tr><td>Remaining:</td><td><b>${bottlePercent}%</b></td></tr>` : '') +
       (payload.table_number ? `<tr><td>Note:</td><td>${payload.table_number}</td></tr>` : '') +
       `</table>` +
       `<hr>` +
@@ -55,8 +88,7 @@ class HtmlRenderer {
           `<center style="font-size:10pt;">Please scan this QRcode</center>` +
           `<center style="font-size:10pt;">Send receipt in Line</center>` +
           `<center style="font-size:10pt;">Type <b>${payload.deposit_code}</b> in chat</center>`
-        : '') +
-      `</body></html>`;
+        : '');
   }
 
   /**

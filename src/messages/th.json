@@ -454,13 +454,17 @@
       "depositDate": "วันที่ฝาก:",
       "expiryDate": "วันหมดอายุ:",
       "receivedBy": "ผู้รับฝาก:",
-      "copyOf": "ใบที่ {current}/{total}"
+      "copyOf": "ใบที่ {current}/{total}",
+      "bottleNo": "ขวดที่:",
+      "bottleRemaining": "คงเหลือ:"
     },
     "label": {
       "customer": "ลูกค้า:",
       "product": "สินค้า:",
       "expiry": "หมดอายุ:",
-      "depositDate": "วันที่ฝาก:"
+      "depositDate": "วันที่ฝาก:",
+      "bottleNo": "ขวดที่:",
+      "bottleRemaining": "คงเหลือ:"
     },
     "transferReceipt": {
       "title": "ใบนำส่งเหล้าคลังกลาง",
@@ -969,7 +973,9 @@
     "labelCustomer": "ลูกค้า:",
     "labelProduct": "สินค้า:",
     "labelExpiry": "หมดอายุ:",
-    "labelDepositDate": "วันที่ฝาก:"
+    "labelDepositDate": "วันที่ฝาก:",
+    "bottleNo": "ขวดที่:",
+    "bottleRemaining": "คงเหลือ:"
   },
   "announcements": {
     "title": "ประกาศ/โปรโมชั่น",

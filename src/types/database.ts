@@ -413,6 +413,10 @@ export interface PrintPayload {
   received_by_name: string | null;
   qr_code_image_url: string | null;
   line_oa_id: string | null;
+  /** Per-bottle data for multi-bottle deposits — drives "Bottle 1/N" +
+   *  remaining % rows on receipts and labels. Empty / undefined for
+   *  single-bottle or legacy payloads. */
+  bottles?: Array<{ bottle_no: number; remaining_percent: number; status?: string }>;
 }
 
 export interface TransferPrintPayload {

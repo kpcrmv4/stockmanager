@@ -534,13 +534,16 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                   .filter((b) => b.status !== 'consumed')
                   .map((b) => ({ bottle_no: b.bottle_no, remaining_percent: b.remaining_percent, status: b.status }));
                 await Promise.all([
+                  // One receipt per bottle so the customer's slip in the
+                  // screenshot shows "Bottle 1/3" + per-bottle %, not a
+                  // single Qty:3 line.
                   supabase.from('print_queue').insert({
                     store_id: storeId,
                     deposit_id: depositRow.id,
                     job_type: 'receipt',
                     status: 'pending',
-                    copies: 1,
-                    payload: { ...printPayloadBase, bottles: [] },
+                    copies: labelBottles.length || validQty,
+                    payload: { ...printPayloadBase, bottles: labelBottles },
                     requested_by: currentUserId,
                   }),
                   supabase.from('print_queue').insert({

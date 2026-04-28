@@ -608,7 +608,67 @@ function ReceiptContent({
   settings: ReceiptSettings | null;
   storeName: string;
 }) {
+  // Render N receipt pages for multi-bottle deposits — each page has
+  // the bottle number + per-bottle remaining %, page-break-after kicks
+  // the thermal printer to cut between bottles.
+  const bottles = Array.isArray(payload.bottles) && payload.bottles.length > 0
+    ? payload.bottles
+    : null;
+  const totalBottles = payload.quantity || (bottles?.length ?? 1);
+  if (bottles && bottles.length > 1) {
+    return (
+      <>
+        {bottles.map((b, idx) => (
+          <div
+            key={b.bottle_no}
+            style={{ pageBreakAfter: idx < bottles.length - 1 ? 'always' : 'auto' }}
+          >
+            <SingleReceipt
+              payload={payload}
+              settings={settings}
+              storeName={storeName}
+              bottleNo={b.bottle_no}
+              totalBottles={totalBottles}
+              bottlePercent={b.remaining_percent}
+            />
+          </div>
+        ))}
+      </>
+    );
+  }
+  const single = bottles && bottles.length === 1
+    ? { bottleNo: bottles[0].bottle_no, totalBottles, bottlePercent: bottles[0].remaining_percent }
+    : { bottleNo: null, totalBottles, bottlePercent: null };
+  return (
+    <SingleReceipt
+      payload={payload}
+      settings={settings}
+      storeName={storeName}
+      bottleNo={single.bottleNo}
+      totalBottles={single.totalBottles}
+      bottlePercent={single.bottlePercent}
+    />
+  );
+}
+
+function SingleReceipt({
+  payload,
+  settings,
+  storeName,
+  bottleNo,
+  totalBottles,
+  bottlePercent,
+}: {
+  payload: PrintPayload;
+  settings: ReceiptSettings | null;
+  storeName: string;
+  bottleNo: number | null;
+  totalBottles: number;
+  bottlePercent: number | null;
+}) {
   const t = useTranslations('printListener');
+  const showBottleRow = bottleNo !== null && totalBottles > 1;
+  const showPctRow = bottlePercent !== null && bottlePercent !== undefined;
   return (
     <div>
       {/* Store Name */}
@@ -666,6 +726,12 @@ function ReceiptContent({
           label={t('quantity')}
           value={`${formatNumber(payload.remaining_qty)} / ${formatNumber(payload.quantity)}`}
         />
+        {showBottleRow && (
+          <ReceiptRow label={t('bottleNo')} value={`${bottleNo}/${totalBottles}`} bold />
+        )}
+        {showPctRow && (
+          <ReceiptRow label={t('bottleRemaining')} value={`${bottlePercent}%`} bold />
+        )}
       </div>
 
       {/* Dates */}

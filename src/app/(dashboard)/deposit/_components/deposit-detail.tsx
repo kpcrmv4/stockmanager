@@ -510,13 +510,15 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       line_oa_id: receiptSettings?.line_oa_id ?? null,
     };
     await Promise.all([
+      // One receipt per bottle so multi-bottle deposits get individual
+      // slips numbered 1/N + per-bottle % (matches the bottle labels).
       supabase.from('print_queue').insert({
         store_id: currentStoreId,
         deposit_id: deposit.id,
         job_type: 'receipt',
         status: 'pending',
-        copies: 1,
-        payload: { ...printPayloadBase, bottles: [] },
+        copies: newBottlesForPrint.length || qty,
+        payload: { ...printPayloadBase, bottles: newBottlesForPrint },
         requested_by: user.id,
       }),
       supabase.from('print_queue').insert({

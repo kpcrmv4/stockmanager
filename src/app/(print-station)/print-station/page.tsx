@@ -654,22 +654,49 @@ export default function PrintStationPage() {
         id="print-area"
         className={activePrintJob?.job_type === 'label' ? 'print-label' : undefined}
       >
-        {activePrintJob && activePrintJob.job_type === 'receipt' && (
-          // Receipt: print copies = number of bottles (quantity)
-          Array.from({ length: (activePrintJob.payload as PrintPayload).quantity || 1 }).map((_, i) => (
+        {activePrintJob && activePrintJob.job_type === 'receipt' && (() => {
+          // One receipt per bottle. When the payload carries a bottles[]
+          // array (the new flow) each page shows that bottle's
+          // remaining_percent; otherwise we fall back to quantity copies
+          // numbered i/N for legacy jobs.
+          const payload = activePrintJob.payload as PrintPayload;
+          const bottles = Array.isArray(payload.bottles) && payload.bottles.length > 0
+            ? payload.bottles
+            : null;
+          const total = payload.quantity || (bottles?.length ?? 1);
+          if (bottles) {
+            return bottles.map((b) => (
+              <div key={b.bottle_no} className="print-copy-separator">
+                <ReceiptContent payload={payload} settings={receiptSettings} storeName={storeName} copyNumber={b.bottle_no} totalCopies={total} bottlePercent={b.remaining_percent} t={t} />
+              </div>
+            ));
+          }
+          return Array.from({ length: total }).map((_, i) => (
             <div key={i} className="print-copy-separator">
-              <ReceiptContent payload={activePrintJob.payload as PrintPayload} settings={receiptSettings} storeName={storeName} copyNumber={i + 1} totalCopies={(activePrintJob.payload as PrintPayload).quantity || 1} t={t} />
+              <ReceiptContent payload={payload} settings={receiptSettings} storeName={storeName} copyNumber={i + 1} totalCopies={total} t={t} />
             </div>
-          ))
-        )}
-        {activePrintJob && activePrintJob.job_type === 'label' && (
-          // Label: print copies from settings
-          Array.from({ length: receiptSettings?.label_copies || 1 }).map((_, i) => (
+          ));
+        })()}
+        {activePrintJob && activePrintJob.job_type === 'label' && (() => {
+          // Same treatment for labels — bottles[] beats label_copies.
+          const payload = activePrintJob.payload as PrintPayload;
+          const bottles = Array.isArray(payload.bottles) && payload.bottles.length > 0
+            ? payload.bottles
+            : null;
+          if (bottles) {
+            const total = payload.quantity || bottles.length;
+            return bottles.map((b) => (
+              <div key={b.bottle_no} className="print-label-copy">
+                <LabelContent payload={payload} storeName={storeName} bottleNo={b.bottle_no} totalBottles={total} bottlePercent={b.remaining_percent} t={t} />
+              </div>
+            ));
+          }
+          return Array.from({ length: receiptSettings?.label_copies || 1 }).map((_, i) => (
             <div key={i} className="print-label-copy">
-              <LabelContent payload={activePrintJob.payload as PrintPayload} storeName={storeName} t={t} />
+              <LabelContent payload={payload} storeName={storeName} t={t} />
             </div>
-          ))
-        )}
+          ));
+        })()}
         {activePrintJob && activePrintJob.job_type === 'transfer' && (
           <div className="print-copy-separator">
             <TransferReceiptContent payload={activePrintJob.payload as TransferPrintPayload} storeName={storeName} t={t} />
@@ -1020,6 +1047,7 @@ function ReceiptContent({
   storeName,
   copyNumber,
   totalCopies,
+  bottlePercent,
   t,
 }: {
   payload: PrintPayload;
@@ -1027,8 +1055,11 @@ function ReceiptContent({
   storeName: string;
   copyNumber?: number;
   totalCopies?: number;
+  bottlePercent?: number | null;
   t: ReturnType<typeof useTranslations>;
 }) {
+  const showBottleRow = !!copyNumber && !!totalCopies && totalCopies > 1;
+  const showPctRow = bottlePercent !== null && bottlePercent !== undefined;
   return (
     <div>
       {/* Logo */}
@@ -1063,6 +1094,12 @@ function ReceiptContent({
         <ReceiptRow label={t('receipt.product')} value={payload.product_name} bold />
         {payload.category && <ReceiptRow label={t('receipt.category')} value={payload.category} />}
         <ReceiptRow label={t('receipt.quantity')} value={`${formatNumber(payload.remaining_qty)} / ${formatNumber(payload.quantity)}`} />
+        {showBottleRow && (
+          <ReceiptRow label={t('receipt.bottleNo')} value={`${copyNumber}/${totalCopies}`} bold />
+        )}
+        {showPctRow && (
+          <ReceiptRow label={t('receipt.bottleRemaining')} value={`${bottlePercent}%`} bold />
+        )}
       </div>
       <div style={{ margin: '6px 0' }}>
         <ReceiptRow label={t('receipt.depositDate')} value={formatThaiDate(payload.created_at)} />
@@ -1109,7 +1146,23 @@ function ReceiptContent({
 // Label renderer (for print area)
 // ---------------------------------------------------------------------------
 
-function LabelContent({ payload, storeName, t }: { payload: PrintPayload; storeName: string; t: ReturnType<typeof useTranslations> }) {
+function LabelContent({
+  payload,
+  storeName,
+  bottleNo,
+  totalBottles,
+  bottlePercent,
+  t,
+}: {
+  payload: PrintPayload;
+  storeName: string;
+  bottleNo?: number;
+  totalBottles?: number;
+  bottlePercent?: number | null;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  const showBottle = !!bottleNo && !!totalBottles && totalBottles > 1;
+  const showPct = bottlePercent !== null && bottlePercent !== undefined;
   return (
     <div>
       <div style={{ textAlign: 'center', fontSize: '7pt', lineHeight: 1.2, marginBottom: '1mm', color: '#333' }}>
@@ -1121,6 +1174,8 @@ function LabelContent({ payload, storeName, t }: { payload: PrintPayload; storeN
       <hr style={{ border: 'none', borderTop: '0.5px solid #999', margin: '1mm 0' }} />
       <LabelRow label={t('label.customer')} value={payload.customer_name} />
       <LabelRow label={t('label.product')} value={payload.product_name} />
+      {showBottle && <LabelRow label={t('label.bottleNo')} value={`${bottleNo}/${totalBottles}`} />}
+      {showPct && <LabelRow label={t('label.bottleRemaining')} value={`${bottlePercent}%`} />}
       {payload.expiry_date && <LabelRow label={t('label.expiry')} value={formatThaiDate(payload.expiry_date)} />}
       <LabelRow label={t('label.depositDate')} value={formatThaiDate(payload.created_at)} />
     </div>

@@ -454,13 +454,17 @@
       "depositDate": "Deposit Date:",
       "expiryDate": "Expiry Date:",
       "receivedBy": "Received By:",
-      "copyOf": "Copy {current}/{total}"
+      "copyOf": "Copy {current}/{total}",
+      "bottleNo": "Bottle:",
+      "bottleRemaining": "Remaining:"
     },
     "label": {
       "customer": "Customer:",
       "product": "Product:",
       "expiry": "Expires:",
-      "depositDate": "Deposit Date:"
+      "depositDate": "Deposit Date:",
+      "bottleNo": "Bottle:",
+      "bottleRemaining": "Remaining:"
     },
     "transferReceipt": {
       "title": "HQ Warehouse Transfer Slip",
@@ -969,7 +973,9 @@
     "labelCustomer": "Customer:",
     "labelProduct": "Product:",
     "labelExpiry": "Expiry:",
-    "labelDepositDate": "Deposit Date:"
+    "labelDepositDate": "Deposit Date:",
+    "bottleNo": "Bottle:",
+    "bottleRemaining": "Remaining:"
   },
   "announcements": {
     "title": "Announcements",
