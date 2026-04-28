@@ -108,7 +108,12 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
           type Profile = { id: string; display_name: string | null; username: string; role: string; active: boolean };
           const rows: Profile[] = (data as unknown as Array<{ profiles: Profile | Profile[] | null }>)
             .flatMap((r) => Array.isArray(r.profiles) ? r.profiles : r.profiles ? [r.profiles] : [])
-            .filter((p) => p.active && ['staff', 'bar', 'manager'].includes(p.role))
+            // Drop the per-store Print Server service account
+            // (username `printer-{store_code}`) so it doesn't show up
+            // as a person who can earn bottle commission.
+            .filter((p) => p.active
+              && ['staff', 'bar', 'manager'].includes(p.role)
+              && !p.username?.startsWith('printer'))
             .sort((a, b) => (a.display_name || a.username).localeCompare(b.display_name || b.username));
           setStaffList(rows.map(({ id, display_name, username, role }) => ({ id, display_name, username, role })));
         });
