@@ -30,6 +30,9 @@ import {
   ArrowRight,
   ScanLine,
   ClipboardList,
+  MapPin,
+  Search,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { notifyStaff } from '@/lib/notifications/client';
@@ -45,7 +48,45 @@ interface ActionCardMessageProps {
   currentUserRole?: string;
   roomId: string;
   storeId: string | null;
-  onStatusChange?: () => void;
+  onStatusChange?: (action?: 'claim' | 'release' | 'complete' | 'reject') => void;
+}
+
+interface ProductOption {
+  product_name: string;
+  category: string | null;
+}
+
+interface LiquorItem {
+  productName: string;
+  category: string;
+  quantity: string;
+  searchQuery: string;
+  showDropdown: boolean;
+}
+
+const EMPTY_LIQUOR_ITEM: LiquorItem = {
+  productName: '',
+  category: '',
+  quantity: '1',
+  searchQuery: '',
+  showDropdown: false,
+};
+
+/**
+ * Extract a table number from an action card summary. Newer cards store
+ * `table_number` directly; older cards only have a free-form `note` like
+ * "โต๊ะ 25" so parse that as a fallback.
+ */
+function getTableNumber(summary: Record<string, unknown> | undefined): string | null {
+  if (!summary) return null;
+  const direct = summary.table_number;
+  if (typeof direct === 'string' && direct.trim()) return direct.trim();
+  const note = summary.note;
+  if (typeof note === 'string') {
+    const m = note.trim().match(/^โต๊ะ\s*(.+?)$/);
+    if (m && m[1]) return m[1].trim();
+  }
+  return null;
 }
 
 const ACTION_TYPE_CONFIG: Record<string, { icon: typeof Wine; color: string; label: string }> = {
@@ -75,9 +116,10 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   const [barConfirmQty, setBarConfirmQty] = useState('');
   const [barConfirmBottlePercents, setBarConfirmBottlePercents] = useState<string[]>([]);
   // Customer LIFF flow stage-2: staff fills product name + quantity when
-  // physically receiving the bottle. Empty for staff-initiated deposits.
-  const [staffProductInput, setStaffProductInput] = useState('');
-  const [staffQtyInput, setStaffQtyInput] = useState('');
+  // physically receiving the bottle. Mirrors the deposit-form multi-item
+  // input so a single LINE request can be split into N bottles/products.
+  const [liquorItems, setLiquorItems] = useState<LiquorItem[]>([{ ...EMPTY_LIQUOR_ITEM }]);
+  const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -131,6 +173,27 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
       return next;
     });
   }, [barConfirmQty]);
+
+  // Pre-fetch the store's products once for the LIFF deposit autocomplete.
+  // Only matters for from_customer deposit cards but cheap enough to do
+  // unconditionally (small list, runs once per card mount with a store).
+  const isFromCustomerDeposit = meta.action_type === 'deposit_claim'
+    && (meta.summary as Record<string, unknown> | undefined)?.from_customer === true;
+  useEffect(() => {
+    if (!isFromCustomerDeposit || !storeId || productOptions.length > 0) return;
+    let cancelled = false;
+    const supabase = createClient();
+    void supabase
+      .from('products')
+      .select('product_name, category')
+      .eq('store_id', storeId)
+      .eq('active', true)
+      .order('product_name')
+      .then(({ data }) => {
+        if (!cancelled && data) setProductOptions(data);
+      });
+    return () => { cancelled = true; };
+  }, [isFromCustomerDeposit, storeId, productOptions.length]);
   const isWithdrawalCard = meta.action_type === 'withdrawal_claim';
   const canClaimBarStep = isPendingBar && isDepositCard
     && currentUserRole && ['bar', 'manager', 'owner'].includes(currentUserRole);
@@ -271,14 +334,30 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         // must fill those when physically receiving — the inputs are
         // surfaced in the stage-2 UI for `from_customer` cards.
         const isFromCustomer = (meta.summary as Record<string, unknown> | undefined)?.from_customer === true;
-        const productName = staffProductInput.trim();
-        const qty = Number(staffQtyInput);
-        if (isFromCustomer) {
-          if (!productName || !Number.isFinite(qty) || qty <= 0) {
-            setLoading(false);
-            return;
-          }
+
+        // Validate + normalize the multi-item input. Each row needs a name
+        // and a positive qty; first row drives the existing deposit row,
+        // any extras spawn new deposit + chat-card pairs.
+        const validItems = isFromCustomer
+          ? liquorItems
+              .map((it) => ({
+                productName: it.productName.trim(),
+                category: it.category.trim(),
+                quantity: Number(it.quantity),
+              }))
+              .filter((it) => it.productName && Number.isFinite(it.quantity) && it.quantity > 0)
+          : [];
+        if (isFromCustomer && validItems.length === 0) {
+          setLoading(false);
+          return;
         }
+
+        const firstItem = validItems[0];
+        const productName = firstItem?.productName ?? '';
+        const qty = firstItem?.quantity ?? 0;
+        const itemsLabel = validItems.length > 1
+          ? `${validItems.map((it) => `${it.productName} x${it.quantity}`).join(', ')}`
+          : firstItem ? `${firstItem.productName} x${firstItem.quantity}` : '';
 
         // Staff complete → transition to pending_bar (NOT completed)
         const newMeta: ActionCardMetadata = {
@@ -292,7 +371,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             ...meta.summary,
             received_by: currentUserName,
             ...(isFromCustomer && {
-              items: `${productName} x${qty}`,
+              items: itemsLabel,
               product_name: productName,
               quantity: qty,
             }),
@@ -306,7 +385,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
 
         const updated: ChatMessage = { ...message, metadata: newMeta };
         updateMessage(updated);
-        onStatusChange?.();
+        onStatusChange?.('complete');
 
         await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
           type: 'message_updated',
@@ -317,15 +396,17 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         // cards, also fill product_name/quantity, transition status from
         // pending_staff → pending_confirm, set expiry, and seed bottle rows
         // (the auto-bottle trigger fired with qty=0 placeholder so we now
-        // create them manually).
+        // create them manually). Items 2..N spawn additional deposits +
+        // chat action cards mirroring the deposit-form multi-item flow.
         if (meta.reference_table === 'deposits' && meta.reference_id) {
           (async () => {
             const update: Record<string, unknown> = {
               received_by: currentUserId,
               received_photo_url: photoUrl || undefined,
             };
-            if (isFromCustomer) {
+            if (isFromCustomer && firstItem) {
               update.product_name = productName;
+              update.category = firstItem.category || null;
               update.quantity = qty;
               update.remaining_qty = qty;
               update.remaining_percent = 100;
@@ -337,7 +418,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
               .from('deposits')
               .update(update)
               .eq('deposit_code', meta.reference_id)
-              .select('id')
+              .select('id, store_id, customer_name, customer_phone, table_number, line_user_id, notes')
               .single();
 
             if (isFromCustomer && depositRow?.id) {
@@ -353,6 +434,60 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
               if (bottleRows.length > 0) {
                 await supabase.from('deposit_bottles').insert(bottleRows);
               }
+
+              // Items 2..N → INSERT new pending_confirm deposits + post
+              // separate "รอบาร์ยืนยัน" action cards so the bar can verify
+              // each bottle group independently.
+              if (validItems.length > 1) {
+                const { expiryDateISO } = await import('@/lib/utils/date');
+                const { data: storeRow } = await supabase
+                  .from('stores')
+                  .select('store_code')
+                  .eq('id', depositRow.store_id)
+                  .single();
+                const storeCode = storeRow?.store_code || 'X';
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+                for (let i = 1; i < validItems.length; i++) {
+                  const extra = validItems[i];
+                  let randomPart = '';
+                  for (let c = 0; c < 5; c++) {
+                    randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+                  }
+                  const newCode = `DEP-${storeCode}-${randomPart}`;
+                  const { error: insertErr } = await supabase.from('deposits').insert({
+                    store_id: depositRow.store_id,
+                    deposit_code: newCode,
+                    line_user_id: depositRow.line_user_id,
+                    customer_name: depositRow.customer_name,
+                    customer_phone: depositRow.customer_phone,
+                    product_name: extra.productName,
+                    category: extra.category || null,
+                    quantity: extra.quantity,
+                    remaining_qty: extra.quantity,
+                    remaining_percent: 100,
+                    table_number: depositRow.table_number,
+                    status: 'pending_confirm',
+                    expiry_date: expiryDateISO(30),
+                    received_by: currentUserId,
+                    received_photo_url: photoUrl || null,
+                    notes: depositRow.notes,
+                  });
+                  if (insertErr) continue;
+
+                  if (storeId) {
+                    const { notifyChatNewDepositForBar } = await import('@/lib/chat/bot-client');
+                    notifyChatNewDepositForBar(storeId, {
+                      deposit_code: newCode,
+                      customer_name: depositRow.customer_name,
+                      product_name: extra.productName,
+                      quantity: extra.quantity,
+                      table_number: depositRow.table_number,
+                      received_by_name: currentUserName,
+                    });
+                  }
+                }
+              }
             }
           })();
         }
@@ -363,11 +498,12 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         // แจ้งเตือน bar
         if (storeId) {
           const summary = meta.summary;
+          const itemsText = isFromCustomer ? itemsLabel : (summary.items || '');
           notifyStaff({
             storeId,
             type: 'deposit_received',
             title: 'รอบาร์ยืนยัน',
-            body: `${currentUserName} รับของแล้ว — ${summary.customer || ''} ${summary.items || ''} (${meta.reference_id})`,
+            body: `${currentUserName} รับของแล้ว — ${summary.customer || ''} ${itemsText} (${meta.reference_id})`,
             data: { deposit_code: meta.reference_id },
             excludeUserId: currentUserId,
             roles: ['bar', 'manager'],
@@ -375,7 +511,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           sendChatBotMessage({
             storeId,
             type: 'system',
-            content: `📦 ${currentUserName} รับของแล้ว — ${summary.customer || ''} ${summary.items || ''} (${meta.reference_id}) — รอ Bar ยืนยันเข้าระบบ`,
+            content: `📦 ${currentUserName} รับของแล้ว — ${summary.customer || ''} ${itemsText} (${meta.reference_id}) — รอ Bar ยืนยันเข้าระบบ`,
           });
         }
       } else {
@@ -474,7 +610,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             metadata: updatedMeta,
           };
           updateMessage(updated);
-          onStatusChange?.();
+          onStatusChange?.(action);
 
           await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
             type: 'message_updated',
@@ -767,7 +903,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
       if (!error) {
         const updated: ChatMessage = { ...message, metadata: newMeta };
         updateMessage(updated);
-        onStatusChange?.();
+        onStatusChange?.('claim');
 
         await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
           type: 'message_updated',
@@ -807,7 +943,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
 
       const updated: ChatMessage = { ...message, metadata: newMeta };
       updateMessage(updated);
-      onStatusChange?.();
+      onStatusChange?.('reject');
 
       await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
         type: 'message_updated',
@@ -1014,7 +1150,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
 
       const updated: ChatMessage = { ...message, metadata: newMeta };
       updateMessage(updated);
-      onStatusChange?.();
+      onStatusChange?.('complete');
 
       // Broadcast update ไปห้อง
       broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
@@ -1060,26 +1196,45 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
               ? meta.summary.code
               : `#${meta.reference_id}`}
           </span>
+          {(() => {
+            const tableNumber = getTableNumber(meta.summary as Record<string, unknown>);
+            if (!tableNumber) return null;
+            return (
+              <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                <MapPin className="h-3 w-3" />
+                โต๊ะ {tableNumber}
+              </span>
+            );
+          })()}
         </div>
 
-        {/* Summary — compact single-line for completed, full for active */}
-        {isCompleted ? (
-          <p className="mb-1.5 truncate text-xs text-gray-500 dark:text-gray-400">
-            {meta.summary.customer}{meta.summary.items ? ` · ${meta.summary.items}` : ''}
-          </p>
-        ) : (
-          <div className="mb-3 space-y-0.5 text-xs text-gray-600 dark:text-gray-300">
-            {meta.summary.customer && (
-              <p>
-                {isBorrow ? 'สาขา' : 'ลูกค้า'}: {meta.summary.customer}
+        {/* Summary — compact single-line for completed, full for active.
+            Hide the note when it's just the legacy "โต๊ะ X" string since
+            the same value now renders as a badge in the header. */}
+        {(() => {
+          const summaryNote = typeof meta.summary.note === 'string' ? meta.summary.note : '';
+          const noteIsTableOnly = !!summaryNote && /^โต๊ะ\s*\S+$/.test(summaryNote.trim());
+          if (isCompleted) {
+            return (
+              <p className="mb-1.5 truncate text-xs text-gray-500 dark:text-gray-400">
+                {meta.summary.customer}{meta.summary.items ? ` · ${meta.summary.items}` : ''}
               </p>
-            )}
-            {meta.summary.items && <p>รายการ: {meta.summary.items}</p>}
-            {meta.summary.note && (
-              <p className="italic text-gray-400">"{meta.summary.note}"</p>
-            )}
-          </div>
-        )}
+            );
+          }
+          return (
+            <div className="mb-3 space-y-0.5 text-xs text-gray-600 dark:text-gray-300">
+              {meta.summary.customer && (
+                <p>
+                  {isBorrow ? 'สาขา' : 'ลูกค้า'}: {meta.summary.customer}
+                </p>
+              )}
+              {meta.summary.items && <p>รายการ: {meta.summary.items}</p>}
+              {summaryNote && !noteIsTableOnly && (
+                <p className="italic text-gray-400">"{summaryNote}"</p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ==========================================
             BORROW-SPECIFIC UI
@@ -1361,7 +1516,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                           .eq('id', message.id);
                         const updated: ChatMessage = { ...message, metadata: newMeta };
                         updateMessage(updated);
-                        onStatusChange?.();
+                        onStatusChange?.('complete');
                         await broadcastToChannel(supabase, `chat:room:${roomId}`, 'message_updated', {
                           type: 'message_updated',
                           message: updated,
@@ -1670,39 +1825,164 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                         return Number.isFinite(n) && n >= 0 && n <= 100;
                       })
                     : true;
-                  // Customer-LIFF stage-2: staff must fill product + qty
-                  const staffQtyNum = Number(staffQtyInput);
+                  // Customer-LIFF stage-2: staff fills product + qty for at
+                  // least one row before submitting. Extra rows turn into
+                  // separate deposits + chat cards on submit.
                   const staffInputsValid = !isFromCustomer
-                    || (staffProductInput.trim().length > 0 && Number.isFinite(staffQtyNum) && staffQtyNum > 0);
+                    || liquorItems.some((it) => {
+                        const q = Number(it.quantity);
+                        return it.productName.trim().length > 0
+                          && Number.isFinite(q) && q > 0;
+                      });
                   return (
                   <div className="space-y-2">
                     {/* Customer-LIFF stage-2: ขาดข้อมูล product/qty — Staff เติม */}
                     {isFromCustomer && (
                       <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-2 dark:border-amber-800 dark:bg-amber-900/20">
                         <p className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
-                          ลูกค้าฝากผ่าน LINE — กรุณาระบุชื่อเหล้า + จำนวนขวดที่รับ
+                          ลูกค้าฝากผ่าน LINE — กรุณาระบุชื่อเหล้า + จำนวนขวดที่รับ (เพิ่มได้หลายรายการ)
                         </p>
-                        <div className="grid grid-cols-3 gap-2">
-                          <input
-                            type="text"
-                            value={staffProductInput}
-                            onChange={(e) => setStaffProductInput(e.target.value)}
-                            placeholder="ชื่อเหล้า"
-                            className="col-span-2 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                          />
-                          <input
-                            type="number"
-                            min={1}
-                            value={staffQtyInput}
-                            onChange={(e) => setStaffQtyInput(e.target.value)}
-                            placeholder="จำนวน"
-                            className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-center text-xs text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                          />
+                        <div className="space-y-2">
+                          {liquorItems.map((item, idx) => {
+                            const q = item.searchQuery;
+                            const filtered = q
+                              ? productOptions.filter((p) =>
+                                  p.product_name.toLowerCase().includes(q.toLowerCase())
+                                )
+                              : productOptions;
+                            return (
+                              <div
+                                key={idx}
+                                className="space-y-1.5 rounded-lg border border-amber-200/80 bg-white p-2 dark:border-amber-800/60 dark:bg-gray-800"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                                    รายการ {idx + 1}
+                                  </span>
+                                  {liquorItems.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setLiquorItems((prev) => prev.filter((_, i) => i !== idx))
+                                      }
+                                      className="rounded p-0.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                      title="ลบรายการ"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div className="relative col-span-2">
+                                    <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                      type="text"
+                                      value={item.searchQuery}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        setLiquorItems((prev) => {
+                                          const next = [...prev];
+                                          next[idx] = {
+                                            ...next[idx],
+                                            searchQuery: v,
+                                            productName: v,
+                                            showDropdown: true,
+                                          };
+                                          return next;
+                                        });
+                                      }}
+                                      onFocus={() =>
+                                        setLiquorItems((prev) => {
+                                          const next = [...prev];
+                                          next[idx] = { ...next[idx], showDropdown: true };
+                                          return next;
+                                        })
+                                      }
+                                      onBlur={() => {
+                                        setTimeout(() => {
+                                          setLiquorItems((prev) => {
+                                            const next = [...prev];
+                                            next[idx] = { ...next[idx], showDropdown: false };
+                                            return next;
+                                          });
+                                        }, 200);
+                                      }}
+                                      placeholder="ค้นหาชื่อเหล้า"
+                                      className="w-full rounded-lg border border-gray-300 bg-white py-1.5 pl-7 pr-2 text-xs text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                    />
+                                    {item.showDropdown && filtered.length > 0 && (
+                                      <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                        {filtered.slice(0, 30).map((p, pIdx) => (
+                                          <button
+                                            key={pIdx}
+                                            type="button"
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            onClick={() =>
+                                              setLiquorItems((prev) => {
+                                                const next = [...prev];
+                                                next[idx] = {
+                                                  ...next[idx],
+                                                  productName: p.product_name,
+                                                  category: p.category || '',
+                                                  searchQuery: p.product_name,
+                                                  showDropdown: false,
+                                                };
+                                                return next;
+                                              })
+                                            }
+                                            className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                                          >
+                                            <span className="truncate font-medium text-gray-800 dark:text-gray-200">
+                                              {p.product_name}
+                                            </span>
+                                            {p.category && (
+                                              <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                                                {p.category}
+                                              </span>
+                                            )}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {item.category && (
+                                      <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                                        หมวด: {item.category}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={item.quantity}
+                                    onChange={(e) =>
+                                      setLiquorItems((prev) => {
+                                        const next = [...prev];
+                                        next[idx] = { ...next[idx], quantity: e.target.value };
+                                        return next;
+                                      })
+                                    }
+                                    placeholder="จำนวน"
+                                    className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-center text-xs text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setLiquorItems((prev) => [...prev, { ...EMPTY_LIQUOR_ITEM }])
+                          }
+                          className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-300 dark:hover:bg-amber-900/20"
+                        >
+                          <Plus className="h-3 w-3" />
+                          เพิ่มรายการ
+                        </button>
                         {storeId && meta.reference_id && (
                           <a
                             href={`/deposit/requests`}
-                            className="inline-flex items-center gap-1 text-[10px] text-amber-700 underline-offset-2 hover:underline dark:text-amber-300"
+                            className="ml-2 inline-flex items-center gap-1 text-[10px] text-amber-700 underline-offset-2 hover:underline dark:text-amber-300"
                           >
                             <ExternalLink className="h-3 w-3" />
                             หรือเปิดหน้าฝากเหล้าเพื่อกรอกข้อมูลครบ

@@ -363,8 +363,19 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
                           currentUserRole={currentUserRole}
                           roomId={roomId}
                           storeId={storeId}
-                          onStatusChange={() => {
-                            setFilterStatus('all');
+                          onStatusChange={(action) => {
+                            // Auto-switch tabs to follow the work: claim
+                            // jumps to "กำลังทำ", release returns to
+                            // "รอรับ", complete/reject lands on "เสร็จ".
+                            if (action === 'claim') {
+                              setFilterStatus('claimed');
+                            } else if (action === 'release') {
+                              setFilterStatus('pending');
+                            } else if (action === 'complete' || action === 'reject') {
+                              setFilterStatus('completed');
+                            } else {
+                              setFilterStatus('all');
+                            }
                             setGroupStatusFilter({});
                           }}
                         />
