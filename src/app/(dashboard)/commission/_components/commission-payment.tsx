@@ -15,13 +15,32 @@ function formatCurrency(n: number) {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function EntryRow({ e, t, onCancel, onViewPhoto }: { e: any, t: any, onCancel?: (id: string) => void, onViewPhoto?: (url: string) => void }) {
+function EntryRow({ e, t, onCancel, onViewPhoto, selectable, selected, onToggleSelect }: {
+  e: any;
+  t: any;
+  onCancel?: (id: string) => void;
+  onViewPhoto?: (url: string) => void;
+  /** When true, the row renders a checkbox at the left so the bar can
+   *  pick exactly which bills to roll into this payment. */
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string, next: boolean) => void;
+}) {
   // Stacked layout matching the history tab: badges + meta wrap onto a
   // second line on small screens instead of squeezing into one row, and
   // amount + actions live in a fixed right column.
   const isAE = e.type === 'ae_commission';
   return (
     <div className="flex items-start justify-between gap-2 border-t border-gray-50 px-3 py-2.5 dark:border-gray-800/50">
+      {selectable && !e.payment_id && (
+        <input
+          type="checkbox"
+          className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+          checked={!!selected}
+          onChange={(ev) => onToggleSelect?.(e.id, ev.target.checked)}
+          aria-label={t('payment.selectEntry') ?? 'Select entry'}
+        />
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant={e.payment_id ? 'success' : 'outline'} size="sm">
@@ -176,6 +195,21 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
   // Receipt photo viewer modal — same UX as the history tab.
   const [photoModal, setPhotoModal] = useState<string | null>(null);
 
+  // Per-entry selection. When the user opens a group's row, they pick
+  // which bills to bundle into this payment via checkboxes; the form
+  // total then reflects only the picked rows. Empty set = "all unpaid"
+  // (the legacy behaviour, so the existing "จ่าย" button still works
+  // out of the box).
+  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
+  const toggleEntryId = useCallback((id: string, next: boolean) => {
+    setSelectedEntryIds((prev) => {
+      const set = new Set(prev);
+      if (next) set.add(id);
+      else set.delete(id);
+      return set;
+    });
+  }, []);
+
   // Expansion state
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
@@ -272,6 +306,15 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
     if (!currentStoreId || !selectedId) return;
     setPaying(true);
     try {
+      // Gather the IDs the user ticked for this group. If none are
+      // ticked we fall through to the legacy "pay everything for this
+      // AE/staff this month" flow on the server.
+      const group = selectedType === 'ae'
+        ? unpaidAE.find((a) => a.ae_id === selectedId)
+        : unpaidBottle.find((b) => b.staff_id === selectedId);
+      const groupEntryIds: string[] = (group?.entries || []).map((e: any) => e.id as string);
+      const pickedIds = groupEntryIds.filter((id) => selectedEntryIds.has(id));
+
       const payload: Record<string, unknown> = {
         store_id: currentStoreId,
         type: selectedType === 'ae' ? 'ae_commission' : 'bottle_commission',
@@ -281,6 +324,7 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
       };
       if (selectedType === 'ae') payload.ae_id = selectedId;
       else payload.staff_id = selectedId;
+      if (pickedIds.length > 0) payload.entry_ids = pickedIds;
 
       const res = await fetch('/api/commission/payment', {
         method: 'POST',
@@ -292,6 +336,13 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
         const payment = await res.json();
         toast({ type: 'success', title: t('payment.paySuccess') });
         logAudit({ store_id: currentStoreId, action_type: AUDIT_ACTIONS.COMMISSION_PAYMENT_CREATED, table_name: 'commission_payments', record_id: payment.id, new_value: payload as Record<string, unknown>, changed_by: user?.id });
+        // Drop the picked rows from the selection so the next group
+        // doesn't carry a stale tick mark.
+        setSelectedEntryIds((prev) => {
+          const next = new Set(prev);
+          for (const id of pickedIds) next.delete(id);
+          return next;
+        });
         setSelectedType(null); setSelectedId(''); setSlipPhoto(null); setPayNotes('');
         fetchData();
       } else {
@@ -427,6 +478,14 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
               {unpaidAE.map((ae) => {
                 const isExpanded = !!expandedRows[`unpaid_ae_${ae.ae_id}`];
+                const groupEntryIds: string[] = (ae.entries || []).map((e: any) => e.id as string);
+                const pickedInGroup = groupEntryIds.filter((id) => selectedEntryIds.has(id));
+                const allPicked = groupEntryIds.length > 0 && pickedInGroup.length === groupEntryIds.length;
+                const somePicked = pickedInGroup.length > 0 && !allPicked;
+                const pickedTotal = (ae.entries || [])
+                  .filter((e: any) => selectedEntryIds.has(e.id))
+                  .reduce((s: number, e: any) => s + (Number(e.net_amount) || 0), 0);
+                const payTotal = pickedInGroup.length > 0 ? pickedTotal : ae.total_net;
                 return (
                   <div key={ae.ae_id} className="group">
                     <div className="flex items-start justify-between gap-2 px-3 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
@@ -438,17 +497,57 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
                         {isExpanded ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" /> : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />}
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{ae.ae_name}{ae.ae_nickname ? ` (${ae.ae_nickname})` : ''}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 break-words">{ae.entry_count} {t('payment.bills')} · {ae.bank_name ? `${ae.bank_name} ${ae.bank_account_no}` : t('payment.noBankInfo')}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 break-words">
+                            {pickedInGroup.length > 0
+                              ? t('payment.selectedSummary', { picked: pickedInGroup.length, total: ae.entry_count })
+                              : `${ae.entry_count} ${t('payment.bills')}`}
+                            {' · '}
+                            {ae.bank_name ? `${ae.bank_name} ${ae.bank_account_no}` : t('payment.noBankInfo')}
+                          </p>
                         </div>
                       </button>
                       <div className="flex shrink-0 flex-col items-end gap-1">
-                        <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{formatCurrency(ae.total_net)}</span>
-                        <Button size="sm" onClick={() => { setSelectedType('ae'); setSelectedId(ae.ae_id); }}>{t('payment.pay')}</Button>
+                        <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{formatCurrency(payTotal)}</span>
+                        <Button size="sm" onClick={() => { setSelectedType('ae'); setSelectedId(ae.ae_id); }}>
+                          {pickedInGroup.length > 0 ? t('payment.paySelected') : t('payment.pay')}
+                        </Button>
                       </div>
                     </div>
                     {isExpanded && ae.entries && (
                       <div className="bg-gray-50/50 dark:bg-gray-900/20 pb-1">
-                        {ae.entries.map((e: any) => <EntryRow key={e.id} e={e} t={t} onCancel={(id) => setCancelEntryModal(id)} onViewPhoto={setPhotoModal} />)}
+                        {/* Select-all toggle for this AE's bills */}
+                        <label className="flex cursor-pointer items-center gap-2 border-t border-gray-100 px-3 py-1.5 text-xs text-gray-600 dark:border-gray-800/50 dark:text-gray-400">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            checked={allPicked}
+                            ref={(el) => { if (el) el.indeterminate = somePicked; }}
+                            onChange={(ev) => {
+                              setSelectedEntryIds((prev) => {
+                                const next = new Set(prev);
+                                if (ev.target.checked) {
+                                  for (const id of groupEntryIds) next.add(id);
+                                } else {
+                                  for (const id of groupEntryIds) next.delete(id);
+                                }
+                                return next;
+                              });
+                            }}
+                          />
+                          {t('payment.selectAll')}
+                        </label>
+                        {ae.entries.map((e: any) => (
+                          <EntryRow
+                            key={e.id}
+                            e={e}
+                            t={t}
+                            onCancel={(id) => setCancelEntryModal(id)}
+                            onViewPhoto={setPhotoModal}
+                            selectable
+                            selected={selectedEntryIds.has(e.id)}
+                            onToggleSelect={toggleEntryId}
+                          />
+                        ))}
                       </div>
                     )}
                   </div>
@@ -467,6 +566,14 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
               {unpaidBottle.map((b) => {
                 const isExpanded = !!expandedRows[`unpaid_bottle_${b.staff_id}`];
+                const groupEntryIds: string[] = (b.entries || []).map((e: any) => e.id as string);
+                const pickedInGroup = groupEntryIds.filter((id) => selectedEntryIds.has(id));
+                const allPicked = groupEntryIds.length > 0 && pickedInGroup.length === groupEntryIds.length;
+                const somePicked = pickedInGroup.length > 0 && !allPicked;
+                const pickedTotal = (b.entries || [])
+                  .filter((e: any) => selectedEntryIds.has(e.id))
+                  .reduce((s: number, e: any) => s + (Number(e.net_amount) || 0), 0);
+                const payTotal = pickedInGroup.length > 0 ? pickedTotal : b.total_net;
                 return (
                   <div key={b.staff_id} className="group">
                     <div className="flex items-start justify-between gap-2 px-3 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
@@ -478,17 +585,54 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
                         {isExpanded ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" /> : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />}
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{b.staff_name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{b.total_bottles} {t('payment.bottles')} · {b.entry_count} {t('payment.entries')}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {pickedInGroup.length > 0
+                              ? t('payment.selectedSummary', { picked: pickedInGroup.length, total: b.entry_count })
+                              : `${b.total_bottles} ${t('payment.bottles')} · ${b.entry_count} ${t('payment.entries')}`}
+                          </p>
                         </div>
                       </button>
                       <div className="flex shrink-0 flex-col items-end gap-1">
-                        <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatCurrency(b.total_net)}</span>
-                        <Button size="sm" onClick={() => { setSelectedType('bottle'); setSelectedId(b.staff_id); }}>{t('payment.pay')}</Button>
+                        <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatCurrency(payTotal)}</span>
+                        <Button size="sm" onClick={() => { setSelectedType('bottle'); setSelectedId(b.staff_id); }}>
+                          {pickedInGroup.length > 0 ? t('payment.paySelected') : t('payment.pay')}
+                        </Button>
                       </div>
                     </div>
                     {isExpanded && b.entries && (
                       <div className="bg-gray-50/50 dark:bg-gray-900/20 pb-1">
-                        {b.entries.map((e: any) => <EntryRow key={e.id} e={e} t={t} onCancel={(id) => setCancelEntryModal(id)} onViewPhoto={setPhotoModal} />)}
+                        <label className="flex cursor-pointer items-center gap-2 border-t border-gray-100 px-3 py-1.5 text-xs text-gray-600 dark:border-gray-800/50 dark:text-gray-400">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            checked={allPicked}
+                            ref={(el) => { if (el) el.indeterminate = somePicked; }}
+                            onChange={(ev) => {
+                              setSelectedEntryIds((prev) => {
+                                const next = new Set(prev);
+                                if (ev.target.checked) {
+                                  for (const id of groupEntryIds) next.add(id);
+                                } else {
+                                  for (const id of groupEntryIds) next.delete(id);
+                                }
+                                return next;
+                              });
+                            }}
+                          />
+                          {t('payment.selectAll')}
+                        </label>
+                        {b.entries.map((e: any) => (
+                          <EntryRow
+                            key={e.id}
+                            e={e}
+                            t={t}
+                            onCancel={(id) => setCancelEntryModal(id)}
+                            onViewPhoto={setPhotoModal}
+                            selectable
+                            selected={selectedEntryIds.has(e.id)}
+                            onToggleSelect={toggleEntryId}
+                          />
+                        ))}
                       </div>
                     )}
                   </div>
@@ -504,31 +648,47 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
       )}
 
       {/* Payment form modal */}
-      {selectedType && selectedId && (
-        <Card>
-          <CardHeader title={`${t('payment.recordPayment')} — ${selectedType === 'ae' ? unpaidAE.find(a => a.ae_id === selectedId)?.ae_name : unpaidBottle.find(b => b.staff_id === selectedId)?.staff_name}`} />
-          <CardContent className="space-y-3 p-4">
-            {/* Show entries for this selection */}
-            <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t('payment.count')}: {selectedType === 'ae' ? unpaidAE.find(a => a.ae_id === selectedId)?.entry_count : unpaidBottle.find(b => b.staff_id === selectedId)?.entry_count} {t('payment.entries')}
-              </p>
-              <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                {t('payment.payAmount')}: {formatCurrency(selectedType === 'ae' ? (unpaidAE.find(a => a.ae_id === selectedId)?.total_net || 0) : (unpaidBottle.find(b => b.staff_id === selectedId)?.total_net || 0))}
-              </p>
-            </div>
-            <PhotoUpload value={slipPhoto} onChange={setSlipPhoto} folder="commission-slips" label={t('payment.attachSlip')} placeholder={t('payment.attachSlipPlaceholder')} />
-            <Textarea label={t('payment.notes')} value={payNotes} onChange={(e) => setPayNotes(e.target.value)} rows={2} />
-            <div className="flex gap-2">
-              <Button variant="primary" className="flex-1" onClick={handlePay} disabled={paying}>
-                {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                {t('payment.recordPay')}
-              </Button>
-              <Button variant="ghost" onClick={() => { setSelectedType(null); setSelectedId(''); setSlipPhoto(null); setPayNotes(''); }}>{t('payment.cancel')}</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {selectedType && selectedId && (() => {
+        const group = selectedType === 'ae'
+          ? unpaidAE.find((a) => a.ae_id === selectedId)
+          : unpaidBottle.find((b) => b.staff_id === selectedId);
+        const groupEntries = (group?.entries || []) as any[];
+        const pickedEntries = groupEntries.filter((e) => selectedEntryIds.has(e.id));
+        const useAll = pickedEntries.length === 0;
+        const payCount = useAll ? (group?.entry_count ?? 0) : pickedEntries.length;
+        const payAmount = useAll
+          ? (group?.total_net ?? 0)
+          : pickedEntries.reduce((s, e) => s + (Number(e.net_amount) || 0), 0);
+        const groupName = selectedType === 'ae'
+          ? (group as any)?.ae_name
+          : (group as any)?.staff_name;
+        return (
+          <Card>
+            <CardHeader title={`${t('payment.recordPayment')} — ${groupName ?? ''}`} />
+            <CardContent className="space-y-3 p-4">
+              <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {useAll
+                    ? `${t('payment.count')}: ${payCount} ${t('payment.entries')}`
+                    : t('payment.payingPickedSummary', { picked: payCount, total: group?.entry_count ?? 0 })}
+                </p>
+                <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                  {t('payment.payAmount')}: {formatCurrency(payAmount)}
+                </p>
+              </div>
+              <PhotoUpload value={slipPhoto} onChange={setSlipPhoto} folder="commission-slips" label={t('payment.attachSlip')} placeholder={t('payment.attachSlipPlaceholder')} />
+              <Textarea label={t('payment.notes')} value={payNotes} onChange={(e) => setPayNotes(e.target.value)} rows={2} />
+              <div className="flex gap-2">
+                <Button variant="primary" className="flex-1" onClick={handlePay} disabled={paying}>
+                  {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {t('payment.recordPay')}
+                </Button>
+                <Button variant="ghost" onClick={() => { setSelectedType(null); setSelectedId(''); setSlipPhoto(null); setPayNotes(''); }}>{t('payment.cancel')}</Button>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Paid this month */}
       {payments.filter(p => p.status === 'paid').length > 0 && (
