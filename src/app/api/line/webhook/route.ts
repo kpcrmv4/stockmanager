@@ -160,11 +160,26 @@ async function resolveStore(
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
+  const reqId = Math.random().toString(36).slice(2, 10);
+  // Always log on entry — this proves whether LINE actually reached the
+  // route at all when debugging Verify failures.
+  console.log(`[LINE webhook ${reqId}] entry url=${request.url} ua="${request.headers.get('user-agent') || ''}"`);
+
   const body = await request.text();
   const signature = request.headers.get('x-line-signature') || '';
 
-  const parsed = JSON.parse(body) as LineWebhookBody;
+  let parsed: LineWebhookBody;
+  try {
+    parsed = JSON.parse(body) as LineWebhookBody;
+  } catch (err) {
+    console.error(`[LINE webhook ${reqId}] JSON parse error`, { bodyLen: body.length, bodyPreview: body.slice(0, 120), err: String(err) });
+    // Still return 200 so the Verify button passes when LINE sends an
+    // empty body — we just have nothing to process.
+    return NextResponse.json({ status: 'ignored', reason: 'invalid_json' });
+  }
   const destination = parsed.destination;
+
+  console.log(`[LINE webhook ${reqId}] destination=${destination} events=${parsed.events?.length ?? 0} sigLen=${signature.length}`);
 
   const supabase = createServiceClient();
 
@@ -177,6 +192,7 @@ export async function POST(request: NextRequest) {
   // back to line_channel_id for legacy rows. No env fallback.
   // -----------------------------------------------------------------------
   if (!destination) {
+    console.warn(`[LINE webhook ${reqId}] missing destination`);
     return NextResponse.json(
       { error: 'Missing destination' },
       { status: 400 },
@@ -196,6 +212,7 @@ export async function POST(request: NextRequest) {
       .single();
     secretStore = data;
   }
+  let lookupKind = secretStore ? 'bot_user_id' : null;
   if (!secretStore) {
     const { data } = await supabase
       .from('stores')
@@ -204,14 +221,16 @@ export async function POST(request: NextRequest) {
       .eq('active', true)
       .single();
     secretStore = data;
+    if (secretStore) lookupKind = 'channel_id';
   }
+  console.log(`[LINE webhook ${reqId}] store lookup: matched=${!!secretStore} via=${lookupKind}`);
 
   const channelSecret = secretStore?.line_channel_secret || '';
 
   if (!channelSecret) {
     console.warn(
-      `[LINE] No store found for channel_id=${destination}. ` +
-        'ตั้งค่า Channel ID/Secret ใน ตั้งค่า → สาขา → [ชื่อสาขา] → LINE OA',
+      `[LINE webhook ${reqId}] No store found for destination="${destination}". ` +
+        'ตั้งค่า Bot User ID + Channel Secret ใน ตั้งค่า → สาขา → [ชื่อสาขา] → LINE OA',
     );
     return NextResponse.json(
       { error: 'Store not configured for this LINE channel' },
