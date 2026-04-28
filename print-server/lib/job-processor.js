@@ -23,6 +23,19 @@ class JobProcessor {
   }
 
   /**
+   * Swap the active Windows printer at runtime. Called from the
+   * heartbeat loop when store_settings.print_server_printer_name
+   * changes in the web app, so the operator doesn't have to download
+   * a new config.json after renaming the printer.
+   */
+  setPrinterName(name) {
+    if (!name || typeof name !== 'string') return false;
+    if (name === this.printerName) return false;
+    this.printerName = name;
+    return true;
+  }
+
+  /**
    * Pre-launch Puppeteer browser (reuse across jobs)
    */
   async init() {

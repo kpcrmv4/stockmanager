@@ -178,6 +178,30 @@ class SupabaseConnector {
   }
 
   /**
+   * Pull every store_setting field the print server cares about in one
+   * round trip — receipt_settings, working hours, printer name. Polled
+   * on every heartbeat so renaming the Windows printer or shifting
+   * working hours in the web app takes effect within ~60s without the
+   * operator having to download a fresh config.json.
+   */
+  async fetchPrintServerSettings() {
+    const { data, error } = await this.client
+      .from('store_settings')
+      .select('receipt_settings, print_server_working_hours, print_server_printer_name')
+      .eq('store_id', this.config.STORE_ID)
+      .single();
+    if (error) {
+      console.warn('  [!] Cannot fetch print server settings:', error.message);
+      return null;
+    }
+    return {
+      receiptSettings: data?.receipt_settings || null,
+      workingHours: data?.print_server_working_hours || null,
+      printerName: data?.print_server_printer_name || null,
+    };
+  }
+
+  /**
    * ส่ง heartbeat
    */
   async sendHeartbeat(printerInfo = {}) {

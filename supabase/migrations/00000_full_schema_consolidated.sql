@@ -627,6 +627,10 @@ CREATE TABLE store_settings (
   /** Print Server (00013) */
   print_server_account_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
   print_server_working_hours JSONB DEFAULT '{"enabled": true, "startHour": 12, "startMinute": 0, "endHour": 6, "endMinute": 0}'::jsonb,
+  -- 00030: print server polls this on each heartbeat so renaming the
+  -- Windows printer no longer requires a fresh config.json download.
+  -- Nullable — falls back to PRINTER_NAME baked into config.json.
+  print_server_printer_name TEXT,
   /** Withdrawal blocked days (00016) */
   withdrawal_blocked_days TEXT[] DEFAULT '{Fri,Sat}'
 );

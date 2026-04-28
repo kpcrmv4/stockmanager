@@ -77,15 +77,9 @@ async function main() {
     console.log('[1/4] Connecting to Supabase...');
     await connector.connect();
 
-    // 2. Load receipt settings
-    console.log('[2/4] Loading receipt settings...');
-    const settings = await connector.fetchReceiptSettings();
-    if (settings) {
-      renderer.updateSettings(settings);
-      console.log('  [OK] Receipt settings loaded');
-    } else {
-      console.log('  [!] Using default settings');
-    }
+    // 2. Load receipt settings + working hours + printer name
+    console.log('[2/4] Loading store settings...');
+    await refreshStoreSettings({ silent: false });
 
     // 3. Initialize Puppeteer
     console.log('[3/4] Initializing Puppeteer...');
@@ -190,6 +184,40 @@ async function catchUpPendingJobs() {
 }
 
 // ==========================================
+// SETTINGS REFRESH
+// ==========================================
+// Pull receipt_settings + working hours + printer name from
+// store_settings on every heartbeat. Lets the operator rename the
+// Windows printer or shift working hours from the web app without
+// having to redownload config.json — changes apply within ~60s.
+
+async function refreshStoreSettings({ silent = true } = {}) {
+  try {
+    const fresh = await connector.fetchPrintServerSettings();
+    if (!fresh) return;
+
+    if (fresh.receiptSettings) {
+      renderer.updateSettings(fresh.receiptSettings);
+      if (!silent) console.log('  [OK] Receipt settings loaded');
+    }
+
+    if (fresh.workingHours && !workingHours.matches(fresh.workingHours)) {
+      workingHours.update(fresh.workingHours);
+      const time = new Date().toLocaleTimeString('th-TH');
+      console.log(`[${time}] *** Working hours updated → ${workingHours.getStatusText()} ***`);
+    }
+
+    if (fresh.printerName && processor.setPrinterName(fresh.printerName)) {
+      const time = new Date().toLocaleTimeString('th-TH');
+      console.log(`[${time}] *** Printer name updated → ${fresh.printerName} ***`);
+      CONFIG.PRINTER_NAME = fresh.printerName;
+    }
+  } catch (err) {
+    if (!silent) console.warn('  [!] refreshStoreSettings error:', err.message);
+  }
+}
+
+// ==========================================
 // HEARTBEAT
 // ==========================================
 
@@ -202,6 +230,10 @@ function startHeartbeat() {
       status: 'ready',
       jobsToday: processor.getJobsToday(),
     });
+    // Piggy-back the settings refresh on the same interval — one
+    // round trip per minute keeps printer name + working hours +
+    // receipt settings in sync without burning extra quota.
+    await refreshStoreSettings();
   };
 
   // Send immediately

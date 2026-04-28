@@ -297,10 +297,14 @@ export default function StoreDetailSettingsPage() {
       .eq('store_id', storeId)
       .single();
     setPrintServerStatus(psStatus as PrintServerStatus | null);
-    // Pre-fill the printer-name input with the actual name reported by the
-    // Windows print server (via heartbeat). Otherwise the input always shows
-    // the hardcoded 'POS80' default and looks like 'save didn't work'.
-    if (psStatus?.printer_name) {
+    // Pre-fill the printer-name input. Prefer the saved value in
+    // store_settings (what the user typed last in this UI); fall back
+    // to whatever the heartbeat reported. Stops the input from looking
+    // like "save didn't work" after the first edit.
+    const savedPrinterName = (settings as { print_server_printer_name?: string | null } | null)?.print_server_printer_name;
+    if (savedPrinterName) {
+      setPrintServerPrinterName(savedPrinterName);
+    } else if (psStatus?.printer_name) {
       setPrintServerPrinterName(psStatus.printer_name);
     }
 
@@ -432,6 +436,28 @@ export default function StoreDetailSettingsPage() {
       .update({ print_server_working_hours: printServerWorkingHours })
       .eq('store_id', storeId);
     toast({ type: 'success', title: t('storeDetail.workingHoursSaved') });
+  };
+
+  // Persist the printer name to store_settings — the running print
+  // server polls this on every heartbeat (60s) and swaps the active
+  // Windows printer at runtime, so the operator no longer needs to
+  // download a fresh config.json after a rename.
+  const handleSavePrinterName = async () => {
+    const trimmed = printServerPrinterName.trim();
+    if (!trimmed) {
+      toast({ type: 'warning', title: t('storeDetail.printerNameEmpty') });
+      return;
+    }
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('store_settings')
+      .update({ print_server_printer_name: trimmed })
+      .eq('store_id', storeId);
+    if (error) {
+      toast({ type: 'error', title: t('storeDetail.printerNameSaveError'), message: error.message });
+      return;
+    }
+    toast({ type: 'success', title: t('storeDetail.printerNameSaved'), message: t('storeDetail.printerNameSavedMsg') });
   };
 
   // ---------------------------------------------------------------------------
@@ -1469,14 +1495,25 @@ export default function StoreDetailSettingsPage() {
             </div>
           )}
 
-          {/* Printer name */}
-          <Input
-            label={t('storeDetail.printerNameLabel')}
-            value={printServerPrinterName}
-            onChange={(e) => setPrintServerPrinterName(e.target.value)}
-            placeholder="POS80"
-            hint={t('storeDetail.printerNameHint')}
-          />
+          {/* Printer name — saves directly to store_settings so the
+              running print server picks it up on the next heartbeat
+              (~60s). No more config.json redownload required. */}
+          <div>
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <Input
+                  label={t('storeDetail.printerNameLabel')}
+                  value={printServerPrinterName}
+                  onChange={(e) => setPrintServerPrinterName(e.target.value)}
+                  placeholder="POS80"
+                />
+              </div>
+              <Button variant="outline" size="sm" onClick={handleSavePrinterName}>
+                {t('storeDetail.save')}
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('storeDetail.printerNameHint')}</p>
+          </div>
 
           {/* Working hours */}
           <div>
