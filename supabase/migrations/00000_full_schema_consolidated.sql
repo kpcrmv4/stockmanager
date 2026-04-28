@@ -1,10 +1,19 @@
 -- ==========================================
 -- StockManager — Consolidated Schema (Fresh Install)
--- Merged from migrations 00001 through 00018
--- Generated: 2026-04-11
 --
--- This single file creates the entire schema from scratch.
--- Do NOT run individual 00001-00018 migrations if using this file.
+-- This file is kept current — every feature from migrations 00001
+-- through 00031 has been folded back in. See `git log` of this file
+-- for the rolling history. The header date below is the original
+-- generation date and is left as-is for archaeology, not as a
+-- coverage indicator.
+--
+-- Originally generated: 2026-04-11
+-- Currently covers:     migrations 00001 → 00031
+--
+-- Usage:
+--   - Fresh database  → run ONLY this file. Done.
+--   - Existing DB     → DO NOT re-run this file. Apply individual
+--                       delta migrations 000xx onwards instead.
 -- ==========================================
 
 -- ==========================================
