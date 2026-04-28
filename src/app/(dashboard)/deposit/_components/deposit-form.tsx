@@ -40,6 +40,27 @@ import { useTranslations } from 'next-intl';
 interface DepositFormProps {
   onBack: () => void;
   onSuccess: () => void;
+  /**
+   * When provided, the form is in "fulfil-customer-request" mode:
+   *   - prefill customer/phone/table/notes from the LIFF request
+   *   - the first item UPDATEs the existing deposit row (from
+   *     status='pending_staff' → 'pending_confirm') instead of INSERTing a
+   *     new one — keeping the deposit_code stable across the lifecycle so
+   *     the chat action card and customer LIFF view stay in sync.
+   *   - additional items still INSERT as new pending_confirm rows (staff
+   *     might physically receive multiple bottles for one request).
+   *   - on success, also sync the chat action card to status='pending_bar'.
+   */
+  pendingDeposit?: {
+    id: string;
+    deposit_code: string;
+    customer_name: string;
+    customer_phone: string | null;
+    table_number: string | null;
+    notes: string | null;
+    line_user_id: string | null;
+    customer_photo_url: string | null;
+  };
 }
 
 interface ProductOption {
@@ -332,20 +353,24 @@ function ProductSearchInput({
 // Main Form
 // ---------------------------------------------------------------------------
 
-export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
+export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormProps) {
   const t = useTranslations('deposit');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
+  const isFulfillingRequest = !!pendingDeposit;
 
-  // ----- Shared fields -----
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [tableNumber, setTableNumber] = useState('');
+  // ----- Shared fields ----- (pre-fill from the customer LIFF request when
+  // fulfilling a pending_staff row)
+  const [customerName, setCustomerName] = useState(pendingDeposit?.customer_name || '');
+  const [customerPhone, setCustomerPhone] = useState(pendingDeposit?.customer_phone || '');
+  const [tableNumber, setTableNumber] = useState(pendingDeposit?.table_number || '');
   const [isNoDeposit, setIsNoDeposit] = useState(false);
   const [isVip, setIsVip] = useState(false);
   const [expiryDays, setExpiryDays] = useState('30');
-  const [notes, setNotes] = useState('');
-  const [receivedPhotoUrl, setReceivedPhotoUrl] = useState<string | null>(null);
+  const [notes, setNotes] = useState(pendingDeposit?.notes || '');
+  const [receivedPhotoUrl, setReceivedPhotoUrl] = useState<string | null>(
+    pendingDeposit?.customer_photo_url || null,
+  );
 
   // ----- Multi-item -----
   const [items, setItems] = useState<DepositItem[]>([{ ...EMPTY_ITEM }]);
@@ -483,14 +508,78 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
     try {
       const depositCodes: string[] = [];
 
-      for (const item of items) {
+      for (let idx = 0; idx < items.length; idx++) {
+        const item = items[idx];
+        const qty = parseFloat(item.quantity);
+
+        // First item in fulfil-request mode → UPDATE the existing
+        // pending_staff row to keep the deposit_code stable through the
+        // lifecycle (so chat action card + LIFF view stay in sync).
+        if (isFulfillingRequest && idx === 0 && pendingDeposit) {
+          depositCodes.push(pendingDeposit.deposit_code);
+
+          const { error } = await supabase
+            .from('deposits')
+            .update({
+              customer_name: customerName.trim(),
+              customer_phone: customerPhone.trim() || null,
+              product_name: item.productName.trim(),
+              category: item.category || null,
+              quantity: qty,
+              remaining_qty: qty,
+              remaining_percent: 100,
+              table_number: tableNumber.trim() || null,
+              status: isNoDeposit ? 'expired' : 'pending_confirm',
+              is_vip: isNoDeposit ? false : isVip,
+              is_no_deposit: isNoDeposit,
+              expiry_date: isNoDeposit
+                ? new Date().toISOString()
+                : isVip
+                  ? null
+                  : expiryDateISO(parseInt(expiryDays)),
+              received_by: user.id,
+              notes: isNoDeposit
+                ? (notes.trim() ? `[${t('form.noDepositTag')}] ${notes.trim()}` : t('form.noDepositDefaultNote'))
+                : (notes.trim() || null),
+              received_photo_url: receivedPhotoUrl || null,
+            })
+            .eq('id', pendingDeposit.id);
+
+          if (error) {
+            toast({
+              type: 'error',
+              title: t('form.error'),
+              message: t('form.errorSaveProduct', { name: item.productName }),
+            });
+            setIsSubmitting(false);
+            return;
+          }
+
+          // Seed bottle rows now that qty is known (auto-bottle trigger only
+          // fires on INSERT, and the original INSERT had qty=0).
+          if (!isNoDeposit && qty > 0) {
+            const bottleRows = [];
+            for (let b = 1; b <= qty; b++) {
+              bottleRows.push({
+                deposit_id: pendingDeposit.id,
+                bottle_no: b,
+                remaining_percent: 100,
+                status: 'in_store',
+              });
+            }
+            await supabase.from('deposit_bottles').insert(bottleRows);
+          }
+          continue;
+        }
+
+        // Otherwise (or additional items in fulfil mode) → INSERT new row.
         const depositCode = await generateDepositCode(currentStoreId);
         depositCodes.push(depositCode);
-        const qty = parseFloat(item.quantity);
 
         const { error } = await supabase.from('deposits').insert({
           store_id: currentStoreId,
           deposit_code: depositCode,
+          line_user_id: pendingDeposit?.line_user_id || null,
           customer_name: customerName.trim(),
           customer_phone: customerPhone.trim() || null,
           product_name: item.productName.trim(),
@@ -573,7 +662,11 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
       // ส่ง Action Card เข้าห้องแชทสาขา (ไม่ส่งสำหรับรายการ "ไม่ฝาก")
       // Staff สร้าง manual → ส่งเป็น "รอบาร์ยืนยัน" ทันที
       if (!isNoDeposit) {
-        for (let i = 0; i < items.length; i++) {
+        const startIdx = isFulfillingRequest ? 1 : 0;
+        // The first item in fulfil-request mode reuses the existing chat
+        // action card (transitioned from pending → pending_bar), so we only
+        // post NEW cards for additional items.
+        for (let i = startIdx; i < items.length; i++) {
           notifyChatNewDepositForBar(currentStoreId, {
             deposit_code: depositCodes[i],
             customer_name: customerName.trim(),
@@ -582,6 +675,20 @@ export function DepositForm({ onBack, onSuccess }: DepositFormProps) {
             table_number: tableNumber.trim() || null,
             notes: notes.trim() || null,
             received_by_name: user.displayName || user.username || t("form.staffFallback"),
+          });
+        }
+
+        // Fulfil-request: transition the existing chat action card forward
+        // (pending → pending_bar) so bar can verify in chat.
+        if (isFulfillingRequest && pendingDeposit) {
+          const { syncChatActionCardStatus } = await import('@/lib/chat/bot-client');
+          syncChatActionCardStatus({
+            storeId: currentStoreId,
+            referenceId: pendingDeposit.deposit_code,
+            actionType: 'deposit_claim',
+            newStatus: 'pending_bar',
+            completedBy: user.id,
+            completedByName: user.displayName || user.username || '',
           });
         }
       }

@@ -30,9 +30,8 @@ import {
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
-import { notifyStaff } from '@/lib/notifications/client';
 import { syncChatActionCardStatus } from '@/lib/chat/bot-client';
-import { expiryDateISO } from '@/lib/utils/date';
+import { DepositForm } from '../_components/deposit-form';
 
 /**
  * Staff queue for customer-submitted deposit requests.
@@ -80,15 +79,15 @@ export default function DepositRequestsPage() {
   const [requests, setRequests] = useState<DepositRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Approval modal state
-  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  // Reject modal state (approve uses the full DepositForm rendered inline)
+  const [showRejectModal, setShowRejectModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<DepositRequest | null>(null);
-  const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve');
-  const [approvalNotes, setApprovalNotes] = useState('');
-  // Customer LIFF leaves product/qty blank — staff fills here on approve.
-  const [productInput, setProductInput] = useState('');
-  const [quantityInput, setQuantityInput] = useState('');
+  const [rejectNotes, setRejectNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // When set, the page renders <DepositForm> inline (replacing the list)
+  // pre-filled with the customer's request. Same UX as "+ ฝากเหล้าใหม่".
+  const [fulfillingRequest, setFulfillingRequest] = useState<DepositRequest | null>(null);
 
   const loadRequests = useCallback(async () => {
     if (!currentStoreId) return;
@@ -123,169 +122,96 @@ export default function DepositRequestsPage() {
     loadRequests();
   }, [loadRequests]);
 
-  const openApprovalModal = (request: DepositRequest, action: 'approve' | 'reject') => {
-    setSelectedRequest(request);
-    setApprovalAction(action);
-    setApprovalNotes('');
-    setProductInput(request.product_name || '');
-    setQuantityInput(request.quantity != null && request.quantity > 0 ? String(request.quantity) : '');
-    setShowApprovalModal(true);
+  const openApprove = (request: DepositRequest) => {
+    // Approve uses the full DepositForm component (rendered inline) so
+    // staff get the same product autocomplete + category picker + multi-item
+    // UX as the "+ ฝากเหล้าใหม่" flow. Customer info is pre-filled.
+    setFulfillingRequest(request);
   };
 
-  const handleApproval = async () => {
+  const openReject = (request: DepositRequest) => {
+    setSelectedRequest(request);
+    setRejectNotes('');
+    setShowRejectModal(true);
+  };
+
+  const handleReject = async () => {
     if (!selectedRequest || !user || !currentStoreId) return;
-
-    if (approvalAction === 'approve') {
-      const productName = productInput.trim();
-      const qty = Number(quantityInput);
-      if (!productName || !Number.isFinite(qty) || qty <= 0) {
-        toast({
-          type: 'error',
-          title: t('requests.fillDetailsTitle'),
-          message: t('requests.fillDetailsMessage'),
-        });
-        return;
-      }
-    }
-
     setIsSubmitting(true);
     const supabase = createClient();
 
-    if (approvalAction === 'approve') {
-      const productName = productInput.trim();
-      const qty = Number(quantityInput);
+    // Reject: mark the deposit as cancelled (no bottle data to clean up
+    // because qty was 0 and the bottle trigger never fired).
+    const { error } = await supabase
+      .from('deposits')
+      .update({
+        status: 'cancelled',
+        notes: rejectNotes
+          ? `${selectedRequest.notes || ''}${selectedRequest.notes ? ' | ' : ''}ปฏิเสธ: ${rejectNotes}`
+          : `${selectedRequest.notes || ''}${selectedRequest.notes ? ' | ' : ''}ปฏิเสธโดย Staff`,
+      })
+      .eq('id', selectedRequest.id);
 
-      // Update the placeholder row in-place: pending_staff → pending_confirm.
-      // Bar verifies next via the chat action card or /bar-approval page.
-      const { error: updateError } = await supabase
-        .from('deposits')
-        .update({
-          status: 'pending_confirm',
-          product_name: productName,
-          quantity: qty,
-          remaining_qty: qty,
-          remaining_percent: 100,
-          expiry_date: expiryDateISO(30),
-          received_by: user.id,
-          notes: approvalNotes ? `${selectedRequest.notes || ''}${selectedRequest.notes ? ' | ' : ''}${approvalNotes}` : selectedRequest.notes,
-        })
-        .eq('id', selectedRequest.id);
+    if (error) {
+      toast({ type: 'error', title: t('loadError'), message: t('requests.rejectError') });
+    } else {
+      toast({ type: 'warning', title: t('requests.rejectSuccess') });
 
-      if (updateError) {
-        toast({ type: 'error', title: t('loadError'), message: t('requests.updateError') });
-        setIsSubmitting(false);
-        return;
-      }
-
-      // The auto_create_deposit_bottles trigger fires only on INSERT (not on
-      // qty UPDATE), so we manually seed bottle rows now that qty is known.
-      const bottleRows = [];
-      for (let i = 1; i <= qty; i++) {
-        bottleRows.push({
-          deposit_id: selectedRequest.id,
-          bottle_no: i,
-          remaining_percent: 100,
-          status: 'in_store',
-        });
-      }
-      if (bottleRows.length > 0) {
-        await supabase.from('deposit_bottles').insert(bottleRows);
-      }
-
-      toast({
-        type: 'success',
-        title: t('requests.approveSuccess'),
-        message: t('requests.approveSuccessMessage', { code: selectedRequest.deposit_code }),
-      });
-
-      // Notify bar that the deposit is now waiting for them.
-      notifyStaff({
-        storeId: currentStoreId,
-        type: 'new_deposit',
-        title: t('requests.notifyTitle'),
-        body: `${selectedRequest.customer_name} ฝาก ${productName} x${qty}`,
-        data: { deposit_code: selectedRequest.deposit_code },
-        excludeUserId: user?.id,
-      });
-
-      // Sync the existing chat action card → status='pending_bar' (bar verify).
-      // The card was posted by /api/customer/deposit-request when the customer
-      // submitted; we just transition it forward instead of creating a new one.
       syncChatActionCardStatus({
         storeId: currentStoreId,
         referenceId: selectedRequest.deposit_code,
         actionType: 'deposit_claim',
-        newStatus: 'pending_bar',
+        newStatus: 'completed',
         completedBy: user.id,
         completedByName: user.username || user.id,
       });
 
       await logAudit({
         store_id: currentStoreId,
-        action_type: AUDIT_ACTIONS.DEPOSIT_REQUEST_APPROVED,
+        action_type: AUDIT_ACTIONS.DEPOSIT_REQUEST_REJECTED,
         table_name: 'deposits',
         record_id: selectedRequest.id,
-        old_value: { status: 'pending_staff', product_name: '', quantity: 0 },
         new_value: {
-          status: 'pending_confirm',
           customer_name: selectedRequest.customer_name,
-          product_name: productName,
-          quantity: qty,
           deposit_code: selectedRequest.deposit_code,
+          reason: rejectNotes || null,
         },
         changed_by: user?.id || null,
       });
-    } else {
-      // Reject: mark the deposit as cancelled (no bottle data to clean up
-      // because qty was 0 and the bottle trigger never fired).
-      const { error } = await supabase
-        .from('deposits')
-        .update({
-          status: 'cancelled',
-          notes: approvalNotes
-            ? `${selectedRequest.notes || ''}${selectedRequest.notes ? ' | ' : ''}ปฏิเสธ: ${approvalNotes}`
-            : `${selectedRequest.notes || ''}${selectedRequest.notes ? ' | ' : ''}ปฏิเสธโดย Staff`,
-        })
-        .eq('id', selectedRequest.id);
-
-      if (error) {
-        toast({ type: 'error', title: t('loadError'), message: t('requests.rejectError') });
-      } else {
-        toast({ type: 'warning', title: t('requests.rejectSuccess') });
-
-        // Close out the chat action card too.
-        syncChatActionCardStatus({
-          storeId: currentStoreId,
-          referenceId: selectedRequest.deposit_code,
-          actionType: 'deposit_claim',
-          newStatus: 'completed',
-          completedBy: user.id,
-          completedByName: user.username || user.id,
-        });
-
-        await logAudit({
-          store_id: currentStoreId,
-          action_type: AUDIT_ACTIONS.DEPOSIT_REQUEST_REJECTED,
-          table_name: 'deposits',
-          record_id: selectedRequest.id,
-          new_value: {
-            customer_name: selectedRequest.customer_name,
-            deposit_code: selectedRequest.deposit_code,
-            reason: approvalNotes || null,
-          },
-          changed_by: user?.id || null,
-        });
-      }
     }
 
     setIsSubmitting(false);
-    setShowApprovalModal(false);
+    setShowRejectModal(false);
     setSelectedRequest(null);
     loadRequests();
   };
 
   const pendingRequests = requests.filter((r) => r.status === 'pending_staff');
   const processedRequests = requests.filter((r) => r.status !== 'pending_staff');
+
+  // When staff clicked Approve, render the full DepositForm pre-filled
+  // with the customer's request — same UX as "+ ฝากเหล้าใหม่".
+  if (fulfillingRequest) {
+    return (
+      <DepositForm
+        pendingDeposit={{
+          id: fulfillingRequest.id,
+          deposit_code: fulfillingRequest.deposit_code,
+          customer_name: fulfillingRequest.customer_name,
+          customer_phone: fulfillingRequest.customer_phone,
+          table_number: fulfillingRequest.table_number,
+          notes: fulfillingRequest.notes,
+          line_user_id: fulfillingRequest.line_user_id,
+          customer_photo_url: fulfillingRequest.customer_photo_url,
+        }}
+        onBack={() => setFulfillingRequest(null)}
+        onSuccess={() => {
+          setFulfillingRequest(null);
+          loadRequests();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -427,7 +353,7 @@ export default function DepositRequestsPage() {
                           className="min-h-[44px] flex-1"
                           variant="primary"
                           icon={<CheckCircle2 className="h-4 w-4" />}
-                          onClick={() => openApprovalModal(request, 'approve')}
+                          onClick={() => openApprove(request)}
                         >
                           {t('requests.approve')}
                         </Button>
@@ -435,7 +361,7 @@ export default function DepositRequestsPage() {
                           className="min-h-[44px] flex-1"
                           variant="danger"
                           icon={<XCircle className="h-4 w-4" />}
-                          onClick={() => openApprovalModal(request, 'reject')}
+                          onClick={() => openReject(request)}
                         >
                           {t('requests.reject')}
                         </Button>
@@ -494,14 +420,14 @@ export default function DepositRequestsPage() {
         </>
       )}
 
-      {/* Approval / Rejection Modal */}
+      {/* Reject Modal */}
       <Modal
-        isOpen={showApprovalModal}
+        isOpen={showRejectModal}
         onClose={() => {
-          setShowApprovalModal(false);
+          setShowRejectModal(false);
           setSelectedRequest(null);
         }}
-        title={approvalAction === 'approve' ? t('requests.approveTitle') : t('requests.rejectTitle')}
+        title={t('requests.rejectTitle')}
         description={
           selectedRequest
             ? `${selectedRequest.product_name || t('requests.awaitingDetails')} - ${selectedRequest.customer_name}`
@@ -533,37 +459,11 @@ export default function DepositRequestsPage() {
             </div>
           )}
 
-          {approvalAction === 'approve' && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="sm:col-span-2">
-                <Input
-                  label={t('requests.productLabel')}
-                  value={productInput}
-                  onChange={(e) => setProductInput(e.target.value)}
-                  placeholder={t('requests.productPlaceholder')}
-                />
-              </div>
-              <Input
-                label={t('requests.quantityLabel')}
-                type="number"
-                inputMode="numeric"
-                min={1}
-                value={quantityInput}
-                onChange={(e) => setQuantityInput(e.target.value)}
-                placeholder="1"
-              />
-            </div>
-          )}
-
           <Textarea
             label={t('requests.notesLabel')}
-            value={approvalNotes}
-            onChange={(e) => setApprovalNotes(e.target.value)}
-            placeholder={
-              approvalAction === 'approve'
-                ? t('requests.approveNotesPlaceholder')
-                : t('requests.rejectNotesPlaceholder')
-            }
+            value={rejectNotes}
+            onChange={(e) => setRejectNotes(e.target.value)}
+            placeholder={t('requests.rejectNotesPlaceholder')}
             rows={3}
           />
         </div>
@@ -572,23 +472,19 @@ export default function DepositRequestsPage() {
           <Button
             variant="outline"
             onClick={() => {
-              setShowApprovalModal(false);
+              setShowRejectModal(false);
               setSelectedRequest(null);
             }}
           >
             {t('cancel')}
           </Button>
           <Button
-            variant={approvalAction === 'approve' ? 'primary' : 'danger'}
-            onClick={handleApproval}
+            variant="danger"
+            onClick={handleReject}
             isLoading={isSubmitting}
-            icon={
-              approvalAction === 'approve'
-                ? <CheckCircle2 className="h-4 w-4" />
-                : <XCircle className="h-4 w-4" />
-            }
+            icon={<XCircle className="h-4 w-4" />}
           >
-            {approvalAction === 'approve' ? t('requests.approve') : t('requests.reject')}
+            {t('requests.reject')}
           </Button>
         </ModalFooter>
       </Modal>

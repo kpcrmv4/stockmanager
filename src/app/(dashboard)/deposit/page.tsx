@@ -736,7 +736,7 @@ export default function DepositPage() {
     if (deposit.status === 'pending_staff') {
       router.push('/deposit/requests');
     } else {
-      handleDepositClick(deposit);
+      setSelectedDeposit(deposit);
     }
   }, [router]);
 
