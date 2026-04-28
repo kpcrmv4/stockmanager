@@ -700,6 +700,20 @@ export default function BarApprovalPage() {
         });
       }
 
+      // Send LINE Flex card to the customer so the cancellation
+      // matches the deposit-rejected / withdrawal-completed UX.
+      if (withdrawal.deposit_id) {
+        fetch('/api/line/notify-deposit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'withdrawal_rejected',
+            deposit_id: withdrawal.deposit_id,
+            reason: reason.trim(),
+          }),
+        }).catch(() => {});
+      }
+
       setRejectWithdrawal(null);
       await loadAll();
     } catch (err) {

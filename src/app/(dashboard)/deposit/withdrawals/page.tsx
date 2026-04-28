@@ -719,6 +719,19 @@ export default function WithdrawalsPage() {
         });
       }
 
+      // Send LINE Flex card to customer that their withdrawal was cancelled.
+      if (selectedWithdrawal.deposit_id) {
+        fetch('/api/line/notify-deposit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'withdrawal_rejected',
+            deposit_id: selectedWithdrawal.deposit_id,
+            reason: processNotes || 'ยกเลิกจากร้าน',
+          }),
+        }).catch(() => {});
+      }
+
       await logAudit({
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.WITHDRAWAL_REJECTED,

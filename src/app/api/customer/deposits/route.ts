@@ -15,7 +15,7 @@ import { createServiceClient } from '@/lib/supabase/server';
  */
 
 const DEPOSIT_SELECT =
-  'id, deposit_code, product_name, category, quantity, remaining_qty, remaining_percent, expiry_date, status, table_number, notes, customer_photo_url, created_at, store_id, store:stores(store_name)';
+  'id, deposit_code, product_name, category, quantity, remaining_qty, remaining_percent, expiry_date, status, table_number, notes, customer_photo_url, created_at, store_id, store:stores(store_name), bottles:deposit_bottles(id, bottle_no, remaining_percent, status)';
 
 const ACTIVE_STATUSES = [
   'pending_staff',
