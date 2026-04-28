@@ -44,74 +44,14 @@ export function HistoryView() {
   const loadHistory = useCallback(async () => {
     if (hasLoadedRef.current) return;
     hasLoadedRef.current = true;
-    const supabase = createClient();
 
-    // Try Supabase auth first; fall back to LIFF/token API.
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      const { data: deposits } = await supabase
-        .from('deposits')
-        .select(
-          'id, deposit_code, product_name, quantity, status, created_at, store:stores(store_name)',
-        )
-        .eq('customer_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('line_user_id')
-        .eq('id', user.id)
-        .single();
-
-      let withdrawals: Array<Record<string, unknown>> = [];
-      if (profile?.line_user_id) {
-        const { data } = await supabase
-          .from('withdrawals')
-          .select('id, product_name, requested_qty, status, created_at')
-          .eq('line_user_id', profile.line_user_id)
-          .order('created_at', { ascending: false })
-          .limit(50);
-        if (data) withdrawals = data;
-      }
-
-      const items: HistoryItem[] = [
-        ...(deposits || []).map((d: Record<string, unknown>) => ({
-          id: d.id as string,
-          type: 'deposit' as const,
-          product_name: d.product_name as string,
-          quantity: d.quantity as number,
-          status: d.status as string,
-          created_at: d.created_at as string,
-          deposit_code: d.deposit_code as string,
-          store_name: (d.store as { store_name: string })?.store_name,
-        })),
-        ...withdrawals.map((w) => ({
-          id: w.id as string,
-          type: 'withdrawal' as const,
-          product_name: w.product_name as string,
-          quantity: w.requested_qty as number,
-          status: w.status as string,
-          created_at: w.created_at as string,
-        })),
-      ];
-
-      items.sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      );
-      setHistory(items);
-      setIsLoading(false);
-      return;
-    }
-
-    // Fall back to LIFF / token API. /api/customer/history returns BOTH
-    // deposits and withdrawals — the deposits endpoint alone misses
-    // bar-approved withdrawals so the History tab looked stuck on
-    // "deposit only" rows.
+    // Prefer the LIFF / token path whenever we have a lineUserId. The
+    // Supabase-auth fallback used to run first, but on a desktop browser
+    // where the user is also logged in as admin (sharing the same
+    // domain), Supabase returns the admin user, the deposits query
+    // (filtered by customer_id) returns empty, and the function
+    // early-returns — never falling through to LIFF. Reorder so LIFF
+    // wins when a LINE identity is present.
     if (lineUserId) {
       try {
         const accessToken =
@@ -162,10 +102,74 @@ export function HistoryView() {
               new Date(a.created_at).getTime(),
           );
           setHistory(items);
+          setIsLoading(false);
+          return;
         }
       } catch {
-        // silent fail
+        // silent fail — fall through to Supabase auth attempt below
       }
+    }
+
+    // Fallback: Supabase auth (used when this page is visited by a
+    // logged-in customer from a non-LIFF context — rare).
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: deposits } = await supabase
+        .from('deposits')
+        .select(
+          'id, deposit_code, product_name, quantity, status, created_at, store:stores(store_name)',
+        )
+        .eq('customer_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('line_user_id')
+        .eq('id', user.id)
+        .single();
+
+      let withdrawals: Array<Record<string, unknown>> = [];
+      if (profile?.line_user_id) {
+        const { data } = await supabase
+          .from('withdrawals')
+          .select('id, product_name, requested_qty, actual_qty, status, created_at')
+          .eq('line_user_id', profile.line_user_id)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (data) withdrawals = data;
+      }
+
+      const items: HistoryItem[] = [
+        ...(deposits || []).map((d: Record<string, unknown>) => ({
+          id: d.id as string,
+          type: 'deposit' as const,
+          product_name: d.product_name as string,
+          quantity: d.quantity as number,
+          status: d.status as string,
+          created_at: d.created_at as string,
+          deposit_code: d.deposit_code as string,
+          store_name: (d.store as { store_name: string })?.store_name,
+        })),
+        ...withdrawals.map((w) => ({
+          id: w.id as string,
+          type: 'withdrawal' as const,
+          product_name: w.product_name as string,
+          quantity: (w.actual_qty as number) ?? (w.requested_qty as number) ?? 0,
+          status: w.status as string,
+          created_at: w.created_at as string,
+        })),
+      ];
+
+      items.sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+      setHistory(items);
     }
 
     setIsLoading(false);
