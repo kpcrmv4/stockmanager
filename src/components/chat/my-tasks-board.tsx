@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Hand,
   CheckCircle,
@@ -79,6 +79,14 @@ function formatShiftLabel(start: Date, end: Date): string {
 export function MyTasksBoard({ roomId, storeId, currentUserId, currentUserName, currentUserRole }: MyTasksBoardProps) {
   const messages = useChatStore((s) => s.messages);
   const [subTab, setSubTab] = useState<SubTab>('claimed');
+  // Tick every 30s so a timed-out claim drops out of "กำลังทำ" without
+  // requiring user interaction — the deadline check in claimedCards
+  // depends on Date.now() and otherwise wouldn't re-evaluate.
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const { start: shiftStart, end: shiftEnd } = useMemo(() => getShiftWindow(), []);
   const shiftLabel = useMemo(() => formatShiftLabel(shiftStart, shiftEnd), [shiftStart, shiftEnd]);
@@ -101,11 +109,21 @@ export function MyTasksBoard({ roomId, storeId, currentUserId, currentUserName, 
     });
   }, [messages, currentUserId, shiftStart, shiftEnd]);
 
-  // Split into claimed (in-progress) and completed
+  // Split into claimed (in-progress) and completed.
+  // A timed-out claimed card is effectively unowned again — drop it from
+  // "กำลังทำ" so it stops showing up as the user's task. It rejoins the
+  // store's "รอรับ" tab via getNormalizedStatus on the transaction board.
   const claimedCards = useMemo(() => {
     return myCards.filter((msg) => {
       const meta = msg.metadata as unknown as Record<string, unknown>;
-      return meta.status === 'claimed';
+      if (meta.status !== 'claimed') return false;
+      const claimedAt = meta.claimed_at as string | null | undefined;
+      const timeoutMinutes = meta.timeout_minutes as number | null | undefined;
+      if (claimedAt && timeoutMinutes && timeoutMinutes > 0) {
+        const deadline = new Date(claimedAt).getTime() + timeoutMinutes * 60 * 1000;
+        if (deadline < Date.now()) return false;
+      }
+      return true;
     });
   }, [myCards]);
 
