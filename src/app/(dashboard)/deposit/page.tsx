@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
@@ -105,6 +105,7 @@ interface TransferBatchGroup {
 }
 
 const statusVariantMap: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
+  pending_staff: 'warning',
   pending_confirm: 'warning',
   in_store: 'success',
   pending_withdrawal: 'info',
@@ -114,9 +115,12 @@ const statusVariantMap: Record<string, 'default' | 'success' | 'warning' | 'dang
   transferred_out: 'info',
 };
 
-const DEPOSIT_TAB_IDS = ['all', 'in_store', 'pending_confirm', 'expired', 'transfer_pending', 'vip'] as const;
+// 'new_request' is a UI tab that maps to status='pending_staff' (LIFF customer
+// requests waiting for staff to physically receive the bottle).
+const DEPOSIT_TAB_IDS = ['all', 'new_request', 'in_store', 'pending_confirm', 'expired', 'transfer_pending', 'vip'] as const;
 const DEPOSIT_TAB_KEYS: Record<string, string> = {
   all: 'tabs.all',
+  new_request: 'tabs.newRequest',
   in_store: 'tabs.inStore',
   pending_confirm: 'tabs.pendingConfirm',
   expired: 'tabs.expired',
@@ -125,13 +129,14 @@ const DEPOSIT_TAB_KEYS: Record<string, string> = {
 };
 
 const PAGE_SIZE = 50;
-const ACTIVE_STATUSES = ['in_store', 'pending_confirm', 'pending_withdrawal', 'transfer_pending', 'expired'];
+const ACTIVE_STATUSES = ['pending_staff', 'in_store', 'pending_confirm', 'pending_withdrawal', 'transfer_pending', 'expired'];
 
 export default function DepositPage() {
   const t = useTranslations('deposit');
   const { user } = useAuthStore();
   const { currentStoreId, setCurrentStoreId } = useAppStore();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [activeTab, setActiveTab] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -179,6 +184,7 @@ export default function DepositPage() {
   const [stats, setStats] = useState({
     activeCount: 0,
     pendingCount: 0,
+    newRequestCount: 0,
     expiredCount: 0,
     vipCount: 0,
     transferPendingCount: 0,
@@ -281,6 +287,7 @@ export default function DepositPage() {
     const [
       { count: activeCount },
       { count: pendingCount },
+      { count: newRequestCount },
       { count: expiredCount },
       { count: vipCount },
       { count: transferPendingCount },
@@ -288,6 +295,7 @@ export default function DepositPage() {
     ] = await Promise.all([
       withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'in_store')),
       withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'pending_confirm')),
+      withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'pending_staff')),
       withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'expired')),
       withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('is_vip', true)),
       withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'transfer_pending')),
@@ -297,6 +305,7 @@ export default function DepositPage() {
     setStats({
       activeCount: activeCount || 0,
       pendingCount: pendingCount || 0,
+      newRequestCount: newRequestCount || 0,
       expiredCount: expiredCount || 0,
       vipCount: vipCount || 0,
       transferPendingCount: transferPendingCount || 0,
@@ -720,6 +729,17 @@ export default function DepositPage() {
     if (value >= dateFrom) setDateTo(value);
   };
 
+  // Pending-staff rows are placeholder (qty=0, product blank) — opening the
+  // detail modal would be confusing. Route to /deposit/requests where the
+  // staff can fill product/qty + approve in one form.
+  const handleDepositClick = useCallback((deposit: Deposit) => {
+    if (deposit.status === 'pending_staff') {
+      router.push('/deposit/requests');
+    } else {
+      handleDepositClick(deposit);
+    }
+  }, [router]);
+
   const filteredDeposits = useMemo(() => {
     let result = deposits;
 
@@ -746,7 +766,15 @@ export default function DepositPage() {
             d.status === 'transfer_pending',
         );
       }
-    } else if (activeTab !== 'all') {
+    } else if (activeTab === 'new_request') {
+      // 'new_request' is the UI name for status='pending_staff' rows
+      // (LIFF customer requests waiting for staff to physically receive).
+      result = result.filter((d) => d.status === 'pending_staff');
+    } else if (activeTab === 'all') {
+      // The 'all' tab hides pending_staff rows because they belong to the
+      // dedicated 'new_request' queue, not the main "active deposits" list.
+      result = result.filter((d) => d.status !== 'pending_staff');
+    } else {
       result = result.filter((d) => d.status === activeTab);
     }
 
@@ -776,6 +804,7 @@ export default function DepositPage() {
 
   const depositTabs = DEPOSIT_TAB_IDS.map((id) => ({ id, label: t(DEPOSIT_TAB_KEYS[id]) }));
   const tabsWithCounts = depositTabs.map((tab) => {
+    if (tab.id === 'new_request') return { ...tab, count: stats.newRequestCount };
     if (tab.id === 'in_store') return { ...tab, count: stats.activeCount };
     if (tab.id === 'pending_confirm') return { ...tab, count: stats.pendingCount };
     if (tab.id === 'expired') return { ...tab, count: stats.expiredCount };
@@ -833,7 +862,25 @@ export default function DepositPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <button
+          type="button"
+          onClick={() => setActiveTab('new_request')}
+          className={cn(
+            'rounded-xl bg-white p-3 text-left shadow-sm ring-1 ring-gray-200 transition-colors hover:bg-amber-50/40 sm:p-5 dark:bg-gray-800 dark:ring-gray-700 dark:hover:bg-amber-900/10',
+            stats.newRequestCount > 0 && 'ring-2 ring-amber-300 dark:ring-amber-700',
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-900/20">
+              <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.newRequestCount}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('tabs.newRequest')}</p>
+            </div>
+          </div>
+        </button>
         <Card padding="md">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-900/20">
@@ -1237,7 +1284,7 @@ export default function DepositPage() {
                             'cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30',
                             rowChecked && 'bg-amber-50/60 dark:bg-amber-900/10',
                           )}
-                          onClick={() => setSelectedDeposit(deposit)}
+                          onClick={() => handleDepositClick(deposit)}
                         >
                           {(activeTab === 'expired' || activeTab === 'vip') && user && user.role !== 'customer' &&
                            (activeTab !== 'vip' || ['owner', 'accountant', 'hq'].includes(user.role)) && (
@@ -1277,8 +1324,11 @@ export default function DepositPage() {
                             )}
                           </td>
                           <td className="px-5 py-4">
-                            <p className="text-sm text-gray-900 dark:text-white">
-                              {deposit.product_name}
+                            <p className={cn(
+                              'text-sm text-gray-900 dark:text-white',
+                              !deposit.product_name && 'italic text-gray-400 dark:text-gray-500',
+                            )}>
+                              {deposit.product_name || t('requests.awaitingDetails')}
                             </p>
                             {deposit.category && (
                               <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -1352,7 +1402,7 @@ export default function DepositPage() {
                               icon={<Eye className="h-4 w-4" />}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedDeposit(deposit);
+                                handleDepositClick(deposit);
                               }}
                             >
                               {t('table.viewDetail')}
@@ -1409,7 +1459,7 @@ export default function DepositPage() {
                     )}
                   <button
                     className="w-full p-4 text-left flex-1"
-                    onClick={() => setSelectedDeposit(deposit)}
+                    onClick={() => handleDepositClick(deposit)}
                   >
                     <div className="flex items-start justify-between">
                       <div className="min-w-0 flex-1">
@@ -1433,8 +1483,11 @@ export default function DepositPage() {
                             </Badge>
                           )}
                         </div>
-                        <p className="mt-1 font-medium text-gray-900 dark:text-white">
-                          {deposit.product_name}
+                        <p className={cn(
+                          'mt-1 font-medium text-gray-900 dark:text-white',
+                          !deposit.product_name && 'italic text-gray-400 dark:text-gray-500',
+                        )}>
+                          {deposit.product_name || t('requests.awaitingDetails')}
                         </p>
                         <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
                           {deposit.customer_name}

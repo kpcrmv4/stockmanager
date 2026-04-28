@@ -207,6 +207,19 @@
 .customer-card-pending {
   background: var(--accent-subtle);
 }
+/* Pending-request cards have no stats — the inner box only carries text
+   (table no., note). Pure-white reads too bright at night, so we override
+   it to a cream tint that sits on top of the dark wine background. */
+.customer-card-pending .customer-detail-box {
+  background: rgba(248, 215, 148, 0.08);
+  border-color: rgba(248, 215, 148, 0.18);
+}
+.customer-card-pending .customer-detail-label {
+  color: rgba(248, 215, 148, 0.55);
+}
+.customer-card-pending .customer-detail-separator {
+  background: rgba(248, 215, 148, 0.15);
+}
 
 .customer-item-name {
   font-size: 13px;

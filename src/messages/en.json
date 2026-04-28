@@ -306,7 +306,7 @@
       "daysLeftLabel": "Days left",
       "pendingRequestsTitle": "Pending Requests",
       "pendingRequestUnnamed": "Deposit request (awaiting details)",
-      "pendingRequestHint": "Staff is checking and will fill in the bottle details shortly.",
+      "pendingRequestHint": "Staff is on the way to receive your bottles shortly.",
       "requestSubmittedAt": "Submitted at {time}",
       "requestTableLabel": "Table",
       "requestNotesLabel": "Note"
@@ -1080,6 +1080,7 @@
     "notFoundMessage": "This deposit may have been deleted or moved",
     "tabs": {
       "all": "All",
+      "newRequest": "New Request",
       "inStore": "In Store",
       "pendingConfirm": "Pending Confirm",
       "expired": "Expired",

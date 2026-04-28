@@ -306,7 +306,7 @@
       "daysLeftLabel": "เหลืออีก",
       "pendingRequestsTitle": "คำขอที่รอ Staff",
       "pendingRequestUnnamed": "คำขอฝากเหล้า (รอ Staff ระบุรายละเอียด)",
-      "pendingRequestHint": "พนักงานกำลังตรวจสอบและจะเพิ่มรายละเอียดขวดให้ในไม่ช้า",
+      "pendingRequestHint": "พนักงานกำลังมารับในเร็วๆนี้",
       "requestSubmittedAt": "ส่งเมื่อ {time}",
       "requestTableLabel": "โต๊ะ",
       "requestNotesLabel": "หมายเหตุ"
@@ -1080,6 +1080,7 @@
     "notFoundMessage": "รายการฝากเหล้านี้อาจถูกลบหรือย้ายไปแล้ว",
     "tabs": {
       "all": "ทั้งหมด",
+      "newRequest": "คำขอใหม่",
       "inStore": "ในร้าน",
       "pendingConfirm": "รอยืนยัน",
       "expired": "หมดอายุ",
