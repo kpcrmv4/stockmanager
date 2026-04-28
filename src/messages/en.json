@@ -975,7 +975,8 @@
     "labelExpiry": "Expiry:",
     "labelDepositDate": "Deposit Date:",
     "bottleNo": "Bottle:",
-    "bottleRemaining": "Remaining:"
+    "bottleRemaining": "Remaining:",
+    "perBottle": "Per Bottle:"
   },
   "announcements": {
     "title": "Announcements",

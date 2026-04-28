@@ -608,45 +608,21 @@ function ReceiptContent({
   settings: ReceiptSettings | null;
   storeName: string;
 }) {
-  // Render N receipt pages for multi-bottle deposits — each page has
-  // the bottle number + per-bottle remaining %, page-break-after kicks
-  // the thermal printer to cut between bottles.
+  // Single receipt page. When the payload carries multiple bottles
+  // we list each bottle's % inside the slip; the per-bottle label
+  // sticker print (separate job_type='label') still cuts one per
+  // bottle.
   const bottles = Array.isArray(payload.bottles) && payload.bottles.length > 0
     ? payload.bottles
     : null;
   const totalBottles = payload.quantity || (bottles?.length ?? 1);
-  if (bottles && bottles.length > 1) {
-    return (
-      <>
-        {bottles.map((b, idx) => (
-          <div
-            key={b.bottle_no}
-            style={{ pageBreakAfter: idx < bottles.length - 1 ? 'always' : 'auto' }}
-          >
-            <SingleReceipt
-              payload={payload}
-              settings={settings}
-              storeName={storeName}
-              bottleNo={b.bottle_no}
-              totalBottles={totalBottles}
-              bottlePercent={b.remaining_percent}
-            />
-          </div>
-        ))}
-      </>
-    );
-  }
-  const single = bottles && bottles.length === 1
-    ? { bottleNo: bottles[0].bottle_no, totalBottles, bottlePercent: bottles[0].remaining_percent }
-    : { bottleNo: null, totalBottles, bottlePercent: null };
   return (
     <SingleReceipt
       payload={payload}
       settings={settings}
       storeName={storeName}
-      bottleNo={single.bottleNo}
-      totalBottles={single.totalBottles}
-      bottlePercent={single.bottlePercent}
+      bottles={bottles}
+      totalBottles={totalBottles}
     />
   );
 }
@@ -655,20 +631,19 @@ function SingleReceipt({
   payload,
   settings,
   storeName,
-  bottleNo,
+  bottles,
   totalBottles,
-  bottlePercent,
 }: {
   payload: PrintPayload;
   settings: ReceiptSettings | null;
   storeName: string;
-  bottleNo: number | null;
+  bottles: Array<{ bottle_no: number; remaining_percent: number }> | null;
   totalBottles: number;
-  bottlePercent: number | null;
 }) {
   const t = useTranslations('printListener');
-  const showBottleRow = bottleNo !== null && totalBottles > 1;
-  const showPctRow = bottlePercent !== null && bottlePercent !== undefined;
+  const sortedBottles = bottles
+    ? [...bottles].sort((a, b) => (a.bottle_no || 0) - (b.bottle_no || 0))
+    : null;
   return (
     <div>
       {/* Store Name */}
@@ -726,11 +701,23 @@ function SingleReceipt({
           label={t('quantity')}
           value={`${formatNumber(payload.remaining_qty)} / ${formatNumber(payload.quantity)}`}
         />
-        {showBottleRow && (
-          <ReceiptRow label={t('bottleNo')} value={`${bottleNo}/${totalBottles}`} bold />
+        {/* Bottle/% block — single bottle gets one Remaining row,
+            multi-bottle lists each bottle below the qty row. */}
+        {sortedBottles && sortedBottles.length === 1 && sortedBottles[0].remaining_percent !== null && sortedBottles[0].remaining_percent !== undefined && (
+          <ReceiptRow label={t('bottleRemaining')} value={`${sortedBottles[0].remaining_percent}%`} bold />
         )}
-        {showPctRow && (
-          <ReceiptRow label={t('bottleRemaining')} value={`${bottlePercent}%`} bold />
+        {sortedBottles && sortedBottles.length > 1 && (
+          <>
+            <div style={{ marginTop: '2px', fontWeight: 'bold' }}>{t('perBottle')}</div>
+            {sortedBottles.map((b) => (
+              <ReceiptRow
+                key={b.bottle_no}
+                label={`  ${t('bottleNo')} ${b.bottle_no}/${totalBottles}`}
+                value={`${b.remaining_percent}%`}
+                bold
+              />
+            ))}
+          </>
         )}
       </div>
 

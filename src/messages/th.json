@@ -975,7 +975,8 @@
     "labelExpiry": "หมดอายุ:",
     "labelDepositDate": "วันที่ฝาก:",
     "bottleNo": "ขวดที่:",
-    "bottleRemaining": "คงเหลือ:"
+    "bottleRemaining": "คงเหลือ:",
+    "perBottle": "ปริมาณแต่ละขวด:"
   },
   "announcements": {
     "title": "ประกาศ/โปรโมชั่น",

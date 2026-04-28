@@ -655,27 +655,18 @@ export default function PrintStationPage() {
         className={activePrintJob?.job_type === 'label' ? 'print-label' : undefined}
       >
         {activePrintJob && activePrintJob.job_type === 'receipt' && (() => {
-          // One receipt per bottle. When the payload carries a bottles[]
-          // array (the new flow) each page shows that bottle's
-          // remaining_percent; otherwise we fall back to quantity copies
-          // numbered i/N for legacy jobs.
+          // One receipt total — bottles[] is rendered as a per-bottle
+          // list inside the slip. Labels still print one per bottle.
           const payload = activePrintJob.payload as PrintPayload;
           const bottles = Array.isArray(payload.bottles) && payload.bottles.length > 0
             ? payload.bottles
             : null;
           const total = payload.quantity || (bottles?.length ?? 1);
-          if (bottles) {
-            return bottles.map((b) => (
-              <div key={b.bottle_no} className="print-copy-separator">
-                <ReceiptContent payload={payload} settings={receiptSettings} storeName={storeName} copyNumber={b.bottle_no} totalCopies={total} bottlePercent={b.remaining_percent} t={t} />
-              </div>
-            ));
-          }
-          return Array.from({ length: total }).map((_, i) => (
-            <div key={i} className="print-copy-separator">
-              <ReceiptContent payload={payload} settings={receiptSettings} storeName={storeName} copyNumber={i + 1} totalCopies={total} t={t} />
+          return (
+            <div className="print-copy-separator">
+              <ReceiptContent payload={payload} settings={receiptSettings} storeName={storeName} bottles={bottles} totalCopies={total} t={t} />
             </div>
-          ));
+          );
         })()}
         {activePrintJob && activePrintJob.job_type === 'label' && (() => {
           // Same treatment for labels — bottles[] beats label_copies.
@@ -1045,21 +1036,21 @@ function ReceiptContent({
   payload,
   settings,
   storeName,
-  copyNumber,
+  bottles,
   totalCopies,
-  bottlePercent,
   t,
 }: {
   payload: PrintPayload;
   settings: ReceiptSettings | null;
   storeName: string;
-  copyNumber?: number;
+  bottles?: Array<{ bottle_no: number; remaining_percent: number }> | null;
   totalCopies?: number;
-  bottlePercent?: number | null;
   t: ReturnType<typeof useTranslations>;
 }) {
-  const showBottleRow = !!copyNumber && !!totalCopies && totalCopies > 1;
-  const showPctRow = bottlePercent !== null && bottlePercent !== undefined;
+  const sortedBottles = bottles
+    ? [...bottles].sort((a, b) => (a.bottle_no || 0) - (b.bottle_no || 0))
+    : null;
+  const totalBottles = totalCopies ?? sortedBottles?.length ?? 1;
   return (
     <div>
       {/* Logo */}
@@ -1094,11 +1085,21 @@ function ReceiptContent({
         <ReceiptRow label={t('receipt.product')} value={payload.product_name} bold />
         {payload.category && <ReceiptRow label={t('receipt.category')} value={payload.category} />}
         <ReceiptRow label={t('receipt.quantity')} value={`${formatNumber(payload.remaining_qty)} / ${formatNumber(payload.quantity)}`} />
-        {showBottleRow && (
-          <ReceiptRow label={t('receipt.bottleNo')} value={`${copyNumber}/${totalCopies}`} bold />
+        {sortedBottles && sortedBottles.length === 1 && sortedBottles[0].remaining_percent !== null && sortedBottles[0].remaining_percent !== undefined && (
+          <ReceiptRow label={t('receipt.bottleRemaining')} value={`${sortedBottles[0].remaining_percent}%`} bold />
         )}
-        {showPctRow && (
-          <ReceiptRow label={t('receipt.bottleRemaining')} value={`${bottlePercent}%`} bold />
+        {sortedBottles && sortedBottles.length > 1 && (
+          <>
+            <div style={{ marginTop: '2px', fontWeight: 'bold' }}>Per Bottle:</div>
+            {sortedBottles.map((b) => (
+              <ReceiptRow
+                key={b.bottle_no}
+                label={`  ${t('receipt.bottleNo')} ${b.bottle_no}/${totalBottles}`}
+                value={`${b.remaining_percent}%`}
+                bold
+              />
+            ))}
+          </>
         )}
       </div>
       <div style={{ margin: '6px 0' }}>
@@ -1132,11 +1133,6 @@ function ReceiptContent({
             </div>
           </div>
         </>
-      )}
-      {totalCopies && totalCopies > 1 && copyNumber && (
-        <div style={{ textAlign: 'center', fontSize: '10px', color: '#888', margin: '2px 0' }}>
-          {t('receipt.copyOf', { current: copyNumber, total: totalCopies })}
-        </div>
       )}
     </div>
   );

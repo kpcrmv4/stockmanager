@@ -21,10 +21,11 @@ class HtmlRenderer {
 
   /**
    * ใบรับฝากเหล้า (Deposit Receipt)
-   * One page per bottle when payload.bottles[] has > 1 entry, so a
-   * 3-bottle deposit prints 3 receipts numbered 1/3, 2/3, 3/3 — each
-   * carrying the per-bottle remaining_percent at confirm time. Single-
-   * bottle deposits keep the GAS-style single page.
+   * Always one page. When payload.bottles[] carries more than one
+   * bottle we list each bottle's remaining_percent in a small table
+   * below the qty row so the customer can see at a glance which
+   * bottle is full vs partly drunk. Single-bottle / legacy payloads
+   * just show one Remaining row.
    */
   renderReceipt(payload) {
     const bottles = Array.isArray(payload.bottles) && payload.bottles.length > 0
@@ -32,34 +33,34 @@ class HtmlRenderer {
       : null;
     const totalBottles = payload.quantity || (bottles ? bottles.length : 1);
 
-    if (bottles && bottles.length > 1) {
-      let html = `<html><head><meta charset="UTF-8">` +
-        `<style>@page{size:${this.paperWidth}mm auto;margin:0;} .page{page-break-after:always;} .page:last-child{page-break-after:auto;}</style>` +
-        `</head><body style="font-family:Tahoma,sans-serif;font-size:11pt;margin:0;padding:0;">`;
-      for (const b of bottles) {
-        html += `<div class="page" style="width:70mm;margin:0 auto;padding:3mm;">` +
-          this._receiptBody(payload, { bottleNo: b.bottle_no, totalBottles, bottlePercent: b.remaining_percent }) +
-          `</div>`;
-      }
-      html += `</body></html>`;
-      return html;
-    }
-
-    // Single-bottle / legacy path
-    const single = bottles && bottles.length === 1
-      ? { bottleNo: bottles[0].bottle_no, totalBottles, bottlePercent: bottles[0].remaining_percent }
-      : { bottleNo: null, totalBottles, bottlePercent: null };
     return `<html><head><meta charset="UTF-8"></head>` +
       `<body style="font-family:Tahoma,sans-serif;font-size:11pt;width:70mm;margin:0 auto;padding:3mm;">` +
-      this._receiptBody(payload, single) +
+      this._receiptBody(payload, { bottles, totalBottles }) +
       `</body></html>`;
   }
 
-  _receiptBody(payload, { bottleNo, totalBottles, bottlePercent }) {
+  _receiptBody(payload, { bottles, totalBottles }) {
     const showQr = this.settings.show_qr && this.settings.qr_code_image_url;
     const lineOaId = this.settings.line_oa_id || '';
-    const showBottleRow = bottleNo !== null && totalBottles > 1;
-    const showPctRow = bottlePercent !== null && bottlePercent !== undefined;
+
+    // Three render shapes for the bottle/% block:
+    //   - 0 bottles[] entries: skip the rows
+    //   - 1 bottle: single "Remaining" row
+    //   - N bottles: per-bottle list under the qty row
+    let bottleBlock = '';
+    if (bottles && bottles.length === 1) {
+      const b = bottles[0];
+      if (b.remaining_percent !== null && b.remaining_percent !== undefined) {
+        bottleBlock = `<tr><td>Remaining:</td><td><b>${b.remaining_percent}%</b></td></tr>`;
+      }
+    } else if (bottles && bottles.length > 1) {
+      const rows = bottles
+        .slice()
+        .sort((a, b) => (a.bottle_no || 0) - (b.bottle_no || 0))
+        .map((b) => `<tr><td style="padding-left:8px;">- Bottle ${b.bottle_no}/${totalBottles}:</td><td><b>${b.remaining_percent}%</b></td></tr>`)
+        .join('');
+      bottleBlock = `<tr><td colspan="2" style="padding-top:2px;">Per Bottle:</td></tr>${rows}`;
+    }
 
     return `<center style="font-size:10pt;">${this.storeName}</center>` +
       `<center><b style="font-size:14pt;">DEPOSIT RECEIPT</b></center>` +
@@ -71,8 +72,7 @@ class HtmlRenderer {
       (payload.customer_phone ? `<tr><td>Phone:</td><td>${payload.customer_phone}</td></tr>` : '') +
       `<tr><td>Product:</td><td>${payload.product_name || '-'}</td></tr>` +
       `<tr><td>Qty:</td><td>${payload.remaining_qty || payload.quantity || '-'}</td></tr>` +
-      (showBottleRow ? `<tr><td>Bottle:</td><td><b>${bottleNo}/${totalBottles}</b></td></tr>` : '') +
-      (showPctRow ? `<tr><td>Remaining:</td><td><b>${bottlePercent}%</b></td></tr>` : '') +
+      bottleBlock +
       (payload.table_number ? `<tr><td>Note:</td><td>${payload.table_number}</td></tr>` : '') +
       `</table>` +
       `<hr>` +
