@@ -450,6 +450,12 @@ CREATE TABLE withdrawals (
   notes TEXT,
   photo_url TEXT,
   withdrawal_type TEXT DEFAULT 'in_store',
+  -- Multi-bottle deposits create one withdrawals row per bottle so the
+  -- bar can mark exactly that bottle consumed on approval. Nullable
+  -- because legacy single-bottle / qty-based requests don't target a
+  -- specific bottle. ON DELETE SET NULL keeps the audit trail when a
+  -- bottle row is removed.
+  bottle_id UUID REFERENCES deposit_bottles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -796,6 +802,7 @@ CREATE INDEX idx_deposits_is_vip ON deposits(is_vip) WHERE is_vip = true;
 CREATE INDEX idx_deposits_is_no_deposit ON deposits(is_no_deposit) WHERE is_no_deposit = true;
 CREATE INDEX idx_withdrawals_deposit_id ON withdrawals(deposit_id);
 CREATE INDEX idx_withdrawals_store_id ON withdrawals(store_id);
+CREATE INDEX idx_withdrawals_bottle_id ON withdrawals(bottle_id);
 CREATE INDEX idx_comparisons_store_id ON comparisons(store_id);
 CREATE INDEX idx_comparisons_status ON comparisons(status);
 CREATE INDEX idx_manual_counts_store_date ON manual_counts(store_id, count_date);
