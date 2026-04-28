@@ -136,10 +136,9 @@ export default function ComparisonPage() {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
   // Bookmarks for the per-product table — pinned product_codes float
-  // to the top so the user can babysit a few problem SKUs.
+  // to the top so the user can babysit a few problem SKUs. Direct
+  // toggle (no confirm modal) since unpinning is non-destructive.
   const [bookmarkedCodes, setBookmarkedCodes] = useState<Set<string>>(new Set());
-  const [pinTarget, setPinTarget] = useState<{ code: string; name: string; pinned: boolean } | null>(null);
-  const [pinSubmitting, setPinSubmitting] = useState(false);
 
   const fetchComparisons = useCallback(async () => {
     if (!currentStoreId) return;
@@ -214,35 +213,39 @@ export default function ComparisonPage() {
       });
   }, [currentStoreId, user?.id]);
 
-  const togglePin = useCallback(async () => {
-    if (!user?.id || !currentStoreId || !pinTarget) return;
-    setPinSubmitting(true);
-    try {
-      const supabase = createClient();
-      if (pinTarget.pinned) {
-        // Currently pinned → unpin
-        await supabase
+  // Optimistic toggle — flip the local Set first so the star icon
+  // responds instantly, then persist to Supabase. Roll back if the
+  // write fails.
+  const togglePin = useCallback(async (productCode: string) => {
+    if (!user?.id || !currentStoreId) return;
+    const wasPinned = bookmarkedCodes.has(productCode);
+    setBookmarkedCodes((prev) => {
+      const next = new Set(prev);
+      if (wasPinned) next.delete(productCode);
+      else next.add(productCode);
+      return next;
+    });
+    const supabase = createClient();
+    const { error } = wasPinned
+      ? await supabase
           .from('comparison_product_bookmarks')
           .delete()
           .eq('user_id', user.id)
           .eq('store_id', currentStoreId)
-          .eq('product_code', pinTarget.code);
-        setBookmarkedCodes((prev) => {
-          const next = new Set(prev);
-          next.delete(pinTarget.code);
-          return next;
-        });
-      } else {
-        await supabase
+          .eq('product_code', productCode)
+      : await supabase
           .from('comparison_product_bookmarks')
-          .upsert({ user_id: user.id, store_id: currentStoreId, product_code: pinTarget.code }, { onConflict: 'user_id,store_id,product_code' });
-        setBookmarkedCodes((prev) => new Set(prev).add(pinTarget.code));
-      }
-      setPinTarget(null);
-    } finally {
-      setPinSubmitting(false);
+          .upsert({ user_id: user.id, store_id: currentStoreId, product_code: productCode }, { onConflict: 'user_id,store_id,product_code' });
+    if (error) {
+      // Roll back the optimistic flip
+      setBookmarkedCodes((prev) => {
+        const next = new Set(prev);
+        if (wasPinned) next.add(productCode);
+        else next.delete(productCode);
+        return next;
+      });
     }
-  }, [user?.id, currentStoreId, pinTarget]);
+  }, [user?.id, currentStoreId, bookmarkedCodes]);
 
   useEffect(() => {
     if (!currentStoreId || !selectedDate) {
@@ -497,7 +500,9 @@ export default function ComparisonPage() {
       if (datedDiffs.length >= 2) {
         const last = datedDiffs[datedDiffs.length - 1];
         const prev = datedDiffs[datedDiffs.length - 2];
-        p.latestDelta = last.diff - prev.diff;
+        // Round to 2 dp to drop floating-point artefacts like
+        // 3.3599999999999994 → 3.36 in the chip.
+        p.latestDelta = Math.round((last.diff - prev.diff) * 100) / 100;
         p.latestDeltaDates = { from: prev.date, to: last.date };
       }
     }
@@ -940,7 +945,7 @@ export default function ComparisonPage() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setPinTarget({ code: product.product_code, name: product.product_name, pinned: isPinned });
+                              togglePin(product.product_code);
                             }}
                             aria-label={isPinned ? t('comparison.unpinAria') : t('comparison.pinAria')}
                             className={cn(
@@ -1030,36 +1035,6 @@ export default function ComparisonPage() {
           </>
         )}
       </Card>
-
-      {/* ── Pin/Unpin Confirm Modal ── */}
-      <Modal
-        isOpen={!!pinTarget}
-        onClose={() => !pinSubmitting && setPinTarget(null)}
-        title={pinTarget?.pinned ? t('comparison.unpinTitle') : t('comparison.pinTitle')}
-        size="sm"
-      >
-        <div className="space-y-3 px-1 pb-2 text-sm text-gray-700 dark:text-gray-300">
-          <p>
-            {pinTarget?.pinned
-              ? t('comparison.unpinConfirm', { name: pinTarget?.name || '' })
-              : t('comparison.pinConfirm', { name: pinTarget?.name || '' })}
-          </p>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setPinTarget(null)} disabled={pinSubmitting}>
-              {t('comparison.cancel')}
-            </Button>
-            <Button
-              size="sm"
-              variant={pinTarget?.pinned ? 'danger' : 'primary'}
-              onClick={togglePin}
-              isLoading={pinSubmitting}
-              icon={<Star className={cn('h-4 w-4', !pinTarget?.pinned && 'fill-current')} />}
-            >
-              {pinTarget?.pinned ? t('comparison.unpinBtn') : t('comparison.pinBtn')}
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
       {/* ── Product History Modal ── */}
       <Modal
