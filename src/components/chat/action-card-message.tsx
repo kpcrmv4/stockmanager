@@ -584,10 +584,13 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             }).catch(() => {});
           }
 
-          // Withdrawal completed → update withdrawal + deposit records
+          // Withdrawal completed → update withdrawal + deposit records.
+          // Multi-bottle deposits create N pending rows (one per bottle)
+          // so the action card has to drain them all, mark each
+          // referenced bottle consumed, and only flip the deposit
+          // status once nothing else is queued.
           if (action === 'complete' && meta.action_type === 'withdrawal_claim' && meta.reference_id) {
             try {
-              // Find deposit by deposit_code
               const { data: deposit } = await supabase
                 .from('deposits')
                 .select('id, remaining_qty, quantity')
@@ -595,32 +598,38 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                 .single();
 
               if (deposit) {
-                // Find the latest pending/approved withdrawal for this deposit
-                const { data: withdrawal } = await supabase
+                const { data: pendingRows } = await supabase
                   .from('withdrawals')
-                  .select('id, requested_qty')
+                  .select('id, requested_qty, bottle_id, photo_url, notes')
                   .eq('deposit_id', deposit.id)
                   .in('status', ['pending', 'approved'])
-                  .order('created_at', { ascending: false })
-                  .limit(1)
-                  .single();
+                  .order('created_at', { ascending: true });
 
-                if (withdrawal) {
-                  const qty = withdrawal.requested_qty;
+                const pending = pendingRows || [];
+                if (pending.length > 0) {
+                  const nowIso = new Date().toISOString();
+                  let totalQty = 0;
+                  for (const w of pending) {
+                    const qty = Number(w.requested_qty) || 1;
+                    totalQty += qty;
+                    await supabase
+                      .from('withdrawals')
+                      .update({
+                        status: 'completed',
+                        actual_qty: qty,
+                        processed_by: currentUserId,
+                        photo_url: photoUrl || w.photo_url,
+                      })
+                      .eq('id', w.id);
+                    if (w.bottle_id) {
+                      await supabase
+                        .from('deposit_bottles')
+                        .update({ status: 'consumed', remaining_percent: 0, consumed_at: nowIso, consumed_by: currentUserId })
+                        .eq('id', w.bottle_id);
+                    }
+                  }
 
-                  // Update withdrawal status to completed
-                  await supabase
-                    .from('withdrawals')
-                    .update({
-                      status: 'completed',
-                      actual_qty: qty,
-                      processed_by: currentUserId,
-                      photo_url: photoUrl || undefined,
-                    })
-                    .eq('id', withdrawal.id);
-
-                  // Update deposit remaining qty
-                  const newRemaining = Math.max(0, deposit.remaining_qty - qty);
+                  const newRemaining = Math.max(0, deposit.remaining_qty - totalQty);
                   const newPercent = deposit.quantity > 0 ? (newRemaining / deposit.quantity) * 100 : 0;
                   const newStatus = newRemaining <= 0 ? 'withdrawn' : 'in_store';
 
@@ -633,14 +642,13 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                     })
                     .eq('id', deposit.id);
 
-                  // Flex push to the customer's LINE OA (per-store toggle).
                   fetch('/api/line/notify-deposit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       type: 'withdrawal_completed',
                       deposit_id: deposit.id,
-                      actual_qty: qty,
+                      actual_qty: totalQty,
                     }),
                   }).catch(() => {});
                 }

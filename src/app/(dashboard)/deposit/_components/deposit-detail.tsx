@@ -94,6 +94,8 @@ interface Withdrawal {
   actual_qty: number | null;
   status: string;
   notes: string | null;
+  bottle_id: string | null;
+  photo_url: string | null;
   created_at: string;
 }
 
@@ -151,6 +153,13 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   // bottle_id set, so the bar can mark exactly that bottle consumed.
   const [withdrawBottleIds, setWithdrawBottleIds] = useState<string[]>([]);
   const [isCancellingWithdrawal, setIsCancellingWithdrawal] = useState(false);
+  // Bar/manager/owner approve flow inside the deposit detail — same
+  // shape as the dedicated withdrawals page modal but scoped to this
+  // single deposit so the staff can approve without leaving context.
+  const [showApproveWithdrawalModal, setShowApproveWithdrawalModal] = useState(false);
+  const [approveWithdrawalPhoto, setApproveWithdrawalPhoto] = useState<string | null>(null);
+  const [approveWithdrawalNotes, setApproveWithdrawalNotes] = useState('');
+  const [isApprovingWithdrawal, setIsApprovingWithdrawal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Expiry modal
@@ -734,6 +743,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
 
     // Send action card to chat + push notification for Bar approval
     if (currentStoreId) {
+      const bottleLabels = useBottlePicker
+        ? bottles
+            .filter((b) => pickedBottleIds.includes(b.id))
+            .map((b) => `${b.bottle_no}/${deposit.quantity}`)
+        : undefined;
       notifyChatWithdrawalRequest(currentStoreId, {
         deposit_code: deposit.deposit_code,
         customer_name: deposit.customer_name,
@@ -741,6 +755,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         requested_qty: qty,
         table_number: deposit.table_number,
         notes: withdrawNotes.trim() || null,
+        bottle_labels: bottleLabels,
       });
 
       notifyStaff({
@@ -761,6 +776,106 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     setIsSubmitting(false);
     refreshDeposit();
     loadWithdrawals();
+  };
+
+  // Approve every pending withdrawal on this deposit at once — same
+  // result as opening /deposit/withdrawals and clicking "ดำเนินการเบิก"
+  // for each row, but stays inside the deposit detail so the bar
+  // doesn't have to switch screens.
+  const handleApprovePendingWithdrawal = async () => {
+    if (!user || !currentStoreId) return;
+    setIsApprovingWithdrawal(true);
+    try {
+      const supabase = createClient();
+      const pending = withdrawals.filter((w) => w.status === 'pending' || w.status === 'approved');
+      if (pending.length === 0) {
+        toast({ type: 'warning', title: t('detail.noPendingWithdrawal') });
+        return;
+      }
+
+      const nowIso = new Date().toISOString();
+      let totalQty = 0;
+      for (const w of pending) {
+        const qty = Number(w.requested_qty) || 1;
+        totalQty += qty;
+        await supabase
+          .from('withdrawals')
+          .update({
+            status: 'completed',
+            actual_qty: qty,
+            processed_by: user.id,
+            photo_url: approveWithdrawalPhoto || w.photo_url,
+            notes: approveWithdrawalNotes
+              ? (w.notes ? `${w.notes}\n[บาร์ดำเนินการ] ${approveWithdrawalNotes}` : `[บาร์ดำเนินการ] ${approveWithdrawalNotes}`)
+              : w.notes,
+          })
+          .eq('id', w.id);
+        if (w.bottle_id) {
+          await supabase
+            .from('deposit_bottles')
+            .update({ status: 'consumed', remaining_percent: 0, consumed_at: nowIso, consumed_by: user.id })
+            .eq('id', w.bottle_id);
+        }
+      }
+
+      // Decrement remaining_qty + flip status. Stay in pending_withdrawal
+      // only if a sibling is still pending (shouldn't happen here since
+      // we just approved them all, but guard anyway).
+      const { data: depositData } = await supabase
+        .from('deposits')
+        .select('remaining_qty, quantity, deposit_code')
+        .eq('id', deposit.id)
+        .single();
+      const { count: stillPending } = await supabase
+        .from('withdrawals')
+        .select('id', { count: 'exact', head: true })
+        .eq('deposit_id', deposit.id)
+        .eq('status', 'pending');
+      if (depositData) {
+        const newRemaining = Math.max(0, depositData.remaining_qty - totalQty);
+        const newPercent = depositData.quantity > 0 ? (newRemaining / depositData.quantity) * 100 : 0;
+        const newStatus = newRemaining <= 0
+          ? 'withdrawn'
+          : (stillPending && stillPending > 0 ? 'pending_withdrawal' : 'in_store');
+        await supabase
+          .from('deposits')
+          .update({ remaining_qty: newRemaining, remaining_percent: newPercent, status: newStatus })
+          .eq('id', deposit.id);
+      }
+
+      // Notify chat + customer
+      if (currentStoreId) {
+        notifyChatWithdrawalCompleted(currentStoreId, {
+          customer_name: deposit.customer_name,
+          product_name: deposit.product_name,
+          actual_qty: totalQty,
+          processed_by_name: user.displayName || user.username || 'พนักงาน',
+        });
+        syncChatActionCardStatus({
+          storeId: currentStoreId,
+          referenceId: deposit.deposit_code,
+          actionType: 'withdrawal_claim',
+          newStatus: 'completed',
+          completedBy: user.id,
+          completedByName: user.displayName || user.username || 'พนักงาน',
+        });
+      }
+      fetch('/api/line/notify-deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'withdrawal_completed', deposit_id: deposit.id, actual_qty: totalQty }),
+      }).catch(() => {});
+
+      toast({ type: 'success', title: t('detail.approveWithdrawalSuccess') });
+      setShowApproveWithdrawalModal(false);
+      setApproveWithdrawalPhoto(null);
+      setApproveWithdrawalNotes('');
+      refreshDeposit();
+      loadWithdrawals();
+      loadBottles();
+    } finally {
+      setIsApprovingWithdrawal(false);
+    }
   };
 
   // Cancel all pending withdrawals for this deposit and roll the
@@ -1198,6 +1313,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
 
   const canBarConfirm = deposit.status === 'pending_confirm' && user && ['bar', 'manager', 'owner'].includes(user.role);
   const canRejectDeposit = deposit.status === 'pending_confirm' && user && ['bar', 'manager', 'owner'].includes(user.role);
+  const canApproveWithdrawal = deposit.status === 'pending_withdrawal' && user && ['bar', 'manager', 'owner'].includes(user.role);
   const canWithdraw = deposit.status === 'in_store' && deposit.remaining_qty > 0;
   const canMarkExpired = (deposit.status === 'in_store' || deposit.status === 'pending_confirm') && !deposit.is_vip;
   const canTransfer = deposit.status === 'expired';
@@ -1719,7 +1835,8 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           {/* รอ bar อนุมัติรายการเบิก — shown while there's a pending
               withdrawal so the staff knows why other actions are
               hidden, and can pull the request back if it was a
-              mis-tap. */}
+              mis-tap. Bar/manager/owner also get an inline approve
+              button so they don't have to jump to /deposit/withdrawals. */}
           {user && user.role !== 'customer' && deposit.status === 'pending_withdrawal' && (
             <Card padding="none">
               <CardHeader title={t("detail.actions")} />
@@ -1733,8 +1850,22 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                     </div>
                   </div>
                 </div>
+                {canApproveWithdrawal && (
+                  <Button
+                    className="mt-3 min-h-[48px] w-full justify-center bg-emerald-600 hover:bg-emerald-700 text-white"
+                    variant="primary"
+                    icon={<CheckCircle2 className="h-5 w-5" />}
+                    onClick={() => {
+                      setApproveWithdrawalPhoto(null);
+                      setApproveWithdrawalNotes('');
+                      setShowApproveWithdrawalModal(true);
+                    }}
+                  >
+                    {t('detail.approveWithdrawalBtn')}
+                  </Button>
+                )}
                 <Button
-                  className="mt-3 min-h-[44px] w-full justify-center"
+                  className="mt-2 min-h-[44px] w-full justify-center"
                   variant="outline"
                   icon={<XCircle className="h-4 w-4 text-red-500" />}
                   onClick={handleCancelPendingWithdrawal}
@@ -2049,6 +2180,111 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
                 icon={<Minus className="h-4 w-4" />}
               >
                 {t("detail.confirmWithdraw")}
+              </Button>
+            </ModalFooter>
+          </Modal>
+        );
+      })()}
+
+      {/* Approve Withdrawal Modal — bar/manager/owner shortcut so they
+          can approve the customer's request directly from the deposit
+          detail. Lists each pending row + the bottle it targets so the
+          bar knows which bottles to physically pull from the shelf. */}
+      {showApproveWithdrawalModal && (() => {
+        const pending = withdrawals.filter((w) => w.status === 'pending' || w.status === 'approved');
+        const totalQty = pending.reduce((s, w) => s + (Number(w.requested_qty) || 1), 0);
+        return (
+          <Modal
+            isOpen={showApproveWithdrawalModal}
+            onClose={() => {
+              if (isApprovingWithdrawal) return;
+              setShowApproveWithdrawalModal(false);
+              setApproveWithdrawalPhoto(null);
+              setApproveWithdrawalNotes('');
+            }}
+            title={t('detail.approveWithdrawalTitle')}
+            description={`${deposit.product_name} — ${deposit.customer_name}`}
+            size="md"
+          >
+            <div className="space-y-4">
+              <div className="rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-800/50">
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">{t('detail.totalRequested')}</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{formatNumber(totalQty)}</span>
+                </div>
+              </div>
+
+              {pending.length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('detail.bottlesToWithdraw')}
+                  </p>
+                  <div className="space-y-1.5">
+                    {pending.map((w) => {
+                      const b = w.bottle_id ? bottles.find((bb) => bb.id === w.bottle_id) : null;
+                      return (
+                        <div key={w.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800/40">
+                          {b ? (
+                            <>
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {t('detail.bottleNoLabel', { no: b.bottle_no, total: deposit.quantity })}
+                              </span>
+                              <span className={cn(
+                                'rounded-full px-2 py-0.5 text-xs font-semibold',
+                                b.remaining_percent >= 70 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                  : b.remaining_percent >= 30 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                  : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+                              )}>
+                                {b.remaining_percent}%
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-gray-700 dark:text-gray-300">
+                              {t('detail.unspecifiedBottle', { qty: formatNumber(w.requested_qty) })}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <PhotoUpload
+                value={approveWithdrawalPhoto}
+                onChange={setApproveWithdrawalPhoto}
+                folder="withdrawals"
+                label={t('detail.photoOptional')}
+                compact
+              />
+
+              <Textarea
+                label={t('detail.notesLabel')}
+                value={approveWithdrawalNotes}
+                onChange={(e) => setApproveWithdrawalNotes(e.target.value)}
+                placeholder={t('detail.notesPlaceholder')}
+                rows={2}
+              />
+            </div>
+            <ModalFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowApproveWithdrawalModal(false);
+                  setApproveWithdrawalPhoto(null);
+                  setApproveWithdrawalNotes('');
+                }}
+                disabled={isApprovingWithdrawal}
+              >
+                {t('detail.cancelBtn')}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleApprovePendingWithdrawal}
+                isLoading={isApprovingWithdrawal}
+                icon={<CheckCircle2 className="h-4 w-4" />}
+              >
+                {t('detail.confirmApprove')}
               </Button>
             </ModalFooter>
           </Modal>

@@ -135,8 +135,14 @@ export function notifyChatWithdrawalRequest(
     requested_qty: number;
     table_number?: string | null;
     notes?: string | null;
+    /** When provided, surfaced in the items field so the bar sees
+     *  exactly which bottles to physically pull (e.g. "1/3, 3/3"). */
+    bottle_labels?: string[];
   }
 ): void {
+  const bottleSuffix = withdrawal.bottle_labels && withdrawal.bottle_labels.length > 0
+    ? ` (${withdrawal.bottle_labels.join(', ')})`
+    : '';
   const meta: ActionCardMetadata = {
     action_type: 'withdrawal_claim',
     reference_id: withdrawal.deposit_code,
@@ -150,7 +156,7 @@ export function notifyChatWithdrawalRequest(
     priority: 'normal',
     summary: {
       customer: withdrawal.customer_name,
-      items: `${withdrawal.product_name} x${withdrawal.requested_qty}`,
+      items: `${withdrawal.product_name} x${withdrawal.requested_qty}${bottleSuffix}`,
       note: withdrawal.table_number
         ? `โต๊ะ ${withdrawal.table_number}`
         : withdrawal.notes || undefined,
