@@ -442,6 +442,30 @@ export default function StoreDetailSettingsPage() {
     setIsSaving(true);
     const supabase = createClient();
 
+    // Auto-fetch the bot user id from LINE if it wasn't entered manually.
+    // The "Your user ID" field in LINE Developers Console is the developer's
+    // own LINE user id (the admin), NOT the bot's — pasting it there has
+    // burned more than one operator. The reliable source is /v2/bot/info,
+    // which we can call with the channel access token. Fail soft so a bad
+    // token doesn't block saving the rest of the store config.
+    let resolvedBotUserId = lineBotUserId.trim() || null;
+    if (!resolvedBotUserId && lineToken.trim()) {
+      try {
+        const res = await fetch('https://api.line.me/v2/bot/info', {
+          headers: { Authorization: `Bearer ${lineToken.trim()}` },
+        });
+        if (res.ok) {
+          const info = (await res.json()) as { userId?: string };
+          if (info.userId) {
+            resolvedBotUserId = info.userId;
+            setLineBotUserId(info.userId);
+          }
+        }
+      } catch (err) {
+        console.warn('[settings] failed to auto-fetch /v2/bot/info', err);
+      }
+    }
+
     // Update store info
     const { error: storeError } = await supabase
       .from('stores')
@@ -451,7 +475,7 @@ export default function StoreDetailSettingsPage() {
         line_token: lineToken.trim() || null,
         line_channel_id: lineChannelId.trim() || null,
         line_channel_secret: lineChannelSecret.trim() || null,
-        line_bot_user_id: lineBotUserId.trim() || null,
+        line_bot_user_id: resolvedBotUserId,
         stock_notify_group_id: stockNotifyGroupId || null,
         deposit_notify_group_id: depositNotifyGroupId || null,
         bar_notify_group_id: barNotifyGroupId || null,
