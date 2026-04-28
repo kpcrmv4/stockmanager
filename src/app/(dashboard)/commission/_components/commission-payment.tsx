@@ -15,7 +15,7 @@ function formatCurrency(n: number) {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function EntryRow({ e, t, onCancel }: { e: any, t: any, onCancel?: (id: string) => void }) {
+function EntryRow({ e, t, onCancel, onViewPhoto }: { e: any, t: any, onCancel?: (id: string) => void, onViewPhoto?: (url: string) => void }) {
   // Stacked layout matching the history tab: badges + meta wrap onto a
   // second line on small screens instead of squeezing into one row, and
   // amount + actions live in a fixed right column.
@@ -52,6 +52,17 @@ function EntryRow({ e, t, onCancel }: { e: any, t: any, onCancel?: (id: string) 
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
+        {/* Receipt photo viewer — same icon position as the history tab
+            so the bar/owner can spot-check a bill before paying it out. */}
+        {e.receipt_photo_url && onViewPhoto && (
+          <button
+            onClick={() => onViewPhoto(e.receipt_photo_url)}
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
+            title={t('entryList.receiptPhoto')}
+          >
+            <Image className="h-4 w-4" />
+          </button>
+        )}
         <span className={`text-sm font-bold ${isAE ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>
           {formatCurrency(Number(e.net_amount))}
         </span>
@@ -161,6 +172,9 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
   const [showCancelled, setShowCancelled] = useState(false);
   const [cancelledEntries, setCancelledEntries] = useState<Array<Record<string, any>>>([]);
   const [restoringEntry, setRestoringEntry] = useState<string | null>(null);
+
+  // Receipt photo viewer modal — same UX as the history tab.
+  const [photoModal, setPhotoModal] = useState<string | null>(null);
 
   // Expansion state
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
@@ -434,7 +448,7 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
                     </div>
                     {isExpanded && ae.entries && (
                       <div className="bg-gray-50/50 dark:bg-gray-900/20 pb-1">
-                        {ae.entries.map((e: any) => <EntryRow key={e.id} e={e} t={t} onCancel={(id) => setCancelEntryModal(id)} />)}
+                        {ae.entries.map((e: any) => <EntryRow key={e.id} e={e} t={t} onCancel={(id) => setCancelEntryModal(id)} onViewPhoto={setPhotoModal} />)}
                       </div>
                     )}
                   </div>
@@ -474,7 +488,7 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
                     </div>
                     {isExpanded && b.entries && (
                       <div className="bg-gray-50/50 dark:bg-gray-900/20 pb-1">
-                        {b.entries.map((e: any) => <EntryRow key={e.id} e={e} t={t} onCancel={(id) => setCancelEntryModal(id)} />)}
+                        {b.entries.map((e: any) => <EntryRow key={e.id} e={e} t={t} onCancel={(id) => setCancelEntryModal(id)} onViewPhoto={setPhotoModal} />)}
                       </div>
                     )}
                   </div>
@@ -674,6 +688,16 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
             {t('payment.confirmCancelBtn')}
           </Button>
         </ModalFooter>
+      </Modal>
+
+      {/* Receipt photo viewer */}
+      <Modal isOpen={!!photoModal} onClose={() => setPhotoModal(null)} title={t('entryList.receiptPhoto')} size="lg">
+        {photoModal && (
+          <div className="flex justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoModal} alt="Receipt" className="max-h-[70vh] rounded-lg object-contain" />
+          </div>
+        )}
       </Modal>
     </div>
   );
