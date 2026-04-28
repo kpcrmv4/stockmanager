@@ -30,7 +30,7 @@ interface TransactionBoardProps {
   currentUserRole?: string;
 }
 
-type FilterStatus = 'all' | 'pending' | 'pending_bar' | 'claimed' | 'completed';
+type FilterStatus = 'all' | 'active' | 'pending' | 'pending_bar' | 'claimed' | 'completed';
 
 /**
  * Normalize status across ActionCard and Transfer metadata into
@@ -71,7 +71,10 @@ const STATUS_CONFIG: Record<string, { icon: typeof Clock; label: string; color: 
 
 export function TransactionBoard({ roomId, storeId, currentUserId, currentUserName, currentUserRole }: TransactionBoardProps) {
   const messages = useChatStore((s) => s.messages);
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
+  // Default to "active" (not-yet-done) so the board opens to actionable
+  // work — pending + pending_bar + claimed. Completed tasks are still
+  // reachable via the เสร็จ pill or the show-all toggle.
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('active');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupStatusFilter, setGroupStatusFilter] = useState<Record<string, string>>({}); // type → status filter
@@ -93,7 +96,12 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
       if (filterType !== 'all' && meta.action_type !== filterType) return false;
       if (filterStatus !== 'all') {
         const normalized = getNormalizedStatus(meta);
-        if (filterStatus === 'pending') {
+        if (filterStatus === 'active') {
+          // "ยังไม่เสร็จ" — only pending / pending_bar / claimed; hides
+          // completed cards as well as the rejected/expired/cancelled
+          // ones bucketed as "other" by getNormalizedStatus.
+          if (normalized !== 'pending' && normalized !== 'pending_bar' && normalized !== 'claimed') return false;
+        } else if (filterStatus === 'pending') {
           // "รอรับ" includes both pending and pending_bar
           if (normalized !== 'pending' && normalized !== 'pending_bar') return false;
         } else if (filterStatus === 'pending_bar') {
@@ -165,11 +173,27 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F0EFF5] dark:bg-gray-900">
-      {/* Stats bar */}
+      {/* Stats bar — clicking a status pill toggles between that pill and
+          the default "active" (not-yet-done) view. The trailing "ทั้งหมด"
+          pill is the escape hatch to also include completed/expired
+          cards. */}
       <div className="flex items-center gap-2 overflow-x-auto border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800">
-        <StatBadge icon={Clock} label="รอรับ" count={stats.pending + stats.pending_bar} color="amber" active={filterStatus === 'pending'} onClick={() => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending')} />
-        <StatBadge icon={Hand} label="กำลังทำ" count={stats.claimed} color="blue" active={filterStatus === 'claimed'} onClick={() => setFilterStatus(filterStatus === 'claimed' ? 'all' : 'claimed')} />
-        <StatBadge icon={CheckCircle} label="เสร็จ" count={stats.completed} color="emerald" active={filterStatus === 'completed'} onClick={() => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed')} />
+        <StatBadge icon={Clock} label="รอรับ" count={stats.pending + stats.pending_bar} color="amber" active={filterStatus === 'pending'} onClick={() => setFilterStatus(filterStatus === 'pending' ? 'active' : 'pending')} />
+        <StatBadge icon={Hand} label="กำลังทำ" count={stats.claimed} color="blue" active={filterStatus === 'claimed'} onClick={() => setFilterStatus(filterStatus === 'claimed' ? 'active' : 'claimed')} />
+        <StatBadge icon={CheckCircle} label="เสร็จ" count={stats.completed} color="emerald" active={filterStatus === 'completed'} onClick={() => setFilterStatus(filterStatus === 'completed' ? 'active' : 'completed')} />
+        <div className="ml-auto" />
+        <button
+          type="button"
+          onClick={() => setFilterStatus(filterStatus === 'all' ? 'active' : 'all')}
+          className={cn(
+            'shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+            filterStatus === 'all'
+              ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/20 dark:text-indigo-300'
+              : 'border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700/40',
+          )}
+        >
+          {filterStatus === 'all' ? 'ทั้งหมด' : 'แสดงทั้งหมด'}
+        </button>
       </div>
 
       {/* Type filter chips */}
