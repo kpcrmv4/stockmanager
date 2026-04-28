@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Button,
   Card,
@@ -63,6 +63,9 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
   const [productList, setProductList] = useState<Array<{ id: string; product_name: string; category: string | null }>>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const productSearchRef = useRef<HTMLDivElement>(null);
 
   // Quick-add AE (full fields)
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -85,35 +88,66 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
 
   useEffect(() => {
     if (type !== 'bottle_commission') return;
+    if (!currentStoreId) return;
 
     import('@/lib/supabase/client').then(({ createClient }) => {
       const supabase = createClient();
 
-      // Staff (all positions that can serve bottles — role filter is applied
-      // client-side so users can switch role without re-querying).
-      if (staffList.length === 0) {
-        supabase
-          .from('profiles')
-          .select('id, display_name, username, role')
-          .in('role', ['staff', 'bar', 'manager'])
-          .eq('active', true)
-          .order('display_name')
-          .then(({ data }) => { if (data) setStaffList(data); });
-      }
+      // Staff scoped to the current store via user_stores so the picker
+      // only shows people actually working at this branch (not staff from
+      // sibling stores when the same owner runs multiple bars).
+      supabase
+        .from('user_stores')
+        .select('profiles!inner(id, display_name, username, role, active)')
+        .eq('store_id', currentStoreId)
+        .then(({ data }) => {
+          if (!data) return;
+          // Supabase types the joined `profiles` as an array even though
+          // user_id is a 1:1 FK back to profiles, so we flatten and
+          // tolerate either shape.
+          type Profile = { id: string; display_name: string | null; username: string; role: string; active: boolean };
+          const rows: Profile[] = (data as unknown as Array<{ profiles: Profile | Profile[] | null }>)
+            .flatMap((r) => Array.isArray(r.profiles) ? r.profiles : r.profiles ? [r.profiles] : [])
+            .filter((p) => p.active && ['staff', 'bar', 'manager'].includes(p.role))
+            .sort((a, b) => (a.display_name || a.username).localeCompare(b.display_name || b.username));
+          setStaffList(rows.map(({ id, display_name, username, role }) => ({ id, display_name, username, role })));
+        });
 
       // Products of the current store, only ones available to count.
-      if (currentStoreId && productList.length === 0) {
-        supabase
-          .from('products')
-          .select('id, product_name, category')
-          .eq('store_id', currentStoreId)
-          .eq('active', true)
-          .order('category', { ascending: true })
-          .order('product_name', { ascending: true })
-          .then(({ data }) => { if (data) setProductList(data); });
-      }
+      supabase
+        .from('products')
+        .select('id, product_name, category')
+        .eq('store_id', currentStoreId)
+        .eq('active', true)
+        .order('category', { ascending: true })
+        .order('product_name', { ascending: true })
+        .then(({ data }) => { if (data) setProductList(data); });
     });
-  }, [type, staffList.length, productList.length, currentStoreId]);
+  }, [type, currentStoreId]);
+
+  // Reset staff/product caches when the user switches stores so the next
+  // bottle entry isn't pre-populated with the previous store's options.
+  useEffect(() => {
+    setStaffList([]);
+    setProductList([]);
+    setSelectedStaffId('');
+    setSelectedStaffRole('');
+    setSelectedProductId('');
+    setSelectedCategory('');
+    setProductSearch('');
+  }, [currentStoreId]);
+
+  // Outside-click closer for the product autocomplete dropdown.
+  useEffect(() => {
+    if (!showProductDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (productSearchRef.current && !productSearchRef.current.contains(e.target as Node)) {
+        setShowProductDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showProductDropdown]);
 
   // Reset selectedStaffId when role changes (so the staff dropdown
   // doesn't keep a value that's no longer in the filtered list).
@@ -130,10 +164,21 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
   const categories = Array.from(
     new Set(productList.map((p) => p.category || 'ไม่ระบุหมวด'))
   ).sort();
-  const filteredProducts = selectedCategory
-    ? productList.filter((p) => (p.category || 'ไม่ระบุหมวด') === selectedCategory)
-    : productList;
   const selectedProduct = productList.find((p) => p.id === selectedProductId) || null;
+
+  // Type-ahead matches: narrow by category (if picked) AND by typed
+  // query. We don't require both — typing alone is enough so the user
+  // can find any product without first picking a category. Cap at 50 to
+  // keep the dropdown reasonable on large catalogues.
+  const productSearchQuery = productSearch.trim().toLowerCase();
+  const productSuggestions = productList
+    .filter((p) => {
+      if (selectedCategory && (p.category || 'ไม่ระบุหมวด') !== selectedCategory) return false;
+      if (!productSearchQuery) return true;
+      return p.product_name.toLowerCase().includes(productSearchQuery)
+        || (p.category || '').toLowerCase().includes(productSearchQuery);
+    })
+    .slice(0, 50);
 
   const subtotal = parseFloat(subtotalAmount) || 0;
   const cRate = parseFloat(commissionRate) / 100 || 0.10;
@@ -404,29 +449,91 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
         <Card>
           <CardHeader title="Bottle Commission" />
           <CardContent className="space-y-3 p-4">
-            {/* Product picker — pick category, then product. Stored as
-                bottle_product_id + denormalized name + category so the
-                history tab can show what was sold even if the product
-                later gets renamed or deactivated. */}
+            {/* Product picker — type-ahead for product, then the
+                category dropdown auto-fills from the selected product.
+                Stored as bottle_product_id + denormalized name +
+                category so the history tab survives renames/deactivates. */}
+            <div ref={productSearchRef} className="relative">
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('entryForm.product')}
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={productSearch}
+                  onChange={(e) => {
+                    setProductSearch(e.target.value);
+                    setShowProductDropdown(true);
+                    if (selectedProductId) {
+                      setSelectedProductId('');
+                      setSelectedCategory('');
+                    }
+                  }}
+                  onFocus={() => setShowProductDropdown(true)}
+                  placeholder={t('entryForm.productSearchPlaceholder')}
+                  className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                />
+              </div>
+              {showProductDropdown && !selectedProductId && (
+                <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+                  {productSuggestions.length === 0 ? (
+                    <p className="p-3 text-center text-sm text-gray-400">{t('entryForm.noProductFound')}</p>
+                  ) : productSuggestions.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedProductId(p.id);
+                        setSelectedCategory(p.category || 'ไม่ระบุหมวด');
+                        setProductSearch(p.product_name);
+                        setShowProductDropdown(false);
+                      }}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      <span className="font-medium text-gray-900 dark:text-white">{p.product_name}</span>
+                      {p.category && (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                          {p.category}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedProduct && (
+                <div className="mt-2 flex items-center gap-2 rounded-lg bg-rose-50 p-2 text-sm dark:bg-rose-900/20">
+                  <span className="font-medium text-rose-700 dark:text-rose-400">{selectedProduct.product_name}</span>
+                  {selectedProduct.category && (
+                    <span className="text-rose-600/70 dark:text-rose-400/70">| {selectedProduct.category}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProductId('');
+                      setSelectedCategory('');
+                      setProductSearch('');
+                    }}
+                    className="ml-auto text-rose-500 hover:text-rose-700"
+                  >
+                    &times;
+                  </button>
+                </div>
+              )}
+            </div>
             <Select
               label={t('entryForm.category')}
               value={selectedCategory}
-              onChange={(e) => { setSelectedCategory(e.target.value); setSelectedProductId(''); }}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value);
+                if (selectedProductId && selectedProduct && (selectedProduct.category || 'ไม่ระบุหมวด') !== e.target.value) {
+                  setSelectedProductId('');
+                  setProductSearch('');
+                }
+              }}
               options={[
                 { value: '', label: t('entryForm.allCategories') },
                 ...categories.map((c) => ({ value: c, label: c })),
-              ]}
-            />
-            <Select
-              label={t('entryForm.product')}
-              value={selectedProductId}
-              onChange={(e) => setSelectedProductId(e.target.value)}
-              options={[
-                { value: '', label: t('entryForm.selectProductOptional') },
-                ...filteredProducts.map((p) => ({
-                  value: p.id,
-                  label: p.category ? `${p.product_name} — ${p.category}` : p.product_name,
-                })),
               ]}
             />
             <div className="grid grid-cols-2 gap-3">

@@ -1063,6 +1063,8 @@
     "printError": "ไม่สามารถส่งคำสั่งพิมพ์ได้",
     "printSent": "ส่งพิมพ์ใบนำส่งแล้ว",
     "printSentMessage": "รอเครื่องพิมพ์ดำเนินการ",
+    "notFoundTitle": "ไม่พบรายการ",
+    "notFoundMessage": "รายการฝากเหล้านี้อาจถูกลบหรือย้ายไปแล้ว",
     "tabs": {
       "all": "ทั้งหมด",
       "inStore": "ในร้าน",
@@ -2667,6 +2669,8 @@
       "allCategories": "ทุกหมวดหมู่",
       "product": "สินค้า (เหล้า)",
       "selectProductOptional": "เลือกสินค้า (ถ้ามี)",
+      "productSearchPlaceholder": "พิมพ์ชื่อเหล้าเพื่อค้นหา…",
+      "noProductFound": "ไม่พบสินค้า",
       "billInfo": "ข้อมูลบิล",
       "billDate": "วันที่บิล",
       "receiptNo": "เลขที่ใบเสร็จ",

@@ -1063,6 +1063,8 @@
     "printError": "Unable to send print command",
     "printSent": "Transfer slip sent to printer",
     "printSentMessage": "Waiting for printer",
+    "notFoundTitle": "Deposit not found",
+    "notFoundMessage": "This deposit may have been deleted or moved",
     "tabs": {
       "all": "All",
       "inStore": "In Store",
@@ -2666,6 +2668,8 @@
       "allCategories": "All categories",
       "product": "Product (bottle)",
       "selectProductOptional": "Select product (optional)",
+      "productSearchPlaceholder": "Type product name to search…",
+      "noProductFound": "No product found",
       "billInfo": "Bill Info",
       "billDate": "Bill Date",
       "receiptNo": "Receipt No.",

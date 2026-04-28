@@ -165,7 +165,7 @@ export default function InboxPage() {
           store_name: storeMap.get(row.store_id) || '-',
           reference_id: row.deposit_code,
           count: 1,
-          href: `/deposit/${row.id}`,
+          href: `/deposit?id=${row.id}`,
           preview: `${row.customer_name} — ${row.product_name}`,
           created_at: row.created_at,
         });

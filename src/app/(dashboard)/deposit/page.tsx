@@ -130,7 +130,7 @@ const ACTIVE_STATUSES = ['in_store', 'pending_confirm', 'pending_withdrawal', 't
 export default function DepositPage() {
   const t = useTranslations('deposit');
   const { user } = useAuthStore();
-  const { currentStoreId } = useAppStore();
+  const { currentStoreId, setCurrentStoreId } = useAppStore();
   const searchParams = useSearchParams();
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [activeTab, setActiveTab] = useState('all');
@@ -194,6 +194,34 @@ export default function DepositPage() {
       setActiveTab('in_store');
     }
   }, [searchParams]);
+
+  // Handle deep-link to a single deposit: /deposit?id=<uuid>.
+  // Used by inbox + notifications. Fetches the row directly so it works
+  // even when the deposit lives in a different store than the user's
+  // current selection — switches currentStoreId on the way in.
+  useEffect(() => {
+    const depositId = searchParams.get('id');
+    if (!depositId || selectedDeposit?.id === depositId) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('deposits')
+        .select('*')
+        .eq('id', depositId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) {
+        toast({ type: 'error', title: t('notFoundTitle'), message: t('notFoundMessage') });
+        return;
+      }
+      if (data.store_id && data.store_id !== currentStoreId) {
+        setCurrentStoreId(data.store_id);
+      }
+      setSelectedDeposit(data as Deposit);
+    })();
+    return () => { cancelled = true; };
+  }, [searchParams, currentStoreId, setCurrentStoreId, selectedDeposit?.id, t]);
 
   // Print transfer receipt via print_queue
   const printTransferReceipt = useCallback(async (payload: TransferPrintPayload) => {
