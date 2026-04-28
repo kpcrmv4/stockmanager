@@ -573,9 +573,15 @@ const DEPOSIT_KEYWORD_PATTERNS: RegExp[] = [
   /^ช่วย(เหลือ)?$/,
   /^เริ่ม(ต้น)?$/,
   /^สวัสดี(ครับ|ค่ะ)?$/,
-  // English (case-insensitive)
-  /^deposit$/i,
-  /^deposits$/i,
+  // English — deposit system phrases (case + whitespace insensitive)
+  /^deposits?$/i,
+  /^alcohol\s*deposits?$/i,
+  /^bottle\s*deposits?$/i,
+  /^liquor\s*deposits?$/i,
+  /^check\s*(deposits?|bottles?|alcohol|liquor)$/i,
+  /^my\s*(deposits?|bottles?|alcohol|liquor)$/i,
+  /^view\s*(deposits?|bottles?)$/i,
+  // English — menu / help / greeting
   /^menu$/i,
   /^start$/i,
   /^help$/i,
