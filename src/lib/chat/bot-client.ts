@@ -172,6 +172,55 @@ export function notifyChatWithdrawalRequest(
 }
 
 /**
+ * Drop a pre-completed withdrawal card into chat — used by the
+ * /deposit/withdrawals "เบิกใหม่" manual flow where the bar staff
+ * processes a walk-in directly without going through a pending
+ * request first. Lands in the รายการงาน tab as a "เสร็จสิ้น" card so
+ * the same audit trail exists as customer-initiated withdrawals.
+ */
+export function notifyChatWithdrawalCompletedAsCard(
+  storeId: string,
+  withdrawal: {
+    deposit_code: string;
+    customer_name: string;
+    product_name: string;
+    actual_qty: number;
+    table_number?: string | null;
+    bottle_labels?: string[];
+    completed_by: string;
+    completed_by_name: string;
+  }
+): void {
+  const bottleSuffix = withdrawal.bottle_labels && withdrawal.bottle_labels.length > 0
+    ? ` (${withdrawal.bottle_labels.join(', ')})`
+    : '';
+  const now = new Date().toISOString();
+  const meta: ActionCardMetadata = {
+    action_type: 'withdrawal_claim',
+    reference_id: withdrawal.deposit_code,
+    reference_table: 'withdrawals',
+    status: 'completed',
+    claimed_by: withdrawal.completed_by,
+    claimed_by_name: withdrawal.completed_by_name,
+    claimed_at: now,
+    completed_at: now,
+    timeout_minutes: 15,
+    priority: 'normal',
+    summary: {
+      customer: withdrawal.customer_name,
+      items: `${withdrawal.product_name} x${withdrawal.actual_qty}${bottleSuffix}`,
+      note: withdrawal.table_number ? `โต๊ะ ${withdrawal.table_number}` : undefined,
+    },
+  };
+  sendChatBotMessage({
+    storeId,
+    type: 'action_card',
+    content: `เบิกเหล้า ${withdrawal.deposit_code} — ${withdrawal.customer_name}`,
+    metadata: meta,
+  });
+}
+
+/**
  * Fire-and-forget: sync action card status in chat when processed outside of chat
  * (e.g. withdrawal completed/rejected on the withdrawals page, deposit confirmed on bar-approval page)
  */

@@ -896,6 +896,18 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
         .update({ status: 'in_store' })
         .eq('id', deposit.id)
         .eq('status', 'pending_withdrawal');
+
+      // Sync the chat action card so the "รายการงาน" tab doesn't keep
+      // showing a phantom pending card after the request is gone.
+      syncChatActionCardStatus({
+        storeId: currentStoreId,
+        referenceId: deposit.deposit_code,
+        actionType: 'withdrawal_claim',
+        newStatus: 'rejected',
+        completedBy: user.id,
+        completedByName: user.displayName || user.username || 'พนักงาน',
+      });
+
       toast({ type: 'success', title: t('detail.withdrawalCancelled') });
       refreshDeposit();
       loadWithdrawals();

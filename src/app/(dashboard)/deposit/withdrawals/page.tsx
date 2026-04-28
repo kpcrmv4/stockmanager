@@ -44,7 +44,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
-import { notifyChatWithdrawalCompleted, syncChatActionCardStatus } from '@/lib/chat/bot-client';
+import { notifyChatWithdrawalCompleted, notifyChatWithdrawalCompletedAsCard, syncChatActionCardStatus } from '@/lib/chat/bot-client';
 
 interface Withdrawal {
   id: string;
@@ -469,6 +469,37 @@ export default function WithdrawalsPage() {
         product_name: dep.product_name,
         actual_qty: qty,
         processed_by_name: user.displayName || user.username || 'พนักงาน',
+      });
+
+      // If a customer/staff had previously requested a withdrawal for
+      // this deposit and the chat card is still hanging around as
+      // pending, mark it completed too — manual processing here is
+      // effectively the resolution.
+      syncChatActionCardStatus({
+        storeId: currentStoreId,
+        referenceId: dep.deposit_code,
+        actionType: 'withdrawal_claim',
+        newStatus: 'completed',
+        completedBy: user.id,
+        completedByName: user.displayName || user.username || 'พนักงาน',
+      });
+
+      // Drop a pre-completed action card so the รายการงาน tab keeps a
+      // record of this manual withdrawal alongside customer-initiated
+      // ones. Includes bottle labels when available.
+      const bottleLabels = selectedIds.length > 0
+        ? item.bottles
+            .filter((b) => selectedIds.includes(b.id))
+            .map((b) => `${b.bottle_no}/${dep.quantity}`)
+        : undefined;
+      notifyChatWithdrawalCompletedAsCard(currentStoreId, {
+        deposit_code: dep.deposit_code,
+        customer_name: dep.customer_name,
+        product_name: dep.product_name,
+        actual_qty: qty,
+        bottle_labels: bottleLabels,
+        completed_by: user.id,
+        completed_by_name: user.displayName || user.username || 'พนักงาน',
       });
 
       // Flex push to the customer's LINE OA (per-store toggle).
