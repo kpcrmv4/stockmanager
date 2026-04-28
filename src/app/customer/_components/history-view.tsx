@@ -21,8 +21,15 @@ interface HistoryItem {
   quantity: number;
   status: string;
   created_at: string;
+  /** DEP-XXX code — for deposits this is their own code; for withdrawals
+   *  it's the related deposit's code (joined server-side). Always shown
+   *  in the row so the customer can correlate the two sides. */
   deposit_code?: string;
   store_name?: string;
+  /** Withdrawal-only: the bottle slot the row targeted (1..N). Together
+   *  with bottle_total it renders as "ขวดที่ 2/3". */
+  bottle_no?: number | null;
+  bottle_total?: number | null;
 }
 
 export function HistoryView() {
@@ -87,14 +94,21 @@ export function HistoryView() {
               deposit_code: d.deposit_code as string,
               store_name: (d.store as { store_name: string } | null)?.store_name,
             })),
-            ...withdrawalRows.map((w) => ({
-              id: w.id as string,
-              type: 'withdrawal' as const,
-              product_name: w.product_name as string,
-              quantity: (w.actual_qty as number) ?? (w.requested_qty as number) ?? 0,
-              status: w.status as string,
-              created_at: w.created_at as string,
-            })),
+            ...withdrawalRows.map((w) => {
+              const dep = w.deposit as { deposit_code?: string; quantity?: number } | null;
+              const bot = w.bottle as { bottle_no?: number } | null;
+              return {
+                id: w.id as string,
+                type: 'withdrawal' as const,
+                product_name: w.product_name as string,
+                quantity: (w.actual_qty as number) ?? (w.requested_qty as number) ?? 0,
+                status: w.status as string,
+                created_at: w.created_at as string,
+                deposit_code: dep?.deposit_code,
+                bottle_no: bot?.bottle_no ?? null,
+                bottle_total: dep?.quantity != null ? Number(dep.quantity) : null,
+              };
+            }),
           ];
           items.sort(
             (a, b) =>
@@ -137,7 +151,7 @@ export function HistoryView() {
       if (profile?.line_user_id) {
         const { data } = await supabase
           .from('withdrawals')
-          .select('id, product_name, requested_qty, actual_qty, status, created_at')
+          .select('id, product_name, requested_qty, actual_qty, status, created_at, deposit:deposits(deposit_code, quantity), bottle:deposit_bottles(bottle_no)')
           .eq('line_user_id', profile.line_user_id)
           .order('created_at', { ascending: false })
           .limit(50);
@@ -155,14 +169,21 @@ export function HistoryView() {
           deposit_code: d.deposit_code as string,
           store_name: (d.store as { store_name: string })?.store_name,
         })),
-        ...withdrawals.map((w) => ({
-          id: w.id as string,
-          type: 'withdrawal' as const,
-          product_name: w.product_name as string,
-          quantity: (w.actual_qty as number) ?? (w.requested_qty as number) ?? 0,
-          status: w.status as string,
-          created_at: w.created_at as string,
-        })),
+        ...withdrawals.map((w) => {
+          const dep = w.deposit as { deposit_code?: string; quantity?: number } | null;
+          const bot = w.bottle as { bottle_no?: number } | null;
+          return {
+            id: w.id as string,
+            type: 'withdrawal' as const,
+            product_name: w.product_name as string,
+            quantity: (w.actual_qty as number) ?? (w.requested_qty as number) ?? 0,
+            status: w.status as string,
+            created_at: w.created_at as string,
+            deposit_code: dep?.deposit_code,
+            bottle_no: bot?.bottle_no ?? null,
+            bottle_total: dep?.quantity != null ? Number(dep.quantity) : null,
+          };
+        }),
       ];
 
       items.sort(
@@ -212,6 +233,7 @@ export function HistoryView() {
         <div className="space-y-2">
           {history.map((item) => {
             const wStatus = withdrawalStatusMap[item.status];
+            const typeLabel = item.type === 'deposit' ? t('deposit') : t('withdraw');
             return (
               <div
                 key={`${item.type}-${item.id}`}
@@ -233,18 +255,37 @@ export function HistoryView() {
                     <p className="truncate text-[12px] font-bold text-[#F8D794]">
                       {item.product_name}
                     </p>
-                    {item.type === 'deposit' ? (
-                      <span className="customer-status-badge badge-green shrink-0">
-                        {t('deposit')}
+                    <div className="flex shrink-0 items-center gap-1">
+                      {/* Explicit type chip — same shape across deposit
+                          and withdrawal so the customer can spot the
+                          difference at a glance. */}
+                      <span
+                        className={`customer-status-badge shrink-0 ${
+                          item.type === 'deposit' ? 'badge-green' : 'badge-blue'
+                        }`}
+                      >
+                        {typeLabel}
                       </span>
-                    ) : wStatus ? (
-                      <span className="customer-status-badge badge-blue shrink-0">
-                        {wStatus.label}
-                      </span>
-                    ) : null}
+                      {/* Outcome chip only on withdrawals (deposits don't
+                          carry a meaningful customer-facing status here). */}
+                      {item.type === 'withdrawal' && wStatus && (
+                        <span className={`customer-status-badge shrink-0 ${wStatus.tone}`}>
+                          {wStatus.label}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <p className="mt-0.5 text-[10px] text-[rgba(248,215,148,0.55)]">
                     {t('quantity', { qty: formatNumber(item.quantity) })}
+                    {/* On multi-bottle deposits the withdrawal targeted a
+                        specific bottle slot — surface it as "ขวดที่ 2/3"
+                        so the customer can map this row to the bottle
+                        pills they see on MY BOTTLES. */}
+                    {item.type === 'withdrawal' &&
+                      item.bottle_no != null &&
+                      item.bottle_total != null &&
+                      item.bottle_total > 1 &&
+                      ` • ${t('bottleNo', { no: item.bottle_no, total: item.bottle_total })}`}
                     {item.deposit_code ? ` • ${item.deposit_code}` : ''}
                   </p>
                   <p className="mt-0.5 text-[10px] text-[rgba(248,215,148,0.4)]">

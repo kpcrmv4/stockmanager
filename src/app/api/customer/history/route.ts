@@ -18,8 +18,12 @@ import { createServiceClient } from '@/lib/supabase/server';
 const DEPOSIT_SELECT =
   'id, deposit_code, product_name, quantity, remaining_qty, status, created_at, store_id, store:stores(store_name)';
 
+// Pull deposit_code + the parent deposit's total quantity (for "2/3"
+// labels) and the targeted bottle_no when the withdrawal was bottle-
+// specific. Multi-bottle requests create one row per bottle, so this
+// gives the customer a clear "which bottle was withdrawn".
 const WITHDRAWAL_SELECT =
-  'id, deposit_id, product_name, requested_qty, actual_qty, status, created_at, store_id';
+  'id, deposit_id, bottle_id, product_name, requested_qty, actual_qty, status, created_at, store_id, deposit:deposits(deposit_code, quantity), bottle:deposit_bottles(bottle_no)';
 
 interface ScopeOpts {
   storeId?: string | null;

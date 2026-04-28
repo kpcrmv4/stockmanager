@@ -271,7 +271,7 @@
   },
   "customer": {
     "nav": {
-      "myDeposits": "ของฝาก",
+      "myDeposits": "ฝากอยู่",
       "deposit": "ฝากเหล้า",
       "withdraw": "ขอเบิก",
       "history": "ประวัติ",
@@ -279,8 +279,8 @@
     },
     "home": {
       "greeting": "สวัสดี {name}",
-      "myBottles": "เหล้าฝากของฉัน",
-      "activeItems": "{count} รายการที่ใช้งาน",
+      "myBottles": "เหล้าที่ฝากในร้าน",
+      "activeItems": "{count} รายการฝาก",
       "searchPlaceholder": "ค้นหาด้วยรหัสฝากหรือชื่อเครื่องดื่ม",
       "remaining": "เหลือ",
       "expiry": "หมดอายุ",
@@ -374,7 +374,9 @@
       "noHistory": "ยังไม่มีประวัติ",
       "loading": "กำลังโหลดประวัติ",
       "deposit": "ฝาก",
+      "withdraw": "เบิก",
       "quantity": "จำนวน {qty}",
+      "bottleNo": "ขวดที่ {no}/{total}",
       "statusPending": "รอดำเนินการ",
       "statusApproved": "อนุมัติแล้ว",
       "statusCompleted": "สำเร็จ",
