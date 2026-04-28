@@ -2,6 +2,7 @@ export const APP_NAME = 'StockManager';
 export const DEFAULT_TIMEZONE = 'Asia/Bangkok';
 
 export const DEPOSIT_STATUS_LABELS: Record<string, string> = {
+  pending_staff: 'คำขอใหม่',
   pending_confirm: 'รอยืนยัน',
   in_store: 'อยู่ในร้าน',
   pending_withdrawal: 'รอเบิก',
@@ -9,6 +10,7 @@ export const DEPOSIT_STATUS_LABELS: Record<string, string> = {
   expired: 'หมดอายุ',
   transfer_pending: 'รอนำส่ง HQ',
   transferred_out: 'โอนออก',
+  cancelled: 'ยกเลิก',
 };
 
 export const COMPARISON_STATUS_LABELS: Record<string, string> = {
