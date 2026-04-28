@@ -56,6 +56,154 @@ const COLORS = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Bottle Keeper theme — used by every customer-facing flex
+// ---------------------------------------------------------------------------
+//
+// Deep red header / cream body / red CTA. The customer sees the same
+// visual language across the entire deposit lifecycle (entry card,
+// confirmation, rejection, withdrawal, expiry warning, link flow).
+const BK = {
+  // Header
+  headerBg:    '#9B2A2A',
+  headerTitle: '#F5D08C',  // gold/cream — for the big title
+  headerSub:   '#E8C7A0',  // muted cream — for the branch name under the title
+  // Body
+  bodyBg:      '#FFF8EE',
+  textDark:    '#1F1411',
+  textMuted:   '#7A6A60',
+  brandRed:    '#9B2A2A',  // accent — links / values that pop
+  brandRedSoft:'#FBE9E2',  // light pink/cream — info pill / item box
+  divider:     '#EFE3D2',
+  // Footer
+  ctaBg:       '#9B2A2A',
+  ctaBgDim:    '#7A2222',
+  ctaText:     '#FFFFFF',
+  // Status accents
+  successCheckBg: '#3FAA64',
+  warningOrange:  '#D7833A',
+} as const;
+
+/** Header for Bottle Keeper customer cards.
+ *  Title = gold/cream large, optional subtitle (branch) below smaller. */
+function bkHeader(opts: {
+  title: string;
+  subtitle?: string;
+  /** A small visual cue at the top of the header — emoji string */
+  emoji?: string;
+}): FlexBox {
+  const contents: Record<string, unknown>[] = [];
+  if (opts.emoji) {
+    contents.push(textComponent(opts.emoji, {
+      size: '4xl',
+      align: 'center',
+      color: BK.headerTitle,
+    }));
+  }
+  contents.push(textComponent(opts.title, {
+    size: 'xl',
+    weight: 'bold',
+    align: 'center',
+    color: BK.headerTitle,
+    wrap: true,
+    margin: opts.emoji ? 'md' : 'none',
+  }));
+  if (opts.subtitle) {
+    contents.push(textComponent(opts.subtitle, {
+      size: 'sm',
+      align: 'center',
+      color: BK.headerSub,
+      wrap: true,
+      margin: 'sm',
+    }));
+  }
+  return {
+    type: 'box',
+    layout: 'vertical',
+    contents,
+    paddingAll: 'xl',
+    backgroundColor: BK.headerBg,
+  };
+}
+
+/** Body container for Bottle Keeper cards (cream bg, normal padding). */
+function bkBody(contents: Record<string, unknown>[]): FlexBox {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    contents,
+    paddingAll: 'xl',
+    backgroundColor: BK.bodyBg,
+    spacing: 'none',
+  };
+}
+
+/** Single "Open Bottle Keeper"-style CTA button as the footer. */
+function bkFooterButton(label: string, uri: string): FlexBox {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    contents: [{
+      type: 'button',
+      style: 'primary',
+      color: BK.ctaBg,
+      height: 'md',
+      action: { type: 'uri', label, uri },
+    }],
+    paddingAll: 'lg',
+    backgroundColor: BK.bodyBg,
+  };
+}
+
+/** Two-column row: muted label on the left, dark value on the right. */
+function bkRow(label: string, value: string, valueColor = BK.textDark): Record<string, unknown> {
+  return {
+    type: 'box',
+    layout: 'horizontal',
+    contents: [
+      textComponent(label, { size: 'sm', color: BK.textMuted, flex: 0 }),
+      textComponent(value, {
+        size: 'sm', weight: 'bold', color: valueColor, align: 'end', flex: 1, wrap: true,
+      }),
+    ],
+    margin: 'md',
+  };
+}
+
+/** Light-pink boxed item summary — see Withdrawal Complete card. */
+function bkItemBox(items: Record<string, unknown>[]): Record<string, unknown> {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    contents: items,
+    paddingAll: 'lg',
+    backgroundColor: BK.brandRedSoft,
+    cornerRadius: '12px',
+    margin: 'lg',
+    spacing: 'sm',
+  };
+}
+
+/** Small info pill row — used for "📦 30-day storage". */
+function bkInfoPill(text: string): Record<string, unknown> {
+  return {
+    type: 'box',
+    layout: 'horizontal',
+    contents: [textComponent(text, {
+      size: 'sm', color: BK.textDark, weight: 'bold', align: 'center', wrap: true,
+    })],
+    paddingAll: 'md',
+    backgroundColor: BK.brandRedSoft,
+    cornerRadius: '8px',
+    margin: 'lg',
+  };
+}
+
+/** A faint horizontal divider that matches the cream body. */
+function bkDivider(): Record<string, unknown> {
+  return { type: 'separator', margin: 'lg', color: BK.divider };
+}
+
+// ---------------------------------------------------------------------------
 // Helper builders
 // ---------------------------------------------------------------------------
 
@@ -138,126 +286,254 @@ function footerBox(contents: Record<string, unknown>[]): FlexBox {
 }
 
 // ---------------------------------------------------------------------------
-// (a) depositConfirmedFlex
+// (a) depositConfirmedFlex — Bottle Keeper themed
 // ---------------------------------------------------------------------------
 
-interface DepositConfirmedParams {
-  deposit_code: string;
+interface DepositConfirmedItem {
   product_name: string;
   quantity: number;
+  /** Per-bottle remaining %, optional. If multiple bottles share one
+   *  product line, pass the average or omit. */
+  remaining_percent?: number;
+}
+
+interface DepositConfirmedParams {
+  /** Single deposit code (back-compat) — required when only 1 deposit */
+  deposit_code: string;
+  /** When the bar confirms a batch of deposits (multiple DEP codes
+   *  uploaded together as one photo), pass the full list here. The
+   *  card will show a "+N more" hint if there are too many to fit. */
+  deposit_codes?: string[];
+  /** Single line back-compat — ignored when items[] is provided */
+  product_name: string;
+  quantity: number;
+  /** Multi-bottle / multi-product breakdown. Each row is one product
+   *  line. If omitted, falls back to `[{ product_name, quantity }]`. */
+  items?: DepositConfirmedItem[];
   store_name: string;
   expiry_date: string;
+  /** Customer display name (LINE profile or staff-entered) */
+  customer_name?: string | null;
+  /** Customer phone (for the small caption below name) */
+  customer_phone?: string | null;
+  /** "Open Bottle Keeper" entry url — when provided, the footer becomes
+   *  a CTA button instead of a hint line. */
+  entry_url?: string | null;
 }
 
 /**
- * Flex message sent to customer when the bar confirms their deposit.
- * Green accent.
+ * "Deposit Confirmed" card sent to the customer after the bar accepts
+ * the bottle(s). Red header / cream body / red CTA. Supports one bottle
+ * or many — pass `items[]` (and optionally `deposit_codes[]`) when the
+ * customer fronted multiple in one batch.
  */
 export function depositConfirmedFlex(params: DepositConfirmedParams): FlexMessage {
-  const { deposit_code, product_name, quantity, store_name, expiry_date } = params;
+  const {
+    deposit_code, deposit_codes, product_name, quantity, items,
+    store_name, expiry_date, customer_name, customer_phone, entry_url,
+  } = params;
+
+  const lines: DepositConfirmedItem[] = items && items.length > 0
+    ? items
+    : [{ product_name, quantity }];
+  const totalBottles = lines.reduce((s, x) => s + (Number(x.quantity) || 0), 0);
+  const codes = deposit_codes && deposit_codes.length > 0 ? deposit_codes : [deposit_code];
+
+  // ── Item list inside the cream body ──
+  const itemRows: Record<string, unknown>[] = [];
+  itemRows.push(textComponent(lines.length === 1 ? 'ITEM' : `ITEMS (${lines.length})`, {
+    size: 'xs', color: BK.textMuted, weight: 'bold',
+  }));
+  for (const it of lines) {
+    const qtyLabel = `${formatNumber(it.quantity)} ${it.quantity === 1 ? 'bottle' : 'bottles'}`;
+    if (typeof it.remaining_percent === 'number') {
+      // 2-column row: name+qty on the left, % on the right
+      itemRows.push({
+        type: 'box',
+        layout: 'horizontal',
+        margin: 'sm',
+        contents: [
+          {
+            type: 'box', layout: 'vertical', flex: 3, contents: [
+              textComponent(it.product_name, {
+                size: 'md', weight: 'bold', color: BK.textDark, wrap: true,
+              }),
+              textComponent(qtyLabel, { size: 'xs', color: BK.textMuted, margin: 'xs' }),
+            ],
+          },
+          {
+            type: 'box', layout: 'vertical', flex: 2, contents: [
+              textComponent(`${Math.round(it.remaining_percent)}%`, {
+                size: 'xxl', weight: 'bold', color: BK.brandRed, align: 'end',
+              }),
+              textComponent('Remaining', {
+                size: 'xs', color: BK.brandRed, align: 'end', margin: 'xs',
+              }),
+            ],
+          },
+        ],
+      });
+    } else {
+      itemRows.push({
+        type: 'box',
+        layout: 'vertical',
+        margin: 'sm',
+        contents: [
+          textComponent(it.product_name, {
+            size: 'md', weight: 'bold', color: BK.textDark, wrap: true,
+          }),
+          textComponent(qtyLabel, { size: 'xs', color: BK.textMuted, margin: 'xs' }),
+        ],
+      });
+    }
+  }
+
+  // Body
+  const bodyContents: Record<string, unknown>[] = [];
+  if (customer_name) {
+    bodyContents.push(textComponent(customer_name, {
+      size: 'lg', weight: 'bold', align: 'center', color: BK.textDark, wrap: true,
+    }));
+    if (customer_phone) {
+      bodyContents.push(textComponent(customer_phone, {
+        size: 'sm', align: 'center', color: BK.textMuted, margin: 'xs',
+      }));
+    }
+    bodyContents.push(bkDivider());
+  }
+  bodyContents.push(...itemRows);
+  bodyContents.push(bkDivider());
+
+  // Deposit dates / codes
+  const today = new Date();
+  bodyContents.push(bkRow('Deposit Date', formatEnDate(today)));
+  bodyContents.push(bkRow('Expiry Date', formatEnDate(expiry_date), BK.brandRed));
+  if (codes.length === 1) {
+    bodyContents.push(bkRow('Deposit Code', codes[0]));
+  } else {
+    bodyContents.push(textComponent('Deposit Codes', {
+      size: 'sm', color: BK.textMuted, margin: 'md',
+    }));
+    const preview = codes.slice(0, 3).join(', ') + (codes.length > 3 ? ` +${codes.length - 3} more` : '');
+    bodyContents.push(textComponent(preview, {
+      size: 'sm', color: BK.textDark, weight: 'bold', wrap: true, margin: 'xs',
+    }));
+  }
+
+  bodyContents.push(bkInfoPill('📦  30-day storage'));
 
   return {
     type: 'flex',
-    altText: `ฝากเหล้าสำเร็จ - ${product_name}`,
+    altText: `Deposit Confirmed — ${lines[0].product_name}${lines.length > 1 ? ` +${lines.length - 1} more` : ''} (${totalBottles} ${totalBottles === 1 ? 'bottle' : 'bottles'})`,
     contents: {
       type: 'bubble',
       size: 'mega',
-      header: headerBox('ฝากเหล้าสำเร็จ', COLORS.green),
-      body: bodyBox([
-        textComponent(product_name, {
-          size: 'xl',
-          weight: 'bold',
-          color: COLORS.textPrimary,
-          wrap: true,
-        }),
-        textComponent(store_name, {
-          size: 'xs',
-          color: COLORS.textMuted,
-          margin: 'sm',
-        }),
-        separatorComponent(),
-        labelValueRow('รหัสฝาก', deposit_code, { color: COLORS.green }),
-        labelValueRow('จำนวน', `${formatNumber(quantity)} ขวด`),
-        labelValueRow('หมดอายุ', formatThaiDate(expiry_date)),
-      ]),
-      footer: footerBox([
-        textComponent('กรุณาแสดงรหัสฝากเมื่อต้องการเบิก', {
-          size: 'xs',
-          color: COLORS.textMuted,
-          wrap: true,
-          align: 'center',
-        }),
-      ]),
+      header: bkHeader({ emoji: '🍷', title: 'Deposit Confirmed', subtitle: store_name }),
+      body: bkBody(bodyContents),
+      footer: entry_url
+        ? bkFooterButton('📱  Open Bottle Keeper', entry_url)
+        : {
+            type: 'box',
+            layout: 'vertical',
+            contents: [textComponent('Show this code at the bar to withdraw', {
+              size: 'xs', color: BK.textMuted, wrap: true, align: 'center',
+            })],
+            paddingAll: 'lg',
+            backgroundColor: BK.bodyBg,
+          },
       styles: {
-        header: { backgroundColor: COLORS.green },
-        footer: { separator: true },
+        header: { backgroundColor: BK.headerBg },
+        body: { backgroundColor: BK.bodyBg },
+        footer: { backgroundColor: BK.bodyBg },
       },
     },
   };
 }
 
+/** Format a date as "13 Dec 2025" (English short, Asia/Bangkok tz). */
+function formatEnDate(d: string | Date): string {
+  const dt = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(dt.getTime())) return String(d);
+  return dt.toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bangkok',
+  });
+}
+
 // ---------------------------------------------------------------------------
-// (a2) depositRejectedFlex
+// (a2) depositRejectedFlex — Bottle Keeper themed
 // ---------------------------------------------------------------------------
 
 interface DepositRejectedParams {
+  /** Product name(s). When multiple, pass the joined string e.g. "Angostura, 818 Blanco". */
   product_name: string;
   store_name: string;
   reason: string;
+  customer_name?: string | null;
+  customer_phone?: string | null;
 }
 
 /**
- * Flex message sent to a customer when the bar rejects their deposit.
- * Red accent. Shown alongside an apologetic note + the reason staff
- * entered so the customer knows why and what to do next (typically
- * walk back to the bar).
+ * "Deposit Could Not Be Accepted" card — apologetic, with the reason
+ * staff entered. Same red header / cream body palette as the other
+ * customer cards; the item box switches to the soft-pink variant to
+ * keep things calm rather than alarming.
  */
 export function depositRejectedFlex(params: DepositRejectedParams): FlexMessage {
-  const { product_name, store_name, reason } = params;
+  const { product_name, store_name, reason, customer_name, customer_phone } = params;
+
+  const bodyContents: Record<string, unknown>[] = [];
+  if (customer_name) {
+    bodyContents.push(textComponent(customer_name, {
+      size: 'lg', weight: 'bold', align: 'center', color: BK.textDark, wrap: true,
+    }));
+    if (customer_phone) {
+      bodyContents.push(textComponent(customer_phone, {
+        size: 'sm', align: 'center', color: BK.textMuted, margin: 'xs',
+      }));
+    }
+    bodyContents.push(bkDivider());
+  }
+
+  bodyContents.push(textComponent('We could not accept your deposit', {
+    size: 'md', weight: 'bold', align: 'center', color: BK.brandRed, wrap: true,
+  }));
+
+  bodyContents.push(bkItemBox([
+    textComponent('ITEM', { size: 'xs', color: BK.textMuted, weight: 'bold' }),
+    textComponent(product_name, {
+      size: 'md', weight: 'bold', color: BK.brandRed, wrap: true, margin: 'xs',
+    }),
+    textComponent('REASON', { size: 'xs', color: BK.textMuted, weight: 'bold', margin: 'md' }),
+    textComponent(reason || '-', {
+      size: 'sm', color: BK.textDark, wrap: true, margin: 'xs',
+    }),
+  ]));
+
+  bodyContents.push(textComponent('Please speak with our staff for details', {
+    size: 'xs', color: BK.textMuted, align: 'center', wrap: true, margin: 'lg',
+  }));
 
   return {
     type: 'flex',
-    altText: `ขออภัย ไม่สามารถรับฝาก ${product_name}`,
+    altText: `Deposit not accepted — ${product_name}`,
     contents: {
       type: 'bubble',
       size: 'mega',
-      header: headerBox('ไม่สามารถรับฝากได้', COLORS.red),
-      body: bodyBox([
-        textComponent(product_name, {
-          size: 'xl',
-          weight: 'bold',
-          color: COLORS.textPrimary,
-          wrap: true,
-        }),
-        textComponent(store_name, {
-          size: 'xs',
-          color: COLORS.textMuted,
-          margin: 'sm',
-        }),
-        separatorComponent(),
-        textComponent('เหตุผล', {
-          size: 'xs',
-          color: COLORS.textMuted,
-          margin: 'md',
-        }),
-        textComponent(reason || '-', {
-          size: 'sm',
-          color: COLORS.textPrimary,
-          wrap: true,
-          margin: 'sm',
-        }),
-      ]),
-      footer: footerBox([
-        textComponent('ขออภัยในความไม่สะดวก กรุณาติดต่อพนักงานที่สาขา', {
-          size: 'xs',
-          color: COLORS.textMuted,
-          wrap: true,
-          align: 'center',
-        }),
-      ]),
+      header: bkHeader({ emoji: '⚠️', title: 'Deposit Not Accepted', subtitle: store_name }),
+      body: bkBody(bodyContents),
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [textComponent('Sorry for the inconvenience.', {
+          size: 'xs', color: BK.textMuted, wrap: true, align: 'center',
+        })],
+        paddingAll: 'lg',
+        backgroundColor: BK.bodyBg,
+      },
       styles: {
-        header: { backgroundColor: COLORS.red },
-        footer: { separator: true },
+        header: { backgroundColor: BK.headerBg },
+        body: { backgroundColor: BK.bodyBg },
+        footer: { backgroundColor: BK.bodyBg },
       },
     },
   };
@@ -278,57 +554,77 @@ interface WithdrawalCompletedParams {
  * Flex message sent to customer when withdrawal is completed.
  * Blue accent.
  */
-export function withdrawalCompletedFlex(params: WithdrawalCompletedParams): FlexMessage {
-  const { product_name, actual_qty, remaining_qty, store_name } = params;
+export function withdrawalCompletedFlex(params: WithdrawalCompletedParams & {
+  deposit_code?: string;
+  customer_name?: string | null;
+}): FlexMessage {
+  const { product_name, actual_qty, remaining_qty, store_name, deposit_code, customer_name } = params;
+  const today = formatEnDate(new Date());
+
+  const bodyContents: Record<string, unknown>[] = [];
+  if (customer_name) {
+    bodyContents.push(textComponent(customer_name, {
+      size: 'lg', weight: 'bold', color: BK.textDark, wrap: true,
+    }));
+  }
+  bodyContents.push(textComponent('Your withdrawal has been processed!', {
+    size: 'sm', weight: 'bold', color: BK.brandRed, margin: customer_name ? 'sm' : 'none', wrap: true,
+  }));
+  bodyContents.push(bkDivider());
+
+  // Item box (cream/pink)
+  bodyContents.push(bkItemBox([
+    textComponent('Item Withdrawn', { size: 'xs', color: BK.textMuted, weight: 'bold' }),
+    textComponent(product_name, {
+      size: 'xl', weight: 'bold', color: BK.brandRed, wrap: true, margin: 'xs',
+    }),
+    textComponent('Quantity', { size: 'xs', color: BK.textMuted, weight: 'bold', margin: 'md' }),
+    textComponent(`${formatNumber(actual_qty)} ${actual_qty === 1 ? 'bottle' : 'bottles'}`, {
+      size: 'xl', weight: 'bold', color: BK.brandRed, margin: 'xs',
+    }),
+  ]));
+
+  if (deposit_code) {
+    bodyContents.push(bkRow('Deposit Code', deposit_code));
+  }
+  bodyContents.push(bkRow('Withdrawal Date', today, BK.brandRed));
+  bodyContents.push(bkRow(
+    'Remaining',
+    `${formatNumber(remaining_qty)} ${remaining_qty === 1 ? 'bottle' : 'bottles'}`,
+    remaining_qty > 0 ? BK.textDark : BK.brandRed,
+  ));
 
   return {
     type: 'flex',
-    altText: `เบิกเหล้าสำเร็จ - ${product_name}`,
+    altText: `Withdrawal Complete — ${product_name} (${formatNumber(actual_qty)})`,
     contents: {
       type: 'bubble',
       size: 'mega',
-      header: headerBox('เบิกเหล้าสำเร็จ', COLORS.blue),
-      body: bodyBox([
-        textComponent(product_name, {
-          size: 'xl',
-          weight: 'bold',
-          color: COLORS.textPrimary,
-          wrap: true,
-        }),
-        textComponent(store_name, {
-          size: 'xs',
-          color: COLORS.textMuted,
-          margin: 'sm',
-        }),
-        separatorComponent(),
-        labelValueRow('จำนวนที่เบิก', `${formatNumber(actual_qty)} ขวด`),
-        labelValueRow('คงเหลือ', `${formatNumber(remaining_qty)} ขวด`, {
-          color: remaining_qty > 0 ? COLORS.green : COLORS.red,
-        }),
-      ]),
-      footer: footerBox([
-        textComponent(
+      header: bkHeader({ emoji: '✅', title: 'Withdrawal Complete', subtitle: store_name }),
+      body: bkBody(bodyContents),
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [textComponent(
           remaining_qty > 0
-            ? 'ยังมีเหล้าคงเหลือ สามารถเบิกเพิ่มได้'
-            : 'เบิกครบแล้ว ไม่มีคงเหลือ',
-          {
-            size: 'xs',
-            color: COLORS.textMuted,
-            wrap: true,
-            align: 'center',
-          },
-        ),
-      ]),
+            ? 'Our staff will serve you shortly!'
+            : 'All your bottles have been withdrawn.',
+          { size: 'sm', weight: 'bold', color: BK.brandRed, wrap: true, align: 'center' },
+        )],
+        paddingAll: 'lg',
+        backgroundColor: BK.bodyBg,
+      },
       styles: {
-        header: { backgroundColor: COLORS.blue },
-        footer: { separator: true },
+        header: { backgroundColor: BK.headerBg },
+        body: { backgroundColor: BK.bodyBg },
+        footer: { backgroundColor: BK.bodyBg },
       },
     },
   };
 }
 
 // ---------------------------------------------------------------------------
-// (c) depositExpiryWarningFlex
+// (c) depositExpiryWarningFlex — Bottle Keeper themed
 // ---------------------------------------------------------------------------
 
 interface DepositExpiryWarningParams {
@@ -337,62 +633,89 @@ interface DepositExpiryWarningParams {
   remaining_qty: number;
   expiry_date: string;
   days_remaining: number;
+  store_name?: string;
+  customer_name?: string | null;
+  entry_url?: string | null;
 }
 
 /**
- * Flex message sent to customer when their deposit is expiring soon.
- * Orange/amber accent.
+ * "Bottles Expiring Soon" reminder. Uses the same red/cream Bottle
+ * Keeper theme as the other customer cards; days-remaining gets a
+ * highlighted callout in the body.
  */
 export function depositExpiryWarningFlex(params: DepositExpiryWarningParams): FlexMessage {
-  const { deposit_code, product_name, remaining_qty, expiry_date, days_remaining } = params;
+  const {
+    deposit_code, product_name, remaining_qty, expiry_date, days_remaining,
+    store_name, customer_name, entry_url,
+  } = params;
 
-  const urgencyColor = days_remaining <= 3 ? COLORS.red : COLORS.orange;
+  const bodyContents: Record<string, unknown>[] = [];
+  if (customer_name) {
+    bodyContents.push(textComponent(customer_name, {
+      size: 'lg', weight: 'bold', align: 'center', color: BK.textDark, wrap: true,
+    }));
+    bodyContents.push(bkDivider());
+  }
+
+  // Big "X days left" callout
+  bodyContents.push({
+    type: 'box',
+    layout: 'vertical',
+    margin: 'md',
+    paddingAll: 'lg',
+    backgroundColor: BK.brandRedSoft,
+    cornerRadius: '12px',
+    contents: [
+      textComponent(`${formatNumber(days_remaining)}`, {
+        size: '4xl', weight: 'bold', align: 'center', color: BK.brandRed,
+      }),
+      textComponent(`${days_remaining === 1 ? 'day' : 'days'} until expiry`, {
+        size: 'sm', align: 'center', color: BK.brandRed, margin: 'xs',
+      }),
+    ],
+  });
+
+  bodyContents.push(bkItemBox([
+    textComponent('ITEM', { size: 'xs', color: BK.textMuted, weight: 'bold' }),
+    textComponent(product_name, {
+      size: 'md', weight: 'bold', color: BK.brandRed, wrap: true, margin: 'xs',
+    }),
+    textComponent(
+      `${formatNumber(remaining_qty)} ${remaining_qty === 1 ? 'bottle' : 'bottles'} remaining`,
+      { size: 'xs', color: BK.textMuted, margin: 'xs' },
+    ),
+  ]));
+
+  bodyContents.push(bkRow('Deposit Code', deposit_code));
+  bodyContents.push(bkRow('Expiry Date', formatEnDate(expiry_date), BK.brandRed));
 
   return {
     type: 'flex',
-    altText: `เหล้าใกล้หมดอายุ - ${product_name} (เหลือ ${days_remaining} วัน)`,
+    altText: `Expiring soon — ${product_name} (${days_remaining} days)`,
     contents: {
       type: 'bubble',
       size: 'mega',
-      header: headerBox('เหล้าใกล้หมดอายุ', COLORS.orange),
-      body: bodyBox([
-        textComponent(product_name, {
-          size: 'xl',
-          weight: 'bold',
-          color: COLORS.textPrimary,
-          wrap: true,
-        }),
-        {
-          type: 'box',
-          layout: 'horizontal',
-          contents: [
-            textComponent(`เหลืออีก ${days_remaining} วัน`, {
-              size: 'md',
-              weight: 'bold',
-              color: urgencyColor,
-            }),
-          ],
-          margin: 'md',
-          paddingAll: 'sm',
-          backgroundColor: days_remaining <= 3 ? COLORS.redBg : COLORS.orangeBg,
-          cornerRadius: 'sm',
-        },
-        separatorComponent(),
-        labelValueRow('รหัสฝาก', deposit_code),
-        labelValueRow('คงเหลือ', `${formatNumber(remaining_qty)} ขวด`),
-        labelValueRow('หมดอายุ', formatThaiDate(expiry_date), { color: urgencyColor }),
-      ]),
-      footer: footerBox([
-        textComponent('กรุณามาเบิกก่อนหมดอายุ', {
-          size: 'xs',
-          color: COLORS.textMuted,
-          wrap: true,
-          align: 'center',
-        }),
-      ]),
+      header: bkHeader({
+        emoji: '⏳',
+        title: 'Expiring Soon',
+        subtitle: store_name || 'Bottle Keeper',
+      }),
+      body: bkBody(bodyContents),
+      footer: entry_url
+        ? bkFooterButton('📱  Open Bottle Keeper', entry_url)
+        : {
+            type: 'box',
+            layout: 'vertical',
+            contents: [textComponent('Please come withdraw before the expiry date.', {
+              size: 'xs', color: BK.textMuted, wrap: true, align: 'center',
+            })],
+            paddingAll: 'lg',
+            backgroundColor: BK.bodyBg,
+          },
       styles: {
-        header: { backgroundColor: COLORS.orange },
-        footer: { separator: true },
+        header: { backgroundColor: BK.headerBg },
+        body: { backgroundColor: BK.bodyBg },
+        footer: { backgroundColor: BK.bodyBg },
       },
     },
   };
@@ -616,71 +939,60 @@ export function claimDepositFlex(params: ClaimDepositParams): FlexMessage {
 
   return {
     type: 'flex',
-    altText: `ยืนยันรหัสฝาก ${deposit_code}`,
+    altText: `Confirm deposit ${deposit_code}`,
     contents: {
       type: 'bubble',
       size: 'mega',
-      header: headerBox('ยืนยันรหัสฝากเหล้า', COLORS.orange),
-      body: bodyBox([
-        textComponent(product_name, {
-          size: 'xl',
-          weight: 'bold',
-          color: COLORS.textPrimary,
-          wrap: true,
-        }),
-        textComponent(store_name, {
-          size: 'xs',
-          color: COLORS.textMuted,
-          margin: 'sm',
-        }),
-        separatorComponent(),
-        labelValueRow('รหัสฝาก', deposit_code, { color: COLORS.orange }),
-        labelValueRow('ชื่อลูกค้า', customer_name),
-        labelValueRow('คงเหลือ', `${formatNumber(remaining_qty)} ขวด`),
-        separatorComponent(),
-        textComponent('รายการนี้เป็นของคุณใช่ไหม?', {
-          size: 'sm',
-          color: COLORS.textSecondary,
-          align: 'center',
-          margin: 'lg',
-          wrap: true,
+      header: bkHeader({ emoji: '🔍', title: 'Is this your deposit?', subtitle: store_name }),
+      body: bkBody([
+        bkItemBox([
+          textComponent('ITEM', { size: 'xs', color: BK.textMuted, weight: 'bold' }),
+          textComponent(product_name, {
+            size: 'lg', weight: 'bold', color: BK.brandRed, wrap: true, margin: 'xs',
+          }),
+          textComponent(`${formatNumber(remaining_qty)} ${remaining_qty === 1 ? 'bottle' : 'bottles'} remaining`, {
+            size: 'xs', color: BK.textMuted, margin: 'xs',
+          }),
+        ]),
+        bkRow('Deposit Code', deposit_code, BK.brandRed),
+        bkRow('Customer', customer_name),
+        textComponent('Tap "Yes" to link this deposit to your LINE account', {
+          size: 'xs', color: BK.textMuted, align: 'center', wrap: true, margin: 'lg',
         }),
       ]),
-      footer: footerBox([
-        {
-          type: 'box',
-          layout: 'horizontal',
-          contents: [
-            {
-              type: 'button',
-              action: {
-                type: 'postback',
-                label: 'ใช่ ผูกกับฉัน',
-                data: `action=link_deposit&code=${deposit_code}&store_id=${store_id}`,
-                displayText: `ยืนยันผูกรหัส ${deposit_code}`,
-              },
-              style: 'primary',
-              color: COLORS.green,
-              height: 'sm',
+      footer: {
+        type: 'box',
+        layout: 'horizontal',
+        contents: [
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: '✓ Yes, this is mine',
+              data: `action=link_deposit&code=${deposit_code}&store_id=${store_id}`,
+              displayText: `Linking ${deposit_code}`,
             },
-            {
-              type: 'button',
-              action: {
-                type: 'postback',
-                label: 'ไม่ใช่',
-                data: `action=cancel_link&code=${deposit_code}`,
-                displayText: 'ไม่ใช่ของฉัน',
-              },
-              style: 'secondary',
-              height: 'sm',
+            style: 'primary', color: BK.ctaBg, height: 'md', flex: 2,
+          },
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: 'Not mine',
+              data: `action=cancel_link&code=${deposit_code}`,
+              displayText: 'Not my deposit',
             },
-          ],
-          spacing: 'sm',
-        },
-      ]),
+            style: 'secondary', height: 'md', flex: 1,
+          },
+        ],
+        spacing: 'sm',
+        paddingAll: 'lg',
+        backgroundColor: BK.bodyBg,
+      },
       styles: {
-        header: { backgroundColor: COLORS.orange },
-        footer: { separator: true },
+        header: { backgroundColor: BK.headerBg },
+        body: { backgroundColor: BK.bodyBg },
+        footer: { backgroundColor: BK.bodyBg },
       },
     },
   };
@@ -699,96 +1011,90 @@ interface ClaimMultipleDepositsParams {
   primary_code: string;
 }
 
-const COLORS_PURPLE = '#7C3AED';
-
 export function claimMultipleDepositsFlex(params: ClaimMultipleDepositsParams): FlexMessage {
   const { codes, product_names, customer_name, store_name, store_id, primary_code } = params;
 
-  const listItems: Record<string, unknown>[] = codes.map((code, i) => ({
+  const listItems: Record<string, unknown>[] = codes.slice(0, 6).map((code, i) => ({
     type: 'box',
     layout: 'horizontal',
     contents: [
-      textComponent(`${i + 1}.`, { size: 'sm', color: COLORS.textMuted, flex: 0 }),
+      textComponent(`${i + 1}.`, { size: 'sm', color: BK.textMuted, flex: 0 }),
       textComponent(`${code} — ${product_names[i] || ''}`, {
-        size: 'sm',
-        color: COLORS.textPrimary,
-        flex: 1,
-        wrap: true,
-        margin: 'sm',
+        size: 'sm', color: BK.textDark, flex: 1, wrap: true, margin: 'sm',
       }),
     ],
     margin: 'sm',
   }));
+  if (codes.length > 6) {
+    listItems.push(textComponent(`+${codes.length - 6} more`, {
+      size: 'xs', color: BK.textMuted, margin: 'md',
+    }));
+  }
 
   return {
     type: 'flex',
-    altText: `ยืนยันรหัสฝาก ${codes.length} รายการ`,
+    altText: `Confirm ${codes.length} deposits`,
     contents: {
       type: 'bubble',
       size: 'mega',
-      header: headerBox(`พบ ${codes.length} รายการ`, COLORS_PURPLE),
-      body: bodyBox([
+      header: bkHeader({
+        emoji: '🍷',
+        title: `${codes.length} Deposits Found`,
+        subtitle: store_name,
+      }),
+      body: bkBody([
         textComponent(customer_name, {
-          size: 'lg',
-          weight: 'bold',
-          color: COLORS.textPrimary,
-          wrap: true,
+          size: 'lg', weight: 'bold', align: 'center', color: BK.textDark, wrap: true,
         }),
-        textComponent(store_name, {
-          size: 'xs',
-          color: COLORS.textMuted,
-          margin: 'sm',
-        }),
-        separatorComponent(),
-        ...listItems,
-        separatorComponent(),
-        textComponent('ต้องการผูกรายการเหล่านี้กับบัญชีของคุณ?', {
-          size: 'sm',
-          color: COLORS.textSecondary,
-          align: 'center',
-          margin: 'lg',
-          wrap: true,
+        bkDivider(),
+        bkItemBox(listItems),
+        textComponent('Do these all belong to you?', {
+          size: 'sm', color: BK.textMuted, align: 'center', wrap: true, margin: 'lg',
         }),
       ]),
-      footer: footerBox([
-        {
-          type: 'button',
-          action: {
-            type: 'postback',
-            label: `ใช่ทั้งหมด (${codes.length} รายการ)`,
-            data: `action=link_deposits_batch&codes=${codes.join(',')}&store_id=${store_id}`,
-            displayText: `ยืนยันผูกทั้ง ${codes.length} รายการ`,
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: `✓ Yes, link all ${codes.length}`,
+              data: `action=link_deposits_batch&codes=${codes.join(',')}&store_id=${store_id}`,
+              displayText: `Linking all ${codes.length} deposits`,
+            },
+            style: 'primary', color: BK.ctaBg, height: 'md',
           },
-          style: 'primary',
-          color: COLORS.green,
-          height: 'sm',
-        },
-        {
-          type: 'button',
-          action: {
-            type: 'postback',
-            label: `เฉพาะ ${primary_code}`,
-            data: `action=link_deposit&code=${primary_code}&store_id=${store_id}`,
-            displayText: `ยืนยันผูกเฉพาะ ${primary_code}`,
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: `Only ${primary_code}`,
+              data: `action=link_deposit&code=${primary_code}&store_id=${store_id}`,
+              displayText: `Linking ${primary_code} only`,
+            },
+            style: 'secondary', height: 'sm', margin: 'sm',
           },
-          style: 'secondary',
-          height: 'sm',
-        },
-        {
-          type: 'button',
-          action: {
-            type: 'postback',
-            label: 'ไม่ใช่ของฉัน',
-            data: `action=cancel_link&code=${primary_code}`,
-            displayText: 'ไม่ใช่ของฉัน',
+          {
+            type: 'button',
+            action: {
+              type: 'postback',
+              label: 'Not mine',
+              data: `action=cancel_link&code=${primary_code}`,
+              displayText: 'Not my deposits',
+            },
+            style: 'secondary', height: 'sm', margin: 'sm',
           },
-          style: 'secondary',
-          height: 'sm',
-        },
-      ]),
+        ],
+        spacing: 'none',
+        paddingAll: 'lg',
+        backgroundColor: BK.bodyBg,
+      },
       styles: {
-        header: { backgroundColor: COLORS_PURPLE },
-        footer: { separator: true },
+        header: { backgroundColor: BK.headerBg },
+        body: { backgroundColor: BK.bodyBg },
+        footer: { backgroundColor: BK.bodyBg },
       },
     },
   };
@@ -813,58 +1119,41 @@ export function depositLinkedFlex(params: DepositLinkedParams): FlexMessage {
   const { deposit_code, product_name, customer_name, remaining_qty, quantity, store_name, expiry_date, customer_portal_url } = params;
 
   const bodyContents: Record<string, unknown>[] = [
-    textComponent(product_name, {
-      size: 'xl',
-      weight: 'bold',
-      color: COLORS.textPrimary,
-      wrap: true,
+    textComponent(customer_name, {
+      size: 'lg', weight: 'bold', align: 'center', color: BK.textDark, wrap: true,
     }),
-    textComponent(store_name, {
-      size: 'xs',
-      color: COLORS.textMuted,
-      margin: 'sm',
+    textComponent('Linked to your account', {
+      size: 'sm', weight: 'bold', align: 'center', color: BK.brandRed, margin: 'sm',
     }),
-    separatorComponent(),
-    labelValueRow('รหัสฝาก', deposit_code, { color: COLORS.green }),
-    labelValueRow('ชื่อลูกค้า', customer_name),
-    labelValueRow('คงเหลือ', `${formatNumber(remaining_qty)} / ${formatNumber(quantity)} ขวด`),
+    bkDivider(),
+    bkItemBox([
+      textComponent('ITEM', { size: 'xs', color: BK.textMuted, weight: 'bold' }),
+      textComponent(product_name, {
+        size: 'lg', weight: 'bold', color: BK.brandRed, wrap: true, margin: 'xs',
+      }),
+      textComponent(`${formatNumber(remaining_qty)} / ${formatNumber(quantity)} ${quantity === 1 ? 'bottle' : 'bottles'} remaining`, {
+        size: 'xs', color: BK.textMuted, margin: 'xs',
+      }),
+    ]),
+    bkRow('Deposit Code', deposit_code, BK.brandRed),
   ];
-
   if (expiry_date) {
-    bodyContents.push(labelValueRow('หมดอายุ', formatThaiDate(expiry_date)));
+    bodyContents.push(bkRow('Expiry Date', formatEnDate(expiry_date), BK.brandRed));
   }
 
   return {
     type: 'flex',
-    altText: `ผูกรหัสฝาก ${deposit_code} สำเร็จ`,
+    altText: `Linked ${deposit_code}`,
     contents: {
       type: 'bubble',
       size: 'mega',
-      header: headerBox('ผูกรหัสฝากสำเร็จ', COLORS.green),
-      body: bodyBox(bodyContents),
-      footer: footerBox([
-        {
-          type: 'button',
-          action: {
-            type: 'uri',
-            label: 'ดูรายการทั้งหมด',
-            uri: customer_portal_url,
-          },
-          style: 'primary',
-          color: COLORS.blue,
-          height: 'sm',
-        },
-        textComponent('พิมพ์ "ฝากเหล้า" เพื่อดูของฝากทั้งหมด', {
-          size: 'xs',
-          color: COLORS.textMuted,
-          wrap: true,
-          align: 'center',
-          margin: 'sm',
-        }),
-      ]),
+      header: bkHeader({ emoji: '🔗', title: 'Deposit Linked', subtitle: store_name }),
+      body: bkBody(bodyContents),
+      footer: bkFooterButton('📱  Open Bottle Keeper', customer_portal_url),
       styles: {
-        header: { backgroundColor: COLORS.green },
-        footer: { separator: true },
+        header: { backgroundColor: BK.headerBg },
+        body: { backgroundColor: BK.bodyBg },
+        footer: { backgroundColor: BK.bodyBg },
       },
     },
   };
@@ -884,60 +1173,45 @@ interface MultipleDepositsLinkedParams {
 export function multipleDepositsLinkedFlex(params: MultipleDepositsLinkedParams): FlexMessage {
   const { codes, product_names, store_name, customer_portal_url } = params;
 
-  const listItems: Record<string, unknown>[] = codes.map((code, i) => ({
+  const listItems: Record<string, unknown>[] = codes.slice(0, 8).map((code, i) => ({
     type: 'box',
     layout: 'horizontal',
     contents: [
-      textComponent('✅', { size: 'sm', flex: 0 }),
-      textComponent(`${code} — ${product_names[i] || ''}`, {
-        size: 'sm',
-        color: COLORS.textPrimary,
-        flex: 1,
-        wrap: true,
-        margin: 'sm',
+      textComponent('✓', { size: 'md', color: BK.brandRed, weight: 'bold', flex: 0 }),
+      textComponent(`${code}  —  ${product_names[i] || ''}`, {
+        size: 'sm', color: BK.textDark, flex: 1, wrap: true, margin: 'sm',
       }),
     ],
     margin: 'sm',
   }));
+  if (codes.length > 8) {
+    listItems.push(textComponent(`+${codes.length - 8} more`, {
+      size: 'xs', color: BK.textMuted, margin: 'md',
+    }));
+  }
 
   return {
     type: 'flex',
-    altText: `ผูกรหัสฝาก ${codes.length} รายการสำเร็จ`,
+    altText: `Linked ${codes.length} deposits`,
     contents: {
       type: 'bubble',
       size: 'mega',
-      header: headerBox(`ผูกสำเร็จ ${codes.length} รายการ`, COLORS.green),
-      body: bodyBox([
-        textComponent(store_name, {
-          size: 'xs',
-          color: COLORS.textMuted,
+      header: bkHeader({
+        emoji: '🔗',
+        title: `${codes.length} Deposits Linked`,
+        subtitle: store_name,
+      }),
+      body: bkBody([
+        textComponent('All linked to your account!', {
+          size: 'sm', weight: 'bold', align: 'center', color: BK.brandRed, wrap: true,
         }),
-        separatorComponent(),
-        ...listItems,
+        bkItemBox(listItems),
       ]),
-      footer: footerBox([
-        {
-          type: 'button',
-          action: {
-            type: 'uri',
-            label: 'ดูรายการทั้งหมด',
-            uri: customer_portal_url,
-          },
-          style: 'primary',
-          color: COLORS.blue,
-          height: 'sm',
-        },
-        textComponent('พิมพ์ "ฝากเหล้า" เพื่อดูของฝากทั้งหมด', {
-          size: 'xs',
-          color: COLORS.textMuted,
-          wrap: true,
-          align: 'center',
-          margin: 'sm',
-        }),
-      ]),
+      footer: bkFooterButton('📱  Open Bottle Keeper', customer_portal_url),
       styles: {
-        header: { backgroundColor: COLORS.green },
-        footer: { separator: true },
+        header: { backgroundColor: BK.headerBg },
+        body: { backgroundColor: BK.bodyBg },
+        footer: { backgroundColor: BK.bodyBg },
       },
     },
   };
@@ -1346,12 +1620,11 @@ export function promotionTemplate(
 }
 
 // ---------------------------------------------------------------------------
-// (p) openDepositSystemFlex — reply when customer types "ฝากเหล้า" / "deposit"
+// (p) openDepositSystemFlex — reply when customer types "alcohol deposit" /
+//                              "ฝากเหล้า" / similar trigger keywords
 //
-// Mirrors the behaviour of the old GAS bot: instead of plain text, send a
-// rich card with a single primary button that launches the deposit system.
-// The button URL should be a LIFF deep link (with ?store={code}) when the
-// central LIFF ID is configured, otherwise a signed token fallback URL.
+// Bottle Keeper themed: deep red header "Bottle Keeper" + branch name,
+// cream body "Welcome!" + status, "30-day storage" pill, red CTA.
 // ---------------------------------------------------------------------------
 
 interface OpenDepositSystemParams {
@@ -1363,110 +1636,47 @@ interface OpenDepositSystemParams {
   customer_name?: string | null;
   /** Full URL that the "Open" button should navigate to */
   entry_url: string;
-  /** Bot display name, defaults to "DAVIS Ai" */
+  /** Bot display name — kept for back-compat but no longer rendered */
   bot_name?: string;
 }
 
 export function openDepositSystemFlex(
   params: OpenDepositSystemParams,
 ): FlexMessage {
-  const {
-    store_name,
-    active_deposit_count,
-    customer_name,
-    entry_url,
-    bot_name = 'DAVIS Ai',
-  } = params;
-
+  const { store_name, active_deposit_count, customer_name, entry_url } = params;
   const hasItems = active_deposit_count > 0;
 
-  // Body varies depending on whether the customer already has deposits
   const bodyContents: Record<string, unknown>[] = [
-    textComponent(customer_name ? `สวัสดีคุณ ${customer_name}` : 'สวัสดีครับ 👋', {
-      size: 'md',
-      weight: 'bold',
-      color: COLORS.textPrimary,
-      wrap: true,
+    textComponent('Welcome!', {
+      size: 'xl', weight: 'bold', align: 'center', color: BK.textDark,
     }),
-    textComponent(`สาขา: ${store_name}`, {
-      size: 'xs',
-      color: COLORS.textMuted,
-      margin: 'sm',
-    }),
-    separatorComponent(),
   ];
-
-  if (hasItems) {
-    bodyContents.push(
-      textComponent('🍾 ของฝากของคุณ', {
-        size: 'sm',
-        color: COLORS.textSecondary,
-        margin: 'lg',
-        weight: 'bold',
-      }),
-      labelValueRow(
-        'รายการที่ยังอยู่',
-        `${formatNumber(active_deposit_count)} รายการ`,
-        { color: COLORS.green },
-      ),
-      textComponent('กดปุ่มด้านล่างเพื่อดูรายละเอียด / ขอเบิก', {
-        size: 'xs',
-        color: COLORS.textMuted,
-        margin: 'md',
-        wrap: true,
-      }),
-    );
-  } else {
-    bodyContents.push(
-      textComponent('ยังไม่มีของฝากที่สาขานี้', {
-        size: 'sm',
-        color: COLORS.textSecondary,
-        margin: 'lg',
-        weight: 'bold',
-      }),
-      textComponent(
-        'กดปุ่มด้านล่างเพื่อเปิดระบบฝากเหล้า — สามารถดูประวัติ, ตรวจสอบวันหมดอายุ, และขอเบิกได้จากหน้าเดียว',
-        {
-          size: 'xs',
-          color: COLORS.textMuted,
-          margin: 'md',
-          wrap: true,
-        },
-      ),
-    );
+  if (customer_name) {
+    bodyContents.push(textComponent(customer_name, {
+      size: 'md', align: 'center', color: BK.textDark, wrap: true, margin: 'sm',
+    }));
   }
+  bodyContents.push(textComponent(
+    hasItems
+      ? `You have ${formatNumber(active_deposit_count)} ${active_deposit_count === 1 ? 'bottle' : 'bottles'} stored`
+      : 'You have no bottles stored yet',
+    { size: 'sm', align: 'center', color: BK.textMuted, wrap: true, margin: 'md' },
+  ));
+  bodyContents.push(bkInfoPill('📦  30-day storage'));
 
   return {
     type: 'flex',
-    altText: `เปิดระบบฝากเหล้า ${store_name}`,
+    altText: `Open Bottle Keeper — ${store_name}`,
     contents: {
       type: 'bubble',
       size: 'mega',
-      header: headerBox(`🍾 ${bot_name}`, COLORS.green),
-      body: bodyBox(bodyContents),
-      footer: footerBox([
-        {
-          type: 'button',
-          action: {
-            type: 'uri',
-            label: hasItems ? 'เปิดระบบฝากเหล้า' : 'เริ่มต้นใช้งาน',
-            uri: entry_url,
-          },
-          style: 'primary',
-          color: COLORS.green,
-          height: 'sm',
-        },
-        textComponent('พิมพ์ DEP-xxxxx เพื่อตรวจสอบรหัสฝาก', {
-          size: 'xs',
-          color: COLORS.textMuted,
-          wrap: true,
-          align: 'center',
-          margin: 'sm',
-        }),
-      ]),
+      header: bkHeader({ emoji: '🍾', title: 'Bottle Keeper', subtitle: store_name }),
+      body: bkBody(bodyContents),
+      footer: bkFooterButton('📱  Open Bottle Keeper', entry_url),
       styles: {
-        header: { backgroundColor: COLORS.green },
-        footer: { separator: true },
+        header: { backgroundColor: BK.headerBg },
+        body: { backgroundColor: BK.bodyBg },
+        footer: { backgroundColor: BK.bodyBg },
       },
     },
   };

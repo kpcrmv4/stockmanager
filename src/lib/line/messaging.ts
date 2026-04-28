@@ -432,10 +432,15 @@ export async function notifyDepositEvent(params: NotifyDepositEventParams): Prom
 
       const message = depositConfirmedFlex({
         deposit_code: data.deposit_code,
+        deposit_codes: data.deposit_codes as string[] | undefined,
         product_name: data.product_name,
         quantity: data.quantity,
+        items: data.items as Array<{ product_name: string; quantity: number; remaining_percent?: number }> | undefined,
         store_name: data.store_name,
         expiry_date: data.expiry_date,
+        customer_name: data.customer_name as string | null | undefined,
+        customer_phone: data.customer_phone as string | null | undefined,
+        entry_url: data.entry_url as string | null | undefined,
       });
 
       await sendLinePush(lineUserId, [message as unknown as LineMessage], token);
@@ -454,6 +459,8 @@ export async function notifyDepositEvent(params: NotifyDepositEventParams): Prom
         product_name: data.product_name,
         store_name: data.store_name,
         reason: data.reason,
+        customer_name: data.customer_name as string | null | undefined,
+        customer_phone: data.customer_phone as string | null | undefined,
       });
 
       await sendLinePush(lineUserId, [message as unknown as LineMessage], token);
@@ -469,10 +476,12 @@ export async function notifyDepositEvent(params: NotifyDepositEventParams): Prom
       }
 
       const message = withdrawalCompletedFlex({
+        deposit_code: data.deposit_code as string | undefined,
         product_name: data.product_name,
         actual_qty: data.actual_qty,
         remaining_qty: data.remaining_qty,
         store_name: data.store_name,
+        customer_name: data.customer_name as string | null | undefined,
       });
 
       await sendLinePush(lineUserId, [message as unknown as LineMessage], token);
@@ -493,6 +502,9 @@ export async function notifyDepositEvent(params: NotifyDepositEventParams): Prom
         remaining_qty: data.remaining_qty,
         expiry_date: data.expiry_date,
         days_remaining: data.days_remaining,
+        store_name: data.store_name,
+        customer_name: data.customer_name as string | null | undefined,
+        entry_url: data.entry_url as string | null | undefined,
       });
 
       await sendLinePush(lineUserId, [message as unknown as LineMessage], token);
