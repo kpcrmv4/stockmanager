@@ -300,6 +300,8 @@
       "loading": "กำลังโหลด...",
       "retry": "ลองใหม่",
       "welcomeBack": "ยินดีต้อนรับ",
+      "cancel": "ยกเลิก",
+      "confirm": "ยืนยัน",
       "bottlesLabel": "จำนวนขวด",
       "pendingStaff": "รอพนักงานยืนยัน",
       "inStore": "ฝากอยู่ในร้าน",

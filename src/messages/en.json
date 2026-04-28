@@ -300,6 +300,8 @@
       "loading": "Loading...",
       "retry": "Retry",
       "welcomeBack": "Welcome back",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
       "bottlesLabel": "Bottles",
       "pendingStaff": "Waiting for staff",
       "inStore": "In store",

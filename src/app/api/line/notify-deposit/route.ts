@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as {
-      type: 'confirmed' | 'rejected' | 'withdrawal_completed';
+      type: 'confirmed' | 'rejected' | 'withdrawal_completed' | 'withdrawal_rejected';
       deposit_id?: string;
       deposit_code?: string;
       reason?: string;
@@ -196,6 +196,19 @@ export async function POST(request: NextRequest) {
           actual_qty: actualQty,
           remaining_qty: deposit.remaining_qty,
           store_name: storeName,
+          customer_name: deposit.customer_name,
+        },
+      });
+    } else if (body.type === 'withdrawal_rejected') {
+      await notifyDepositEvent({
+        type: 'withdrawal_rejected',
+        storeId: deposit.store_id,
+        data: {
+          line_user_id: deposit.line_user_id,
+          deposit_code: deposit.deposit_code,
+          product_name: deposit.product_name,
+          store_name: storeName,
+          reason: body.reason || '',
           customer_name: deposit.customer_name,
         },
       });

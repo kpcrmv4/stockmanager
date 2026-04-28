@@ -34,13 +34,27 @@ type FilterStatus = 'all' | 'active' | 'pending' | 'pending_bar' | 'claimed' | '
 
 /**
  * Normalize status across ActionCard and Transfer metadata into
- * unified categories: pending / claimed / completed
+ * unified categories: pending / claimed / completed.
+ *
+ * Treats timed-out `claimed` cards as `pending` so they auto-rejoin the
+ * "รอรับ" tab — the assignee never picked it up, so it should be free
+ * for someone else to grab. The DB row is still `claimed`; the next
+ * claim/release call (handleAction in action-card-message.tsx) flips it
+ * back to pending and clears claimed_by atomically.
  */
 function getNormalizedStatus(meta: Record<string, unknown>): 'pending' | 'pending_bar' | 'claimed' | 'completed' | 'other' {
   const status = meta.status as string;
   if (status === 'pending' || status === 'pending_approval') return 'pending';
   if (status === 'pending_bar') return 'pending_bar';
-  if (status === 'claimed') return 'claimed';
+  if (status === 'claimed') {
+    const claimedAt = meta.claimed_at as string | null | undefined;
+    const timeoutMinutes = meta.timeout_minutes as number | null | undefined;
+    if (claimedAt && timeoutMinutes && timeoutMinutes > 0) {
+      const deadline = new Date(claimedAt).getTime() + timeoutMinutes * 60 * 1000;
+      if (deadline < Date.now()) return 'pending';
+    }
+    return 'claimed';
+  }
   if (status === 'completed' || status === 'received') {
     const summary = meta.summary as Record<string, unknown> | undefined;
     if (summary?.rejected) return 'other';
@@ -79,6 +93,14 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupStatusFilter, setGroupStatusFilter] = useState<Record<string, string>>({}); // type → status filter
   const collapsedInitRef = useRef(false);
+  // Tick every 30s so timed-out claimed cards reflow into "รอรับ"
+  // without needing the user to interact. getNormalizedStatus reads
+  // Date.now() — without a tick the memos never re-evaluate.
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Extract action card messages only (works for both ActionCard and Transfer metadata)
   const actionCards = useMemo(() => {

@@ -628,6 +628,83 @@ export function withdrawalCompletedFlex(params: WithdrawalCompletedParams & {
 }
 
 // ---------------------------------------------------------------------------
+// (b2) withdrawalRejectedFlex — Bottle Keeper themed
+// ---------------------------------------------------------------------------
+
+interface WithdrawalRejectedParams {
+  product_name: string;
+  store_name: string;
+  reason: string;
+  deposit_code?: string;
+  customer_name?: string | null;
+}
+
+/**
+ * Flex card sent to the customer when bar/staff cancels a pending
+ * withdrawal request. Mirrors `depositRejectedFlex` styling so the
+ * customer's LINE chat looks consistent across the lifecycle.
+ */
+export function withdrawalRejectedFlex(params: WithdrawalRejectedParams): FlexMessage {
+  const { product_name, store_name, reason, deposit_code, customer_name } = params;
+
+  const bodyContents: Record<string, unknown>[] = [];
+  if (customer_name) {
+    bodyContents.push(textComponent(customer_name, {
+      size: 'lg', weight: 'bold', align: 'center', color: BK.textDark, wrap: true,
+    }));
+    bodyContents.push(bkDivider());
+  }
+
+  bodyContents.push(textComponent('Your withdrawal request was cancelled', {
+    size: 'md', weight: 'bold', align: 'center', color: BK.brandRed, wrap: true,
+  }));
+
+  bodyContents.push(bkItemBox([
+    textComponent('ITEM', { size: 'xs', color: BK.textMuted, weight: 'bold' }),
+    textComponent(product_name, {
+      size: 'md', weight: 'bold', color: BK.brandRed, wrap: true, margin: 'xs',
+    }),
+    textComponent('REASON', { size: 'xs', color: BK.textMuted, weight: 'bold', margin: 'md' }),
+    textComponent(reason || '-', {
+      size: 'sm', color: BK.textDark, wrap: true, margin: 'xs',
+    }),
+  ]));
+
+  if (deposit_code) {
+    bodyContents.push(bkRow('Deposit Code', deposit_code));
+  }
+
+  bodyContents.push(textComponent('Please speak with our staff if you have any questions', {
+    size: 'xs', color: BK.textMuted, align: 'center', wrap: true, margin: 'lg',
+  }));
+
+  return {
+    type: 'flex',
+    altText: `Withdrawal cancelled — ${product_name}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: bkHeader({ emoji: '⚠️', title: 'Withdrawal Cancelled', subtitle: store_name }),
+      body: bkBody(bodyContents),
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [textComponent('Your bottles are still safely stored.', {
+          size: 'xs', color: BK.textMuted, wrap: true, align: 'center',
+        })],
+        paddingAll: 'lg',
+        backgroundColor: BK.bodyBg,
+      },
+      styles: {
+        header: { backgroundColor: BK.headerBg },
+        body: { backgroundColor: BK.bodyBg },
+        footer: { backgroundColor: BK.bodyBg },
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // (c) depositExpiryWarningFlex — Bottle Keeper themed
 // ---------------------------------------------------------------------------
 

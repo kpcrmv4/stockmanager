@@ -19,6 +19,7 @@ import {
   depositConfirmedFlex,
   depositRejectedFlex,
   withdrawalCompletedFlex,
+  withdrawalRejectedFlex,
   depositExpiryWarningFlex,
   newDepositNotifyFlex,
   withdrawalRequestNotifyFlex,
@@ -331,6 +332,7 @@ type DepositEventType =
   | 'confirmed'
   | 'rejected'
   | 'withdrawal_completed'
+  | 'withdrawal_rejected'
   | 'expiry_warning'
   | 'new_deposit'
   | 'withdrawal_request';
@@ -349,6 +351,9 @@ function customerToggleColumnFor(type: DepositEventType): keyof StoreSettings | 
     case 'confirmed': return 'customer_notify_deposit_enabled';
     case 'rejected': return 'customer_notify_deposit_rejected_enabled';
     case 'withdrawal_completed': return 'customer_notify_withdrawal_enabled';
+    // Reuse the withdrawal toggle for rejection notifications — admins
+    // who silenced withdrawal flex shouldn't get spam on rejects either.
+    case 'withdrawal_rejected': return 'customer_notify_withdrawal_enabled';
     case 'expiry_warning': return 'customer_notify_expiry_enabled';
     case 'new_deposit':
     case 'withdrawal_request':
@@ -481,6 +486,26 @@ export async function notifyDepositEvent(params: NotifyDepositEventParams): Prom
         actual_qty: data.actual_qty,
         remaining_qty: data.remaining_qty,
         store_name: data.store_name,
+        customer_name: data.customer_name as string | null | undefined,
+      });
+
+      await sendLinePush(lineUserId, [message as unknown as LineMessage], token);
+      break;
+    }
+
+    case 'withdrawal_rejected': {
+      // Send to customer's LINE userId
+      const lineUserId = data.line_user_id as string | undefined;
+      if (!lineUserId) {
+        console.warn('[LINE] No line_user_id for withdrawal rejected notification');
+        return;
+      }
+
+      const message = withdrawalRejectedFlex({
+        product_name: data.product_name,
+        store_name: data.store_name,
+        reason: data.reason || 'ปฏิเสธจากร้าน',
+        deposit_code: data.deposit_code as string | undefined,
         customer_name: data.customer_name as string | null | undefined,
       });
 

@@ -11,13 +11,19 @@ import { isWithdrawalBlocked } from '@/lib/utils/date';
  * POST /api/customer/withdrawal
  * ลูกค้าขอเบิกเหล้า
  *
- * Body: { depositId, customerName, token?, accessToken? }
+ * Body: { depositId, customerName, bottleIds?, token?, accessToken? }
+ *
+ * `bottleIds` is optional — when supplied (multi-bottle deposits), one
+ * pending withdrawal row is created per picked bottle so the bar can
+ * tick each off individually. When omitted, falls back to "withdraw
+ * everything that's left" for backward compat with single-bottle cards.
  */
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { depositId, customerName, token, accessToken, withdrawalType } = body as {
+  const { depositId, customerName, bottleIds, token, accessToken, withdrawalType } = body as {
     depositId: string;
     customerName: string;
+    bottleIds?: string[];
     token?: string;
     accessToken?: string;
     withdrawalType?: 'in_store' | 'take_home';
@@ -95,18 +101,48 @@ export async function POST(request: NextRequest) {
   }
 
   // -----------------------------------------------------------------------
-  // Create withdrawal request
+  // Validate selected bottles when supplied — they must belong to this
+  // deposit and not be consumed yet. Empty/missing → "withdraw all
+  // remaining" (legacy behaviour).
   // -----------------------------------------------------------------------
-  const { error: insertError } = await supabase.from('withdrawals').insert({
+  let validBottleIds: string[] = [];
+  if (Array.isArray(bottleIds) && bottleIds.length > 0) {
+    const { data: validBottles } = await supabase
+      .from('deposit_bottles')
+      .select('id, status')
+      .eq('deposit_id', deposit.id)
+      .in('id', bottleIds);
+    validBottleIds = (validBottles || [])
+      .filter((b) => b.status !== 'consumed')
+      .map((b) => b.id);
+    if (validBottleIds.length === 0) {
+      return NextResponse.json(
+        { error: 'ไม่พบขวดที่เลือก หรือขวดถูกเบิกไปแล้ว' },
+        { status: 400 },
+      );
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Create withdrawal request
+  // One row per picked bottle so the bar can mark them off individually
+  // (bottle_id linked); legacy/single-bottle requests fall through to a
+  // single row with bottle_id=null and requested_qty=remaining_qty.
+  // -----------------------------------------------------------------------
+  const baseRow = {
     deposit_id: deposit.id,
     store_id: deposit.store_id,
     line_user_id: lineUserId,
     customer_name: customerName || deposit.customer_name || 'ลูกค้า',
     product_name: deposit.product_name,
-    requested_qty: deposit.remaining_qty,
     withdrawal_type: wType,
-    status: 'pending',
-  });
+    status: 'pending' as const,
+  };
+  const insertRows = validBottleIds.length > 0
+    ? validBottleIds.map((bottleId) => ({ ...baseRow, requested_qty: 1, bottle_id: bottleId }))
+    : [{ ...baseRow, requested_qty: deposit.remaining_qty, bottle_id: null }];
+
+  const { error: insertError } = await supabase.from('withdrawals').insert(insertRows);
 
   if (insertError) {
     return NextResponse.json(
@@ -114,6 +150,8 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+
+  const requestedQty = validBottleIds.length > 0 ? validBottleIds.length : deposit.remaining_qty;
 
   // -----------------------------------------------------------------------
   // Update deposit status
@@ -174,7 +212,7 @@ export async function POST(request: NextRequest) {
       storeId: deposit.store_id,
       type: 'withdrawal_request',
       title: 'มีคำขอเบิกเหล้า',
-      body: `${customerName || deposit.customer_name} ขอเบิก ${deposit.product_name}`,
+      body: `${customerName || deposit.customer_name} ขอเบิก ${deposit.product_name} x${requestedQty}`,
       data: { depositId: deposit.id, productName: deposit.product_name },
     });
   } catch (err) {
@@ -185,13 +223,36 @@ export async function POST(request: NextRequest) {
   // Send Action Card to store chat
   // -----------------------------------------------------------------------
   try {
+    // For multi-bottle requests, surface which bottle slots the
+    // customer chose so the bar sees "1/3, 3/3" instead of "x3" with
+    // no detail. Look up bottle_no for the picked ids.
+    let bottleLabels: string[] | undefined;
+    if (validBottleIds.length > 0) {
+      const { data: bottleRows } = await supabase
+        .from('deposit_bottles')
+        .select('bottle_no')
+        .in('id', validBottleIds)
+        .order('bottle_no');
+      const total = deposit.quantity || 0;
+      bottleLabels = (bottleRows || []).map((b) =>
+        total > 0 ? `${b.bottle_no}/${total}` : String(b.bottle_no),
+      );
+    }
     const actionCard = buildWithdrawalActionCard({
       id: depositId,
       deposit_code: deposit.deposit_code,
       customer_name: customerName || deposit.customer_name || 'ลูกค้า',
       product_name: deposit.product_name,
-      requested_qty: deposit.remaining_qty,
+      requested_qty: requestedQty,
+      table_number: deposit.table_number,
     });
+    if (bottleLabels && bottleLabels.length > 0) {
+      const meta = actionCard.metadata;
+      if (meta && typeof meta === 'object' && 'summary' in meta) {
+        const m = meta as { summary: Record<string, unknown> };
+        m.summary.items = `${deposit.product_name} x${requestedQty} (${bottleLabels.join(', ')})`;
+      }
+    }
 
     await sendBotMessage({
       storeId: deposit.store_id,

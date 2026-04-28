@@ -355,9 +355,10 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         const firstItem = validItems[0];
         const productName = firstItem?.productName ?? '';
         const qty = firstItem?.quantity ?? 0;
-        const itemsLabel = validItems.length > 1
-          ? `${validItems.map((it) => `${it.productName} x${it.quantity}`).join(', ')}`
-          : firstItem ? `${firstItem.productName} x${firstItem.quantity}` : '';
+        // Existing card represents row 1 only — extra rows spawn separate
+        // deposits + cards below, so the items label here must show just
+        // the first item to keep it in sync with what bar will verify.
+        const firstItemLabel = firstItem ? `${firstItem.productName} x${firstItem.quantity}` : '';
 
         // Staff complete → transition to pending_bar (NOT completed)
         const newMeta: ActionCardMetadata = {
@@ -371,7 +372,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             ...meta.summary,
             received_by: currentUserName,
             ...(isFromCustomer && {
-              items: itemsLabel,
+              items: firstItemLabel,
               product_name: productName,
               quantity: qty,
             }),
@@ -498,7 +499,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         // แจ้งเตือน bar
         if (storeId) {
           const summary = meta.summary;
-          const itemsText = isFromCustomer ? itemsLabel : (summary.items || '');
+          const itemsText = isFromCustomer ? firstItemLabel : (summary.items || '');
           notifyStaff({
             storeId,
             type: 'deposit_received',
@@ -995,6 +996,19 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
               .update({ status: 'in_store' })
               .eq('id', deposit.id)
               .eq('status', 'pending_withdrawal');
+
+            // Push a Flex card back to the customer's LINE so they
+            // know the request was cancelled — same pattern as
+            // bar-confirm/withdrawal-complete notifications.
+            fetch('/api/line/notify-deposit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'withdrawal_rejected',
+                deposit_id: deposit.id,
+                reason: 'ยกเลิกจากแชท',
+              }),
+            }).catch(() => {});
           }
         } catch {
           // Non-blocking
@@ -2043,7 +2057,6 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                               );
                             })}
                           </div>
-                          <p className="mt-1 text-[10px] text-gray-400">0% = เบิกแล้ว, 100% = ขวดยังไม่เปิด</p>
                         </div>
                       </div>
                     )}
