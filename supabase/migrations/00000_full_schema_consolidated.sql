@@ -1546,6 +1546,9 @@ END $$;
 -- ─── AE Profiles (ใช้ร่วมทุกสาขา) ───
 CREATE TABLE IF NOT EXISTS ae_profiles (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- AE roster is per-store: one branch shouldn't see another branch's
+  -- contacts, so the dropdown + search APIs filter on store_id.
+  store_id    uuid NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
   name        text NOT NULL,
   nickname    text,
   phone       text,
@@ -1647,6 +1650,7 @@ CREATE INDEX IF NOT EXISTS idx_commission_entries_bottle_product
   WHERE bottle_product_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_ae_profiles_active ON ae_profiles(is_active);
+CREATE INDEX IF NOT EXISTS idx_ae_profiles_store ON ae_profiles(store_id);
 CREATE INDEX IF NOT EXISTS idx_commission_payments_store_id ON commission_payments(store_id);
 CREATE INDEX IF NOT EXISTS idx_commission_payments_ae_id ON commission_payments(ae_id);
 CREATE INDEX IF NOT EXISTS idx_commission_payments_month ON commission_payments(month);

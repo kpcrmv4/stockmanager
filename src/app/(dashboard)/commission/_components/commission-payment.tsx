@@ -229,12 +229,27 @@ export function CommissionPayment({ month: monthProp, refreshKey }: CommissionPa
     }
   }
 
-  // Calculate unpaid from summary minus active payments
-  const paidAEIds = new Set(payments.filter(p => p.status === 'paid' && p.type === 'ae_commission').map(p => p.ae_id));
-  const paidStaffIds = new Set(payments.filter(p => p.status === 'paid' && p.type === 'bottle_commission').map(p => p.staff_id));
-
-  const unpaidAE = (summary?.ae_summary || []).filter(a => !paidAEIds.has(a.ae_id));
-  const unpaidBottle = (summary?.bottle_summary || []).filter(b => !paidStaffIds.has(b.staff_id));
+  // Filter unpaid at the ENTRY level (not the AE/staff level) — when
+  // the user adds a new bill after they've already paid out for the
+  // month, the new bill must still surface as unpaid even though the
+  // AE has a payment record. Drop entries with payment_id, keep the
+  // group around if any unpaid entries remain, and recompute the
+  // group total from the unpaid subset.
+  const unpaidAE = (summary?.ae_summary || [])
+    .map((a) => {
+      const unpaidEntries = (a.entries || []).filter((e) => !(e as { payment_id?: string | null }).payment_id);
+      const totalNet = unpaidEntries.reduce((s, e) => s + (Number((e as { net_amount?: number }).net_amount) || 0), 0);
+      return { ...a, entries: unpaidEntries, entry_count: unpaidEntries.length, total_net: totalNet };
+    })
+    .filter((a) => a.entry_count > 0);
+  const unpaidBottle = (summary?.bottle_summary || [])
+    .map((b) => {
+      const unpaidEntries = (b.entries || []).filter((e) => !(e as { payment_id?: string | null }).payment_id);
+      const totalNet = unpaidEntries.reduce((s, e) => s + (Number((e as { net_amount?: number }).net_amount) || 0), 0);
+      const totalBottles = unpaidEntries.reduce((s, e) => s + (Number((e as { bottle_count?: number }).bottle_count) || 0), 0);
+      return { ...b, entries: unpaidEntries, entry_count: unpaidEntries.length, total_net: totalNet, total_bottles: totalBottles };
+    })
+    .filter((b) => b.entry_count > 0);
 
   const totalUnpaid = unpaidAE.reduce((s, a) => s + a.total_net, 0) + unpaidBottle.reduce((s, b) => s + b.total_net, 0);
   const totalPaid = payments.filter(p => p.status === 'paid').reduce((s, p) => s + p.total_amount, 0);

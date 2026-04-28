@@ -24,11 +24,13 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { useAuthStore } from '@/stores/auth-store';
+import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from 'next-intl';
 import type { AEProfile } from '@/types/commission';
 
 export function AEManagement() {
   const t = useTranslations('commission');
+  const { currentStoreId } = useAppStore();
   const [aeList, setAeList] = useState<AEProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -36,9 +38,13 @@ export function AEManagement() {
   const [editModal, setEditModal] = useState<AEProfile | null | 'new'>(null);
 
   const fetchAE = useCallback(async () => {
+    if (!currentStoreId) {
+      setAeList([]);
+      return;
+    }
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ store_id: currentStoreId });
       if (search) params.set('search', search);
       if (showInactive) params.set('active', 'false');
       const res = await fetch(`/api/ae?${params}`);
@@ -46,7 +52,7 @@ export function AEManagement() {
     } finally {
       setLoading(false);
     }
-  }, [search, showInactive]);
+  }, [search, showInactive, currentStoreId]);
 
   useEffect(() => { fetchAE(); }, [fetchAE]);
 
@@ -159,6 +165,7 @@ interface AEFormModalProps {
 function AEFormModal({ ae, onClose, onSaved }: AEFormModalProps) {
   const t = useTranslations('commission');
   const { user } = useAuthStore();
+  const { currentStoreId } = useAppStore();
   const isNew = !ae;
   const [name, setName] = useState(ae?.name || '');
   const [nickname, setNickname] = useState(ae?.nickname || '');
@@ -175,10 +182,16 @@ function AEFormModal({ ae, onClose, onSaved }: AEFormModalProps) {
       toast({ type: 'error', title: t('ae.nameRequired') });
       return;
     }
+    if (isNew && !currentStoreId) {
+      toast({ type: 'error', title: t('ae.error') });
+      return;
+    }
 
     setSaving(true);
     try {
-      const payload = { name, nickname, phone, bank_name: bankName, bank_account_no: bankAccountNo, bank_account_name: bankAccountName, notes, is_active: isActive };
+      const payload = isNew
+        ? { store_id: currentStoreId, name, nickname, phone, bank_name: bankName, bank_account_no: bankAccountNo, bank_account_name: bankAccountName, notes, is_active: isActive }
+        : { name, nickname, phone, bank_name: bankName, bank_account_no: bankAccountNo, bank_account_name: bankAccountName, notes, is_active: isActive };
       const url = isNew ? '/api/ae' : `/api/ae/${ae!.id}`;
       const method = isNew ? 'POST' : 'PUT';
 

@@ -2703,6 +2703,8 @@
       "tableNo": "เบอร์โต๊ะ",
       "receiptPhoto": "รูปถ่ายบิล",
       "receiptPhotoPlaceholder": "แตะเพื่อถ่ายรูปบิล",
+      "receiptPhotoRequired": "กรุณาแนบรูปบิลก่อนบันทึก",
+      "receiptPhotoRequiredHint": "ต้องแนบรูปบิลก่อนบันทึก",
       "calculateCommission": "คำนวณค่าคอมมิชชั่น",
       "subtotalBeforeVat": "ยอดรวม (ก่อน VAT/SVC)",
       "taxPercent": "หักภาษี %",

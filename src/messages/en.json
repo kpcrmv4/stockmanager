@@ -2702,6 +2702,8 @@
       "tableNo": "Table No.",
       "receiptPhoto": "Receipt Photo",
       "receiptPhotoPlaceholder": "Tap to take receipt photo",
+      "receiptPhotoRequired": "Please attach the receipt photo before saving",
+      "receiptPhotoRequiredHint": "Receipt photo is required",
       "calculateCommission": "Calculate Commission",
       "subtotalBeforeVat": "Subtotal (before VAT/SVC)",
       "taxPercent": "Tax %",

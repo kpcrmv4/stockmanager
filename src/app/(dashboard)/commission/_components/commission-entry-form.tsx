@@ -72,10 +72,15 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
   const [quickAE, setQuickAE] = useState({ name: '', nickname: '', phone: '', bank_name: '', bank_account_no: '', bank_account_name: '', notes: '' });
   const [addingAE, setAddingAE] = useState(false);
 
+  // Scope AE search to the current store so a 24 BLVD bill can't see
+  // a Baccarat AE and vice versa.
   const searchAE = useCallback(async (q: string) => {
-    const res = await fetch(`/api/ae?search=${encodeURIComponent(q)}`);
+    if (!currentStoreId) { setAeList([]); return; }
+    const params = new URLSearchParams({ store_id: currentStoreId });
+    if (q) params.set('search', q);
+    const res = await fetch(`/api/ae?${params}`);
     if (res.ok) setAeList(await res.json());
-  }, []);
+  }, [currentStoreId]);
 
   useEffect(() => { searchAE(''); }, [searchAE]);
 
@@ -85,6 +90,14 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
       return () => clearTimeout(timer);
     }
   }, [aeSearch, searchAE]);
+
+  // Clear AE picker state when the user switches stores so a stale
+  // selection from another branch doesn't sneak into the next bill.
+  useEffect(() => {
+    setAeList([]);
+    setSelectedAE(null);
+    setAeSearch('');
+  }, [currentStoreId]);
 
   useEffect(() => {
     if (type !== 'bottle_commission') return;
@@ -198,12 +211,17 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
 
   async function handleQuickAddAE() {
     if (!quickAE.name.trim()) return;
+    if (!currentStoreId) {
+      toast({ type: 'error', title: t('entryForm.selectStore') });
+      return;
+    }
     setAddingAE(true);
     try {
       const res = await fetch('/api/ae', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          store_id: currentStoreId,
           name: quickAE.name.trim(),
           nickname: quickAE.nickname.trim() || null,
           phone: quickAE.phone.trim() || null,
@@ -235,6 +253,9 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
     if (!currentStoreId) { toast({ type: 'error', title: t('entryForm.selectStore') }); return; }
     if (type === 'ae_commission' && !selectedAE) { toast({ type: 'error', title: t('entryForm.selectAe') }); return; }
     if (type === 'ae_commission' && subtotal <= 0) { toast({ type: 'error', title: t('entryForm.enterSubtotal') }); return; }
+    // Receipt photo is now mandatory — bills without proof can't be
+    // reconciled later when accounting cross-checks payouts.
+    if (!receiptPhoto) { toast({ type: 'error', title: t('entryForm.receiptPhotoRequired') }); return; }
 
     setSaving(true);
     try {
@@ -404,7 +425,18 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
           <Input label={t('entryForm.billDate')} type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} required />
           <Input label={t('entryForm.receiptNo')} value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} placeholder="RC..." />
           <Input label={t('entryForm.tableNo')} value={tableNo} onChange={(e) => setTableNo(e.target.value)} placeholder="V7" />
-          <PhotoUpload value={receiptPhoto} onChange={setReceiptPhoto} folder="commission" label={t('entryForm.receiptPhoto')} placeholder={t('entryForm.receiptPhotoPlaceholder')} />
+          <div>
+            <PhotoUpload
+              value={receiptPhoto}
+              onChange={setReceiptPhoto}
+              folder="commission"
+              label={`${t('entryForm.receiptPhoto')} *`}
+              placeholder={t('entryForm.receiptPhotoPlaceholder')}
+            />
+            {!receiptPhoto && (
+              <p className="mt-1 text-xs text-rose-500">{t('entryForm.receiptPhotoRequiredHint')}</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -569,7 +601,7 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
 
       <Card><CardContent className="p-4"><Textarea label={t('entryForm.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder={t('entryForm.notesPlaceholder')} /></CardContent></Card>
 
-      <Button variant="primary" size="lg" className="w-full" onClick={handleSubmit} disabled={saving}>
+      <Button variant="primary" size="lg" className="w-full" onClick={handleSubmit} disabled={saving || !receiptPhoto}>
         {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
         {t('entryForm.saveCommission')}
       </Button>
