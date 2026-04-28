@@ -141,6 +141,7 @@ export default function StoreDetailSettingsPage() {
   const [lineChannelId, setLineChannelId] = useState('');
   const [lineChannelSecret, setLineChannelSecret] = useState('');
   const [lineBotUserId, setLineBotUserId] = useState('');
+  const [isFetchingBotId, setIsFetchingBotId] = useState(false);
   const [showLineToken, setShowLineToken] = useState(false);
   const [showLineSecret, setShowLineSecret] = useState(false);
 
@@ -436,6 +437,52 @@ export default function StoreDetailSettingsPage() {
   // ---------------------------------------------------------------------------
   // Save
   // ---------------------------------------------------------------------------
+
+  // Manually fetch the bot user id from LINE's /v2/bot/info using the
+  // currently-entered Channel Access Token. Lets the owner confirm the
+  // value populated correctly before hitting Save (and double-checks the
+  // token works at all).
+  const handleFetchBotUserId = async () => {
+    const token = lineToken.trim();
+    if (!token) {
+      toast({ type: 'warning', title: t('storeDetail.fetchBotIdNoToken') });
+      return;
+    }
+    setIsFetchingBotId(true);
+    try {
+      const res = await fetch('https://api.line.me/v2/bot/info', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        toast({
+          type: 'error',
+          title: t('storeDetail.fetchBotIdError'),
+          message: `HTTP ${res.status}${detail ? ` — ${detail.slice(0, 120)}` : ''}`,
+        });
+        return;
+      }
+      const info = (await res.json()) as { userId?: string; basicId?: string; displayName?: string };
+      if (!info.userId) {
+        toast({ type: 'error', title: t('storeDetail.fetchBotIdError'), message: 'No userId in response' });
+        return;
+      }
+      setLineBotUserId(info.userId);
+      toast({
+        type: 'success',
+        title: t('storeDetail.fetchBotIdSuccess'),
+        message: info.displayName ? `${info.displayName} (${info.basicId || ''})` : undefined,
+      });
+    } catch (err) {
+      toast({
+        type: 'error',
+        title: t('storeDetail.fetchBotIdError'),
+        message: err instanceof Error ? err.message : 'unknown',
+      });
+    } finally {
+      setIsFetchingBotId(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!storeId) return;
@@ -740,16 +787,29 @@ export default function StoreDetailSettingsPage() {
             hint={t('storeDetail.lineChannelIdHint')}
           />
 
-          {/* Bot User ID — required for webhook routing.
-              In LINE Developers Console: Messaging API channel →
-              Basic settings → "Your user ID" (starts with U). */}
-          <Input
-            label={t('storeDetail.lineBotUserIdLabel')}
-            value={lineBotUserId}
-            onChange={(e) => setLineBotUserId(e.target.value)}
-            placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            hint={t('storeDetail.lineBotUserIdHint')}
-          />
+          {/* Bot User ID — required for webhook routing. Auto-fetched
+              from /v2/bot/info on save when blank, or via the explicit
+              "Fetch from LINE" button below. */}
+          <div>
+            <Input
+              label={t('storeDetail.lineBotUserIdLabel')}
+              value={lineBotUserId}
+              onChange={(e) => setLineBotUserId(e.target.value)}
+              placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              hint={t('storeDetail.lineBotUserIdHint')}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={handleFetchBotUserId}
+              isLoading={isFetchingBotId}
+              disabled={!lineToken.trim() || isFetchingBotId}
+              className="mt-2"
+            >
+              {t('storeDetail.fetchBotIdBtn')}
+            </Button>
+          </div>
 
           {/* Channel Access Token (masked) */}
           <div>
