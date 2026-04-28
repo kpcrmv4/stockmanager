@@ -1229,6 +1229,7 @@
       "depositCodeLabel": "Deposit code",
       "bottleLabel": "Bottle to withdraw",
       "bottleNoLabel": "Bottle {no}/{total}",
+      "bottlesUnitShort": "bottles",
       "actualQtyLabel": "Actual withdrawal quantity",
       "actualQtyHint": "Enter the actual quantity given to customer",
       "photoLabel": "Take photo (optional)",

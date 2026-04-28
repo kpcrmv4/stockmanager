@@ -1229,6 +1229,7 @@
       "depositCodeLabel": "รหัสฝาก",
       "bottleLabel": "ขวดที่ต้องเบิก",
       "bottleNoLabel": "ขวดที่ {no}/{total}",
+      "bottlesUnitShort": "ขวด",
       "actualQtyLabel": "จำนวนที่เบิกจริง",
       "actualQtyHint": "ระบุจำนวนที่เบิกให้ลูกค้าจริง",
       "photoLabel": "ถ่ายรูปประกอบ (ไม่บังคับ)",
