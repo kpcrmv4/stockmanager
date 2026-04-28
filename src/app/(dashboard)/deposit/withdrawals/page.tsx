@@ -119,6 +119,9 @@ export default function WithdrawalsPage() {
   // bottle_id → { bottle_no, remaining_percent, deposit_quantity, deposit_code }.
   // Loaded alongside withdrawals so each row can show "ขวด 1/3 — 20%".
   const [bottleContext, setBottleContext] = useState<Map<string, { bottle_no: number; remaining_percent: number; deposit_quantity: number; deposit_code: string }>>(new Map());
+  // deposit_id → deposit_code for every withdrawal (so even rows
+  // without a bottle_id can show #DEP-...).
+  const [depositCodeMap, setDepositCodeMap] = useState<Map<string, string>>(new Map());
 
   // Process withdrawal modal
   const [showProcessModal, setShowProcessModal] = useState(false);
@@ -188,25 +191,29 @@ export default function WithdrawalsPage() {
         processed_by_name: w.processed_by ? (userMap.get(w.processed_by) || null) : null,
       })) as Withdrawal[]);
 
-      // Build a bottle_id → context map so each row + the modal can
-      // show which physical bottle the staff/customer asked for.
+      // Pull deposits + bottles in one shot so every row can show
+      // its deposit_code, and rows with bottle_id can also show
+      // "ขวด X/N".
+      const allDepositIds = [...new Set(data.map((w) => w.deposit_id).filter(Boolean))] as string[];
       const bottleIds = [...new Set(data.map((w) => w.bottle_id).filter(Boolean))] as string[];
+
+      const { data: depositsData } = allDepositIds.length > 0
+        ? await supabase
+            .from('deposits')
+            .select('id, quantity, deposit_code')
+            .in('id', allDepositIds)
+        : { data: [] };
+      const depMap = new Map((depositsData || []).map((d) => [d.id, { quantity: d.quantity, deposit_code: d.deposit_code }]));
+      setDepositCodeMap(new Map((depositsData || []).map((d) => [d.id, d.deposit_code])));
+
       if (bottleIds.length > 0) {
         const { data: bottlesData } = await supabase
           .from('deposit_bottles')
           .select('id, bottle_no, remaining_percent, deposit_id')
           .in('id', bottleIds);
-        const depositIds = [...new Set((bottlesData || []).map((b) => b.deposit_id))];
-        const { data: depositsData } = depositIds.length > 0
-          ? await supabase
-              .from('deposits')
-              .select('id, quantity, deposit_code')
-              .in('id', depositIds)
-          : { data: [] };
-        const depositMap = new Map((depositsData || []).map((d) => [d.id, { quantity: d.quantity, deposit_code: d.deposit_code }]));
         const map = new Map<string, { bottle_no: number; remaining_percent: number; deposit_quantity: number; deposit_code: string }>();
         for (const b of bottlesData || []) {
-          const dep = depositMap.get(b.deposit_id);
+          const dep = depMap.get(b.deposit_id);
           map.set(b.id, {
             bottle_no: b.bottle_no,
             remaining_percent: b.remaining_percent,
@@ -389,22 +396,29 @@ export default function WithdrawalsPage() {
     for (const item of withdrawItems) {
       const qty = parseFloat(item.qty);
       const dep = item.deposit;
+      const selectedIds = Array.from(item.selectedBottleIds);
 
-      // Create withdrawal record (directly completed)
-      const { error: withdrawalError } = await supabase.from('withdrawals').insert({
+      // Insert withdrawals: one row per picked bottle so the row's
+      // bottle_id stays linked (used by the list + history to show
+      // "ขวด X/N"). For deposits with no bottle picker (legacy or
+      // qty-based), fall back to a single row with bottle_id=null.
+      const baseRow = {
         deposit_id: dep.id,
         store_id: currentStoreId,
         line_user_id: dep.line_user_id,
         customer_name: dep.customer_name,
         product_name: dep.product_name,
-        requested_qty: qty,
-        actual_qty: qty,
         withdrawal_type: manualWithdrawalType,
-        status: 'completed',
+        status: 'completed' as const,
         processed_by: user.id,
         notes: manualNotes.trim() || null,
         photo_url: manualPhotoUrl,
-      });
+      };
+      const rows = selectedIds.length > 0
+        ? selectedIds.map((bid) => ({ ...baseRow, requested_qty: 1, actual_qty: 1, bottle_id: bid }))
+        : [{ ...baseRow, requested_qty: qty, actual_qty: qty, bottle_id: null }];
+
+      const { error: withdrawalError } = await supabase.from('withdrawals').insert(rows);
 
       if (withdrawalError) {
         toast({ type: 'error', title: t('loadError'), message: t('withdrawals.manual.processError', { product: dep.product_name }) });
@@ -413,7 +427,6 @@ export default function WithdrawalsPage() {
       }
 
       // Mark selected bottles as consumed (per-bottle tracking).
-      const selectedIds = Array.from(item.selectedBottleIds);
       if (selectedIds.length > 0) {
         await supabase
           .from('deposit_bottles')
@@ -850,6 +863,10 @@ export default function WithdrawalsPage() {
                       </Badge>
                     </div>
                     <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {(() => {
+                        const code = depositCodeMap.get(withdrawal.deposit_id);
+                        return code ? <span className="mr-1 font-mono text-gray-400">#{code}</span> : null;
+                      })()}
                       {withdrawal.customer_name} · x{formatNumber(withdrawal.requested_qty)} · {formatThaiDateTime(withdrawal.created_at)}
                       {withdrawal.withdrawal_type === 'take_home' && (
                         <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
@@ -860,6 +877,13 @@ export default function WithdrawalsPage() {
                     {(() => {
                       const ctx = withdrawal.bottle_id ? bottleContext.get(withdrawal.bottle_id) : null;
                       if (!ctx) return null;
+                      // Once approved, the bottle is consumed and its
+                      // remaining_percent is 0 — showing "0%" beside
+                      // every completed row was confusing, so we only
+                      // surface the % chip while the request is still
+                      // pending (where it tells the bar what % the
+                      // bottle has right now).
+                      const showPct = withdrawal.status === 'pending' || withdrawal.status === 'approved';
                       const pctClass = ctx.remaining_percent >= 70
                         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
                         : ctx.remaining_percent >= 30
@@ -871,9 +895,11 @@ export default function WithdrawalsPage() {
                             <Wine className="h-3 w-3" />
                             {t('withdrawals.bottleNoLabel', { no: ctx.bottle_no, total: ctx.deposit_quantity })}
                           </span>
-                          <span className={cn('inline-block rounded-full px-2 py-0.5 font-semibold', pctClass)}>
-                            {ctx.remaining_percent}%
-                          </span>
+                          {showPct && (
+                            <span className={cn('inline-block rounded-full px-2 py-0.5 font-semibold', pctClass)}>
+                              {ctx.remaining_percent}%
+                            </span>
+                          )}
                         </p>
                       );
                     })()}
@@ -1001,9 +1027,17 @@ export default function WithdrawalsPage() {
           {/* Summary */}
           {selectedWithdrawal && (() => {
             const ctx = selectedWithdrawal.bottle_id ? bottleContext.get(selectedWithdrawal.bottle_id) : null;
+            const showPct = selectedWithdrawal.status === 'pending' || selectedWithdrawal.status === 'approved';
+            const code = depositCodeMap.get(selectedWithdrawal.deposit_id);
             return (
               <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
                 <div className="space-y-2 text-sm">
+                  {code && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.depositCodeLabel')}</span>
+                      <span className="font-mono text-gray-900 dark:text-white">#{code}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.productLabel')}</span>
                     <span className="font-medium text-gray-900 dark:text-white">{selectedWithdrawal.product_name}</span>
@@ -1025,14 +1059,16 @@ export default function WithdrawalsPage() {
                         <span className="font-semibold text-gray-900 dark:text-white">
                           {t('withdrawals.bottleNoLabel', { no: ctx.bottle_no, total: ctx.deposit_quantity })}
                         </span>
-                        <span className={cn(
-                          'rounded-full px-2 py-0.5 text-xs font-semibold',
-                          ctx.remaining_percent >= 70 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                            : ctx.remaining_percent >= 30 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                            : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-                        )}>
-                          {ctx.remaining_percent}%
-                        </span>
+                        {showPct && (
+                          <span className={cn(
+                            'rounded-full px-2 py-0.5 text-xs font-semibold',
+                            ctx.remaining_percent >= 70 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                              : ctx.remaining_percent >= 30 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                              : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+                          )}>
+                            {ctx.remaining_percent}%
+                          </span>
+                        )}
                       </span>
                     </div>
                   )}

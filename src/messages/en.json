@@ -1206,6 +1206,7 @@
       "rejectTitle": "Reject Withdrawal",
       "productLabel": "Product",
       "quantityLabel": "Quantity",
+      "depositCodeLabel": "Deposit code",
       "bottleLabel": "Bottle to withdraw",
       "bottleNoLabel": "Bottle {no}/{total}",
       "actualQtyLabel": "Actual withdrawal quantity",

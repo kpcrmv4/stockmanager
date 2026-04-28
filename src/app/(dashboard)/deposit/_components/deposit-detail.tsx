@@ -2032,35 +2032,58 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           </div>
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
-            {withdrawals.map((w) => (
-              <div key={w.id} className="flex items-center justify-between px-5 py-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {t("detail.withdrawUnits", { qty: formatNumber(w.actual_qty ?? w.requested_qty) })}
+            {withdrawals.map((w) => {
+              // Resolve which bottle this row was for. Per-bottle
+              // history is the new flow; legacy rows just won't have
+              // bottle_id and skip the badge.
+              const bottle = w.bottle_id ? bottles.find((b) => b.id === w.bottle_id) : null;
+              const showPct = bottle && (w.status === 'pending' || w.status === 'approved');
+              return (
+                <div key={w.id} className="flex items-center justify-between px-5 py-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {t("detail.withdrawUnits", { qty: formatNumber(w.actual_qty ?? w.requested_qty) })}
+                      </p>
+                      <Badge variant={withdrawalVariantMap[w.status] || 'default'} size="sm">
+                        {WITHDRAWAL_STATUS_LABELS[w.status] || w.status}
+                      </Badge>
+                      {bottle && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                          <Wine className="h-3 w-3" />
+                          {t('detail.bottleNoLabel', { no: bottle.bottle_no, total: deposit.quantity })}
+                        </span>
+                      )}
+                      {showPct && bottle && (
+                        <span className={cn(
+                          'rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                          bottle.remaining_percent >= 70 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                            : bottle.remaining_percent >= 30 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                            : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+                        )}>
+                          {bottle.remaining_percent}%
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {formatThaiDateTime(w.created_at)}
                     </p>
-                    <Badge variant={withdrawalVariantMap[w.status] || 'default'} size="sm">
-                      {WITHDRAWAL_STATUS_LABELS[w.status] || w.status}
-                    </Badge>
+                    {w.notes && (
+                      <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                        {w.notes}
+                      </p>
+                    )}
                   </div>
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {formatThaiDateTime(w.created_at)}
-                  </p>
-                  {w.notes && (
-                    <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                      {w.notes}
-                    </p>
-                  )}
+                  <div className="text-right text-sm">
+                    {w.actual_qty !== null && w.actual_qty !== w.requested_qty && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {t("detail.requestedQty")}: {formatNumber(w.requested_qty)}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right text-sm">
-                  {w.actual_qty !== null && w.actual_qty !== w.requested_qty && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {t("detail.requestedQty")}: {formatNumber(w.requested_qty)}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
