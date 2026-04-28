@@ -17,6 +17,8 @@ import {
   CustomerProvider,
   useCustomerAuth,
 } from './_components/customer-provider';
+import { CustomerLocaleProvider } from './_components/customer-locale-provider';
+import { LangSwitch } from './_components/lang-switch';
 import type { LucideIcon } from 'lucide-react';
 import './customer-theme.css';
 
@@ -48,10 +50,11 @@ function CustomerHeader() {
         <div className="customer-logo-box">
           <Wine className="h-4 w-4" />
         </div>
-        <div className="flex flex-col leading-tight min-w-0">
+        <div className="flex flex-col leading-tight min-w-0 flex-1">
           <h1 className="customer-brand-title truncate">{title}</h1>
           <span className="customer-brand-subtitle truncate">{subtitle}</span>
         </div>
+        <LangSwitch />
       </div>
     </header>
   );
@@ -72,6 +75,7 @@ function CustomerLayoutInner({ children }: { children: React.ReactNode }) {
   const navQuery = queryParts.length ? `?${queryParts.join('&')}` : '';
 
   return (
+    <CustomerLocaleProvider>
     <CustomerProvider>
       <div className="customer-theme relative flex min-h-screen flex-col">
         {/* Ambient background orbs */}
@@ -121,6 +125,7 @@ function CustomerLayoutInner({ children }: { children: React.ReactNode }) {
         </nav>
       </div>
     </CustomerProvider>
+    </CustomerLocaleProvider>
   );
 }
 

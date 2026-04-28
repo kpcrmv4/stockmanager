@@ -59,26 +59,30 @@ const COLORS = {
 // Bottle Keeper theme — used by every customer-facing flex
 // ---------------------------------------------------------------------------
 //
-// Deep red header / cream body / red CTA. The customer sees the same
-// visual language across the entire deposit lifecycle (entry card,
-// confirmation, rejection, withdrawal, expiry warning, link flow).
+// Deep red header / cream body / red CTA — Bottle Keeper palette
+// pulled directly from the legacy GAS customer-page.html so the LIFF
+// page and the chat flex cards share one identity.
+//   wine-dark  #64090C — header / CTA / numeric values
+//   wine-mid   #9C0512 — secondary accent / hover
+//   gold       #F8D794 — title text on dark, gradient stop on CTA
+//   cream      #EFEACD — body bg / lighter gradient stop
 const BK = {
   // Header
-  headerBg:    '#9B2A2A',
-  headerTitle: '#F5D08C',  // gold/cream — for the big title
-  headerSub:   '#E8C7A0',  // muted cream — for the branch name under the title
+  headerBg:    '#64090C',
+  headerTitle: '#F8D794',  // gold — big title text
+  headerSub:   '#EFEACD',  // cream — branch name under the title
   // Body
-  bodyBg:      '#FFF8EE',
-  textDark:    '#1F1411',
-  textMuted:   '#7A6A60',
-  brandRed:    '#9B2A2A',  // accent — links / values that pop
-  brandRedSoft:'#FBE9E2',  // light pink/cream — info pill / item box
-  divider:     '#EFE3D2',
+  bodyBg:      '#EFEACD',
+  textDark:    '#64090C',  // body type sits on cream so use the deep wine
+  textMuted:   '#7A2222',
+  brandRed:    '#9C0512',  // accent — links / values that pop
+  brandRedSoft:'#F8D794',  // gold — info pill / item box highlight
+  divider:     '#E0D6B5',
   // Footer
-  ctaBg:       '#9B2A2A',
-  ctaBgDim:    '#7A2222',
-  ctaText:     '#FFFFFF',
-  // Status accents
+  ctaBg:       '#64090C',
+  ctaBgDim:    '#9C0512',
+  ctaText:     '#F8D794',
+  // Status accents (kept consistent with the rest of the GAS brand)
   successCheckBg: '#3FAA64',
   warningOrange:  '#D7833A',
 } as const;

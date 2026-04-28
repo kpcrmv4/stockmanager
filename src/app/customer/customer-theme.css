@@ -115,6 +115,39 @@
   margin-top: 1px;
 }
 
+/* ---------- Header language switch (TH / EN pills) ----------
+   Mirrors .lang-switch from the legacy customer-page.html — gold-
+   gradient active pill on an accent-subtle pill bar.
+*/
+.customer-lang-switch {
+  background: var(--accent-subtle, rgba(248, 215, 148, 0.15));
+  border: 1px solid var(--card-border, rgba(248, 215, 148, 0.15));
+  border-radius: 10px;
+  padding: 2px;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.customer-lang-btn {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-muted, rgba(248, 215, 148, 0.6));
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  letter-spacing: 0.4px;
+}
+.customer-lang-btn:hover {
+  color: var(--accent, #F8D794);
+}
+.customer-lang-btn.active {
+  background: linear-gradient(135deg, #F8D794 0%, #EFEACD 100%);
+  color: #64090C;
+  box-shadow: 0 4px 12px rgba(248, 215, 148, 0.3);
+}
+
 /* ---------- Section headers ---------- */
 .customer-section-header {
   display: flex;
