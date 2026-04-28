@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
       summary: {
         customer: customerName || 'ลูกค้า',
         items: 'รอ Staff รับและระบุรายละเอียด',
+        table_number: tableNumber || undefined,
         note: tableNumber ? `โต๊ะ ${tableNumber}` : notes || undefined,
         from_customer: true,
       },

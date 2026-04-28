@@ -64,6 +64,7 @@ export function notifyChatNewDeposit(
     summary: {
       customer: deposit.customer_name,
       items: `${deposit.product_name} x${deposit.quantity}`,
+      table_number: deposit.table_number || undefined,
       note: deposit.table_number
         ? `โต๊ะ ${deposit.table_number}`
         : deposit.notes || undefined,
@@ -108,6 +109,7 @@ export function notifyChatNewDepositForBar(
     summary: {
       customer: deposit.customer_name,
       items: `${deposit.product_name} x${deposit.quantity}`,
+      table_number: deposit.table_number || undefined,
       note: deposit.table_number
         ? `โต๊ะ ${deposit.table_number}`
         : deposit.notes || undefined,
@@ -157,6 +159,7 @@ export function notifyChatWithdrawalRequest(
     summary: {
       customer: withdrawal.customer_name,
       items: `${withdrawal.product_name} x${withdrawal.requested_qty}${bottleSuffix}`,
+      table_number: withdrawal.table_number || undefined,
       note: withdrawal.table_number
         ? `โต๊ะ ${withdrawal.table_number}`
         : withdrawal.notes || undefined,
@@ -209,6 +212,7 @@ export function notifyChatWithdrawalCompletedAsCard(
     summary: {
       customer: withdrawal.customer_name,
       items: `${withdrawal.product_name} x${withdrawal.actual_qty}${bottleSuffix}`,
+      table_number: withdrawal.table_number || undefined,
       note: withdrawal.table_number ? `โต๊ะ ${withdrawal.table_number}` : undefined,
     },
   };
