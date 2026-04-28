@@ -62,6 +62,7 @@ interface Withdrawal {
   notes: string | null;
   photo_url: string | null;
   withdrawal_type: 'in_store' | 'take_home' | null;
+  bottle_id: string | null;
   created_at: string;
 }
 
@@ -500,17 +501,39 @@ export default function WithdrawalsPage() {
         return;
       }
 
-      // Update deposit remaining quantity
+      // Mark the specific bottle as consumed when the request targets one.
+      if (selectedWithdrawal.bottle_id) {
+        await supabase
+          .from('deposit_bottles')
+          .update({
+            status: 'consumed',
+            remaining_percent: 0,
+            consumed_at: new Date().toISOString(),
+            consumed_by: user.id,
+          })
+          .eq('id', selectedWithdrawal.bottle_id);
+      }
+
+      // Update deposit remaining quantity. Stay in pending_withdrawal
+      // when sibling rows are still pending so the bar page keeps
+      // surfacing them.
       const { data: deposit } = await supabase
         .from('deposits')
         .select('remaining_qty, quantity, deposit_code')
         .eq('id', selectedWithdrawal.deposit_id)
         .single();
+      const { count: stillPending } = await supabase
+        .from('withdrawals')
+        .select('id', { count: 'exact', head: true })
+        .eq('deposit_id', selectedWithdrawal.deposit_id)
+        .eq('status', 'pending');
 
       if (deposit) {
         const newRemaining = Math.max(0, deposit.remaining_qty - qty);
         const newPercent = deposit.quantity > 0 ? (newRemaining / deposit.quantity) * 100 : 0;
-        const newStatus = newRemaining <= 0 ? 'withdrawn' : 'in_store';
+        const newStatus = newRemaining <= 0
+          ? 'withdrawn'
+          : (stillPending && stillPending > 0 ? 'pending_withdrawal' : 'in_store');
 
         await supabase
           .from('deposits')

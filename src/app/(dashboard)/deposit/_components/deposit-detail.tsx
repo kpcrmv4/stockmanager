@@ -146,6 +146,11 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawQty, setWithdrawQty] = useState('');
   const [withdrawNotes, setWithdrawNotes] = useState('');
+  // For multi-bottle deposits the staff picks specific bottles instead
+  // of a free-form qty — each becomes its own withdrawals row with
+  // bottle_id set, so the bar can mark exactly that bottle consumed.
+  const [withdrawBottleIds, setWithdrawBottleIds] = useState<string[]>([]);
+  const [isCancellingWithdrawal, setIsCancellingWithdrawal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Expiry modal
@@ -662,30 +667,56 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
 
   const handleWithdrawal = async () => {
     if (!user || !currentStoreId) return;
-    const qty = parseFloat(withdrawQty);
-    if (isNaN(qty) || qty <= 0) {
-      toast({ type: 'error', title: t('detail.errorInvalidQty') });
-      return;
-    }
-    if (qty > deposit.remaining_qty) {
-      toast({ type: 'error', title: t('detail.errorExceedsRemaining'), message: t('detail.remainingUnits', { qty: formatNumber(deposit.remaining_qty) }) });
-      return;
+
+    // Two paths:
+    //   - Multi-bottle deposit (bottles[] available + qty > 1): user
+    //     picked specific bottles via checkboxes → 1 withdrawals row
+    //     per bottle, each with bottle_id + requested_qty=1.
+    //   - Legacy / single-bottle: free-form qty input → 1 row, no
+    //     bottle_id (preserves the old behaviour for older deposits
+    //     that never had a deposit_bottles record).
+    const availableBottles = bottles.filter((b) => b.status !== 'consumed');
+    const useBottlePicker = availableBottles.length > 0 && deposit.quantity > 1;
+
+    let qty: number;
+    let pickedBottleIds: string[] = [];
+    if (useBottlePicker) {
+      pickedBottleIds = withdrawBottleIds.filter((id) => availableBottles.some((b) => b.id === id));
+      if (pickedBottleIds.length === 0) {
+        toast({ type: 'error', title: t('detail.errorPickBottle') });
+        return;
+      }
+      qty = pickedBottleIds.length;
+    } else {
+      qty = parseFloat(withdrawQty);
+      if (isNaN(qty) || qty <= 0) {
+        toast({ type: 'error', title: t('detail.errorInvalidQty') });
+        return;
+      }
+      if (qty > deposit.remaining_qty) {
+        toast({ type: 'error', title: t('detail.errorExceedsRemaining'), message: t('detail.remainingUnits', { qty: formatNumber(deposit.remaining_qty) }) });
+        return;
+      }
     }
 
     setIsSubmitting(true);
     const supabase = createClient();
 
-    // Create withdrawal record as pending (requires Bar approval)
-    const { error: withdrawalError } = await supabase.from('withdrawals').insert({
+    // Create withdrawal record(s) as pending (requires Bar approval).
+    const baseRow = {
       deposit_id: deposit.id,
       store_id: currentStoreId,
       line_user_id: deposit.line_user_id,
       customer_name: deposit.customer_name,
       product_name: deposit.product_name,
-      requested_qty: qty,
-      status: 'pending',
+      status: 'pending' as const,
       notes: withdrawNotes.trim() || null,
-    });
+    };
+    const rows = useBottlePicker
+      ? pickedBottleIds.map((bottleId) => ({ ...baseRow, requested_qty: 1, bottle_id: bottleId }))
+      : [{ ...baseRow, requested_qty: qty, bottle_id: null }];
+
+    const { error: withdrawalError } = await supabase.from('withdrawals').insert(rows);
 
     if (withdrawalError) {
       toast({ type: 'error', title: t('detail.error'), message: t('detail.errorCreateWithdrawal') });
@@ -726,9 +757,36 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
     setShowWithdrawModal(false);
     setWithdrawQty('');
     setWithdrawNotes('');
+    setWithdrawBottleIds([]);
     setIsSubmitting(false);
     refreshDeposit();
     loadWithdrawals();
+  };
+
+  // Cancel all pending withdrawals for this deposit and roll the
+  // deposit back to in_store. Used by the new "ยกเลิกรายการเบิก"
+  // button shown in the action card while status=pending_withdrawal.
+  const handleCancelPendingWithdrawal = async () => {
+    if (!user || !currentStoreId) return;
+    setIsCancellingWithdrawal(true);
+    try {
+      const supabase = createClient();
+      await supabase
+        .from('withdrawals')
+        .update({ status: 'rejected', processed_by: user.id, notes: '[ผู้ฝาก/พนักงานยกเลิก]' })
+        .eq('deposit_id', deposit.id)
+        .eq('status', 'pending');
+      await supabase
+        .from('deposits')
+        .update({ status: 'in_store' })
+        .eq('id', deposit.id)
+        .eq('status', 'pending_withdrawal');
+      toast({ type: 'success', title: t('detail.withdrawalCancelled') });
+      refreshDeposit();
+      loadWithdrawals();
+    } finally {
+      setIsCancellingWithdrawal(false);
+    }
   };
 
   const handleMarkExpired = async () => {
@@ -1658,6 +1716,36 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             </CardContent>
           </Card>
 
+          {/* รอ bar อนุมัติรายการเบิก — shown while there's a pending
+              withdrawal so the staff knows why other actions are
+              hidden, and can pull the request back if it was a
+              mis-tap. */}
+          {user && user.role !== 'customer' && deposit.status === 'pending_withdrawal' && (
+            <Card padding="none">
+              <CardHeader title={t("detail.actions")} />
+              <CardContent>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-300">
+                  <div className="flex items-start gap-2">
+                    <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="font-medium">{t('detail.waitingBarApprovalTitle')}</p>
+                      <p className="mt-0.5 text-xs">{t('detail.waitingBarApprovalDesc')}</p>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  className="mt-3 min-h-[44px] w-full justify-center"
+                  variant="outline"
+                  icon={<XCircle className="h-4 w-4 text-red-500" />}
+                  onClick={handleCancelPendingWithdrawal}
+                  isLoading={isCancellingWithdrawal}
+                >
+                  {t('detail.cancelWithdrawalBtn')}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {/* การดำเนินการ — consolidated action card */}
           {user && user.role !== 'customer' && (canBarConfirm || canRejectDeposit || canWithdraw || canMarkExpired || canTransferToHq || canExtendExpiry || canToggleVip || canEditDeposit) && (
             <Card padding="none">
@@ -1847,60 +1935,125 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
       </Card>
 
       {/* Withdraw Modal */}
-      <Modal
-        isOpen={showWithdrawModal}
-        onClose={() => {
-          setShowWithdrawModal(false);
-          setWithdrawQty('');
-          setWithdrawNotes('');
-        }}
-        title={t("detail.withdrawTitle")}
-        description={`${deposit.product_name} - ${t("detail.remaining")} ${formatNumber(deposit.remaining_qty)} ${t("detail.units")}`}
-        size="md"
-      >
-        <div className="space-y-4">
-          <Input
-            label={t("detail.withdrawQtyLabel")}
-            type="number"
-            value={withdrawQty}
-            onChange={(e) => setWithdrawQty(e.target.value)}
-            placeholder="0"
-            hint={`${t("detail.max")} ${formatNumber(deposit.remaining_qty)} ${t("detail.units")}`}
-            error={
-              withdrawQty && parseFloat(withdrawQty) > deposit.remaining_qty
-                ? t("detail.exceedsRemaining", { qty: formatNumber(deposit.remaining_qty) })
-                : undefined
-            }
-          />
-          <Textarea
-            label={t("detail.notesLabel")}
-            value={withdrawNotes}
-            onChange={(e) => setWithdrawNotes(e.target.value)}
-            placeholder={t("detail.notesPlaceholder")}
-            rows={3}
-          />
-        </div>
-        <ModalFooter>
-          <Button
-            variant="outline"
-            onClick={() => {
+      {(() => {
+        const availableBottles = bottles.filter((b) => b.status !== 'consumed');
+        const useBottlePicker = availableBottles.length > 0 && deposit.quantity > 1;
+        const pickedCount = withdrawBottleIds.filter((id) => availableBottles.some((b) => b.id === id)).length;
+        const submitDisabled = useBottlePicker
+          ? pickedCount === 0
+          : !withdrawQty || parseFloat(withdrawQty) <= 0 || parseFloat(withdrawQty) > deposit.remaining_qty;
+        return (
+          <Modal
+            isOpen={showWithdrawModal}
+            onClose={() => {
               setShowWithdrawModal(false);
               setWithdrawQty('');
               setWithdrawNotes('');
+              setWithdrawBottleIds([]);
             }}
+            title={t("detail.withdrawTitle")}
+            description={`${deposit.product_name} - ${t("detail.remaining")} ${formatNumber(deposit.remaining_qty)} ${t("detail.units")}`}
+            size="md"
           >
-            {t("detail.cancelBtn")}
-          </Button>
-          <Button
-            onClick={handleWithdrawal}
-            isLoading={isSubmitting}
-            disabled={!withdrawQty || parseFloat(withdrawQty) <= 0 || parseFloat(withdrawQty) > deposit.remaining_qty}
-            icon={<Minus className="h-4 w-4" />}
-          >
-            {t("detail.confirmWithdraw")}
-          </Button>
-        </ModalFooter>
-      </Modal>
+            <div className="space-y-4">
+              {useBottlePicker ? (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t("detail.pickBottlesLabel")}
+                  </label>
+                  <div className="space-y-2">
+                    {availableBottles.map((b) => {
+                      const checked = withdrawBottleIds.includes(b.id);
+                      return (
+                        <label
+                          key={b.id}
+                          className={cn(
+                            'flex cursor-pointer items-center justify-between gap-3 rounded-lg border-2 p-3 transition-colors',
+                            checked
+                              ? 'border-rose-500 bg-rose-50 dark:border-rose-400 dark:bg-rose-900/20'
+                              : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500',
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                setWithdrawBottleIds((prev) => e.target.checked
+                                  ? [...prev, b.id]
+                                  : prev.filter((id) => id !== b.id));
+                              }}
+                              className="h-4 w-4 rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+                            />
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                              {t("detail.bottleNoLabel", { no: b.bottle_no, total: deposit.quantity })}
+                            </span>
+                          </div>
+                          <span className={cn(
+                            'rounded-full px-2 py-0.5 text-xs font-semibold',
+                            b.remaining_percent >= 70 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                              : b.remaining_percent >= 30 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                              : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+                          )}>
+                            {b.remaining_percent}%
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {pickedCount > 0 && (
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                      {t("detail.pickedBottles", { count: pickedCount })}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <Input
+                  label={t("detail.withdrawQtyLabel")}
+                  type="number"
+                  value={withdrawQty}
+                  onChange={(e) => setWithdrawQty(e.target.value)}
+                  placeholder="0"
+                  hint={`${t("detail.max")} ${formatNumber(deposit.remaining_qty)} ${t("detail.units")}`}
+                  error={
+                    withdrawQty && parseFloat(withdrawQty) > deposit.remaining_qty
+                      ? t("detail.exceedsRemaining", { qty: formatNumber(deposit.remaining_qty) })
+                      : undefined
+                  }
+                />
+              )}
+              <Textarea
+                label={t("detail.notesLabel")}
+                value={withdrawNotes}
+                onChange={(e) => setWithdrawNotes(e.target.value)}
+                placeholder={t("detail.notesPlaceholder")}
+                rows={3}
+              />
+            </div>
+            <ModalFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowWithdrawModal(false);
+                  setWithdrawQty('');
+                  setWithdrawNotes('');
+                  setWithdrawBottleIds([]);
+                }}
+              >
+                {t("detail.cancelBtn")}
+              </Button>
+              <Button
+                onClick={handleWithdrawal}
+                isLoading={isSubmitting}
+                disabled={submitDisabled}
+                icon={<Minus className="h-4 w-4" />}
+              >
+                {t("detail.confirmWithdraw")}
+              </Button>
+            </ModalFooter>
+          </Modal>
+        );
+      })()}
 
       {/* Mark Expired Modal */}
       <Modal

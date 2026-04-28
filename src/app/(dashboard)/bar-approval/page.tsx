@@ -90,6 +90,9 @@ interface WithdrawalRow {
   notes: string | null;
   photo_url: string | null;
   created_at: string;
+  /** When set, the withdrawal targets a specific bottle. Approving the
+   *  request marks that deposit_bottles row as `consumed`. */
+  bottle_id: string | null;
   // joined deposit for context
   deposits?: {
     id: string;
@@ -227,7 +230,7 @@ export default function BarApprovalPage() {
 
     const { data, error } = await supabase
       .from('withdrawals')
-      .select('id, deposit_id, store_id, customer_id, line_user_id, customer_name, product_name, requested_qty, actual_qty, table_number, status, notes, photo_url, created_at, deposits(id, deposit_code, remaining_qty, status)')
+      .select('id, deposit_id, store_id, customer_id, line_user_id, customer_name, product_name, requested_qty, actual_qty, table_number, status, notes, photo_url, created_at, bottle_id, deposits(id, deposit_code, remaining_qty, status)')
       .eq('store_id', currentStoreId)
       .in('status', ['pending', 'approved'])
       .order('created_at', { ascending: true });
@@ -524,18 +527,41 @@ export default function BarApprovalPage() {
 
       if (wError) throw wError;
 
-      // Update deposit remaining_qty
+      // Mark the specific bottle as consumed when the request targets one.
+      if (withdrawal.bottle_id) {
+        const { error: bError } = await supabase
+          .from('deposit_bottles')
+          .update({
+            status: 'consumed',
+            remaining_percent: 0,
+            consumed_at: new Date().toISOString(),
+            consumed_by: user.id,
+          })
+          .eq('id', withdrawal.bottle_id);
+        if (bError) console.error('Failed to mark bottle consumed:', bError);
+      }
+
+      // Update deposit remaining_qty. When approving the LAST pending
+      // withdrawal for this deposit we flip status back to in_store /
+      // withdrawn; otherwise stay in pending_withdrawal so the bar
+      // page still surfaces the remaining requests.
       if (withdrawal.deposit_id) {
-        // Fetch current deposit to get fresh remaining_qty
         const { data: depositData } = await supabase
           .from('deposits')
           .select('remaining_qty')
           .eq('id', withdrawal.deposit_id)
           .single();
+        const { count: stillPending } = await supabase
+          .from('withdrawals')
+          .select('id', { count: 'exact', head: true })
+          .eq('deposit_id', withdrawal.deposit_id)
+          .eq('status', 'pending');
 
         if (depositData) {
           const newRemaining = Math.max(0, depositData.remaining_qty - actualQty);
-          const newStatus = newRemaining <= 0 ? 'withdrawn' : 'in_store';
+          const newStatus = newRemaining <= 0
+            ? 'withdrawn'
+            : (stillPending && stillPending > 0 ? 'pending_withdrawal' : 'in_store');
 
           const { error: dError } = await supabase
             .from('deposits')
@@ -624,16 +650,22 @@ export default function BarApprovalPage() {
 
       if (wError) throw wError;
 
-      // Reset deposit status from pending_withdrawal back to in_store
+      // Reset deposit status from pending_withdrawal back to in_store —
+      // but only if there are no other pending withdrawals queued for
+      // the same deposit (multi-bottle requests create N rows).
       if (withdrawal.deposit_id) {
-        const { error: dError } = await supabase
-          .from('deposits')
-          .update({ status: 'in_store' })
-          .eq('id', withdrawal.deposit_id)
-          .eq('status', 'pending_withdrawal');
-
-        if (dError) {
-          console.error('Failed to reset deposit status:', dError);
+        const { count: stillPending } = await supabase
+          .from('withdrawals')
+          .select('id', { count: 'exact', head: true })
+          .eq('deposit_id', withdrawal.deposit_id)
+          .eq('status', 'pending');
+        if (!stillPending || stillPending === 0) {
+          const { error: dError } = await supabase
+            .from('deposits')
+            .update({ status: 'in_store' })
+            .eq('id', withdrawal.deposit_id)
+            .eq('status', 'pending_withdrawal');
+          if (dError) console.error('Failed to reset deposit status:', dError);
         }
       }
 
