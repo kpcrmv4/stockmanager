@@ -55,10 +55,12 @@ interface StoreData {
   is_central: boolean;
   /** LINE OA ของสาขา — channel access token */
   line_token: string | null;
-  /** LINE OA ของสาขา — channel id (ไว้ resolve จาก webhook destination) */
+  /** LINE OA ของสาขา — channel id (สำหรับ /v2/bot/info ฯลฯ) */
   line_channel_id: string | null;
   /** LINE OA ของสาขา — channel secret (ไว้ verify signature) */
   line_channel_secret: string | null;
+  /** LINE OA ของสาขา — bot user id (Uxxx…) จะ match กับ webhook destination */
+  line_bot_user_id: string | null;
   /** กลุ่มแจ้งเตือนสต๊อก (daily reminder, comparison, approval) */
   stock_notify_group_id: string | null;
   /** กลุ่มแจ้งเตือนฝาก/เบิกเหล้า (staff) */
@@ -138,6 +140,7 @@ export default function StoreDetailSettingsPage() {
   const [lineToken, setLineToken] = useState('');
   const [lineChannelId, setLineChannelId] = useState('');
   const [lineChannelSecret, setLineChannelSecret] = useState('');
+  const [lineBotUserId, setLineBotUserId] = useState('');
   const [showLineToken, setShowLineToken] = useState(false);
   const [showLineSecret, setShowLineSecret] = useState(false);
 
@@ -222,7 +225,7 @@ export default function StoreDetailSettingsPage() {
     // Load store info
     const { data: store } = await supabase
       .from('stores')
-      .select('id, store_code, store_name, is_central, line_token, line_channel_id, line_channel_secret, stock_notify_group_id, deposit_notify_group_id, bar_notify_group_id, borrow_notification_roles')
+      .select('id, store_code, store_name, is_central, line_token, line_channel_id, line_channel_secret, line_bot_user_id, stock_notify_group_id, deposit_notify_group_id, bar_notify_group_id, borrow_notification_roles')
       .eq('id', storeId)
       .single();
 
@@ -233,6 +236,7 @@ export default function StoreDetailSettingsPage() {
       setLineToken(store.line_token || '');
       setLineChannelId(store.line_channel_id || '');
       setLineChannelSecret(store.line_channel_secret || '');
+      setLineBotUserId(store.line_bot_user_id || '');
       setStockNotifyGroupId(store.stock_notify_group_id || '');
       setDepositNotifyGroupId(store.deposit_notify_group_id || '');
       setBarNotifyGroupId(store.bar_notify_group_id || '');
@@ -447,6 +451,7 @@ export default function StoreDetailSettingsPage() {
         line_token: lineToken.trim() || null,
         line_channel_id: lineChannelId.trim() || null,
         line_channel_secret: lineChannelSecret.trim() || null,
+        line_bot_user_id: lineBotUserId.trim() || null,
         stock_notify_group_id: stockNotifyGroupId || null,
         deposit_notify_group_id: depositNotifyGroupId || null,
         bar_notify_group_id: barNotifyGroupId || null,
@@ -709,6 +714,17 @@ export default function StoreDetailSettingsPage() {
             onChange={(e) => setLineChannelId(e.target.value)}
             placeholder="1234567890"
             hint={t('storeDetail.lineChannelIdHint')}
+          />
+
+          {/* Bot User ID — required for webhook routing.
+              In LINE Developers Console: Messaging API channel →
+              Basic settings → "Your user ID" (starts with U). */}
+          <Input
+            label={t('storeDetail.lineBotUserIdLabel')}
+            value={lineBotUserId}
+            onChange={(e) => setLineBotUserId(e.target.value)}
+            placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            hint={t('storeDetail.lineBotUserIdHint')}
           />
 
           {/* Channel Access Token (masked) */}

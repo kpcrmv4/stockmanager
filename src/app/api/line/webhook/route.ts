@@ -40,6 +40,7 @@ interface StoreInfo {
   store_name: string;
   line_token: string;
   line_channel_secret: string | null;
+  line_bot_user_id: string | null;
   deposit_notify_group_id: string | null;
   bar_notify_group_id: string | null;
   stock_notify_group_id: string | null;
@@ -73,14 +74,31 @@ function verifySignature(
 // ---------------------------------------------------------------------------
 
 const STORE_SELECT =
-  'id, store_code, store_name, line_token, line_channel_secret, deposit_notify_group_id, bar_notify_group_id, stock_notify_group_id';
+  'id, store_code, store_name, line_token, line_channel_secret, line_bot_user_id, deposit_notify_group_id, bar_notify_group_id, stock_notify_group_id';
 
 async function resolveStore(
   supabase: SupabaseClient,
   destination: string,
   event: LineEvent,
 ): Promise<StoreInfo | null> {
-  // --- 1. จาก destination (channel_id ของ bot สาขา) ---
+  // --- 1. จาก destination (LINE Bot User ID — Uxxx…) ---
+  // The webhook payload's `destination` field is the bot's user id,
+  // NOT the channel id. Match against `line_bot_user_id` first.
+  if (destination) {
+    const { data: store } = await supabase
+      .from('stores')
+      .select(STORE_SELECT)
+      .eq('line_bot_user_id', destination)
+      .eq('active', true)
+      .single();
+
+    if (store?.line_token) return store as StoreInfo;
+  }
+
+  // --- 1b. Legacy fallback: some older configs stored the channel id
+  // in line_channel_id and it accidentally matched destination because
+  // the bot user id wasn't captured. Keep this as a safety net while
+  // existing rows get backfilled.
   if (destination) {
     const { data: store } = await supabase
       .from('stores')
@@ -153,9 +171,10 @@ export async function POST(request: NextRequest) {
   // -----------------------------------------------------------------------
   // 1. Verify webhook signature (ใช้ channel_secret ของสาขาเท่านั้น)
   //
-  // Per-store model: the `destination` field is the channel_id of the store
-  // LINE OA that received the webhook. We look up the store by that id and
-  // verify using THAT store's secret. No env fallback.
+  // Per-store model: the `destination` field is the bot user id of the
+  // store LINE OA that received the webhook (Uxxx… format). We look up
+  // the store by that id and verify using THAT store's secret. Falls
+  // back to line_channel_id for legacy rows. No env fallback.
   // -----------------------------------------------------------------------
   if (!destination) {
     return NextResponse.json(
@@ -164,12 +183,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: secretStore } = await supabase
-    .from('stores')
-    .select('line_channel_secret')
-    .eq('line_channel_id', destination)
-    .eq('active', true)
-    .single();
+  // Try bot user id first (the correct match for new rows), then fall
+  // back to channel id (legacy rows that may still hold a channel id
+  // there before the bot user id was captured).
+  let secretStore: { line_channel_secret: string | null } | null = null;
+  {
+    const { data } = await supabase
+      .from('stores')
+      .select('line_channel_secret')
+      .eq('line_bot_user_id', destination)
+      .eq('active', true)
+      .single();
+    secretStore = data;
+  }
+  if (!secretStore) {
+    const { data } = await supabase
+      .from('stores')
+      .select('line_channel_secret')
+      .eq('line_channel_id', destination)
+      .eq('active', true)
+      .single();
+    secretStore = data;
+  }
 
   const channelSecret = secretStore?.line_channel_secret || '';
 
