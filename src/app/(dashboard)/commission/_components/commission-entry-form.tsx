@@ -421,16 +421,18 @@ export function CommissionEntryForm({ onSuccess }: CommissionEntryFormProps) {
               <Input
                 label="Cashback %"
                 type="text"
-                inputMode="decimal"
                 value={commissionRate}
-                onChange={(e) => setCommissionRate(e.target.value.replace(/[^0-9.]/g, ''))}
+                readOnly
+                tabIndex={-1}
+                className="cursor-not-allowed bg-gray-50 text-gray-500 dark:bg-gray-900/40 dark:text-gray-400"
               />
               <Input
                 label={t('entryForm.taxPercent')}
                 type="text"
-                inputMode="decimal"
                 value={taxRate}
-                onChange={(e) => setTaxRate(e.target.value.replace(/[^0-9.]/g, ''))}
+                readOnly
+                tabIndex={-1}
+                className="cursor-not-allowed bg-gray-50 text-gray-500 dark:bg-gray-900/40 dark:text-gray-400"
               />
             </div>
             {subtotal > 0 && (
