@@ -2998,7 +2998,18 @@
       "productViewDesc": "Products with discrepancies in {range}",
       "showingProducts": "Showing {count} items",
       "historyTitle": "History: {name}",
-      "detailTitle": "Details — {date}"
+      "detailTitle": "Details — {date}",
+      "delta": "Δ",
+      "deltaTooltip": "Day {to} vs day {from}",
+      "pinTitle": "Pin product",
+      "unpinTitle": "Unpin product",
+      "pinConfirm": "Pin \"{name}\" to the top of the list?",
+      "unpinConfirm": "Remove \"{name}\" from your pinned list?",
+      "pinBtn": "Pin",
+      "unpinBtn": "Unpin",
+      "pinAria": "Pin this product",
+      "unpinAria": "Unpin this product",
+      "cancel": "Cancel"
     },
     "dailyCheck": {
       "allCategories": "All Categories",

@@ -30,6 +30,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  Star,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -134,6 +135,12 @@ export default function ComparisonPage() {
   const [productViewSearch, setProductViewSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
+  // Bookmarks for the per-product table — pinned product_codes float
+  // to the top so the user can babysit a few problem SKUs.
+  const [bookmarkedCodes, setBookmarkedCodes] = useState<Set<string>>(new Set());
+  const [pinTarget, setPinTarget] = useState<{ code: string; name: string; pinned: boolean } | null>(null);
+  const [pinSubmitting, setPinSubmitting] = useState(false);
+
   const fetchComparisons = useCallback(async () => {
     if (!currentStoreId) return;
 
@@ -190,6 +197,53 @@ export default function ComparisonPage() {
   }, [fetchComparisons]);
 
   // Fetch POS file URL for the selected date
+  // Load this user's pinned product_codes for the current store.
+  useEffect(() => {
+    if (!currentStoreId || !user?.id) {
+      setBookmarkedCodes(new Set());
+      return;
+    }
+    const supabase = createClient();
+    supabase
+      .from('comparison_product_bookmarks')
+      .select('product_code')
+      .eq('user_id', user.id)
+      .eq('store_id', currentStoreId)
+      .then(({ data }) => {
+        if (data) setBookmarkedCodes(new Set(data.map((r) => r.product_code as string)));
+      });
+  }, [currentStoreId, user?.id]);
+
+  const togglePin = useCallback(async () => {
+    if (!user?.id || !currentStoreId || !pinTarget) return;
+    setPinSubmitting(true);
+    try {
+      const supabase = createClient();
+      if (pinTarget.pinned) {
+        // Currently pinned → unpin
+        await supabase
+          .from('comparison_product_bookmarks')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('store_id', currentStoreId)
+          .eq('product_code', pinTarget.code);
+        setBookmarkedCodes((prev) => {
+          const next = new Set(prev);
+          next.delete(pinTarget.code);
+          return next;
+        });
+      } else {
+        await supabase
+          .from('comparison_product_bookmarks')
+          .upsert({ user_id: user.id, store_id: currentStoreId, product_code: pinTarget.code }, { onConflict: 'user_id,store_id,product_code' });
+        setBookmarkedCodes((prev) => new Set(prev).add(pinTarget.code));
+      }
+      setPinTarget(null);
+    } finally {
+      setPinSubmitting(false);
+    }
+  }, [user?.id, currentStoreId, pinTarget]);
+
   useEffect(() => {
     if (!currentStoreId || !selectedDate) {
       setPosFileUrl(null);
@@ -397,6 +451,11 @@ export default function ComparisonPage() {
         days: Map<string, { difference: number | null; pos_qty: number | null; manual_qty: number | null; status: string }>;
         totalOverTolerance: number;
         avgDiff: number;
+        /** Latest day's diff minus the previous day's diff for this
+         *  product, e.g. -169 → -139 = +30 (less missing, improving).
+         *  Null when fewer than 2 days of data exist. */
+        latestDelta: number | null;
+        latestDeltaDates: { from: string; to: string } | null;
       }
     >();
 
@@ -410,6 +469,8 @@ export default function ComparisonPage() {
           days: new Map(),
           totalOverTolerance: 0,
           avgDiff: 0,
+          latestDelta: null,
+          latestDeltaDates: null,
         });
       }
       const p = productMap.get(c.product_code)!;
@@ -424,14 +485,30 @@ export default function ComparisonPage() {
       }
     }
 
-    // Calculate avgDiff
+    // Calculate avgDiff + latestDelta (last two days that have a diff)
     for (const p of productMap.values()) {
       const diffs = [...p.days.values()].filter((d) => d.difference !== null).map((d) => d.difference!);
       p.avgDiff = diffs.length > 0 ? diffs.reduce((a, b) => a + b, 0) / diffs.length : 0;
+
+      const datedDiffs = [...p.days.entries()]
+        .filter(([, d]) => d.difference !== null)
+        .map(([date, d]) => ({ date, diff: d.difference as number }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      if (datedDiffs.length >= 2) {
+        const last = datedDiffs[datedDiffs.length - 1];
+        const prev = datedDiffs[datedDiffs.length - 2];
+        p.latestDelta = last.diff - prev.diff;
+        p.latestDeltaDates = { from: prev.date, to: last.date };
+      }
     }
 
-    // Sort: most problematic first
-    let products = [...productMap.values()].sort((a, b) => b.totalOverTolerance - a.totalOverTolerance || Math.abs(b.avgDiff) - Math.abs(a.avgDiff));
+    // Sort: pinned products first, then most problematic
+    let products = [...productMap.values()].sort((a, b) => {
+      const aPinned = bookmarkedCodes.has(a.product_code) ? 1 : 0;
+      const bPinned = bookmarkedCodes.has(b.product_code) ? 1 : 0;
+      if (aPinned !== bPinned) return bPinned - aPinned;
+      return b.totalOverTolerance - a.totalOverTolerance || Math.abs(b.avgDiff) - Math.abs(a.avgDiff);
+    });
 
     // Filter by search
     if (productViewSearch.trim()) {
@@ -442,7 +519,7 @@ export default function ComparisonPage() {
     }
 
     return { products: products.slice(0, 50), allDates };
-  }, [comparisons, productViewSearch]);
+  }, [comparisons, productViewSearch, bookmarkedCodes]);
 
   // ── Selected product history (for modal) ──
   const selectedProductHistory = useMemo(() => {
@@ -826,7 +903,7 @@ export default function ComparisonPage() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700">
-                    <th className="sticky left-0 bg-white py-2 pr-2 text-left font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400" style={{ minWidth: 140 }}>
+                    <th className="sticky left-0 bg-white py-2 pr-2 text-left font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400" style={{ minWidth: 168 }}>
                       {t('comparison.product')}
                     </th>
                     {productCrossDayData.allDates.map((date) => {
@@ -840,23 +917,48 @@ export default function ComparisonPage() {
                         </th>
                       );
                     })}
+                    <th className="px-2 py-2 text-center font-medium text-gray-500 dark:text-gray-400" style={{ minWidth: 60 }}>
+                      {t('comparison.delta')}
+                    </th>
                     <th className="px-2 py-2 text-center font-medium text-gray-500 dark:text-gray-400" style={{ minWidth: 50 }}>
                       {t('comparison.times')}
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                  {productCrossDayData.products.map((product) => (
+                  {productCrossDayData.products.map((product) => {
+                    const isPinned = bookmarkedCodes.has(product.product_code);
+                    return (
                     <tr
                       key={product.product_code}
                       onClick={() => setSelectedProduct(product.product_code)}
                       className="cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30"
                     >
-                      <td className="sticky left-0 bg-white py-2 pr-2 dark:bg-gray-800" style={{ minWidth: 140 }}>
-                        <p className="truncate text-xs font-medium text-gray-900 dark:text-white">
-                          {product.product_name}
-                        </p>
-                        <p className="truncate text-[10px] text-gray-400">{product.product_code}</p>
+                      <td className="sticky left-0 bg-white py-2 pr-2 dark:bg-gray-800" style={{ minWidth: 168 }}>
+                        <div className="flex items-start gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPinTarget({ code: product.product_code, name: product.product_name, pinned: isPinned });
+                            }}
+                            aria-label={isPinned ? t('comparison.unpinAria') : t('comparison.pinAria')}
+                            className={cn(
+                              'mt-0.5 shrink-0 rounded p-0.5 transition-colors',
+                              isPinned
+                                ? 'text-amber-500 hover:text-amber-600'
+                                : 'text-gray-300 hover:text-amber-400 dark:text-gray-600 dark:hover:text-amber-400',
+                            )}
+                          >
+                            <Star className={cn('h-3.5 w-3.5', isPinned && 'fill-current')} />
+                          </button>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium text-gray-900 dark:text-white">
+                              {product.product_name}
+                            </p>
+                            <p className="truncate text-[10px] text-gray-400">{product.product_code}</p>
+                          </div>
+                        </div>
                       </td>
                       {productCrossDayData.allDates.map((date) => {
                         const day = product.days.get(date);
@@ -886,6 +988,28 @@ export default function ComparisonPage() {
                         );
                       })}
                       <td className="px-2 py-2 text-center">
+                        {product.latestDelta === null ? (
+                          <span className="text-gray-300 dark:text-gray-600">—</span>
+                        ) : product.latestDelta === 0 ? (
+                          <span className="inline-block rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-bold text-gray-500 dark:bg-gray-700/40 dark:text-gray-400">
+                            0
+                          </span>
+                        ) : (
+                          <span
+                            className={cn(
+                              'inline-block rounded-md px-1.5 py-0.5 text-[11px] font-bold',
+                              product.latestDelta > 0
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
+                                : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400',
+                            )}
+                            title={product.latestDeltaDates ? t('comparison.deltaTooltip', { from: product.latestDeltaDates.from.slice(8, 10), to: product.latestDeltaDates.to.slice(8, 10) }) : ''}
+                          >
+                            {product.latestDelta > 0 ? '+' : ''}
+                            {product.latestDelta}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-center">
                         {product.totalOverTolerance > 0 ? (
                           <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:bg-red-900/40 dark:text-red-400">
                             {product.totalOverTolerance}
@@ -895,7 +1019,8 @@ export default function ComparisonPage() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -905,6 +1030,36 @@ export default function ComparisonPage() {
           </>
         )}
       </Card>
+
+      {/* ── Pin/Unpin Confirm Modal ── */}
+      <Modal
+        isOpen={!!pinTarget}
+        onClose={() => !pinSubmitting && setPinTarget(null)}
+        title={pinTarget?.pinned ? t('comparison.unpinTitle') : t('comparison.pinTitle')}
+        size="sm"
+      >
+        <div className="space-y-3 px-1 pb-2 text-sm text-gray-700 dark:text-gray-300">
+          <p>
+            {pinTarget?.pinned
+              ? t('comparison.unpinConfirm', { name: pinTarget?.name || '' })
+              : t('comparison.pinConfirm', { name: pinTarget?.name || '' })}
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setPinTarget(null)} disabled={pinSubmitting}>
+              {t('comparison.cancel')}
+            </Button>
+            <Button
+              size="sm"
+              variant={pinTarget?.pinned ? 'danger' : 'primary'}
+              onClick={togglePin}
+              isLoading={pinSubmitting}
+              icon={<Star className={cn('h-4 w-4', !pinTarget?.pinned && 'fill-current')} />}
+            >
+              {pinTarget?.pinned ? t('comparison.unpinBtn') : t('comparison.pinBtn')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ── Product History Modal ── */}
       <Modal

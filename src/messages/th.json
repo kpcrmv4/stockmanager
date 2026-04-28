@@ -3000,7 +3000,18 @@
       "productViewDesc": "สินค้าที่มีส่วนต่างในช่วง {range}",
       "showingProducts": "แสดง {count} รายการ",
       "historyTitle": "ประวัติ: {name}",
-      "detailTitle": "รายละเอียด — {date}"
+      "detailTitle": "รายละเอียด — {date}",
+      "delta": "เทียบ",
+      "deltaTooltip": "เทียบวันที่ {to} กับ {from}",
+      "pinTitle": "ปักหมุดสินค้า",
+      "unpinTitle": "ยกเลิกปักหมุด",
+      "pinConfirm": "ปักหมุด \"{name}\" ให้อยู่บนสุดของรายการเพื่อติดตาม?",
+      "unpinConfirm": "ยกเลิกปักหมุด \"{name}\" ออกจากรายการที่ติดตาม?",
+      "pinBtn": "ปักหมุด",
+      "unpinBtn": "ยกเลิกปักหมุด",
+      "pinAria": "ปักหมุดสินค้านี้",
+      "unpinAria": "ยกเลิกปักหมุดสินค้านี้",
+      "cancel": "ยกเลิก"
     },
     "dailyCheck": {
       "defaultUnit": "ชิ้น",

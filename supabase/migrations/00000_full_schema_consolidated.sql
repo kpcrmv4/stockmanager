@@ -154,6 +154,19 @@ CREATE TABLE comparisons (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Per-user pin list for the comparison "มุมมองรายสินค้า" table.
+-- Pinned products float to the top so the user can keep watch on a
+-- few problem SKUs without scrolling past the rest.
+CREATE TABLE comparison_product_bookmarks (
+  user_id      UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  store_id     UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  product_code TEXT NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, store_id, product_code)
+);
+CREATE INDEX idx_comparison_bookmarks_user_store
+  ON comparison_product_bookmarks(user_id, store_id);
+
 -- ── Stock tracking: products flagged for accounting follow-up ──
 CREATE TABLE stock_tracking_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -887,6 +900,7 @@ ALTER TABLE manual_counts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ocr_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ocr_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comparisons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comparison_product_bookmarks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deposits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE withdrawals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deposit_requests ENABLE ROW LEVEL SECURITY;
@@ -1027,6 +1041,11 @@ CREATE POLICY "All users browse active products" ON products FOR SELECT TO authe
 -- ========== comparisons ==========
 CREATE POLICY "Staff see store comparisons" ON comparisons FOR SELECT USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
 CREATE POLICY "Staff manage comparisons" ON comparisons FOR ALL USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
+
+-- ========== comparison_product_bookmarks ==========
+CREATE POLICY "Users manage own comparison bookmarks" ON comparison_product_bookmarks
+  FOR ALL USING (user_id = (SELECT auth.uid()))
+  WITH CHECK (user_id = (SELECT auth.uid()));
 
 -- ========== manual_counts ==========
 CREATE POLICY "Staff see store counts" ON manual_counts FOR SELECT USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
