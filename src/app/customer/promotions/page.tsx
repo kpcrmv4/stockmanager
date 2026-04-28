@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { formatThaiDate } from '@/lib/utils/format';
 import { cn } from '@/lib/utils/cn';
 import { Megaphone, Tag, Calendar, Loader2 } from 'lucide-react';
+import { BottleLoader } from '../_components/bottle-loader';
 
 interface Announcement {
   id: string;
@@ -54,7 +55,7 @@ export default function CustomerPromotionsPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#06C755]" />
+        <BottleLoader label="Loading" />
       </div>
     );
   }

@@ -642,3 +642,117 @@
   background: var(--card-border);
   border-radius: 3px;
 }
+
+/* ===========================================================
+ * Bottle Loader
+ * Ports the spinning-bottle loader from the legacy GAS
+ * customer-page.html so the LIFF entry feels consistent with
+ * the original Bottle Keeper experience: two counter-rotating
+ * rings, a pulsing wine bottle in the center, a vertical scan
+ * line passing through it, and four staggered sparkles.
+ * =========================================================== */
+.bottle-loader {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bottle-loader__icon {
+  z-index: 2;
+  color: #F8D794;
+  animation: bottle-pulse 1.5s ease-in-out infinite;
+}
+.bottle-loader__ring {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  border: 3px solid transparent;
+  border-top-color: #F8D794;
+  border-right-color: rgba(248, 215, 148, 0.25);
+  border-radius: 50%;
+  animation: bottle-spin 1.2s linear infinite;
+}
+.bottle-loader__ring-outer {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border: 2px dashed rgba(248, 215, 148, 0.3);
+  border-radius: 50%;
+  animation: bottle-spin-reverse 2s linear infinite;
+}
+.bottle-loader__scan {
+  position: absolute;
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #F8D794, transparent);
+  animation: bottle-scan 1.5s ease-in-out infinite;
+}
+.bottle-loader__sparkle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: #F8D794;
+  border-radius: 50%;
+  animation: bottle-sparkle 1.5s ease-in-out infinite;
+}
+.bottle-loader__sparkle:nth-of-type(1) { top: 15%; left: 20%; animation-delay: 0.2s; }
+.bottle-loader__sparkle:nth-of-type(2) { top: 25%; right: 15%; animation-delay: 0.5s; }
+.bottle-loader__sparkle:nth-of-type(3) { bottom: 20%; left: 15%; animation-delay: 0.8s; }
+.bottle-loader__sparkle:nth-of-type(4) { bottom: 30%; right: 20%; animation-delay: 1.1s; }
+
+.bottle-loader__text {
+  margin-top: 18px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  color: rgba(248, 215, 148, 0.8);
+  text-transform: uppercase;
+}
+.bottle-loader__dots::after {
+  content: '';
+  animation: bottle-dots 1.5s steps(4, end) infinite;
+}
+
+/* Smaller variant for inline section loaders */
+.bottle-loader.is-sm {
+  width: 80px;
+  height: 80px;
+}
+.bottle-loader.is-sm .bottle-loader__ring {
+  width: 70px;
+  height: 70px;
+}
+.bottle-loader.is-sm .bottle-loader__ring-outer {
+  width: 56px;
+  height: 56px;
+}
+.bottle-loader.is-sm .bottle-loader__scan {
+  width: 42px;
+}
+
+@keyframes bottle-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+@keyframes bottle-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes bottle-spin-reverse {
+  to { transform: rotate(-360deg); }
+}
+@keyframes bottle-scan {
+  0%, 100% { transform: translateY(-25px); opacity: 0; }
+  50% { transform: translateY(25px); opacity: 1; }
+}
+@keyframes bottle-sparkle {
+  0%, 100% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1); opacity: 1; }
+}
+@keyframes bottle-dots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+}

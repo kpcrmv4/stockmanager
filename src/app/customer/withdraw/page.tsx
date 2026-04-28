@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { formatNumber } from '@/lib/utils/format';
 import { cn } from '@/lib/utils/cn';
 import { ArrowLeft, Package, Loader2, AlertCircle, Home, Wine } from 'lucide-react';
+import { BottleLoader } from '../_components/bottle-loader';
 
 interface DepositInfo {
   id: string;
@@ -143,7 +144,7 @@ function WithdrawContent() {
   if (isLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#06C755]" />
+        <BottleLoader label="Loading" />
       </div>
     );
   }
@@ -322,7 +323,7 @@ export default function CustomerWithdrawPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[50vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-[#06C755]" />
+          <BottleLoader label="Loading" />
         </div>
       }
     >

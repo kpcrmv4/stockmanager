@@ -12,6 +12,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useCustomerAuth } from './customer-provider';
+import { BottleLoader } from './bottle-loader';
 
 interface HistoryItem {
   id: string;
@@ -170,7 +171,7 @@ export function HistoryView() {
   if (isLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <Loader2 className="h-7 w-7 animate-spin text-[#F8D794]" />
+        <BottleLoader label={t('loading')} />
       </div>
     );
   }

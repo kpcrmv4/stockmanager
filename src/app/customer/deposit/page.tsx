@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCustomerAuth } from '../_components/customer-provider';
+import { BottleLoader } from '../_components/bottle-loader';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
@@ -249,7 +250,7 @@ function DepositContent() {
   if (authLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#06C755]" />
+        <BottleLoader label="Loading" />
       </div>
     );
   }
@@ -451,7 +452,7 @@ export default function CustomerDepositPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[50vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-[#06C755]" />
+          <BottleLoader label="Loading" />
         </div>
       }
     >

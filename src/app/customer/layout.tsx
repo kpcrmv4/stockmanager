@@ -1,7 +1,8 @@
 'use client';
 
 import { Suspense } from 'react';
-import { Wine, Loader2 } from 'lucide-react';
+import { Wine } from 'lucide-react';
+import { BottleLoader } from './_components/bottle-loader';
 import {
   CustomerProvider,
   useCustomerAuth,
@@ -68,7 +69,7 @@ export default function CustomerLayout({
     <Suspense
       fallback={
         <div className="customer-theme flex min-h-screen items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-[#F8D794]" />
+          <BottleLoader label="Loading" />
         </div>
       }
     >

@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   X,
 } from 'lucide-react';
+import { BottleLoader } from './bottle-loader';
 
 interface BottleInfo {
   id: string;
@@ -249,12 +250,7 @@ export function MyBottlesView() {
   if (authLoading || isLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-7 w-7 animate-spin text-[#F8D794]" />
-          <p className="text-[11px] font-medium uppercase tracking-wider text-[rgba(248,215,148,0.6)]">
-            {t('loading')}
-          </p>
-        </div>
+        <BottleLoader label={t('loading')} />
       </div>
     );
   }

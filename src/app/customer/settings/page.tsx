@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { Bell, MessageCircle, Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { BottleLoader } from '../_components/bottle-loader';
 
 interface NotifPrefs {
   pwa_enabled: boolean;
@@ -99,7 +100,7 @@ export default function CustomerSettingsPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#06C755]" />
+        <BottleLoader label="Loading" />
       </div>
     );
   }
