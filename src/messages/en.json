@@ -303,7 +303,13 @@
       "bottlesLabel": "Bottles",
       "pendingStaff": "Waiting for staff",
       "inStore": "In store",
-      "daysLeftLabel": "Days left"
+      "daysLeftLabel": "Days left",
+      "pendingRequestsTitle": "Pending Requests",
+      "pendingRequestUnnamed": "Deposit request (awaiting details)",
+      "pendingRequestHint": "Staff is checking and will fill in the bottle details shortly.",
+      "requestSubmittedAt": "Submitted at {time}",
+      "requestTableLabel": "Table",
+      "requestNotesLabel": "Note"
     },
     "deposit": {
       "title": "Deposit Bottle",
@@ -1172,7 +1178,14 @@
       "notifyTitle": "New bottle deposit",
       "statusPending": "Pending Review",
       "statusApproved": "Approved",
-      "statusRejected": "Rejected"
+      "statusRejected": "Rejected",
+      "tableLabel": "Table",
+      "awaitingDetails": "Awaiting details",
+      "awaitingQuantity": "Quantity not specified",
+      "needsDetailsHint": "Customer didn't fill product / quantity. Add them when approving.",
+      "productPlaceholder": "e.g. Johnnie Walker Black",
+      "fillDetailsTitle": "Missing details",
+      "fillDetailsMessage": "Please enter product name and quantity before approving."
     },
     "withdrawals": {
       "backToDeposit": "Back to Deposits",

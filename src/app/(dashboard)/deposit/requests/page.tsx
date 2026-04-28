@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import {
@@ -10,6 +9,7 @@ import {
   Badge,
   Card,
   EmptyState,
+  Input,
   Modal,
   ModalFooter,
   Textarea,
@@ -20,45 +20,57 @@ import {
   Inbox,
   CheckCircle2,
   XCircle,
-  Wine,
   User,
   Phone,
   Package,
   Clock,
   MessageSquare,
   ArrowLeft,
-  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
-import { notifyChatNewDeposit } from '@/lib/chat/bot-client';
+import { syncChatActionCardStatus } from '@/lib/chat/bot-client';
 import { expiryDateISO } from '@/lib/utils/date';
+
+/**
+ * Staff queue for customer-submitted deposit requests.
+ *
+ * Source of truth = `deposits` table (status='pending_staff' rows are
+ * customer LIFF submissions). On approve, the same row transitions to
+ * status='pending_confirm' with product/quantity filled in — bar then
+ * verifies via the chat action card or /bar-approval page.
+ */
 
 interface DepositRequest {
   id: string;
   store_id: string;
+  deposit_code: string;
   line_user_id: string | null;
   customer_name: string;
   customer_phone: string | null;
-  product_name: string;
-  quantity: number;
+  product_name: string | null;
+  quantity: number | null;
+  table_number: string | null;
+  customer_photo_url: string | null;
   notes: string | null;
   status: string;
   created_at: string;
 }
 
 const statusVariant: Record<string, 'warning' | 'success' | 'danger'> = {
-  pending: 'warning',
-  approved: 'success',
-  rejected: 'danger',
+  pending_staff: 'warning',
+  pending_confirm: 'success',
+  in_store: 'success',
+  cancelled: 'danger',
 };
 
 const statusLabelKey: Record<string, string> = {
-  pending: 'requests.statusPending',
-  approved: 'requests.statusApproved',
-  rejected: 'requests.statusRejected',
+  pending_staff: 'requests.statusPending',
+  pending_confirm: 'requests.statusApproved',
+  in_store: 'requests.statusApproved',
+  cancelled: 'requests.statusRejected',
 };
 
 export default function DepositRequestsPage() {
@@ -73,6 +85,9 @@ export default function DepositRequestsPage() {
   const [selectedRequest, setSelectedRequest] = useState<DepositRequest | null>(null);
   const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve');
   const [approvalNotes, setApprovalNotes] = useState('');
+  // Customer LIFF leaves product/qty blank — staff fills here on approve.
+  const [productInput, setProductInput] = useState('');
+  const [quantityInput, setQuantityInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadRequests = useCallback(async () => {
@@ -80,10 +95,19 @@ export default function DepositRequestsPage() {
     setIsLoading(true);
     const supabase = createClient();
 
+    // Pull pending_staff (queue) + recently-processed (pending_confirm /
+    // in_store / cancelled in last 7 days) so staff can see what they just
+    // approved without leaving the page.
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000).toISOString();
     const { data, error } = await supabase
-      .from('deposit_requests')
-      .select('*')
+      .from('deposits')
+      .select(
+        'id, store_id, deposit_code, line_user_id, customer_name, customer_phone, product_name, quantity, table_number, customer_photo_url, notes, status, created_at',
+      )
       .eq('store_id', currentStoreId)
+      .or(
+        `status.eq.pending_staff,and(status.in.(pending_confirm,in_store,cancelled),created_at.gte.${sevenDaysAgo})`,
+      )
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -93,7 +117,7 @@ export default function DepositRequestsPage() {
       setRequests(data as DepositRequest[]);
     }
     setIsLoading(false);
-  }, [currentStoreId]);
+  }, [currentStoreId, t]);
 
   useEffect(() => {
     loadRequests();
@@ -103,113 +127,152 @@ export default function DepositRequestsPage() {
     setSelectedRequest(request);
     setApprovalAction(action);
     setApprovalNotes('');
+    setProductInput(request.product_name || '');
+    setQuantityInput(request.quantity != null && request.quantity > 0 ? String(request.quantity) : '');
     setShowApprovalModal(true);
   };
 
   const handleApproval = async () => {
     if (!selectedRequest || !user || !currentStoreId) return;
+
+    if (approvalAction === 'approve') {
+      const productName = productInput.trim();
+      const qty = Number(quantityInput);
+      if (!productName || !Number.isFinite(qty) || qty <= 0) {
+        toast({
+          type: 'error',
+          title: t('requests.fillDetailsTitle'),
+          message: t('requests.fillDetailsMessage'),
+        });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     const supabase = createClient();
 
     if (approvalAction === 'approve') {
-      // Fetch store_code for deposit code format
-      const { data: storeData } = await supabase
-        .from('stores')
-        .select('store_code')
-        .eq('id', currentStoreId)
-        .single();
-      const storeCode = storeData?.store_code || 'UNKNOWN';
+      const productName = productInput.trim();
+      const qty = Number(quantityInput);
 
-      // Generate deposit code: DEP-{STORE_CODE}-{5 random alphanumeric}
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      let randomPart = '';
-      for (let i = 0; i < 5; i++) {
-        randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      const depositCode = `DEP-${storeCode}-${randomPart}`;
-
-      // Create the deposit record
-      const { error: depositError } = await supabase.from('deposits').insert({
-        store_id: currentStoreId,
-        deposit_code: depositCode,
-        line_user_id: selectedRequest.line_user_id,
-        customer_name: selectedRequest.customer_name,
-        customer_phone: selectedRequest.customer_phone,
-        product_name: selectedRequest.product_name,
-        quantity: selectedRequest.quantity,
-        remaining_qty: selectedRequest.quantity,
-        remaining_percent: 100,
-        status: 'pending_confirm',
-        expiry_date: expiryDateISO(30),
-        received_by: user.id,
-        notes: approvalNotes || null,
-      });
-
-      if (depositError) {
-        toast({ type: 'error', title: t('loadError'), message: t('requests.createError') });
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Update request status
+      // Update the placeholder row in-place: pending_staff → pending_confirm.
+      // Bar verifies next via the chat action card or /bar-approval page.
       const { error: updateError } = await supabase
-        .from('deposit_requests')
-        .update({ status: 'approved' })
+        .from('deposits')
+        .update({
+          status: 'pending_confirm',
+          product_name: productName,
+          quantity: qty,
+          remaining_qty: qty,
+          remaining_percent: 100,
+          expiry_date: expiryDateISO(30),
+          received_by: user.id,
+          notes: approvalNotes ? `${selectedRequest.notes || ''}${selectedRequest.notes ? ' | ' : ''}${approvalNotes}` : selectedRequest.notes,
+        })
         .eq('id', selectedRequest.id);
 
       if (updateError) {
         toast({ type: 'error', title: t('loadError'), message: t('requests.updateError') });
-      } else {
-        toast({ type: 'success', title: t('requests.approveSuccess'), message: t('requests.approveSuccessMessage', { code: depositCode }) });
+        setIsSubmitting(false);
+        return;
+      }
 
-        // Notify bar staff about the new deposit from LIFF request
-        notifyStaff({
-          storeId: currentStoreId,
-          type: 'new_deposit',
-          title: t('requests.notifyTitle'),
-          body: `${selectedRequest.customer_name} ฝาก ${selectedRequest.product_name} x${selectedRequest.quantity}`,
-          data: { deposit_code: depositCode },
-          excludeUserId: user?.id,
-        });
-
-        // ส่ง Action Card เข้าห้องแชทสาขา
-        notifyChatNewDeposit(currentStoreId, {
-          deposit_code: depositCode,
-          customer_name: selectedRequest.customer_name,
-          product_name: selectedRequest.product_name,
-          quantity: selectedRequest.quantity,
-        });
-
-        await logAudit({
-          store_id: currentStoreId,
-          action_type: AUDIT_ACTIONS.DEPOSIT_REQUEST_APPROVED,
-          table_name: 'deposit_requests',
-          record_id: selectedRequest.id,
-          new_value: {
-            customer_name: selectedRequest.customer_name,
-            product_name: selectedRequest.product_name,
-            deposit_code: depositCode,
-          },
-          changed_by: user?.id || null,
+      // The auto_create_deposit_bottles trigger fires only on INSERT (not on
+      // qty UPDATE), so we manually seed bottle rows now that qty is known.
+      const bottleRows = [];
+      for (let i = 1; i <= qty; i++) {
+        bottleRows.push({
+          deposit_id: selectedRequest.id,
+          bottle_no: i,
+          remaining_percent: 100,
+          status: 'in_store',
         });
       }
+      if (bottleRows.length > 0) {
+        await supabase.from('deposit_bottles').insert(bottleRows);
+      }
+
+      toast({
+        type: 'success',
+        title: t('requests.approveSuccess'),
+        message: t('requests.approveSuccessMessage', { code: selectedRequest.deposit_code }),
+      });
+
+      // Notify bar that the deposit is now waiting for them.
+      notifyStaff({
+        storeId: currentStoreId,
+        type: 'new_deposit',
+        title: t('requests.notifyTitle'),
+        body: `${selectedRequest.customer_name} ฝาก ${productName} x${qty}`,
+        data: { deposit_code: selectedRequest.deposit_code },
+        excludeUserId: user?.id,
+      });
+
+      // Sync the existing chat action card → status='pending_bar' (bar verify).
+      // The card was posted by /api/customer/deposit-request when the customer
+      // submitted; we just transition it forward instead of creating a new one.
+      syncChatActionCardStatus({
+        storeId: currentStoreId,
+        referenceId: selectedRequest.deposit_code,
+        actionType: 'deposit_claim',
+        newStatus: 'pending_bar',
+        completedBy: user.id,
+        completedByName: user.username || user.id,
+      });
+
+      await logAudit({
+        store_id: currentStoreId,
+        action_type: AUDIT_ACTIONS.DEPOSIT_REQUEST_APPROVED,
+        table_name: 'deposits',
+        record_id: selectedRequest.id,
+        old_value: { status: 'pending_staff', product_name: '', quantity: 0 },
+        new_value: {
+          status: 'pending_confirm',
+          customer_name: selectedRequest.customer_name,
+          product_name: productName,
+          quantity: qty,
+          deposit_code: selectedRequest.deposit_code,
+        },
+        changed_by: user?.id || null,
+      });
     } else {
-      // Reject
+      // Reject: mark the deposit as cancelled (no bottle data to clean up
+      // because qty was 0 and the bottle trigger never fired).
       const { error } = await supabase
-        .from('deposit_requests')
-        .update({ status: 'rejected' })
+        .from('deposits')
+        .update({
+          status: 'cancelled',
+          notes: approvalNotes
+            ? `${selectedRequest.notes || ''}${selectedRequest.notes ? ' | ' : ''}ปฏิเสธ: ${approvalNotes}`
+            : `${selectedRequest.notes || ''}${selectedRequest.notes ? ' | ' : ''}ปฏิเสธโดย Staff`,
+        })
         .eq('id', selectedRequest.id);
 
       if (error) {
         toast({ type: 'error', title: t('loadError'), message: t('requests.rejectError') });
       } else {
         toast({ type: 'warning', title: t('requests.rejectSuccess') });
+
+        // Close out the chat action card too.
+        syncChatActionCardStatus({
+          storeId: currentStoreId,
+          referenceId: selectedRequest.deposit_code,
+          actionType: 'deposit_claim',
+          newStatus: 'completed',
+          completedBy: user.id,
+          completedByName: user.username || user.id,
+        });
+
         await logAudit({
           store_id: currentStoreId,
           action_type: AUDIT_ACTIONS.DEPOSIT_REQUEST_REJECTED,
-          table_name: 'deposit_requests',
+          table_name: 'deposits',
           record_id: selectedRequest.id,
-          new_value: { customer_name: selectedRequest.customer_name, product_name: selectedRequest.product_name, reason: approvalNotes || null },
+          new_value: {
+            customer_name: selectedRequest.customer_name,
+            deposit_code: selectedRequest.deposit_code,
+            reason: approvalNotes || null,
+          },
           changed_by: user?.id || null,
         });
       }
@@ -221,8 +284,8 @@ export default function DepositRequestsPage() {
     loadRequests();
   };
 
-  const pendingRequests = requests.filter((r) => r.status === 'pending');
-  const processedRequests = requests.filter((r) => r.status !== 'pending');
+  const pendingRequests = requests.filter((r) => r.status === 'pending_staff');
+  const processedRequests = requests.filter((r) => r.status !== 'pending_staff');
 
   return (
     <div className="space-y-6">
@@ -282,30 +345,34 @@ export default function DepositRequestsPage() {
         />
       ) : (
         <>
-          {/* Pending Section */}
           {pendingRequests.length > 0 && (
             <div>
               <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
                 {t('requests.pendingReview')} ({pendingRequests.length})
               </h2>
               <div className="space-y-3">
-                {pendingRequests.map((request) => (
+                {pendingRequests.map((request) => {
+                  const needsDetails = !request.product_name || request.quantity == null || request.quantity <= 0;
+                  return (
                   <Card key={request.id} padding="none">
                     <div className="p-4 sm:p-5">
-                      {/* Request Info */}
                       <div className="mb-3 flex items-start justify-between">
                         <div>
                           <h3 className="font-semibold text-gray-900 dark:text-white">
-                            {request.product_name}
+                            {request.product_name || t('requests.awaitingDetails')}
                           </h3>
-                          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                            {t('requests.quantity', { qty: request.quantity })}
+                          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                            {request.deposit_code}
                           </p>
+                          {!needsDetails && request.quantity != null && (
+                            <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                              {t('requests.quantity', { qty: request.quantity })}
+                            </p>
+                          )}
                         </div>
                         <Badge variant="warning">{t('requests.pendingReview')}</Badge>
                       </div>
 
-                      {/* Customer Details */}
                       <div className="mb-4 space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 shrink-0 text-gray-400" />
@@ -315,6 +382,12 @@ export default function DepositRequestsPage() {
                           <div className="flex items-center gap-2">
                             <Phone className="h-4 w-4 shrink-0 text-gray-400" />
                             <span>{request.customer_phone}</span>
+                          </div>
+                        )}
+                        {request.table_number && (
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4 shrink-0 text-gray-400" />
+                            <span>{t('requests.tableLabel')}: {request.table_number}</span>
                           </div>
                         )}
                         <div className="flex items-center gap-2">
@@ -327,9 +400,28 @@ export default function DepositRequestsPage() {
                             <span>{request.notes}</span>
                           </div>
                         )}
+                        {request.customer_photo_url && (
+                          <a
+                            href={request.customer_photo_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 block"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={request.customer_photo_url}
+                              alt="customer bottle"
+                              className="h-24 w-24 rounded-lg object-cover ring-1 ring-gray-200 dark:ring-gray-700"
+                            />
+                          </a>
+                        )}
+                        {needsDetails && (
+                          <p className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                            {t('requests.needsDetailsHint')}
+                          </p>
+                        )}
                       </div>
 
-                      {/* Action Buttons */}
                       <div className="flex gap-2">
                         <Button
                           className="min-h-[44px] flex-1"
@@ -350,12 +442,12 @@ export default function DepositRequestsPage() {
                       </div>
                     </div>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* Processed Section */}
           {processedRequests.length > 0 && (
             <div>
               <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
@@ -363,22 +455,27 @@ export default function DepositRequestsPage() {
               </h2>
               <div className="space-y-3">
                 {processedRequests.map((request) => {
-                  const variant = statusVariant[request.status] || statusVariant.pending;
-                  const labelKey = statusLabelKey[request.status] || statusLabelKey.pending;
+                  const variant = statusVariant[request.status] || 'warning';
+                  const labelKey = statusLabelKey[request.status] || statusLabelKey.pending_staff;
                   return (
                     <Card key={request.id} padding="none">
                       <div className="p-4 sm:p-5">
                         <div className="flex items-start justify-between">
                           <div>
                             <h3 className="font-semibold text-gray-900 dark:text-white">
-                              {request.product_name}
+                              {request.product_name || t('requests.awaitingDetails')}
                             </h3>
+                            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                              {request.deposit_code}
+                            </p>
                             <div className="mt-1 space-y-0.5 text-sm text-gray-500 dark:text-gray-400">
                               <p className="flex items-center gap-1.5">
                                 <User className="h-3.5 w-3.5" />
                                 {request.customer_name}
                               </p>
-                              <p>{t('requests.quantity', { qty: request.quantity })}</p>
+                              {request.quantity != null && request.quantity > 0 && (
+                                <p>{t('requests.quantity', { qty: request.quantity })}</p>
+                              )}
                               <p className="flex items-center gap-1.5">
                                 <Clock className="h-3.5 w-3.5" />
                                 {formatThaiDateTime(request.created_at)}
@@ -407,7 +504,7 @@ export default function DepositRequestsPage() {
         title={approvalAction === 'approve' ? t('requests.approveTitle') : t('requests.rejectTitle')}
         description={
           selectedRequest
-            ? `${selectedRequest.product_name} - ${selectedRequest.customer_name}`
+            ? `${selectedRequest.product_name || t('requests.awaitingDetails')} - ${selectedRequest.customer_name}`
             : undefined
         }
         size="md"
@@ -417,18 +514,44 @@ export default function DepositRequestsPage() {
             <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">{t('requests.productLabel')}</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{selectedRequest.product_name}</span>
-                </div>
-                <div className="flex justify-between">
                   <span className="text-gray-500 dark:text-gray-400">{t('requests.customerLabel')}</span>
                   <span className="font-medium text-gray-900 dark:text-white">{selectedRequest.customer_name}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">{t('requests.quantityLabel')}</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{selectedRequest.quantity}</span>
-                </div>
+                {selectedRequest.table_number && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">{t('requests.tableLabel')}</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{selectedRequest.table_number}</span>
+                  </div>
+                )}
+                {selectedRequest.notes && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">{t('requests.notesLabel')}</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{selectedRequest.notes}</span>
+                  </div>
+                )}
               </div>
+            </div>
+          )}
+
+          {approvalAction === 'approve' && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <Input
+                  label={t('requests.productLabel')}
+                  value={productInput}
+                  onChange={(e) => setProductInput(e.target.value)}
+                  placeholder={t('requests.productPlaceholder')}
+                />
+              </div>
+              <Input
+                label={t('requests.quantityLabel')}
+                type="number"
+                inputMode="numeric"
+                min={1}
+                value={quantityInput}
+                onChange={(e) => setQuantityInput(e.target.value)}
+                placeholder="1"
+              />
             </div>
           )}
 

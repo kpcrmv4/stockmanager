@@ -29,6 +29,8 @@ interface DepositItem {
   storeName: string;
   depositDate: string;
   storeId: string | null;
+  tableNumber: string | null;
+  notes: string | null;
 }
 
 export function MyBottlesView() {
@@ -109,7 +111,7 @@ export function MyBottlesView() {
     return raw.map((d) => ({
       id: d.id,
       code: d.deposit_code,
-      productName: d.product_name,
+      productName: d.product_name || '',
       remainingPercent: d.remaining_percent ?? 0,
       remainingQty: d.remaining_qty ?? 0,
       expiryDate: d.expiry_date,
@@ -117,6 +119,8 @@ export function MyBottlesView() {
       storeName: d.store?.store_name || '',
       depositDate: d.created_at,
       storeId: d.store_id || null,
+      tableNumber: d.table_number || null,
+      notes: d.notes || null,
     }));
   }
 
@@ -154,14 +158,20 @@ export function MyBottlesView() {
     }
   };
 
-  const { pending, active } = useMemo(() => {
-    const p: DepositItem[] = [];
+  // Three buckets:
+  //   - pendingStaff: customer just submitted via LIFF, staff hasn't received yet
+  //   - pendingConfirm: staff received, bar hasn't verified yet
+  //   - active: in_store / pending_withdrawal — visible as "MY BOTTLES"
+  const { pendingStaff, pendingConfirm, active } = useMemo(() => {
+    const ps: DepositItem[] = [];
+    const pc: DepositItem[] = [];
     const a: DepositItem[] = [];
     for (const d of deposits) {
-      if (d.status === 'pending_confirm') p.push(d);
+      if (d.status === 'pending_staff') ps.push(d);
+      else if (d.status === 'pending_confirm') pc.push(d);
       else a.push(d);
     }
-    return { pending: p, active: a };
+    return { pendingStaff: ps, pendingConfirm: pc, active: a };
   }, [deposits]);
 
   const filteredActive = useMemo(() => {
@@ -223,7 +233,7 @@ export function MyBottlesView() {
             {displayName}
           </h2>
           <p className="mt-1.5 text-[10px] text-[rgba(248,215,148,0.5)]">
-            {t('activeItems', { count: active.length })}
+            {t('activeItems', { count: active.length + pendingStaff.length + pendingConfirm.length })}
           </p>
         </div>
       )}
@@ -235,7 +245,77 @@ export function MyBottlesView() {
         </div>
       )}
 
-      {pending.length > 0 && (
+      {/* Stage 1: customer just submitted, waiting for staff to physically receive */}
+      {pendingStaff.length > 0 && (
+        <section className="mb-4">
+          <div className="customer-section-header">
+            <div className="customer-section-title">
+              <Hourglass className="h-3 w-3" />
+              <span>{t('pendingRequestsTitle')}</span>
+            </div>
+            <span className="customer-section-pill">
+              {t('activeItems', { count: pendingStaff.length })}
+            </span>
+          </div>
+          <div>
+            {pendingStaff.map((d) => (
+              <div
+                key={d.id}
+                className="customer-card customer-card-pending"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="customer-item-name truncate">
+                      {d.productName || t('pendingRequestUnnamed')}
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-[rgba(248,215,148,0.55)]">
+                      {t('requestSubmittedAt', {
+                        time: new Date(d.depositDate).toLocaleTimeString(undefined, {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        }),
+                      })}
+                    </p>
+                  </div>
+                  <span className="customer-pending-badge ml-2 shrink-0 animate-pulse">
+                    <Hourglass className="h-2.5 w-2.5" />
+                    {t('pendingStaff')}
+                  </span>
+                </div>
+
+                {(d.tableNumber || d.notes) && (
+                  <div className="customer-detail-box">
+                    {d.tableNumber && (
+                      <div className="flex items-center justify-between">
+                        <span className="customer-detail-label">{t('requestTableLabel')}</span>
+                        <span className="text-[11px] font-bold text-[#F8D794]">
+                          {d.tableNumber}
+                        </span>
+                      </div>
+                    )}
+                    {d.tableNumber && d.notes && <div className="customer-detail-separator" />}
+                    {d.notes && (
+                      <div>
+                        <p className="customer-detail-label">{t('requestNotesLabel')}</p>
+                        <p className="mt-0.5 text-[11px] leading-snug text-[rgba(248,215,148,0.8)]">
+                          {d.notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <p className="mt-2 text-[10px] leading-snug text-[rgba(248,215,148,0.55)]">
+                  {t('pendingRequestHint')}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Stage 2: staff received, bar verifying */}
+      {pendingConfirm.length > 0 && (
         <section className="mb-4">
           <div className="customer-section-header">
             <div className="customer-section-title">
@@ -244,7 +324,7 @@ export function MyBottlesView() {
             </div>
           </div>
           <div>
-            {pending.map((d) => (
+            {pendingConfirm.map((d) => (
               <div
                 key={d.id}
                 className="customer-card customer-card-pending flex items-center justify-between"

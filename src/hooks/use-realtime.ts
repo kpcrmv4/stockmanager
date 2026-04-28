@@ -9,7 +9,6 @@ type TableName =
   | 'withdrawals'
   | 'comparisons'
   | 'notifications'
-  | 'deposit_requests'
   | 'announcements'
   | 'transfers'
   | 'hq_deposits'

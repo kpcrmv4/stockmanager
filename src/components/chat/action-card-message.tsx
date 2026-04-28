@@ -74,6 +74,10 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
   // is a string so the placeholder shows when nothing has been typed.
   const [barConfirmQty, setBarConfirmQty] = useState('');
   const [barConfirmBottlePercents, setBarConfirmBottlePercents] = useState<string[]>([]);
+  // Customer LIFF flow stage-2: staff fills product name + quantity when
+  // physically receiving the bottle. Empty for staff-initiated deposits.
+  const [staffProductInput, setStaffProductInput] = useState('');
+  const [staffQtyInput, setStaffQtyInput] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -263,6 +267,19 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         && !isBarCompleting;
 
       if (isStaffCompletingDeposit) {
+        // Customer-LIFF cards arrive with placeholder product/qty. Staff
+        // must fill those when physically receiving — the inputs are
+        // surfaced in the stage-2 UI for `from_customer` cards.
+        const isFromCustomer = (meta.summary as Record<string, unknown> | undefined)?.from_customer === true;
+        const productName = staffProductInput.trim();
+        const qty = Number(staffQtyInput);
+        if (isFromCustomer) {
+          if (!productName || !Number.isFinite(qty) || qty <= 0) {
+            setLoading(false);
+            return;
+          }
+        }
+
         // Staff complete → transition to pending_bar (NOT completed)
         const newMeta: ActionCardMetadata = {
           ...meta,
@@ -274,6 +291,11 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           summary: {
             ...meta.summary,
             received_by: currentUserName,
+            ...(isFromCustomer && {
+              items: `${productName} x${qty}`,
+              product_name: productName,
+              quantity: qty,
+            }),
           },
         };
 
@@ -291,16 +313,48 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           message: updated,
         } as unknown as Record<string, unknown>);
 
-        // Sync staff received info back to deposit record
+        // Sync staff received info back to deposit record. For customer-LIFF
+        // cards, also fill product_name/quantity, transition status from
+        // pending_staff → pending_confirm, set expiry, and seed bottle rows
+        // (the auto-bottle trigger fired with qty=0 placeholder so we now
+        // create them manually).
         if (meta.reference_table === 'deposits' && meta.reference_id) {
-          supabase
-            .from('deposits')
-            .update({
+          (async () => {
+            const update: Record<string, unknown> = {
               received_by: currentUserId,
               received_photo_url: photoUrl || undefined,
-            })
-            .eq('deposit_code', meta.reference_id)
-            .then(() => {});
+            };
+            if (isFromCustomer) {
+              update.product_name = productName;
+              update.quantity = qty;
+              update.remaining_qty = qty;
+              update.remaining_percent = 100;
+              update.status = 'pending_confirm';
+              const { expiryDateISO } = await import('@/lib/utils/date');
+              update.expiry_date = expiryDateISO(30);
+            }
+            const { data: depositRow } = await supabase
+              .from('deposits')
+              .update(update)
+              .eq('deposit_code', meta.reference_id)
+              .select('id')
+              .single();
+
+            if (isFromCustomer && depositRow?.id) {
+              const bottleRows = [];
+              for (let i = 1; i <= qty; i++) {
+                bottleRows.push({
+                  deposit_id: depositRow.id,
+                  bottle_no: i,
+                  remaining_percent: 100,
+                  status: 'in_store',
+                });
+              }
+              if (bottleRows.length > 0) {
+                await supabase.from('deposit_bottles').insert(bottleRows);
+              }
+            }
+          })();
         }
 
         // Audit: staff completed deposit step 1
@@ -1604,6 +1658,8 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
 
                 {isClaimedByMe && (() => {
                   const isBarStep = !!(meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step;
+                  const isFromCustomer = isDepositCard && !isBarStep
+                    && (meta.summary as Record<string, unknown> | undefined)?.from_customer === true;
                   const qtyNum = parseInt(barConfirmQty);
                   const validQty = Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : summaryQty;
                   const allBottlesFilled = isBarStep
@@ -1614,8 +1670,46 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                         return Number.isFinite(n) && n >= 0 && n <= 100;
                       })
                     : true;
+                  // Customer-LIFF stage-2: staff must fill product + qty
+                  const staffQtyNum = Number(staffQtyInput);
+                  const staffInputsValid = !isFromCustomer
+                    || (staffProductInput.trim().length > 0 && Number.isFinite(staffQtyNum) && staffQtyNum > 0);
                   return (
                   <div className="space-y-2">
+                    {/* Customer-LIFF stage-2: ขาดข้อมูล product/qty — Staff เติม */}
+                    {isFromCustomer && (
+                      <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-2 dark:border-amber-800 dark:bg-amber-900/20">
+                        <p className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                          ลูกค้าฝากผ่าน LINE — กรุณาระบุชื่อเหล้า + จำนวนขวดที่รับ
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          <input
+                            type="text"
+                            value={staffProductInput}
+                            onChange={(e) => setStaffProductInput(e.target.value)}
+                            placeholder="ชื่อเหล้า"
+                            className="col-span-2 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                          />
+                          <input
+                            type="number"
+                            min={1}
+                            value={staffQtyInput}
+                            onChange={(e) => setStaffQtyInput(e.target.value)}
+                            placeholder="จำนวน"
+                            className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-center text-xs text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                          />
+                        </div>
+                        {storeId && meta.reference_id && (
+                          <a
+                            href={`/deposit/requests`}
+                            className="inline-flex items-center gap-1 text-[10px] text-amber-700 underline-offset-2 hover:underline dark:text-amber-300"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            หรือเปิดหน้าฝากเหล้าเพื่อกรอกข้อมูลครบ
+                          </a>
+                        )}
+                      </div>
+                    )}
                     {/* Bar step: editable qty + per-bottle % + photo */}
                     {isBarStep && (
                       <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800/40">
@@ -1687,10 +1781,18 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                         className="flex-1"
                         icon={<CheckCircle className="h-3.5 w-3.5" />}
                         isLoading={loading}
-                        disabled={isBarStep ? (!photoUrl || !allBottlesFilled) : false}
+                        disabled={
+                          isBarStep
+                            ? (!photoUrl || !allBottlesFilled)
+                            : !staffInputsValid
+                        }
                         onClick={() => handleAction('complete')}
                       >
-                        {isBarStep ? 'ยืนยันรับฝาก' : photoUrl ? 'เสร็จ + ส่งรูป' : 'เสร็จแล้ว'}
+                        {isBarStep
+                          ? 'ยืนยันรับฝาก'
+                          : isFromCustomer
+                            ? 'รับเหล้าและส่งให้ Bar'
+                            : photoUrl ? 'เสร็จ + ส่งรูป' : 'เสร็จแล้ว'}
                       </Button>
                       <Button
                         size="sm"

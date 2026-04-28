@@ -8,11 +8,11 @@ import { useAuthStore } from '@/stores/auth-store';
  * Total number of items waiting for owner approval across all stores.
  *
  * Mirrors the categories surfaced on `/inbox`:
- *   - comparisons.status='explained'      (stock explanations)
- *   - deposits.status='pending_confirm'   (bar-side receive)
- *   - deposit_requests.status='pending'   (LINE customer requests)
- *   - borrows.status='pending_approval'   (lender approval)
- *   - transfers.status='pending'          (receiver confirm)
+ *   - comparisons.status='explained'         (stock explanations)
+ *   - deposits.status='pending_confirm'      (bar-side receive)
+ *   - deposits.status='pending_staff'        (LIFF customer requests)
+ *   - borrows.status='pending_approval'      (lender approval)
+ *   - transfers.status='pending'             (receiver confirm)
  *
  * Privileged-only (owner/accountant); other roles always get 0 so the
  * sidebar badge stays hidden for them.
@@ -41,7 +41,7 @@ export function useInboxCount(pollMs = 60_000): number {
     const [explainRes, barRes, custReqRes, borrowRes, transferRes] = await Promise.all([
       supabase.from('comparisons').select('id', { count: 'exact', head: true }).eq('status', 'explained'),
       supabase.from('deposits').select('id', { count: 'exact', head: true }).eq('status', 'pending_confirm'),
-      supabase.from('deposit_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('deposits').select('id', { count: 'exact', head: true }).eq('status', 'pending_staff'),
       supabase.from('borrows').select('id', { count: 'exact', head: true }).eq('status', 'pending_approval'),
       supabase.from('transfers').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     ]);
@@ -77,7 +77,6 @@ export function useInboxCount(pollMs = 60_000): number {
       .channel('inbox-count')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comparisons' }, debouncedFetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'deposits' }, debouncedFetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'deposit_requests' }, debouncedFetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'borrows' }, debouncedFetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transfers' }, debouncedFetch)
       .subscribe();

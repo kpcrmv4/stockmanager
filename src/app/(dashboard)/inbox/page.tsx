@@ -113,11 +113,11 @@ export default function InboxPage() {
           .select('id, store_id, deposit_code, customer_name, product_name, created_at')
           .eq('status', 'pending_confirm')
           .order('created_at', { ascending: false }),
-        // LINE customer deposit requests
+        // LINE customer deposit requests (deposits.pending_staff)
         supabase
-          .from('deposit_requests')
-          .select('id, store_id, customer_name, product_name, created_at')
-          .eq('status', 'pending')
+          .from('deposits')
+          .select('id, store_id, customer_name, product_name, deposit_code, created_at')
+          .eq('status', 'pending_staff')
           .order('created_at', { ascending: false }),
         // Borrow requests awaiting approval (lender side)
         supabase
@@ -171,15 +171,16 @@ export default function InboxPage() {
         });
       }
 
-      for (const row of (custReqRes.data || []) as Array<{ id: string; store_id: string; customer_name: string | null; product_name: string | null; created_at: string }>) {
+      for (const row of (custReqRes.data || []) as Array<{ id: string; store_id: string; customer_name: string | null; product_name: string | null; deposit_code: string; created_at: string }>) {
         next.push({
           id: `req_${row.id}`,
           category: 'customer_request',
           store_id: row.store_id,
           store_name: storeMap.get(row.store_id) || '-',
+          reference_id: row.deposit_code,
           count: 1,
           href: `/deposit/requests`,
-          preview: `${row.customer_name || ''} — ${row.product_name || ''}`,
+          preview: `${row.customer_name || ''}${row.product_name ? ` — ${row.product_name}` : ' — รอระบุรายละเอียด'}`,
           created_at: row.created_at,
         });
       }
@@ -360,7 +361,6 @@ export default function InboxPage() {
       .channel('inbox-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comparisons' }, debouncedRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'deposits' }, debouncedRefetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'deposit_requests' }, debouncedRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'borrows' }, debouncedRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transfers' }, debouncedRefetch)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals' }, debouncedRefetch)

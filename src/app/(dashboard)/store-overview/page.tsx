@@ -100,7 +100,12 @@ function mapActivity(
       colorClass: 'text-amber-500',
     };
   }
-  if (actionType === 'INSERT' && tableName === 'deposit_requests') {
+  // Customer LIFF deposit request: audit logged with action='CUSTOMER_DEPOSIT_REQUEST'
+  // on the deposits table now (was deposit_requests in the old schema).
+  if (
+    (actionType === 'CUSTOMER_DEPOSIT_REQUEST' && tableName === 'deposits') ||
+    (actionType === 'INSERT' && tableName === 'deposit_requests')
+  ) {
     return {
       label: t('actNewDepositRequest'),
       icon: ClipboardCheck,
@@ -238,12 +243,12 @@ export default function StoreOverviewPage() {
         .eq('store_id', storeId)
         .eq('status', 'in_store');
 
-      // --- Pending deposit requests (status = 'pending') ---
+      // --- Pending deposit requests (LIFF customer requests waiting staff) ---
       const { count: pendingDeposits } = await supabase
-        .from('deposit_requests')
+        .from('deposits')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId)
-        .eq('status', 'pending');
+        .eq('status', 'pending_staff');
 
       // --- Pending withdrawals (status IN 'pending', 'approved') ---
       const { count: pendingWithdrawals } = await supabase

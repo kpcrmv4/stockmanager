@@ -56,10 +56,12 @@ interface ParsedRow {
   raw: Record<string, string>;
 }
 
-// Valid statuses per table
+// Valid statuses per table — matches the deposit_status enum in DB.
+// `pending_staff` = customer requested via LIFF, staff hasn't received yet
+// `cancelled`     = staff rejected the request before receiving
 const VALID_DEPOSIT_STATUSES = [
-  'pending_confirm', 'in_store', 'pending_withdrawal',
-  'withdrawn', 'expired', 'transfer_pending', 'transferred_out',
+  'pending_staff', 'pending_confirm', 'in_store', 'pending_withdrawal',
+  'withdrawn', 'expired', 'transfer_pending', 'transferred_out', 'cancelled',
 ];
 const VALID_WITHDRAWAL_STATUSES = ['pending', 'approved', 'completed', 'rejected'];
 const VALID_TRANSFER_STATUSES = ['pending', 'confirmed', 'rejected'];
@@ -141,8 +143,10 @@ function formatDateForSupabase(dateStr: string): string | null {
 function mapDepositStatus(raw: string): string {
   const s = raw.toLowerCase().trim();
   if (VALID_DEPOSIT_STATUSES.includes(s)) return s;
+  // Legacy aliases (GAS / Thai labels)
   if (s === 'active' || s === 'ฝากอยู่') return 'in_store';
   if (s === 'pending' || s === 'รอยืนยัน') return 'pending_confirm';
+  if (s === 'pending_staff' || s === 'รอ staff' || s === 'รอพนักงาน') return 'pending_staff';
   return 'in_store';
 }
 
@@ -645,11 +649,17 @@ export default function ImportDepositsPage() {
       for (let i = 0; i < validRows.length; i += BATCH) {
         const batch = validRows.slice(i, i + BATCH);
         const records = batch.map((row) => {
-          const qty = Number(row.raw.quantity) || 0;
-          const remQty = Number(row.raw.remaining_qty) || qty;
-          const remPct =
-            Number(row.raw.remaining_percent) ||
-            (qty > 0 ? Math.round((remQty / qty) * 100) : 100);
+          const mappedStatus = mapDepositStatus(row.raw.status);
+          const isPendingStaff = mappedStatus === 'pending_staff';
+          // For pending_staff: force qty=0 so the bottle trigger doesn't fire
+          // — staff will fill product/qty when physically receiving the bottle.
+          // (Matches the LIFF customer-deposit-request endpoint.)
+          const qty = isPendingStaff ? 0 : (Number(row.raw.quantity) || 0);
+          const remQty = isPendingStaff ? 0 : (Number(row.raw.remaining_qty) || qty);
+          const remPct = isPendingStaff
+            ? 100
+            : Number(row.raw.remaining_percent) ||
+              (qty > 0 ? Math.round((remQty / qty) * 100) : 100);
           return {
             store_id: selectedStoreId,
             deposit_code:
@@ -658,7 +668,9 @@ export default function ImportDepositsPage() {
             line_user_id: row.raw.line_user_id || null,
             customer_name: row.raw.customer_name,
             customer_phone: row.raw.customer_phone || null,
-            product_name: row.raw.product_name || row.raw.item_name,
+            product_name: isPendingStaff
+              ? (row.raw.product_name || row.raw.item_name || '')
+              : (row.raw.product_name || row.raw.item_name),
             category: row.raw.category || null,
             quantity: qty,
             remaining_qty: remQty,
@@ -666,12 +678,12 @@ export default function ImportDepositsPage() {
             table_number: row.raw.table_number || null,
             status:
               (row.raw.is_vip || '').toUpperCase() === 'TRUE' &&
-              mapDepositStatus(row.raw.status) === 'expired'
+              mappedStatus === 'expired'
                 ? 'in_store'
-                : mapDepositStatus(row.raw.status),
+                : mappedStatus,
             is_vip: (row.raw.is_vip || '').toUpperCase() === 'TRUE',
             expiry_date:
-              (row.raw.is_vip || '').toUpperCase() === 'TRUE'
+              (row.raw.is_vip || '').toUpperCase() === 'TRUE' || isPendingStaff
                 ? null
                 : formatDateForSupabase(row.raw.expiry_date),
             notes: row.raw.notes || null,
@@ -679,7 +691,8 @@ export default function ImportDepositsPage() {
             customer_photo_url: row.raw.customer_photo_url || null,
             received_photo_url: row.raw.received_photo_url || null,
             confirm_photo_url: row.raw.confirm_photo_url || null,
-            received_by: user.id,
+            // Staff hasn't received the bottle yet for pending_staff rows.
+            received_by: isPendingStaff ? null : user.id,
             created_at:
               formatDateForSupabase(
                 row.raw.deposit_date || row.raw.created_at

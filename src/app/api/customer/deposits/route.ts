@@ -4,58 +4,67 @@ import { createServiceClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/customer/deposits?token=xxx
- * ดึง deposits ของลูกค้า (ใช้ customer token verify)
+ * POST /api/customer/deposits  body: { accessToken }
  *
- * POST /api/customer/deposits
- * Body: { accessToken: string }
- * ดึง deposits ของลูกค้า (ใช้ LIFF access token verify)
+ * Returns the customer's active deposit lifecycle:
+ *   pending_staff → pending_confirm → in_store → pending_withdrawal
+ *
+ * `pending_staff` rows are LIFF-submitted requests where the customer hasn't
+ * yet handed the bottle to staff. The customer LIFF surfaces these in a
+ * "Pending Requests" section so they can see the request was received.
  */
 
 const DEPOSIT_SELECT =
-  'id, deposit_code, product_name, category, remaining_qty, remaining_percent, expiry_date, status, created_at, store_id, store:stores(store_name)';
+  'id, deposit_code, product_name, category, quantity, remaining_qty, remaining_percent, expiry_date, status, table_number, notes, customer_photo_url, created_at, store_id, store:stores(store_name)';
+
+const ACTIVE_STATUSES = [
+  'pending_staff',
+  'pending_confirm',
+  'in_store',
+  'pending_withdrawal',
+] as const;
 
 interface GetDepositsOptions {
-  /** When set, only deposits belonging to this store are returned. */
   storeId?: string | null;
-  /** When set, resolve store_id from store_code first. */
   storeCode?: string | null;
 }
 
-async function getDeposits(lineUserId: string, opts: GetDepositsOptions = {}) {
+async function resolveStoreId(opts: GetDepositsOptions): Promise<string | null | undefined> {
+  if (opts.storeId) return opts.storeId;
+  if (!opts.storeCode) return null;
+
   const supabase = createServiceClient();
+  const { data: store } = await supabase
+    .from('stores')
+    .select('id')
+    .eq('store_code', opts.storeCode)
+    .eq('active', true)
+    .maybeSingle();
+  return store?.id ?? undefined;
+}
 
-  // Resolve storeId from storeCode if only the code was passed.
-  let resolvedStoreId = opts.storeId ?? null;
-  if (!resolvedStoreId && opts.storeCode) {
-    const { data: store } = await supabase
-      .from('stores')
-      .select('id')
-      .eq('store_code', opts.storeCode)
-      .eq('active', true)
-      .maybeSingle();
-    resolvedStoreId = store?.id ?? null;
+async function getDeposits(lineUserId: string, opts: GetDepositsOptions = {}) {
+  const resolved = await resolveStoreId(opts);
+  // Fail-closed: storeCode provided but didn't resolve → no data.
+  if (resolved === undefined) return [];
 
-    // Store code provided but didn't resolve → return empty (fail closed,
-    // never leak deposits from other branches).
-    if (!resolvedStoreId) return [];
-  }
-
+  const supabase = createServiceClient();
   let query = supabase
     .from('deposits')
     .select(DEPOSIT_SELECT)
     .eq('line_user_id', lineUserId)
-    .in('status', ['pending_confirm', 'in_store', 'pending_withdrawal'])
+    .in('status', ACTIVE_STATUSES as unknown as string[])
     .order('created_at', { ascending: false });
 
-  if (resolvedStoreId) {
-    query = query.eq('store_id', resolvedStoreId);
+  if (resolved) {
+    query = query.eq('store_id', resolved);
   }
 
   const { data } = await query;
   return data || [];
 }
 
-// Token mode
+// Token mode (signed customer-token from a Flex card link)
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token');
   const storeId = request.nextUrl.searchParams.get('storeId');
@@ -74,7 +83,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ deposits });
 }
 
-// LIFF mode
+// LIFF mode (customer is in the LINE app — verify via LIFF accessToken)
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const { accessToken, storeId, storeCode } = body as {
@@ -87,7 +96,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing accessToken' }, { status: 400 });
   }
 
-  // Verify with LINE API
   const verifyRes = await fetch(
     `https://api.line.me/oauth2/v2.1/verify?access_token=${encodeURIComponent(accessToken)}`,
   );

@@ -17,7 +17,9 @@ SET timezone = 'Asia/Bangkok';
 -- ENUMS (core + chat + borrow)
 -- ==========================================
 CREATE TYPE user_role AS ENUM ('owner', 'accountant', 'manager', 'bar', 'staff', 'customer', 'hq');
-CREATE TYPE deposit_status AS ENUM ('pending_confirm', 'in_store', 'pending_withdrawal', 'withdrawn', 'expired', 'transferred_out');
+-- pending_staff = customer LIFF request, staff hasn't physically received yet
+-- cancelled     = staff rejected the request before receiving
+CREATE TYPE deposit_status AS ENUM ('pending_staff', 'pending_confirm', 'in_store', 'pending_withdrawal', 'withdrawn', 'expired', 'transferred_out', 'cancelled');
 CREATE TYPE comparison_status AS ENUM ('pending', 'explained', 'approved', 'rejected');
 CREATE TYPE withdrawal_status AS ENUM ('pending', 'approved', 'completed', 'rejected');
 CREATE TYPE transfer_status AS ENUM ('pending', 'confirmed', 'rejected');
@@ -472,20 +474,9 @@ CREATE TABLE withdrawals (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE deposit_requests (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  store_id UUID REFERENCES stores(id),
-  line_user_id TEXT NOT NULL,
-  customer_name TEXT,
-  customer_phone TEXT,
-  product_name TEXT,
-  quantity NUMERIC(10,2),
-  table_number TEXT,
-  customer_photo_url TEXT,
-  notes TEXT,
-  status TEXT DEFAULT 'pending',
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+-- NOTE: the legacy `deposit_requests` table has been removed.
+-- Customer-LIFF deposit requests now live in `deposits` with
+-- status='pending_staff' (placeholder product/qty=0). See migration 00031.
 
 -- ==========================================
 -- TRANSFER MODULE
@@ -829,7 +820,6 @@ CREATE INDEX idx_audit_logs_store_id ON audit_logs(store_id);
 CREATE INDEX idx_announcements_store_id ON announcements(store_id);
 CREATE INDEX idx_announcements_active ON announcements(active, start_date, end_date);
 CREATE INDEX idx_profiles_line_user_id ON profiles(line_user_id);
-CREATE INDEX idx_deposit_requests_store_status ON deposit_requests(store_id, status);
 CREATE INDEX idx_products_store_id ON products(store_id);
 CREATE INDEX idx_hq_deposits_status ON hq_deposits(status);
 CREATE INDEX idx_hq_deposits_from_store ON hq_deposits(from_store_id);
@@ -907,7 +897,6 @@ ALTER TABLE comparisons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comparison_product_bookmarks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deposits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE withdrawals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deposit_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transfers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE store_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
@@ -1093,11 +1082,6 @@ CREATE POLICY "Staff see store ocr_logs" ON ocr_logs FOR SELECT USING (store_id 
 CREATE POLICY "Staff manage ocr_logs" ON ocr_logs FOR ALL USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
 CREATE POLICY "Staff see ocr_items" ON ocr_items FOR SELECT USING (ocr_log_id IN (SELECT id FROM public.ocr_logs WHERE store_id IN (SELECT get_user_store_ids())) OR is_admin());
 CREATE POLICY "Staff manage ocr_items" ON ocr_items FOR ALL USING (ocr_log_id IN (SELECT id FROM public.ocr_logs WHERE store_id IN (SELECT get_user_store_ids())) OR is_admin());
-
--- ========== deposit_requests ==========
-CREATE POLICY "Staff see store deposit_requests" ON deposit_requests FOR SELECT USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
-CREATE POLICY "Authenticated insert deposit_requests" ON deposit_requests FOR INSERT WITH CHECK ((SELECT auth.uid()) IS NOT NULL);
-CREATE POLICY "Staff manage deposit_requests" ON deposit_requests FOR UPDATE USING (store_id IN (SELECT get_user_store_ids()) OR is_admin());
 
 -- ========== audit_logs ==========
 CREATE POLICY "Admin see audit_logs" ON audit_logs FOR SELECT USING (is_admin());
@@ -1439,7 +1423,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE deposits;
 ALTER PUBLICATION supabase_realtime ADD TABLE withdrawals;
 ALTER PUBLICATION supabase_realtime ADD TABLE comparisons;
 ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
-ALTER PUBLICATION supabase_realtime ADD TABLE deposit_requests;
 ALTER PUBLICATION supabase_realtime ADD TABLE announcements;
 ALTER PUBLICATION supabase_realtime ADD TABLE print_queue;
 ALTER PUBLICATION supabase_realtime ADD TABLE print_server_status;

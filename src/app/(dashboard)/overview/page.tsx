@@ -91,7 +91,7 @@ interface StoreStatus {
   name: string;
   code: string;
   isCentral: boolean;
-  pendingDeposits: number;      // deposit_requests pending
+  pendingDeposits: number;      // deposits.pending_staff (LIFF requests waiting for staff)
   pendingWithdrawals: number;   // deposits pending_withdrawal
   expiringDeposits: number;     // expiring within 7 days
   activeDeposits: number;       // deposits in_store
@@ -780,7 +780,7 @@ export default function OverviewPage() {
       const grpLtaQ = isOwner ? supabase.from('borrows').select('to_store_id').eq('status', 'pending_approval') : null;
       const grpLtrQ = isOwner ? supabase.from('borrows').select('to_store_id').eq('status', 'completed') : null;
       const grpCmQ = isOwner ? supabase.from('commission_entries').select('store_id, net_amount').gte('bill_date', commissionMonthStart).lte('bill_date', commissionMonthEnd) : null;
-      const grpDrQ = isOwner ? supabase.from('deposit_requests').select('store_id').eq('status', 'pending') : null;
+      const grpDrQ = isOwner ? supabase.from('deposits').select('store_id').eq('status', 'pending_staff') : null;
       // For lastStockCheck per store: fetch (store_id, count_date) ordered DESC, take first per store.
       const grpLcQ = isOwner ? supabase.from('manual_counts').select('store_id, count_date').order('count_date', { ascending: false }).limit(2000) : null;
 

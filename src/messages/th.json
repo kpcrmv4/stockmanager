@@ -303,7 +303,13 @@
       "bottlesLabel": "จำนวนขวด",
       "pendingStaff": "รอพนักงานยืนยัน",
       "inStore": "ฝากอยู่ในร้าน",
-      "daysLeftLabel": "เหลืออีก"
+      "daysLeftLabel": "เหลืออีก",
+      "pendingRequestsTitle": "คำขอที่รอ Staff",
+      "pendingRequestUnnamed": "คำขอฝากเหล้า (รอ Staff ระบุรายละเอียด)",
+      "pendingRequestHint": "พนักงานกำลังตรวจสอบและจะเพิ่มรายละเอียดขวดให้ในไม่ช้า",
+      "requestSubmittedAt": "ส่งเมื่อ {time}",
+      "requestTableLabel": "โต๊ะ",
+      "requestNotesLabel": "หมายเหตุ"
     },
     "deposit": {
       "title": "ฝากเหล้า",
@@ -1172,7 +1178,14 @@
       "notifyTitle": "มีรายการฝากเหล้าใหม่",
       "statusPending": "รอตรวจสอบ",
       "statusApproved": "อนุมัติแล้ว",
-      "statusRejected": "ปฏิเสธ"
+      "statusRejected": "ปฏิเสธ",
+      "tableLabel": "โต๊ะ",
+      "awaitingDetails": "รอระบุรายละเอียด",
+      "awaitingQuantity": "ยังไม่ระบุจำนวน",
+      "needsDetailsHint": "ลูกค้ายังไม่ระบุชื่อสินค้า/จำนวน กรุณาเติมก่อนกดอนุมัติ",
+      "productPlaceholder": "เช่น Johnnie Walker Black",
+      "fillDetailsTitle": "ข้อมูลไม่ครบ",
+      "fillDetailsMessage": "กรุณากรอกชื่อสินค้าและจำนวนก่อนอนุมัติ"
     },
     "withdrawals": {
       "backToDeposit": "กลับหน้าฝากเหล้า",

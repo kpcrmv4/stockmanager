@@ -34,6 +34,7 @@ import { ExpiredDepositsBanner } from '@/components/deposit/expired-deposits-ban
 interface DepositRequestRow {
   id: string;
   store_id: string;
+  deposit_code: string;
   customer_name: string | null;
   customer_phone: string | null;
   table_number: string | null;
@@ -123,6 +124,7 @@ function mapDepositRequest(req: DepositRequestRow): TableCardItem {
     notes: req.notes,
     photoUrl: req.customer_photo_url,
     createdAt: req.created_at,
+    depositCode: req.deposit_code,
     storeId: req.store_id,
     rawData: req as unknown as Record<string, unknown>,
   };
@@ -197,11 +199,12 @@ export default function MyTasksPage() {
 
     try {
       const [depRes, wdRes] = await Promise.all([
+        // pending_staff = customer LIFF requests waiting for staff to receive
         supabase
-          .from('deposit_requests')
-          .select('*')
+          .from('deposits')
+          .select('id, store_id, deposit_code, customer_name, customer_phone, table_number, product_name, quantity, status, notes, customer_photo_url, line_user_id, created_at')
           .eq('store_id', currentStoreId)
-          .eq('status', 'pending')
+          .eq('status', 'pending_staff')
           .order('created_at', { ascending: true }),
         supabase
           .from('withdrawals')
@@ -214,7 +217,7 @@ export default function MyTasksPage() {
       if (!mountedRef.current) return;
 
       if (depRes.error) {
-        console.error('[MyTasks] Failed to load deposit_requests:', depRes.error);
+        console.error('[MyTasks] Failed to load pending_staff deposits:', depRes.error);
       } else {
         setDepositRequests(
           (depRes.data as DepositRequestRow[]).map(mapDepositRequest),
@@ -244,7 +247,7 @@ export default function MyTasksPage() {
   // ---------------------------------------------------------------------------
 
   useRealtime({
-    table: 'deposit_requests',
+    table: 'deposits',
     filter: `store_id=eq.${currentStoreId}`,
     onInsert: () => loadAll(),
     onUpdate: () => loadAll(),
@@ -294,51 +297,65 @@ export default function MyTasksPage() {
 
     setIsAccepting(true);
     const supabase = createClient();
-    const depositCode = generateDepositCode();
+    const depositCode = selectedItem.depositCode || generateDepositCode();
 
     const expiryISO = expiryDateISO(days);
 
-    const raw = selectedItem.rawData as Record<string, unknown>;
-
     try {
-      // 1. Create deposit
-      const { error: depositErr } = await supabase.from('deposits').insert({
-        store_id: currentStoreId,
-        customer_name: selectedItem.customerName,
-        customer_phone: selectedItem.customerPhone || null,
-        product_name: productName.trim(),
-        category,
-        quantity: qty,
-        remaining_qty: qty,
-        remaining_percent: pct,
-        table_number: selectedItem.tableNumber || null,
-        line_user_id: (raw.line_user_id as string) || null,
-        status: 'pending_confirm',
-        customer_photo_url: selectedItem.photoUrl || null,
-        received_by: user.id,
-        expiry_date: expiryISO,
-        deposit_code: depositCode,
-      });
+      // The deposits row already exists (status='pending_staff' from LIFF) —
+      // staff fills product/qty/category and we transition to pending_confirm.
+      const { error: depositErr } = await supabase
+        .from('deposits')
+        .update({
+          product_name: productName.trim(),
+          category,
+          quantity: qty,
+          remaining_qty: qty,
+          remaining_percent: pct,
+          status: 'pending_confirm',
+          received_by: user.id,
+          expiry_date: expiryISO,
+        })
+        .eq('id', selectedItem.id);
 
       if (depositErr) throw depositErr;
 
-      // 2. Update deposit_request status to 'approved'
-      const { error: updateErr } = await supabase
-        .from('deposit_requests')
-        .update({ status: 'approved' })
-        .eq('id', selectedItem.id);
+      // Seed bottle rows now that qty is known (the auto-bottle trigger only
+      // fires on INSERT, and the original INSERT had qty=0).
+      const bottleRows = [];
+      for (let i = 1; i <= qty; i++) {
+        bottleRows.push({
+          deposit_id: selectedItem.id,
+          bottle_no: i,
+          remaining_percent: 100,
+          status: 'in_store',
+        });
+      }
+      if (bottleRows.length > 0) {
+        await supabase.from('deposit_bottles').insert(bottleRows);
+      }
 
-      if (updateErr) throw updateErr;
+      // Sync the existing chat action card (already posted by the customer
+      // request endpoint) to the next stage.
+      const { syncChatActionCardStatus } = await import('@/lib/chat/bot-client');
+      syncChatActionCardStatus({
+        storeId: currentStoreId,
+        referenceId: depositCode,
+        actionType: 'deposit_claim',
+        newStatus: 'pending_bar',
+        completedBy: user.id,
+        completedByName: user.username || user.id,
+      });
 
       // 3. Log audit
       logAudit({
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.DEPOSIT_REQUEST_APPROVED,
-        table_name: 'deposit_requests',
+        table_name: 'deposits',
         record_id: selectedItem.id,
-        old_value: { status: 'pending' },
+        old_value: { status: 'pending_staff' },
         new_value: {
-          status: 'approved',
+          status: 'pending_confirm',
           deposit_code: depositCode,
           product_name: productName.trim(),
           category,
@@ -400,23 +417,36 @@ export default function MyTasksPage() {
 
     try {
       const { error } = await supabase
-        .from('deposit_requests')
+        .from('deposits')
         .update({
-          status: 'rejected',
+          status: 'cancelled',
           notes: rejectState.reason.trim(),
         })
         .eq('id', rejectState.item.id);
 
       if (error) throw error;
 
+      // Close out the chat action card too.
+      if (rejectState.item.depositCode) {
+        const { syncChatActionCardStatus } = await import('@/lib/chat/bot-client');
+        syncChatActionCardStatus({
+          storeId: currentStoreId,
+          referenceId: rejectState.item.depositCode,
+          actionType: 'deposit_claim',
+          newStatus: 'completed',
+          completedBy: user.id,
+          completedByName: user.username || user.id,
+        });
+      }
+
       logAudit({
         store_id: currentStoreId,
         action_type: AUDIT_ACTIONS.DEPOSIT_REQUEST_REJECTED,
-        table_name: 'deposit_requests',
+        table_name: 'deposits',
         record_id: rejectState.item.id,
-        old_value: { status: 'pending' },
+        old_value: { status: 'pending_staff' },
         new_value: {
-          status: 'rejected',
+          status: 'cancelled',
           notes: rejectState.reason.trim(),
           customer_name: rejectState.item.customerName,
           product_name: rejectState.item.productName,

@@ -115,13 +115,15 @@ export interface Comparison {
 }
 
 export type DepositStatus =
+  | 'pending_staff'
   | 'pending_confirm'
   | 'in_store'
   | 'pending_withdrawal'
   | 'withdrawn'
   | 'expired'
   | 'transfer_pending'
-  | 'transferred_out';
+  | 'transferred_out'
+  | 'cancelled';
 
 export interface Deposit {
   id: string;
