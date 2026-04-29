@@ -18,13 +18,26 @@ type ActionCardType =
   | 'borrow_return_confirm'
   | 'transfer_receive';
 
-const DEPOSIT_OPS: ActionCardType[] = ['deposit_claim', 'withdrawal_claim'];
-
-const ROLE_ACTION_TYPES: Partial<Record<UserRole, readonly ActionCardType[]>> = {
-  staff: DEPOSIT_OPS,
-  bar: DEPOSIT_OPS,
-  // owner / manager / accountant / hq fall through to "see all"
-  customer: [],
+// Each action_type lists the roles that can actually *act* on the
+// card (claim → confirm → complete). The chat task tab — and the
+// pending-count badge that drives it — should only show cards whose
+// actor list contains the current user's role. Owner is implicit on
+// every list because owner can do everything.
+const ACTION_TYPE_ACTORS: Record<ActionCardType, readonly UserRole[]> = {
+  // Bar confirms a deposit into inventory; manager / owner can also.
+  // Staff *creates* the card but never acts on it.
+  deposit_claim:        ['bar', 'manager', 'owner'],
+  withdrawal_claim:     ['bar', 'manager', 'owner'],
+  // Stock flow: bar / manager count and explain, owner / accountant approve.
+  stock_explain:        ['bar', 'manager', 'owner', 'accountant'],
+  stock_supplementary:  ['bar', 'manager', 'owner'],
+  stock_approve:        ['owner', 'accountant', 'manager'],
+  // Borrow approval: manager / owner only.
+  borrow_approve:       ['manager', 'owner'],
+  // Lender confirms borrower's return.
+  borrow_return_confirm:['bar', 'manager', 'owner'],
+  // HQ receives transfers.
+  transfer_receive:     ['hq', 'manager', 'owner'],
 };
 
 export function isActionTypeVisibleToRole(
@@ -32,9 +45,13 @@ export function isActionTypeVisibleToRole(
   role: UserRole | undefined | null,
 ): boolean {
   if (!role) return true;
-  const allow = ROLE_ACTION_TYPES[role];
-  if (!allow) return true; // role not scoped → see all
-  return allow.includes(actionType as ActionCardType);
+  // Owner sees everything regardless of the actor list.
+  if (role === 'owner') return true;
+  const actors = ACTION_TYPE_ACTORS[actionType as ActionCardType];
+  // Unknown / generic types fall through to visible — don't accidentally
+  // hide future action types we haven't classified yet.
+  if (!actors) return true;
+  return actors.includes(role);
 }
 
 // Notifications use a wider set of `type` strings than chat action
