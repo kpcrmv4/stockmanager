@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardContent,
   Input,
+  Modal,
   Select,
   Textarea,
   toast,
@@ -28,6 +29,8 @@ import {
   Truck,
   User,
   Phone,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
@@ -387,6 +390,14 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Staff must shoot a photo of the bottle before saving, and after a
+  // successful save we show a hand-off modal reminding them to walk the
+  // bottle over to the bar. Bar/manager/owner skip both checks because
+  // they're often the ones doing the bar-confirm step themselves.
+  const isStaff = user?.role === 'staff';
+  const [showSendToBarModal, setShowSendToBarModal] = useState(false);
+  const [savedDepositCodes, setSavedDepositCodes] = useState<string[]>([]);
+
   // ----- Fetch products -----
   const fetchProducts = useCallback(async () => {
     if (!currentStoreId) return;
@@ -483,6 +494,12 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
     }
     if (!isNoDeposit && !isVip && (!expiryDays || parseInt(expiryDays) <= 0)) {
       newErrors.expiryDays = t('form.errorExpiryDays');
+    }
+
+    // Staff must attach a photo of the bottle on a real deposit (we skip
+    // this for "ไม่ฝาก" since there's no physical bottle to photograph).
+    if (isStaff && !isNoDeposit && !receivedPhotoUrl) {
+      newErrors.photo = 'กรุณาถ่ายรูปขวดเหล้าก่อนบันทึก';
     }
 
     items.forEach((item, idx) => {
@@ -693,7 +710,15 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
         }
       }
 
-      onSuccess();
+      // Staff: pause on a hand-off modal reminding them to deliver the
+      // bottle to bar before the row leaves the screen. Other roles
+      // continue straight back to the list.
+      if (isStaff && !isNoDeposit) {
+        setSavedDepositCodes(depositCodes);
+        setShowSendToBarModal(true);
+      } else {
+        onSuccess();
+      }
     } catch {
       toast({
         type: 'error',
@@ -1001,12 +1026,24 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
               placeholder={t("form.notesPlaceholder")}
               rows={3}
             />
-            <PhotoUpload
-              value={receivedPhotoUrl}
-              onChange={(url) => setReceivedPhotoUrl(url)}
-              folder="deposits"
-              label={t("form.photoLabel")}
-            />
+            <div>
+              <PhotoUpload
+                value={receivedPhotoUrl}
+                onChange={(url) => {
+                  setReceivedPhotoUrl(url);
+                  if (errors.photo) setErrors((prev) => ({ ...prev, photo: '' }));
+                }}
+                folder="deposits"
+                label={t("form.photoLabel")}
+                required={isStaff && !isNoDeposit}
+              />
+              {errors.photo && (
+                <p className="mt-1 flex items-center gap-1 text-xs text-red-500">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  {errors.photo}
+                </p>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -1036,6 +1073,52 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
                 : t('form.saveDepositSingle'))}
         </Button>
       </div>
+
+      {/* Hand-off modal — staff sees this after a successful save so they
+          remember to physically deliver the bottle to the bar before bar
+          can confirm it. Closing the modal returns to the deposit list. */}
+      <Modal
+        isOpen={showSendToBarModal}
+        onClose={() => {
+          setShowSendToBarModal(false);
+          onSuccess();
+        }}
+        title="บันทึกสำเร็จ"
+        size="sm"
+        showClose={false}
+      >
+        <div className="space-y-4 px-1 pb-1">
+          <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-700/50 dark:bg-amber-900/20">
+            <Truck className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="text-sm">
+              <p className="font-semibold text-amber-900 dark:text-amber-200">
+                กรุณานำขวดเหล้าไปส่งให้ Bar
+              </p>
+              <p className="mt-1 text-amber-700 dark:text-amber-300">
+                บันทึกรายการแล้ว — โปรดเดินขวดไปส่งให้บาร์เพื่อยืนยันรับเข้าระบบ ก่อนรายการจะถูกใช้งานได้
+              </p>
+            </div>
+          </div>
+          {savedDepositCodes.length > 0 && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-700 dark:bg-gray-800/50">
+              <span className="text-gray-500 dark:text-gray-400">รหัสรายการ: </span>
+              <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">
+                {savedDepositCodes.join(', ')}
+              </span>
+            </div>
+          )}
+          <Button
+            onClick={() => {
+              setShowSendToBarModal(false);
+              onSuccess();
+            }}
+            icon={<CheckCircle2 className="h-4 w-4" />}
+            className="min-h-[44px] w-full justify-center"
+          >
+            เข้าใจแล้ว
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

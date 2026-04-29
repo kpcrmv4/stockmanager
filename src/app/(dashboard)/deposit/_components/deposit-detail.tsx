@@ -1890,8 +1890,10 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             </Card>
           )}
 
-          {/* การดำเนินการ — consolidated action card */}
-          {user && user.role !== 'customer' && (canBarConfirm || canRejectDeposit || canWithdraw || canMarkExpired || canTransferToHq || canExtendExpiry || canToggleVip || canEditDeposit) && (
+          {/* การดำเนินการ — consolidated action card.
+              Staff sees nothing here while status='pending_bar' because their
+              job ended at "send the bottle to bar" — bar takes it from there. */}
+          {user && user.role !== 'customer' && !(user.role === 'staff' && deposit.status === 'pending_bar') && (canBarConfirm || canRejectDeposit || canWithdraw || canMarkExpired || canTransferToHq || canExtendExpiry || canToggleVip || canEditDeposit) && (
             <Card padding="none">
               <CardHeader title={t("detail.actions")} />
               <CardContent>
@@ -1998,30 +2000,34 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
             </Card>
           )}
 
-          {/* Print Actions */}
-          <Card padding="none">
-            <CardHeader title={t("detail.printDocuments")} />
-            <CardContent>
-              <div className="space-y-2">
-                <Button
-                  className="min-h-[44px] w-full justify-center"
-                  variant="outline"
-                  icon={<Printer className="h-4 w-4" />}
-                  onClick={() => { setPrintPreviewType('receipt'); setShowPrintPreview(true); }}
-                >
-                  {t("detail.printReceipt")}
-                </Button>
-                <Button
-                  className="min-h-[44px] w-full justify-center"
-                  variant="outline"
-                  icon={<Tag className="h-4 w-4" />}
-                  onClick={() => { setPrintPreviewType('label'); setShowPrintPreview(true); }}
-                >
-                  {t("detail.printLabel")}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Print Actions — hidden while still รอยืนยัน since bar hasn't
+              finalized the deposit yet, so the receipt/label would print
+              an unconfirmed row. */}
+          {deposit.status !== 'pending_bar' && (
+            <Card padding="none">
+              <CardHeader title={t("detail.printDocuments")} />
+              <CardContent>
+                <div className="space-y-2">
+                  <Button
+                    className="min-h-[44px] w-full justify-center"
+                    variant="outline"
+                    icon={<Printer className="h-4 w-4" />}
+                    onClick={() => { setPrintPreviewType('receipt'); setShowPrintPreview(true); }}
+                  >
+                    {t("detail.printReceipt")}
+                  </Button>
+                  <Button
+                    className="min-h-[44px] w-full justify-center"
+                    variant="outline"
+                    icon={<Tag className="h-4 w-4" />}
+                    onClick={() => { setPrintPreviewType('label'); setShowPrintPreview(true); }}
+                  >
+                    {t("detail.printLabel")}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
