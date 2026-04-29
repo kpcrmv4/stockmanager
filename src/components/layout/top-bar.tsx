@@ -131,6 +131,7 @@ export function TopBar({
           <button
             type="button"
             onClick={() => setUserMenuOpen(!userMenuOpen)}
+            data-tutorial-anchor="profile"
             className={cn(
               'flex items-center gap-2 rounded-lg px-2 py-1.5',
               'hover:bg-gray-100 dark:hover:bg-gray-800',

@@ -4,27 +4,30 @@ import { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useTutorialStore } from '@/stores/tutorial-store';
+import { TutorialIntroOverlay } from './tutorial-intro-overlay';
 import { TutorialPickerModal } from './tutorial-picker-modal';
 import { TutorialPanel } from './tutorial-panel';
 import { TutorialSpotlight } from './tutorial-spotlight';
 
-// The FAB stays mounted globally inside the dashboard layout. It opens
-// the feature picker, and once a flow starts the side panel + spotlight
-// take over the screen.
+// The FAB stays mounted globally inside the dashboard layout. Clicking
+// it kicks off a 3-stage flow:
+//   1. intro overlay  — coachmarks pointing at deposit/chat/profile
+//   2. picker modal   — choose which feature to walk through
+//   3. side panel     — autopilot walkthrough of the chosen flow
 //
-// Hidden via the user-menu toggle ("ซ่อนปุ่มสอนการใช้งาน"); state
-// persisted in localStorage.
+// FAB is hidden via the user-menu toggle ("ซ่อนปุ่มสอนการใช้งาน");
+// state persisted in localStorage.
 
 export function TutorialFAB() {
   const { hidden, active } = useTutorialStore();
-  const [showPicker, setShowPicker] = useState(false);
+  const [phase, setPhase] = useState<'closed' | 'intro' | 'picker'>('closed');
 
   return (
     <>
       {!hidden && !active && (
         <button
           type="button"
-          onClick={() => setShowPicker(true)}
+          onClick={() => setPhase('intro')}
           aria-label="สอนการใช้งาน"
           className={cn(
             'fixed bottom-20 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full',
@@ -39,9 +42,14 @@ export function TutorialFAB() {
         </button>
       )}
 
+      <TutorialIntroOverlay
+        isOpen={phase === 'intro'}
+        onClose={() => setPhase('picker')}
+      />
+
       <TutorialPickerModal
-        isOpen={showPicker}
-        onClose={() => setShowPicker(false)}
+        isOpen={phase === 'picker'}
+        onClose={() => setPhase('closed')}
       />
 
       {active && <TutorialPanel />}

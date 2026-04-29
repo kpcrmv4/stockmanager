@@ -87,11 +87,19 @@ export function BottomNav() {
           const colors = getModuleColors(item.color);
           const label = t(item.labelKey);
 
+          const tutorialAnchor =
+            item.href === '/deposit'
+              ? 'deposit'
+              : item.href === '/chat'
+                ? 'chat'
+                : undefined;
+
           if (isCenter) {
             return (
               <li key={item.href} className="flex-1">
                 <Link
                   href={item.href}
+                  data-tutorial-anchor={tutorialAnchor}
                   className="flex flex-col items-center pb-1.5"
                 >
                   <span
@@ -124,6 +132,7 @@ export function BottomNav() {
             <li key={item.href} className="flex-1">
               <Link
                 href={item.href}
+                data-tutorial-anchor={tutorialAnchor}
                 className={cn(
                   'flex min-h-[56px] flex-col items-center justify-center gap-0.5 px-1 py-2',
                   'transition-colors duration-150',
