@@ -1,16 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, X } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { cn } from '@/lib/utils/cn';
 
-// First-screen coachmark inspired by the gogobot reference. The screen
-// is dimmed by an SVG mask that *cuts out* the three anchor elements
-// (deposit / chat nav, profile button) so they stay readable. Each
-// label is parked in a corner away from anchors, with a curved
-// hand-drawn arrow connecting label → target. Mali handwriting font
-// gives the whole thing a "sticky note" feel rather than a UI dialog.
+// First-screen coachmark. SVG-mask cuts out the three anchor elements
+// (deposit / chat nav, profile button) so the dim overlay still shows
+// the icons being talked about. Each label is positioned directly
+// adjacent to its anchor with a directional arrow icon pointing at
+// the target — no cross-screen connector lines, which kept looking
+// like random squiggles.
 
 interface AnchorPos {
   top: number;
@@ -55,51 +55,17 @@ function measure(): AnchorMap {
   return result;
 }
 
+function clamp(v: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+type Side = 'above' | 'below' | 'left' | 'right';
+
 interface LabelConfig {
   anchor: AnchorName;
   title: string;
   body: string;
-  /** Where the label box sits within the viewport */
-  pos: { top?: number; bottom?: number; left?: number; right?: number };
-  /** Which corner of the label the arrow leaves from */
-  arrowFrom: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
-}
-
-function rectFromPos(
-  pos: LabelConfig['pos'],
-  width: number,
-  height: number,
-  vw: number,
-  vh: number,
-) {
-  const left = pos.left !== undefined ? pos.left : vw - (pos.right ?? 0) - width;
-  const top = pos.top !== undefined ? pos.top : vh - (pos.bottom ?? 0) - height;
-  return { left, top, width, height };
-}
-
-function arrowOrigin(
-  rect: { left: number; top: number; width: number; height: number },
-  side: LabelConfig['arrowFrom'],
-) {
-  const inset = 24;
-  if (side === 'top-right') return { x: rect.left + rect.width - inset, y: rect.top };
-  if (side === 'top-left') return { x: rect.left + inset, y: rect.top };
-  if (side === 'bottom-right')
-    return { x: rect.left + rect.width - inset, y: rect.top + rect.height };
-  return { x: rect.left + inset, y: rect.top + rect.height };
-}
-
-function curvePath(fromX: number, fromY: number, toX: number, toY: number): string {
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-  // Control points biased toward the from-side so the line "throws"
-  // outward before homing in on the target — gives the loose, hand-drawn
-  // feel of the gogobot example.
-  const c1x = fromX + dx * 0.15 + (dy > 0 ? 30 : -30);
-  const c1y = fromY + dy * 0.55;
-  const c2x = fromX + dx * 0.6;
-  const c2y = fromY + dy * 0.25;
-  return `M ${fromX} ${fromY} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${toX} ${toY}`;
+  side: Side;
 }
 
 interface Props {
@@ -137,39 +103,68 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
   if (!isOpen || vw === 0) return null;
 
   const isNarrow = vw < 768;
-  const labelW = Math.min(220, vw - 40);
-  // Estimated label height — title (~22px) + body 2 lines (~36px) +
-  // padding (~24px). Used only for arrow origin geometry; visual height
-  // is whatever the content needs.
-  const labelH = 80;
+  // On mobile we narrow each label so the deposit + chat labels can sit
+  // side-by-side above the bottom-nav. On desktop the sidebar takes up
+  // the left edge so we can afford a wider label.
+  const labelW = isNarrow ? Math.min(168, (vw - 32) / 2) : 240;
 
-  // Mobile: profile label below the status bar at top-right; deposit +
-  // chat labels float above the bottom-nav. Desktop: tighter columns.
   const labels: LabelConfig[] = [
     {
       anchor: 'profile',
       title: 'โปรไฟล์ของคุณ',
-      body: 'ตั้งค่า เปลี่ยนรหัสผ่าน หรือซ่อนปุ่มสอนการใช้งาน',
-      pos: { top: 70, right: 12 },
-      arrowFrom: 'top-right',
+      body: 'ตั้งค่า เปลี่ยนรหัสผ่าน หรือซ่อนปุ่มสอน',
+      side: 'below',
     },
     {
       anchor: 'deposit',
       title: 'ฝาก / เบิก',
-      body: 'หน้าหลัก — สร้างรายการฝาก รอยืนยัน เบิกของให้ลูกค้า',
-      pos: isNarrow ? { bottom: 130, left: 16 } : { bottom: 40, left: 16 },
-      arrowFrom: 'bottom-left',
+      body: 'หน้าหลัก — ฝาก เบิก รอยืนยัน',
+      side: isNarrow ? 'above' : 'right',
     },
     {
       anchor: 'chat',
       title: 'แชทในร้าน',
-      body: 'ห้องแชทสาขา — รับ Action Card จากบาร์/พนักงาน',
-      pos: isNarrow ? { bottom: 130, right: 16 } : { bottom: 40, right: 16 },
-      arrowFrom: 'bottom-right',
+      body: 'ห้องแชทสาขา — Action Card',
+      side: isNarrow ? 'above' : 'right',
     },
   ];
 
-  const visibleLabels = labels.filter((l) => anchors[l.anchor]);
+  // Predict each label's bounding box from its anchor + chosen side.
+  // We use this to position the label container; the actual rendered
+  // height is whatever the content needs (we just clamp into the viewport).
+  function positionFor(label: LabelConfig) {
+    const a = anchors[label.anchor];
+    if (!a) return null;
+    const GAP = 14;
+    const labelH = 78; // estimated; only used for clamping
+    let top = 0;
+    let left = 0;
+    if (label.side === 'above') {
+      top = a.top - GAP - labelH;
+      left = a.centerX - labelW / 2;
+    } else if (label.side === 'below') {
+      top = a.top + a.height + GAP;
+      left = a.centerX - labelW / 2;
+    } else if (label.side === 'right') {
+      top = a.centerY - labelH / 2;
+      left = a.left + a.width + GAP;
+    } else {
+      top = a.centerY - labelH / 2;
+      left = a.left - GAP - labelW;
+    }
+    // Keep inside the viewport with 8px gutter.
+    left = clamp(left, 8, vw - labelW - 8);
+    top = clamp(top, 60, vh - labelH - 8);
+    return { top, left };
+  }
+
+  const ArrowIcon: Record<Side, typeof ArrowUp> = {
+    above: ArrowDown,
+    below: ArrowUp,
+    left: ArrowRight,
+    right: ArrowLeft,
+  };
+
   const PAD = 8;
 
   return (
@@ -179,8 +174,7 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
       aria-label="ภาพรวมเมนูหลัก"
       style={{ fontFamily: 'var(--font-handwriting)' }}
     >
-      {/* Mask layer — dims everything except the anchor cutouts so the
-          underlying menu stays visible. */}
+      {/* SVG mask — cuts out the anchored elements so they remain visible */}
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"
         aria-hidden
@@ -209,11 +203,11 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
         <rect
           width="100%"
           height="100%"
-          fill="rgba(0, 0, 0, 0.5)"
+          fill="rgba(0, 0, 0, 0.55)"
           mask="url(#tutorial-cutout-mask)"
         />
 
-        {/* Glow rings around cutouts */}
+        {/* Soft glow rings around each cutout */}
         {(['deposit', 'chat', 'profile'] as const).map((name) => {
           const a = anchors[name];
           if (!a) return null;
@@ -228,34 +222,8 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
               ry={14}
               fill="none"
               stroke="rgb(165, 180, 252)"
-              strokeWidth={3}
+              strokeWidth={2.5}
             />
-          );
-        })}
-
-        {/* Curved arrows from each label to its target */}
-        {visibleLabels.map((l) => {
-          const a = anchors[l.anchor]!;
-          const rect = rectFromPos(l.pos, labelW, labelH, vw, vh);
-          const origin = arrowOrigin(rect, l.arrowFrom);
-          // End point is just outside the cutout ring on the closest side
-          const isTop = l.arrowFrom.startsWith('top');
-          const targetY = isTop ? a.top - PAD - 6 : a.top + a.height + PAD + 6;
-          const targetX = a.centerX;
-          const path = curvePath(origin.x, origin.y, targetX, targetY);
-          return (
-            <g key={`arrow-${l.anchor}`}>
-              <path
-                d={path}
-                stroke="white"
-                strokeWidth={2.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-              {/* Solid dot at the target end */}
-              <circle cx={targetX} cy={targetY} r={4.5} fill="white" />
-            </g>
           );
         })}
       </svg>
@@ -268,10 +236,9 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
         className="absolute inset-0 z-[1] h-full w-full cursor-pointer bg-transparent"
       />
 
-      {/* Title pill — top-left so it never collides with the profile
-          label that sits at top-right. */}
-      <div className="pointer-events-none absolute left-3 top-2 z-[3]">
-        <div className="rounded-full bg-indigo-500 px-3 py-1 shadow-lg">
+      {/* Title pill — top-left so it never collides with the profile label */}
+      <div className="pointer-events-none absolute left-3 top-3 z-[3]">
+        <div className="rounded-full bg-indigo-500 px-3 py-1.5 shadow-lg">
           <p
             className="text-[13px] font-bold text-white"
             style={{ fontFamily: 'var(--font-handwriting)' }}
@@ -281,33 +248,41 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
         </div>
       </div>
 
-      {/* Labels — pointer-events-none so taps fall through to the
-          close-layer behind them. */}
-      {visibleLabels.map((l) => (
-        <div
-          key={l.anchor}
-          className={cn(
-            'pointer-events-none absolute z-[2] rounded-2xl bg-white px-4 py-3',
-            'shadow-2xl ring-1 ring-indigo-200',
-            'dark:bg-gray-900 dark:ring-indigo-700',
-          )}
-          style={{
-            ...l.pos,
-            width: labelW,
-            fontFamily: 'var(--font-handwriting)',
-          }}
-        >
-          <p className="text-base font-bold leading-tight text-indigo-600 dark:text-indigo-300">
-            {l.title}
-          </p>
-          <p className="mt-1 text-sm leading-snug text-gray-700 dark:text-gray-200">
-            {l.body}
-          </p>
-        </div>
-      ))}
+      {/* Labels */}
+      {labels.map((l) => {
+        const pos = positionFor(l);
+        if (!pos) return null;
+        const Arrow = ArrowIcon[l.side];
+        return (
+          <div
+            key={l.anchor}
+            className={cn(
+              'pointer-events-none absolute z-[2] rounded-2xl px-3 py-2.5',
+              'bg-white text-gray-900 shadow-2xl ring-1 ring-indigo-200',
+              'dark:bg-gray-900 dark:text-white dark:ring-indigo-700',
+            )}
+            style={{
+              top: pos.top,
+              left: pos.left,
+              width: labelW,
+              fontFamily: 'var(--font-handwriting)',
+            }}
+          >
+            <div className="flex items-center gap-1.5">
+              <Arrow className="h-4 w-4 shrink-0 text-indigo-500 dark:text-indigo-300" />
+              <p className="text-[15px] font-bold leading-tight text-indigo-600 dark:text-indigo-300">
+                {l.title}
+              </p>
+            </div>
+            <p className="mt-1 text-[13px] leading-snug text-gray-700 dark:text-gray-200">
+              {l.body}
+            </p>
+          </div>
+        );
+      })}
 
-      {/* Continue button — center bottom, above the bottom-nav cutout */}
-      <div className="absolute inset-x-0 bottom-2 z-[3] flex justify-center px-4 sm:bottom-6">
+      {/* Continue button — center bottom */}
+      <div className="absolute inset-x-0 bottom-3 z-[3] flex justify-center px-4 sm:bottom-6">
         <Button
           onClick={onClose}
           icon={<X className="h-4 w-4" />}
