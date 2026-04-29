@@ -88,6 +88,8 @@ export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [filterStoreId, setFilterStoreId] = useState<string>('all');
+  const [filterRole, setFilterRole] = useState<string>('all');
   const [resetTarget, setResetTarget] = useState<UserProfile | null>(null);
   const [resetResult, setResetResult] = useState<{ username: string; password: string } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
@@ -201,12 +203,23 @@ export default function UsersPage() {
     setFormStoreId('');
   };
 
-  const filteredUsers = users.filter(
-    (u) =>
-      !searchQuery ||
-      u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredUsers = users.filter((u) => {
+    if (
+      searchQuery &&
+      !u.username.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      !u.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
+    ) {
+      return false;
+    }
+    if (filterRole !== 'all' && u.role !== filterRole) return false;
+    if (filterStoreId !== 'all') {
+      const storeIds = u.stores?.map((s) => s.store_id) || [];
+      if (!storeIds.includes(filterStoreId)) return false;
+    }
+    return true;
+  });
+
+  const FILTERABLE_ROLES: UserRole[] = ['owner', 'accountant', 'manager', 'bar', 'staff', 'hq'];
 
   return (
     <div className="space-y-6">
@@ -230,16 +243,54 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={t('searchPlaceholder')}
-          className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-        />
+      {/* Search + Filters */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1 sm:max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('searchPlaceholder')}
+            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          />
+        </div>
+        <select
+          value={filterStoreId}
+          onChange={(e) => setFilterStoreId(e.target.value)}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+        >
+          <option value="all">ทุกสาขา</option>
+          {stores.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.store_name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={filterRole}
+          onChange={(e) => setFilterRole(e.target.value)}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+        >
+          <option value="all">ทุกตำแหน่ง</option>
+          {FILTERABLE_ROLES.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABELS[r] || r}
+            </option>
+          ))}
+        </select>
+        {(filterStoreId !== 'all' || filterRole !== 'all') && (
+          <button
+            type="button"
+            onClick={() => {
+              setFilterStoreId('all');
+              setFilterRole('all');
+            }}
+            className="rounded-lg border border-transparent px-3 py-2 text-xs text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20"
+          >
+            ล้างตัวกรอง
+          </button>
+        )}
       </div>
 
       {/* User List */}
