@@ -1,26 +1,81 @@
-import { Card, CardTitle, Step, RolesBar, ImgPlaceholder } from '../manual-ui';
+import { Card, CardTitle, Step, RolesBar, TipBox, ImgPlaceholder } from '../manual-ui';
 
 export function SectionPrint() {
   return (
-    <Card>
-      <RolesBar roles={['owner', 'manager']} />
-      <CardTitle>Print Station</CardTitle>
-      <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">ระบบพิมพ์ใบเสร็จแบบอัตโนมัติ:</p>
-      <ul className="mb-4 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
-        <li><strong>รองรับ Thermal Printer 80mm</strong> — สำหรับใบฝากเหล้า</li>
-        <li><strong>Print Queue</strong> — ระบบคิวพิมพ์อัตโนมัติ Real-time</li>
-        <li><strong>Auto-print</strong> — พิมพ์อัตโนมัติเมื่อมีงานใหม่</li>
-        <li><strong>PWA</strong> — ติดตั้งเป็น App บนเครื่องพิมพ์</li>
-      </ul>
+    <>
+      <Card>
+        <RolesBar roles={['owner', 'manager']} />
+        <CardTitle icon="🖨">Print Server (เครื่องพิมพ์ใบเสร็จ)</CardTitle>
+        <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">ระบบพิมพ์ใบเสร็จอัตโนมัติเมื่อมีการฝาก/เบิกเหล้า:</p>
+        <ul className="mb-4 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
+          <li><strong>Thermal Printer 80mm</strong> — รองรับเครื่องพิมพ์ความร้อนทั่วไป</li>
+          <li><strong>Print Queue</strong> — คิวพิมพ์อัตโนมัติ Real-time</li>
+          <li><strong>Working Hours</strong> — ตั้งช่วงเวลาทำงานของเครื่องพิมพ์ได้</li>
+          <li><strong>Heartbeat</strong> — ส่งสัญญาณทุก 60 วิ → ระบบรู้ว่าเครื่องพิมพ์ออนไลน์ไหม</li>
+        </ul>
+      </Card>
 
-      <h4 className="mb-3 text-base font-semibold text-gray-900 dark:text-white">ตั้งค่า Print Station (5 ขั้นตอน)</h4>
-      <Step num={1} title="เลือกสาขา"><p>เลือกสาขาที่จะติดตั้ง Printer</p></Step>
-      <Step num={2} title="ติดตั้ง PWA"><p>เพิ่มเว็บเป็น App บนเครื่อง</p></Step>
-      <Step num={3} title="เชื่อมต่อ Printer"><p>เชื่อมต่อกับเครื่องพิมพ์ผ่าน LAN</p></Step>
-      <Step num={4} title="ทดสอบพิมพ์"><p>พิมพ์ทดสอบเพื่อตรวจสอบ</p></Step>
-      <Step num={5} title="พร้อมใช้งาน"><p>ดาวน์โหลด startup.bat (Windows) สำหรับเปิดอัตโนมัติ</p></Step>
+      <Card>
+        <RolesBar roles={['owner', 'manager']} />
+        <CardTitle icon="⚙️">ติดตั้ง Print Server</CardTitle>
+        <Step num={1} title="ไปที่ตั้งค่าสาขา">
+          <p>เปิด <code>/settings/store/&#123;storeId&#125;</code> ของสาขาที่จะติดตั้ง</p>
+        </Step>
+        <Step num={2} title='กดปุ่ม "Setup Print Server"'>
+          <p>ระบบสร้าง user บัญชีเครื่องพิมพ์ (<code>printer-&#123;store_code&#125;</code>) อัตโนมัติ + generate password + ดาวน์โหลด ZIP</p>
+        </Step>
+        <Step num={3} title="แตก ZIP บนเครื่อง PC">
+          <p>เครื่อง PC ที่ต่อกับเครื่องพิมพ์ — Windows + Node.js + PowerShell</p>
+        </Step>
+        <Step num={4} title="รัน INSTALL.bat → START-PrintServer.bat">
+          <p>เริ่มทำงาน — ระบบจะ poll คิวทุก 10 วิ และส่ง heartbeat ทุก 60 วิ</p>
+        </Step>
+        <TipBox>
+          <strong>🔁 Reset password เครื่องพิมพ์:</strong> กด &quot;Setup Print Server&quot; ซ้ำ → ระบบ reset password ของบัญชีเดิม + ดาวน์โหลด ZIP ใหม่ที่มี config ใหม่
+        </TipBox>
+        <ImgPlaceholder icon="🖨" name="img-43-print-station.png" desc="หน้า Print Station แสดง Print Queue + Printer Status" />
+      </Card>
 
-      <ImgPlaceholder icon="🖨" name="img-43-print-station.png" desc="หน้า Print Station แสดง Print Queue + Printer Status" />
-    </Card>
+      <Card>
+        <RolesBar roles={['owner', 'manager', 'bar', 'staff']} />
+        <CardTitle icon="🟢">สถานะเครื่องพิมพ์ในทอปบาร์</CardTitle>
+        <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">
+          ดูสถานะเครื่องพิมพ์ของสาขาปัจจุบัน <strong>โดยไม่ต้องเข้าหน้าตั้งค่า</strong> — ไอคอนเครื่องพิมพ์ในทอปบาร์ พร้อมจุดสี:
+        </p>
+        <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
+          <li>🟢 <strong>เขียว</strong> = ออนไลน์ (heartbeat &lt; 2 นาที)</li>
+          <li>🟡 <strong>เหลือง</strong> = ไม่อัปเดต (heartbeat 2-10 นาที)</li>
+          <li>🔴 <strong>แดง</strong> = ออฟไลน์ (heartbeat &gt; 10 นาที)</li>
+          <li>⚪ <strong>เทา</strong> = ยังไม่เคย heartbeat (เพิ่งติดตั้ง)</li>
+        </ul>
+        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
+          ระบบ refresh สถานะอัตโนมัติทุก 45 วินาที (ไม่หนัก network)
+        </p>
+        <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">
+          <strong>คลิกไอคอน</strong> → เปิด panel แสดง:
+        </p>
+        <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
+          <li>Heartbeat ล่าสุด, ชื่อเครื่องพิมพ์, จำนวนงานพิมพ์วันนี้, hostname</li>
+          <li><strong>งานล่าสุด 20 รายการ</strong> — เลื่อนดูประวัติได้ พร้อมสถานะ (รอ/กำลังพิมพ์/สำเร็จ/ผิดพลาด)</li>
+          <li>ปุ่ม &quot;เปิดหน้าควบคุมเต็ม&quot; → ไป <code>/print-listener</code></li>
+        </ul>
+        <TipBox>
+          <strong>📱 Mobile:</strong> บนมือถือ panel จะเลื่อนขึ้นจากด้านล่าง (bottom sheet) แทน dropdown
+        </TipBox>
+      </Card>
+
+      <Card>
+        <RolesBar roles={['owner']} />
+        <CardTitle icon="🔒">บัญชีเครื่องพิมพ์ใน /users</CardTitle>
+        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
+          User ที่ชื่อขึ้นต้นด้วย <code>printer-</code> เป็นบัญชีระบบสำหรับเครื่องพิมพ์ — <strong>ห้ามแก้ไขจาก /users</strong>:
+        </p>
+        <ul className="ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
+          <li>ปุ่ม รีเซ็ตรหัส / ปิดบัญชี / สิทธิ์ จะถูกซ่อนอัตโนมัติ</li>
+          <li>มีข้อความเตือน &quot;🔒 บัญชีระบบเครื่องพิมพ์ — จัดการผ่านหน้าตั้งค่าเครื่องพิมพ์&quot;</li>
+          <li>หากต้องการ reset password เครื่องพิมพ์ ใช้ปุ่ม &quot;Setup Print Server&quot; ในหน้าตั้งค่าสาขาแทน</li>
+        </ul>
+      </Card>
+    </>
   );
 }

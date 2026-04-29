@@ -17,7 +17,6 @@ import { SectionBar } from './sections/section-bar';
 import { SectionStaff } from './sections/section-staff';
 import { SectionAccountant } from './sections/section-accountant';
 import { SectionHq } from './sections/section-hq';
-import { SectionCustomer } from './sections/section-customer';
 import { SectionDeposit } from './sections/section-deposit';
 import { SectionStock } from './sections/section-stock';
 import { SectionChat } from './sections/section-chat';
@@ -39,7 +38,6 @@ const sectionComponents: Record<ManualSectionId, () => React.JSX.Element> = {
   staff: SectionStaff,
   accountant: SectionAccountant,
   hq: SectionHq,
-  customer: SectionCustomer,
   deposit: SectionDeposit,
   stock: SectionStock,
   chat: SectionChat,
@@ -55,6 +53,7 @@ const sectionComponents: Record<ManualSectionId, () => React.JSX.Element> = {
   images: () => <></>,
 };
 
+// Roles available in the dashboard (customer is LIFF-only)
 const STAFF_ROLES: UserRole[] = ['owner', 'manager', 'bar', 'staff', 'accountant', 'hq'];
 
 function isSectionVisible(sectionRoles: 'all' | UserRole[], userRole: UserRole): boolean {

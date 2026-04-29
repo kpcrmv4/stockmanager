@@ -1,4 +1,4 @@
-import { Card, CardTitle, CardSubtitle, MenuItem, BottomNavPreview, ImgPlaceholder } from '../manual-ui';
+import { Card, CardTitle, CardSubtitle, MenuItem, TipBox, BottomNavPreview, ImgPlaceholder } from '../manual-ui';
 
 export function SectionManager() {
   return (
@@ -19,7 +19,16 @@ export function SectionManager() {
         <CardSubtitle>📈 หมวด &quot;รายงาน&quot;</CardSubtitle>
         <MenuItem icon="📊" iconBg="bg-amber-500" name="รายงาน" desc="รายงานสรุปข้อมูลสาขา" path="/reports" />
 
-        <ImgPlaceholder icon="🖥" name="img-13-manager-sidebar.png" desc="Sidebar ของ Manager แสดง 3 หมวด" />
+        <CardSubtitle>⚙ หมวด &quot;ระบบ&quot;</CardSubtitle>
+        <MenuItem icon="👤" iconBg="bg-orange-500" name="จัดการผู้ใช้" desc="ดู/รีเซ็ตรหัสผ่านพนักงานในสาขา" path="/users" />
+        <MenuItem icon="✉️" iconBg="bg-indigo-500" name="ลิงก์เชิญพนักงาน" desc="สร้างลิงก์ลงทะเบียน — Manager เชิญได้แค่ staff/bar" path="/users/invitations" />
+        <MenuItem icon="⚙" iconBg="bg-gray-500" name="ตั้งค่าสาขา" desc="LINE config, แจ้งเตือน, เครื่องพิมพ์" path="/settings" />
+
+        <ImgPlaceholder icon="🖥" name="img-13-manager-sidebar.png" desc="Sidebar ของ Manager" />
+
+        <TipBox>
+          <strong>🔒 ขีดจำกัด Manager:</strong> ลิงก์เชิญสร้างได้แค่ตำแหน่ง staff/bar เท่านั้น (Owner เท่านั้นที่เชิญ accountant/manager/hq ได้)
+        </TipBox>
       </Card>
 
       <Card>
@@ -44,7 +53,7 @@ export function SectionManager() {
           <li>สถานะการเช็คสต๊อก</li>
           <li>งานค้างในสาขา</li>
         </ul>
-        <ImgPlaceholder icon="🏢" name="img-14-manager-store-overview.png" desc="Store Overview แสดง KPI สาขาที่ Manager ดูแล" />
+        <ImgPlaceholder icon="🏢" name="img-14-manager-store-overview.png" desc="Store Overview" />
       </Card>
     </>
   );

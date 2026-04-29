@@ -8,32 +8,41 @@ export function SectionBar() {
         <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">Bar ใช้ Mobile Layout มี Bottom Nav 5 ปุ่ม:</p>
         <BottomNavPreview
           items={[
-            { icon: '✅', label: 'อนุมัติ', color: 'teal' },
+            { icon: '📋', label: 'นับสต๊อก', color: 'indigo' },
             { icon: '🍷', label: 'ฝาก/เบิก', color: 'emerald' },
             { icon: '💬', label: 'แชท', color: 'bg-blue-500', center: true },
-            { icon: '📋', label: 'นับสต๊อก', color: 'indigo' },
-            { icon: '📖', label: 'คู่มือ', color: 'cyan' },
+            { icon: '🔄', label: 'ยืม', color: 'rose' },
+            { icon: '↔', label: 'โอน', color: 'blue' },
           ]}
         />
-        <ImgPlaceholder icon="📱" name="img-15-bar-bottom-nav.png" desc="Bottom Navigation ของ Bar (ปุ่มกลาง = แชท)" />
+        <ImgPlaceholder icon="📱" name="img-15-bar-bottom-nav.png" desc="Bottom Navigation ของ Bar" />
         <TipBox>
-          <strong>💡 Drawer Menu:</strong> กดปุ่ม ☰ ที่มุมซ้ายบนเพื่อเปิดเมนูเพิ่มเติม (Dark Mode, โปรไฟล์, ออกจากระบบ)
+          <strong>💡 หน้าแรก Bar:</strong> เมื่อ login จะเข้า <code>/chat</code> ทันที — ใช้แชทรับงาน Action Card (อนุมัติเบิก, ยืนยันรับสินค้า)
         </TipBox>
       </Card>
 
       <Card>
-        <CardTitle icon="✅">หน้าอนุมัติ (Bar Approval) — หน้าแรกของ Bar</CardTitle>
-        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">เมื่อลูกค้าฝากเหล้า พนักงานบันทึกข้อมูล แล้วรอ Bar ยืนยันรับสินค้า:</p>
-        <Step num={1} title="ดูรายการรอยืนยัน">
-          <p>หน้าจอแสดงรายการฝากที่รอ Bar ยืนยันรับ แบบ Grid หรือ Table</p>
+        <CardTitle icon="✅">หน้าที่หลักของ Bar</CardTitle>
+        <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
+          <li><strong>ยืนยันรับฝากเหล้า</strong> — รับ Action Card จากแชท → ถ่ายรูปขวด → confirm</li>
+          <li><strong>อนุมัติคำขอเบิก</strong> — ลูกค้าขอเบิกผ่าน LIFF → bar กดยืนยันส่งเหล้าให้</li>
+          <li><strong>นับสต๊อกประจำวัน</strong> — manual count + เปรียบเทียบ POS</li>
+          <li><strong>โอน/ยืมสินค้า</strong> — โอนสินค้าระหว่างสาขาหรือไปคลังกลาง</li>
+        </ul>
+      </Card>
+
+      <Card>
+        <CardTitle icon="🍷">การยืนยันรับฝากเหล้า</CardTitle>
+        <Step num={1} title="เห็น Action Card ในแชท">
+          <p>Bot ส่งการ์ดเมื่อพนักงานบันทึกฝากเหล้า — แสดงชื่อลูกค้า, สินค้า, จำนวนขวด</p>
         </Step>
-        <Step num={2} title="กดยืนยันรับสินค้า">
-          <p>ระบุหมายเลขโต๊ะ, หมวดหมู่, โน้ต และถ่ายรูปยืนยัน (ถ้าต้องการ)</p>
+        <Step num={2} title='กด "รับงาน" (Claim)'>
+          <p>เริ่มนับเวลา timeout 15 นาที</p>
         </Step>
-        <Step num={3} title="ระบบแจ้งเตือนอัตโนมัติ">
-          <p>แจ้งเตือนไปยังแชทสาขา + LINE ลูกค้า (ถ้าเปิดใช้)</p>
+        <Step num={3} title="ถ่ายรูปขวดที่ส่ง + ยืนยัน">
+          <p>ระบุหมายเลขโต๊ะ + ถ่ายรูปยืนยัน → กดเสร็จสิ้น</p>
         </Step>
-        <ImgPlaceholder icon="✅" name="img-16-bar-approval.png" desc="หน้า Bar Approval แสดงรายการรอยืนยัน + ปุ่ม Confirm" />
+        <ImgPlaceholder icon="✅" name="img-16-bar-deposit-confirm.png" desc="Action Card รับฝากเหล้า + ปุ่ม Confirm" />
       </Card>
     </>
   );

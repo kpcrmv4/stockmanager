@@ -3,7 +3,7 @@ import { Card, CardTitle, RolesBar, TableWrap, Th, Td, ImgPlaceholder } from '..
 export function SectionReports() {
   return (
     <Card>
-      <RolesBar roles={['owner', 'accountant', 'manager']} />
+      <RolesBar roles={['owner', 'accountant', 'manager', 'hq']} />
       <CardTitle>หน้ารายงาน</CardTitle>
       <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">รายงานแบ่งเป็น 5 Tabs:</p>
       <TableWrap>

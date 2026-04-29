@@ -4,7 +4,7 @@ export function SectionTransfer() {
   return (
     <>
       <Card>
-        <RolesBar roles={['owner', 'manager']} />
+        <RolesBar roles={['owner', 'manager', 'bar', 'accountant', 'hq']} />
         <CardTitle icon="↔">โอนสต๊อก (Transfer)</CardTitle>
         <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">ใช้สำหรับโอนเหล้าที่หมดอายุหรือต้องการส่งไปคลังกลาง:</p>
         <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
@@ -18,7 +18,7 @@ export function SectionTransfer() {
       </Card>
 
       <Card>
-        <RolesBar roles={['owner', 'manager', 'staff']} />
+        <RolesBar roles={['owner', 'manager', 'bar']} />
         <CardTitle icon="🔄">ยืมสินค้า (Borrow)</CardTitle>
         <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">ยืมสินค้าระหว่างสาขาเมื่อสินค้าไม่พอ — โฟลว์ 3 ขั้น ถ่ายรูปของแล้วบันทึกคือจบ:</p>
 

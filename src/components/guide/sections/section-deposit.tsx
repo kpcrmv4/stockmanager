@@ -1,10 +1,10 @@
-import { Card, CardTitle, CardSubtitle, Step, RolesBar, RoleTag, TableWrap, Th, Td, ImgPlaceholder } from '../manual-ui';
+import { Card, CardTitle, CardSubtitle, Step, RolesBar, TableWrap, Th, Td, TipBox, ImgPlaceholder } from '../manual-ui';
 
 export function SectionDeposit() {
   return (
     <>
       <Card>
-        <RolesBar roles={['owner', 'bar', 'staff']} />
+        <RolesBar roles={['owner', 'manager', 'bar', 'staff']} />
         <CardTitle>หน้าหลักฝาก/เบิก</CardTitle>
         <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">หน้าจอหลักแสดง:</p>
         <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
@@ -62,16 +62,22 @@ export function SectionDeposit() {
             <tr><Th>ขั้นตอน</Th><Th>ผู้ดำเนินการ</Th><Th>รายละเอียด</Th></tr>
           </thead>
           <tbody>
-            <tr><Td>1. ลูกค้าขอฝาก</Td><Td><RoleTag role="customer" /></Td><Td>กรอกฟอร์มผ่าน LINE LIFF หรือพนักงานบันทึกให้</Td></tr>
-            <tr><Td>2. รับคำขอ</Td><Td><RoleTag role="staff" /></Td><Td>ดูในหน้า Deposit Requests แล้วกด &quot;อนุมัติ&quot;</Td></tr>
-            <tr><Td>3. Bar ยืนยัน</Td><Td><RoleTag role="bar" /></Td><Td>ยืนยันรับสินค้าจริง + ถ่ายรูป ในหน้า Bar Approval</Td></tr>
-            <tr><Td>4. สถานะ &quot;ในร้าน&quot;</Td><Td>ระบบ</Td><Td>Bot แจ้งในแชท + LINE ลูกค้า</Td></tr>
-            <tr><Td>5. ลูกค้าขอเบิก</Td><Td><RoleTag role="customer" /></Td><Td>กด &quot;ขอเบิก&quot; ผ่าน LINE LIFF</Td></tr>
-            <tr><Td>6. พนักงานจัดการ</Td><Td><RoleTag role="staff" /></Td><Td>หยิบของ + ถ่ายรูปยืนยัน + กด &quot;เบิกสำเร็จ&quot;</Td></tr>
-            <tr><Td>7. แจ้งลูกค้า</Td><Td>ระบบ</Td><Td>LINE แจ้งลูกค้าว่าเบิกเสร็จแล้ว</Td></tr>
+            <tr><Td>1. ลูกค้าขอฝาก</Td><Td>Customer (LIFF)</Td><Td>กรอกฟอร์มผ่าน LINE LIFF — สถานะเริ่มต้น <code>pending_staff</code></Td></tr>
+            <tr><Td>2. Staff ตรวจรับ</Td><Td>Staff</Td><Td>เลือกสินค้า + จำนวนขวด + กด &quot;รับ&quot; → สถานะ <code>pending_confirm</code> (รอ Bar)</Td></tr>
+            <tr><Td>3. Bar ยืนยัน</Td><Td>Bar</Td><Td>รับ Action Card ในแชท → ถ่ายรูปขวด + confirm → สถานะ <code>in_store</code></Td></tr>
+            <tr><Td>4. แจ้งลูกค้า</Td><Td>ระบบ</Td><Td>Bot ส่งใบเสร็จ + รหัสฝากกลับให้ลูกค้าทาง LINE</Td></tr>
+            <tr><Td>5. ลูกค้าขอเบิก</Td><Td>Customer (LIFF)</Td><Td>เลือกขวดที่จะเบิก (ระบบ track per-bottle) → ส่ง Action Card หา Bar</Td></tr>
+            <tr><Td>6. Bar เบิก</Td><Td>Bar</Td><Td>รับ Action Card → ส่งเหล้า + ยืนยัน → ขวดที่เบิกถูกมาร์ค <code>consumed</code></Td></tr>
+            <tr><Td>7. แจ้งลูกค้า</Td><Td>ระบบ</Td><Td>LINE แจ้งว่าเบิกเสร็จแล้ว</Td></tr>
           </tbody>
         </TableWrap>
-        <ImgPlaceholder icon="🔄" name="img-27-deposit-flow-diagram.png" desc="Diagram แสดง Flow การฝาก/เบิก ตั้งแต่ลูกค้าขอจนเสร็จ" />
+        <TipBox>
+          <strong>🍾 Multi-bottle:</strong> ฝาก 1 รายการอาจมีหลายขวด — ระบบ track สถานะแต่ละขวดแยก (sealed/opened/consumed). ลูกค้าทยอยเบิกได้ทีละขวด
+        </TipBox>
+        <TipBox>
+          <strong>🚫 Cancelled:</strong> ถ้า Bar ปฏิเสธรับ (เช่น ขวดไม่ตรงกับที่บันทึก) → สถานะ <code>cancelled</code> + ระบุเหตุผล + แจ้งลูกค้า
+        </TipBox>
+        <ImgPlaceholder icon="🔄" name="img-27-deposit-flow-diagram.png" desc="Diagram แสดง Flow การฝาก/เบิก" />
       </Card>
 
       <Card>

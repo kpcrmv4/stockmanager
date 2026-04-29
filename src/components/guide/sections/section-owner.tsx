@@ -1,4 +1,4 @@
-import { Card, CardTitle, CardSubtitle, MenuItem, TipBox, ImgPlaceholder, BottomNavPreview } from '../manual-ui';
+import { Card, CardTitle, CardSubtitle, MenuItem, TipBox, ImgPlaceholder, Step, BottomNavPreview } from '../manual-ui';
 
 export function SectionOwner() {
   return (
@@ -30,8 +30,9 @@ export function SectionOwner() {
         <MenuItem icon="📈" iconBg="bg-emerald-500" name="วิเคราะห์ลูกค้า" desc="Top customers, พฤติกรรม, retention" path="/performance/customers" />
 
         <CardSubtitle>⚙ หมวด &quot;ระบบ&quot;</CardSubtitle>
-        <MenuItem icon="📣" iconBg="bg-pink-500" name="ประกาศ/โปรโมชั่น" desc="สร้างประกาศถึงลูกค้าและพนักงาน" path="/announcements" />
-        <MenuItem icon="👤" iconBg="bg-orange-500" name="จัดการผู้ใช้" desc="เพิ่ม/แก้ไข/ปิดการใช้งานผู้ใช้, กำหนด Role" path="/users" />
+        <MenuItem icon="📣" iconBg="bg-pink-500" name="ประกาศภายใน" desc="ประกาศสำหรับพนักงาน (ลูกค้าใช้ LIFF แยก)" path="/announcements" />
+        <MenuItem icon="👤" iconBg="bg-orange-500" name="จัดการผู้ใช้" desc="เพิ่ม/แก้ไข, รีเซ็ตรหัสผ่าน, กรองตามสาขา/ตำแหน่ง" path="/users" />
+        <MenuItem icon="✉️" iconBg="bg-indigo-500" name="ลิงก์เชิญพนักงาน" desc="สร้าง/ปิดลิงก์ลงทะเบียน — กำหนดตำแหน่ง+สาขาต่อลิงก์" path="/users/invitations" />
         <MenuItem icon="⚙" iconBg="bg-gray-500" name="ตั้งค่า" desc="ตั้งค่าสาขา, LINE, การแจ้งเตือน" path="/settings" />
 
         <ImgPlaceholder icon="🖥" name="img-05-owner-sidebar.png" desc="Sidebar ของ Owner แสดงเมนูทั้งหมด 5 หมวด" />
@@ -39,7 +40,6 @@ export function SectionOwner() {
 
       <Card>
         <CardTitle icon="📱">Bottom Navigation — Owner (Mobile View)</CardTitle>
-        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">เมื่อ Owner ใช้งานบนมือถือ จะเห็น Bottom Nav 5 ปุ่ม:</p>
         <BottomNavPreview
           items={[
             { icon: '📋', label: 'สต๊อก', color: 'indigo' },
@@ -50,9 +50,8 @@ export function SectionOwner() {
           ]}
         />
         <TipBox>
-          <strong>💡 หมายเหตุ:</strong> แจ้งเตือนเข้าถึงได้จาก Top Bar (ไอคอนกระดิ่ง) — ปุ่ม &quot;คู่มือ&quot; ถูกเพิ่มใน Bottom Nav แทน
+          <strong>💡 หมายเหตุ:</strong> เมนูระบบ (ผู้ใช้/ลิงก์เชิญ/ตั้งค่า/ประกาศ) เข้าผ่าน Drawer Menu (☰) ในมือถือ
         </TipBox>
-        <ImgPlaceholder icon="📱" name="img-06-owner-bottom-nav.png" desc="Bottom Navigation ของ Owner บนมือถือ (ปุ่มกลางนูน = ภาพรวม)" />
       </Card>
 
       <Card>
@@ -65,20 +64,57 @@ export function SectionOwner() {
           <li><strong>Module Cards</strong> — ทางลัดไปยังระบบหลัก</li>
           <li><strong>Recent Activity</strong> — กิจกรรมล่าสุดของระบบ</li>
         </ul>
-        <ImgPlaceholder icon="📊" name="img-07-owner-overview.png" desc="หน้า Overview ของ Owner แสดง KPI Cards + Trend + Module Shortcuts" />
+        <ImgPlaceholder icon="📊" name="img-07-owner-overview.png" desc="หน้า Overview ของ Owner" />
       </Card>
 
       <Card>
-        <CardTitle icon="👤">จัดการผู้ใช้ (Users)</CardTitle>
-        <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">Owner สามารถ:</p>
+        <CardTitle icon="👤">จัดการผู้ใช้ (/users)</CardTitle>
+        <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">ในหน้า <code>/users</code> Owner ทำได้:</p>
         <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
-          <li>ดูรายชื่อผู้ใช้ทั้งหมดพร้อม Role</li>
-          <li>เพิ่มผู้ใช้ใหม่ กำหนด Role และสาขา</li>
-          <li>เปิด/ปิดการใช้งานผู้ใช้</li>
-          <li>เปลี่ยน Role ของผู้ใช้</li>
-          <li>กำหนดสาขาที่ผู้ใช้สามารถเข้าถึง</li>
+          <li><strong>ดูรายชื่อพนักงาน</strong> — แสดงตำแหน่ง, สาขาที่สังกัด, เข้าใช้ครั้งล่าสุดเมื่อกี่นาที/ชั่วโมง/วัน</li>
+          <li><strong>กรองข้อมูล</strong> — ค้นหาด้วย username/ชื่อ + กรองตามสาขา + กรองตามตำแหน่ง</li>
+          <li><strong>เปิด/ปิดบัญชี</strong> — ปุ่ม UserX/UserCheck</li>
+          <li><strong>จัดการสิทธิ์</strong> — ปุ่ม Shield → /users/[id]/permissions</li>
+          <li><strong>🔑 รีเซ็ตรหัสผ่าน</strong> — ตั้งใหม่เป็น <code>123456</code> ทันที (ดูการ์ดถัดไป)</li>
+          <li><strong>บัญชี Print Server</strong> — เห็นในรายชื่อแต่กดอะไรไม่ได้ จัดการผ่านหน้าตั้งค่าเครื่องพิมพ์เท่านั้น</li>
         </ul>
-        <ImgPlaceholder icon="👤" name="img-08-user-management.png" desc="หน้าจัดการผู้ใช้ แสดงตาราง Users พร้อม Role Badge" />
+        <ImgPlaceholder icon="👤" name="img-08-user-management.png" desc="หน้าจัดการผู้ใช้ พร้อม filter สาขา + ตำแหน่ง" />
+      </Card>
+
+      <Card>
+        <CardTitle icon="🔑">รีเซ็ตรหัสผ่านพนักงาน</CardTitle>
+        <Step num={1} title="ที่ /users กดปุ่ม 🔑 ของ user ที่ต้องการ">
+          <p>โผล่ modal ยืนยันการรีเซ็ต</p>
+        </Step>
+        <Step num={2} title="ยืนยันรีเซ็ต">
+          <p>ระบบเปลี่ยนรหัสผ่านเป็น <code className="font-mono">123456</code> และตั้ง flag &quot;ต้องเปลี่ยนรหัส&quot;</p>
+        </Step>
+        <Step num={3} title="แจ้งพนักงาน">
+          <p>บอกว่ารหัสใหม่คือ <code>123456</code> ให้รีบเปลี่ยนหลังเข้าสู่ระบบ</p>
+        </Step>
+        <TipBox>
+          <strong>🔒 ปลอดภัย:</strong> เมื่อพนักงานเข้าสู่ระบบด้วยรหัส default จะเห็น banner สีเหลืองทุกหน้า บังคับให้รีบเปลี่ยน → คลิก banner หรือ User Menu → &quot;เปลี่ยนรหัสผ่าน&quot;
+        </TipBox>
+      </Card>
+
+      <Card>
+        <CardTitle icon="✉️">ลิงก์เชิญพนักงาน (/users/invitations)</CardTitle>
+        <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">วิธีใหม่ในการรับพนักงานเข้าระบบ — แทนที่ &quot;รหัสลงทะเบียน&quot; แบบเก่า:</p>
+        <Step num={1} title="กด &quot;สร้างลิงก์เชิญ&quot;">
+          <p>เลือก <strong>สาขา</strong> + <strong>ตำแหน่ง</strong> (staff/bar/manager/accountant/hq) + หมายเหตุ (เช่น &quot;เชิญน้องโจ บาร์ Baccarat&quot;)</p>
+        </Step>
+        <Step num={2} title="คัดลอกลิงก์">
+          <p>กดไอคอน 📋 → ได้ URL <code>https://[domain]/invite/&#123;token&#125;</code></p>
+        </Step>
+        <Step num={3} title="ส่งให้พนักงาน">
+          <p>ผ่าน LINE/SMS/อีเมล — พนักงานเปิดลิงก์ กรอก username/password/ชื่อแสดง → เข้าระบบได้ทันที</p>
+        </Step>
+        <Step num={4} title="ปิด/ลบลิงก์เมื่อไม่ใช้">
+          <p>Toggle ปิด (ลิงก์ใช้ไม่ได้แต่ยังอยู่) หรือกด 🗑️ ลบทิ้ง</p>
+        </Step>
+        <TipBox>
+          <strong>💡 ตัวเลข &quot;ใช้แล้ว&quot;:</strong> นับจำนวนคนที่ใช้ลิงก์เดียวกัน — ลิงก์เดียวลงทะเบียนได้หลายคน เปิด-ปิดได้เพื่อควบคุม
+        </TipBox>
       </Card>
 
       <Card>
@@ -91,31 +127,24 @@ export function SectionOwner() {
           <li>กราฟ daily trend ต่อคน</li>
           <li>Drill-down ดูรายละเอียดแต่ละคน</li>
         </ul>
-        <ImgPlaceholder icon="🏆" name="img-09-performance-staff.png" desc="Dashboard ประสิทธิภาพพนักงาน แสดง Ranking + Trend Chart" />
 
         <CardSubtitle>2. เปรียบเทียบสาขา</CardSubtitle>
         <ul className="mb-3 ml-5 list-disc space-y-1 text-sm text-gray-600 dark:text-gray-300">
-          <li>Side-by-side KPI ทุกสาขา</li>
-          <li>Radar Chart เปรียบเทียบหลายมิติ</li>
+          <li>Side-by-side KPI ทุกสาขา + Radar Chart</li>
           <li>Ranking สาขาตาม KPI</li>
         </ul>
-        <ImgPlaceholder icon="⚖" name="img-10-performance-stores.png" desc="เปรียบเทียบสาขา แสดง Radar Chart + KPI Cards" />
 
         <CardSubtitle>3. สถานะงาน Real-time</CardSubtitle>
         <ul className="mb-3 ml-5 list-disc space-y-1 text-sm text-gray-600 dark:text-gray-300">
           <li>Live view: งานค้าง/กำลังทำ/เกินเวลา</li>
-          <li>ใครกำลังทำอะไร</li>
           <li>Alert เมื่องานค้างนานผิดปกติ</li>
         </ul>
-        <ImgPlaceholder icon="⚡" name="img-11-performance-operations.png" desc="Real-time Operations แสดง Active Tasks + Workload Distribution" />
 
         <CardSubtitle>4. วิเคราะห์ลูกค้า</CardSubtitle>
         <ul className="mb-3 ml-5 list-disc space-y-1 text-sm text-gray-600 dark:text-gray-300">
           <li>Top customers by ความถี่และมูลค่า</li>
-          <li>พฤติกรรมฝาก/เบิก</li>
           <li>Customer retention &amp; expiry rates</li>
         </ul>
-        <ImgPlaceholder icon="📈" name="img-12-performance-customers.png" desc="Customer Analytics แสดง Top Customers + Behavior Charts" />
       </Card>
     </>
   );
