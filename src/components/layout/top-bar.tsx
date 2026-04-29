@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { NotificationCenter } from '@/components/layout/notification-center';
+import { PrinterStatusIndicator } from '@/components/layout/printer-status-indicator';
 import { LanguageSwitcher } from '@/components/layout/language-switcher';
 import { useChatStore } from '@/stores/chat-store';
 import { useInstallPWA } from '@/hooks/use-install-pwa';
@@ -115,6 +116,9 @@ export function TopBar({
             </span>
           )}
         </Link>
+
+        {/* สถานะเครื่องพิมพ์ */}
+        <PrinterStatusIndicator />
 
         {/* ปุ่มแจ้งเตือน */}
         <NotificationCenter />
