@@ -93,6 +93,10 @@ export function BottomNav() {
               : item.href === '/chat'
                 ? 'chat'
                 : undefined;
+          // Mirror the anchor as a data-tutorial-id so the in-flow
+          // spotlight (which queries data-tutorial-id) can highlight
+          // the same nav items the intro overlay does.
+          const tutorialId = tutorialAnchor ? `tut-nav-${tutorialAnchor}` : undefined;
 
           if (isCenter) {
             return (
@@ -100,6 +104,7 @@ export function BottomNav() {
                 <Link
                   href={item.href}
                   data-tutorial-anchor={tutorialAnchor}
+                  data-tutorial-id={tutorialId}
                   className="flex flex-col items-center pb-1.5"
                 >
                   <span
@@ -133,6 +138,7 @@ export function BottomNav() {
               <Link
                 href={item.href}
                 data-tutorial-anchor={tutorialAnchor}
+                data-tutorial-id={tutorialId}
                 className={cn(
                   'flex min-h-[56px] flex-col items-center justify-center gap-0.5 px-1 py-2',
                   'transition-colors duration-150',

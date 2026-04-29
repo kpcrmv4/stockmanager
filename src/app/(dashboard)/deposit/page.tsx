@@ -877,6 +877,7 @@ export default function DepositPage() {
         <button
           type="button"
           onClick={() => setActiveTab('new_request')}
+          data-tutorial-id="tut-tab-requests"
           className={cn(
             'rounded-xl bg-white p-3 text-left shadow-sm ring-1 ring-gray-200 transition-colors hover:bg-amber-50/40 sm:p-5 dark:bg-gray-800 dark:ring-gray-700 dark:hover:bg-amber-900/10',
             stats.newRequestCount > 0 && 'ring-2 ring-amber-300 dark:ring-amber-700',

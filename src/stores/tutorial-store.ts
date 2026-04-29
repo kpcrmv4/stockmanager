@@ -13,7 +13,7 @@ import { persist } from 'zustand/middleware';
 // the profile menu and re-enable from the same place; the choice is
 // persisted to localStorage so it survives reloads.
 
-export type TutorialFeature = 'deposit' | 'withdrawal' | 'chat';
+export type TutorialFeature = 'deposit' | 'receive-deposit' | 'withdrawal' | 'chat';
 
 interface TutorialState {
   // Floating button visibility (persisted)

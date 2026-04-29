@@ -113,6 +113,47 @@ const depositFlow: TutorialFlow = {
   ],
 };
 
+// Guided tour (no autopilot fill) — just shows the user the two
+// places where customer-initiated deposit requests appear, then
+// hands off to the existing "ฝากเหล้า" autopilot for the actual
+// fulfilment flow (which is identical to a manual deposit form).
+const receiveDepositFlow: TutorialFlow = {
+  feature: 'receive-deposit',
+  label: 'รับฝากจากลูกค้า',
+  description: 'ดูว่าคำขอจากลูกค้าผ่าน LINE LIFF เด้งเข้ามาที่ไหนได้บ้าง',
+  available: true,
+  steps: [
+    {
+      title: 'รับฝากเหล้าจากลูกค้า',
+      body: 'ลูกค้าฝากผ่าน LINE LIFF จะส่งคำขอเข้าระบบใน 2 ช่องทาง — มาดูว่าทั้ง 2 ช่องทางอยู่ตรงไหน',
+      hint: 'ในการใช้งานจริง พนักงานเดินไปรับขวดจากลูกค้าก่อน แล้วค่อยเปิดคำขอกรอกรายละเอียด',
+    },
+    {
+      targetId: 'tut-nav-chat',
+      title: 'ช่องทางที่ 1 — แชทในร้าน',
+      body: 'ในห้องแชทของแต่ละสาขาจะมี Action Card "ลูกค้าส่งคำขอฝากเหล้า"\nกดที่การ์ดจะเปิดแบบฟอร์มรับฝากให้ทันที',
+      hint: 'การ์ดจะมีปุ่ม "เปิดคำขอ" — กดแล้วระบบพาไปที่แบบฟอร์มกรอกรายละเอียด',
+    },
+    {
+      targetId: 'tut-nav-deposit',
+      title: 'ช่องทางที่ 2 — เมนูฝาก/เบิก',
+      body: 'หากพลาด Action Card ในแชท เปิดเมนู "ฝาก/เบิก" จะเห็นการ์ด "คำขอใหม่" ที่หน้าแรก',
+    },
+    {
+      targetId: 'tut-tab-requests',
+      title: 'การ์ด "คำขอใหม่"',
+      body: 'แสดงจำนวนคำขอที่ลูกค้าส่งเข้ามาแต่ยังไม่ถูกรับฝาก\nกดที่การ์ดเพื่อดูรายการ แล้วกดเข้าแต่ละรายการเพื่อเปิดแบบฟอร์ม',
+      hint: 'ระบบ prefill ข้อมูลลูกค้าจาก LIFF ให้แล้ว — แค่กรอกขวด จำนวน และถ่ายรูป',
+    },
+    {
+      title: 'หลังจากบันทึก',
+      body: 'คำขอจะย้ายจาก "คำขอใหม่" → "รอยืนยัน"\nบาร์จะได้ Action Card ในแชทอีกใบเพื่อยืนยันรับเข้าระบบ',
+      hint: 'ขั้นตอนกรอกแบบฟอร์มเหมือนกับ "ฝากเหล้า" ปกติ — ดูทดลองแบบ autopilot ในเมนู ฝากเหล้า ได้',
+      isFinal: true,
+    },
+  ],
+};
+
 const withdrawalFlow: TutorialFlow = {
   feature: 'withdrawal',
   label: 'เบิกเหล้า',
@@ -129,7 +170,12 @@ const chatFlow: TutorialFlow = {
   steps: [],
 };
 
-export const TUTORIAL_FLOWS: TutorialFlow[] = [depositFlow, withdrawalFlow, chatFlow];
+export const TUTORIAL_FLOWS: TutorialFlow[] = [
+  depositFlow,
+  receiveDepositFlow,
+  withdrawalFlow,
+  chatFlow,
+];
 
 export function getFlow(feature: TutorialFeature | null): TutorialFlow | null {
   if (!feature) return null;
