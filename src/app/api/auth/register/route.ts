@@ -5,11 +5,11 @@ export async function POST(request: NextRequest) {
   const { username, password, displayName, token } = (await request.json()) as {
     username: string;
     password: string;
-    displayName: string | null;
+    displayName: string;
     token: string;
   };
 
-  if (!username?.trim() || !password || !token?.trim()) {
+  if (!username?.trim() || !password || !token?.trim() || !displayName?.trim()) {
     return NextResponse.json({ error: 'กรุณากรอกข้อมูลให้ครบ' }, { status: 400 });
   }
 
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     .update({
       username: username.trim().toLowerCase(),
       role,
-      display_name: displayName?.trim() || username.trim(),
+      display_name: displayName.trim(),
       active: true,
     })
     .eq('id', userId);

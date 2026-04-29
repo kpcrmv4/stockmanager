@@ -53,8 +53,10 @@ export default function InvitePage() {
     if (username.trim().length < 3) return 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร';
     if (!/^[a-zA-Z0-9_]+$/.test(username.trim()))
       return 'ชื่อผู้ใช้ต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือขีดล่างเท่านั้น';
+    if (!displayName.trim()) return 'กรุณากรอกชื่อที่แสดง';
     if (!password) return 'กรุณากรอกรหัสผ่าน';
     if (password.length < 6) return 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
+    if (!confirmPassword) return 'กรุณายืนยันรหัสผ่าน';
     if (password !== confirmPassword) return 'รหัสผ่านไม่ตรงกัน';
     return null;
   };
@@ -75,7 +77,7 @@ export default function InvitePage() {
         body: JSON.stringify({
           username: username.trim().toLowerCase(),
           password,
-          displayName: displayName.trim() || null,
+          displayName: displayName.trim(),
           token,
         }),
       });
@@ -160,7 +162,9 @@ export default function InvitePage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">ชื่อผู้ใช้</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+            ชื่อผู้ใช้ <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             value={username}
@@ -168,22 +172,28 @@ export default function InvitePage() {
             placeholder="username"
             className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             autoComplete="username"
+            required
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">ชื่อที่แสดง (ไม่บังคับ)</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+            ชื่อที่แสดง <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="ชื่อที่จะแสดงในระบบ"
             className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            required
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">รหัสผ่าน</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+            รหัสผ่าน <span className="text-red-500">*</span>
+          </label>
           <div className="relative mt-1">
             <input
               type={showPassword ? 'text' : 'password'}
@@ -192,6 +202,7 @@ export default function InvitePage() {
               placeholder="อย่างน้อย 6 ตัวอักษร"
               className="block w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               autoComplete="new-password"
+              required
             />
             <button
               type="button"
@@ -204,7 +215,9 @@ export default function InvitePage() {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">ยืนยันรหัสผ่าน</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+            ยืนยันรหัสผ่าน <span className="text-red-500">*</span>
+          </label>
           <input
             type={showPassword ? 'text' : 'password'}
             value={confirmPassword}
@@ -212,6 +225,7 @@ export default function InvitePage() {
             placeholder="พิมพ์รหัสผ่านอีกครั้ง"
             className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             autoComplete="new-password"
+            required
           />
         </div>
 
