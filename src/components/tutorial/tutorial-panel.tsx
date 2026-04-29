@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, X, Sparkles, Info, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { cn } from '@/lib/utils/cn';
@@ -8,21 +8,48 @@ import { useTutorialStore } from '@/stores/tutorial-store';
 import { getFlow } from '@/lib/tutorial/steps';
 
 // A floating side panel that follows the user through the walkthrough.
-// On mobile it docks to the bottom; on desktop it sits in the bottom-right
-// corner so it doesn't fight with the main UI.
+// Position is dynamic: if the current step's spotlight target is in
+// the bottom half of the viewport (e.g. a bottom-nav icon on mobile)
+// the panel docks at the top so it doesn't cover the highlight; if
+// the target is in the top half, the panel docks at the bottom. On
+// desktop the panel still sits in a corner — but the same swap rule
+// applies so it doesn't park on top of the highlighted element.
 //
-// User can collapse it to a small pill if they want to interact with the
-// page first, then expand back to read the next step.
+// User can also collapse it to a small pill if they want to interact
+// with the page first, then expand back to read the next step.
 
 export function TutorialPanel() {
   const { active, feature, stepIndex, next, prev, exit } = useTutorialStore();
   const [collapsed, setCollapsed] = useState(false);
+  const [dockTop, setDockTop] = useState(false);
 
   const flow = getFlow(feature);
-  if (!active || !flow) return null;
+  const step = flow?.steps[stepIndex];
+  const targetId = step?.targetId;
 
-  const step = flow.steps[stepIndex];
-  if (!step) return null;
+  // Re-evaluate dock position whenever the step changes. The target
+  // element may not be mounted on the very first render (e.g. user is
+  // mid-navigation), so we re-measure a few times before giving up.
+  useEffect(() => {
+    if (!active || !targetId) {
+      setDockTop(false);
+      return;
+    }
+    const measure = () => {
+      const el = document.querySelector<HTMLElement>(
+        `[data-tutorial-id="${targetId}"]`,
+      );
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const inBottomHalf = r.top + r.height / 2 > window.innerHeight * 0.5;
+      setDockTop(inBottomHalf);
+    };
+    measure();
+    const timers = [setTimeout(measure, 100), setTimeout(measure, 400)];
+    return () => timers.forEach(clearTimeout);
+  }, [active, targetId]);
+
+  if (!active || !flow || !step) return null;
 
   const isFirst = stepIndex === 0;
   const isLast = step.isFinal === true || stepIndex === flow.steps.length - 1;
@@ -34,9 +61,10 @@ export function TutorialPanel() {
         type="button"
         onClick={() => setCollapsed(false)}
         className={cn(
-          'fixed bottom-20 right-4 z-50 flex items-center gap-2 rounded-full px-4 py-2.5',
+          'fixed z-50 flex items-center gap-2 rounded-full px-4 py-2.5',
           'bg-indigo-600 text-white shadow-lg transition-all hover:bg-indigo-700',
-          'sm:bottom-6 sm:right-6',
+          'right-4 sm:right-6',
+          dockTop ? 'top-3 sm:top-6' : 'bottom-20 sm:bottom-6',
           'dark:bg-indigo-500 dark:hover:bg-indigo-600',
         )}
       >
@@ -53,10 +81,12 @@ export function TutorialPanel() {
       className={cn(
         'fixed z-50 flex flex-col rounded-xl border bg-white shadow-2xl',
         'border-indigo-100 dark:border-indigo-900/50 dark:bg-gray-900',
-        // Mobile: sticky bottom sheet
-        'inset-x-3 bottom-3 max-h-[60vh]',
-        // Desktop: bottom-right card
-        'sm:inset-auto sm:right-6 sm:bottom-6 sm:w-96 sm:max-h-[70vh]',
+        // Mobile: sheet that swaps top/bottom based on where the target sits.
+        'inset-x-3 max-h-[55vh]',
+        dockTop ? 'top-3' : 'bottom-3',
+        // Desktop: corner card with the same top/bottom swap.
+        'sm:inset-auto sm:right-6 sm:w-96 sm:max-h-[70vh]',
+        dockTop ? 'sm:top-6' : 'sm:bottom-6',
       )}
       role="dialog"
       aria-label="ขั้นตอนการสอนการใช้งาน"
