@@ -1083,16 +1083,11 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
         showClose={false}
       >
         <div className="space-y-4 px-1 pb-1">
-          <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-700/50 dark:bg-amber-900/20">
-            <Truck className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-            <div className="text-sm">
-              <p className="font-semibold text-amber-900 dark:text-amber-200">
-                กรุณานำขวดเหล้าไปส่งให้ Bar
-              </p>
-              <p className="mt-1 text-amber-700 dark:text-amber-300">
-                บันทึกรายการแล้ว — โปรดเดินขวดไปส่งให้บาร์เพื่อยืนยันรับเข้าระบบ ก่อนรายการจะถูกใช้งานได้
-              </p>
-            </div>
+          <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-700/50 dark:bg-amber-900/20">
+            <Truck className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+              กรุณานำส่งให้ Bar
+            </p>
           </div>
           {savedDepositCodes.length > 0 && (
             <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-700 dark:bg-gray-800/50">
