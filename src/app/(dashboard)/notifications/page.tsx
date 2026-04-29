@@ -1,13 +1,17 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useNotificationStore } from '@/stores/notification-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { resolveNotificationUrl } from '@/lib/notifications/resolve-url';
+import { isNotificationTypeVisibleToRole } from '@/lib/role-task-visibility';
 import { cn } from '@/lib/utils/cn';
 import { formatThaiDate } from '@/lib/utils/format';
+import type { UserRole } from '@/types/roles';
 import {
   Bell,
   Check,
@@ -77,8 +81,19 @@ export default function NotificationsPage() {
   const t = useTranslations('notificationsPage');
   const { markRead, markAllRead } = useNotifications();
   const { notifications, unreadCount } = useNotificationStore();
+  const role = useAuthStore((s) => s.user?.role) as UserRole | undefined;
 
-  const loading = notifications.length === 0 && unreadCount === 0;
+  // Hide notifications whose type isn't relevant to this role.
+  const visibleNotifications = useMemo(
+    () => notifications.filter((n) => isNotificationTypeVisibleToRole(n.type, role)),
+    [notifications, role],
+  );
+  const visibleUnreadCount = useMemo(
+    () => visibleNotifications.filter((n) => !n.read).length,
+    [visibleNotifications],
+  );
+
+  const loading = visibleNotifications.length === 0 && visibleUnreadCount === 0;
 
   function handleClick(notif: Notification) {
     if (!notif.read) {
@@ -104,13 +119,13 @@ export default function NotificationsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {t('title')}
           </h1>
-          {unreadCount > 0 && (
+          {visibleUnreadCount > 0 && (
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {t('unreadCount', { count: unreadCount })}
+              {t('unreadCount', { count: visibleUnreadCount })}
             </p>
           )}
         </div>
-        {unreadCount > 0 && (
+        {visibleUnreadCount > 0 && (
           <Button
             variant="outline"
             size="sm"
@@ -123,7 +138,7 @@ export default function NotificationsPage() {
       </div>
 
       {/* List */}
-      {notifications.length === 0 ? (
+      {visibleNotifications.length === 0 ? (
         <EmptyState
           icon={Inbox}
           title={t('empty')}
@@ -132,7 +147,7 @@ export default function NotificationsPage() {
       ) : (
         <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {notifications.map((notif) => {
+            {visibleNotifications.map((notif) => {
               const { icon: Icon, color, bg } = getNotificationIcon(
                 notif.type,
                 notif.data,

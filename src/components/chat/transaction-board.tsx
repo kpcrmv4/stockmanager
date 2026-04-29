@@ -20,6 +20,8 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { useChatStore } from '@/stores/chat-store';
 import { ActionCardMessage } from './action-card-message';
+import { isActionTypeVisibleToRole } from '@/lib/role-task-visibility';
+import type { UserRole } from '@/types/roles';
 import type { ChatMessage } from '@/types/chat';
 
 interface TransactionBoardProps {
@@ -102,14 +104,20 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
     return () => clearInterval(id);
   }, []);
 
-  // Extract action card messages only (works for both ActionCard and Transfer metadata)
+  // Extract action card messages only (works for both ActionCard and Transfer metadata).
+  // Apply the role-based scope here so every downstream filter, group,
+  // and counter sees the same already-narrowed set.
   const actionCards = useMemo(() => {
     return messages.filter((msg) => {
       if (msg.type !== 'action_card' || !msg.metadata) return false;
       const meta = msg.metadata as unknown as Record<string, unknown>;
-      return !!meta.action_type;
+      if (!meta.action_type) return false;
+      return isActionTypeVisibleToRole(
+        meta.action_type as string,
+        currentUserRole as UserRole | undefined,
+      );
     });
-  }, [messages]);
+  }, [messages, currentUserRole]);
 
   // Apply filters (using normalized status for cross-type compatibility)
   const filteredCards = useMemo(() => {
@@ -218,18 +226,25 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
         </button>
       </div>
 
-      {/* Type filter chips */}
+      {/* Type filter chips — only show types the role is scoped to.
+          Owner / manager / accountant / hq see all; staff / bar are
+          narrowed to deposit + withdrawal so the chip row stops
+          listing stock/borrow/transfer they have no role in. */}
       <div className="flex items-center gap-1.5 overflow-x-auto px-3 py-2">
         <FilterChip label="ทั้งหมด" active={filterType === 'all'} onClick={() => setFilterType('all')} />
-        {Object.entries(TYPE_CONFIG).map(([key, cfg]) => (
-          <FilterChip
-            key={key}
-            label={cfg.label}
-            icon={cfg.icon}
-            active={filterType === key}
-            onClick={() => setFilterType(filterType === key ? 'all' : key as FilterType)}
-          />
-        ))}
+        {Object.entries(TYPE_CONFIG)
+          .filter(([key]) =>
+            isActionTypeVisibleToRole(key, currentUserRole as UserRole | undefined),
+          )
+          .map(([key, cfg]) => (
+            <FilterChip
+              key={key}
+              label={cfg.label}
+              icon={cfg.icon}
+              active={filterType === key}
+              onClick={() => setFilterType(filterType === key ? 'all' : key as FilterType)}
+            />
+          ))}
       </div>
 
       {/* Grouped action cards */}

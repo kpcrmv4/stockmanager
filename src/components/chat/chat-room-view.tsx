@@ -18,6 +18,8 @@ import { CompactActionCard } from './compact-action-card';
 import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin, Reply, MessageSquare, ClipboardList, UserCircle, Users, ChevronLeft, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { ChatNotificationToggle } from './chat-notification-toggle';
+import { isActionTypeVisibleToRole } from '@/lib/role-task-visibility';
+import type { UserRole } from '@/types/roles';
 import type { ChatPinnedMessage, ChatMessage, ChatRoom } from '@/types/chat';
 
 interface ChatRoomViewProps {
@@ -317,9 +319,16 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
     return messages.filter((m) => {
       if (m.type !== 'action_card' || !m.metadata) return false;
       const meta = m.metadata as import('@/types/chat').ActionCardMetadata;
-      return meta.status === 'pending' || meta.status === 'pending_bar';
+      if (meta.status !== 'pending' && meta.status !== 'pending_bar') return false;
+      // Only count tasks this role would see in the board itself, so
+      // the badge can't claim there's work waiting that the user can't
+      // even see when they tap through.
+      return isActionTypeVisibleToRole(
+        meta.action_type as string | undefined,
+        user?.role as UserRole | undefined,
+      );
     }).length;
-  }, [messages]);
+  }, [messages, user?.role]);
 
   // Filter messages by date for chat tab
   const filteredMessages = useMemo(() => {

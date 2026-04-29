@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import {
@@ -21,7 +21,10 @@ import { cn } from '@/lib/utils/cn';
 import { formatThaiDate } from '@/lib/utils/format';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useNotificationStore } from '@/stores/notification-store';
+import { useAuthStore } from '@/stores/auth-store';
+import { isNotificationTypeVisibleToRole } from '@/lib/role-task-visibility';
 import { resolveNotificationUrl } from '@/lib/notifications/resolve-url';
+import type { UserRole } from '@/types/roles';
 import type { Notification } from '@/types/database';
 
 interface NotificationCenterProps {
@@ -94,8 +97,22 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
   const t = useTranslations();
   const { markRead, markAllRead } = useNotifications();
   const { notifications, unreadCount } = useNotificationStore();
+  const role = useAuthStore((s) => s.user?.role) as UserRole | undefined;
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Hide notifications whose type isn't relevant to this role.
+  // Operational roles (staff, bar) are scoped to deposit + withdrawal
+  // notifications + the common "everyone sees this" set; other roles
+  // keep their full feed.
+  const visibleNotifications = useMemo(
+    () => notifications.filter((n) => isNotificationTypeVisibleToRole(n.type, role)),
+    [notifications, role],
+  );
+  const visibleUnreadCount = useMemo(
+    () => visibleNotifications.filter((n) => !n.read).length,
+    [visibleNotifications],
+  );
 
   function getTimeAgo(dateStr: string): string {
     const now = Date.now();
@@ -161,14 +178,14 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
         aria-haspopup="true"
       >
         <Bell className="h-5 w-5" />
-        {unreadCount > 0 && (
+        {visibleUnreadCount > 0 && (
           <span
             className={cn(
               'absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1',
               'bg-red-500 text-[10px] font-bold text-white'
             )}
           >
-            {unreadCount > 99 ? '99+' : unreadCount}
+            {visibleUnreadCount > 99 ? '99+' : visibleUnreadCount}
           </span>
         )}
       </button>
@@ -188,7 +205,7 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
               {t('notifications.title')}
             </h3>
-            {unreadCount > 0 && (
+            {visibleUnreadCount > 0 && (
               <button
                 type="button"
                 onClick={handleMarkAllRead}
@@ -200,13 +217,13 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
           </div>
 
           <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {visibleNotifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-gray-500">
                 <BellOff className="mb-2 h-10 w-10" />
                 <p className="text-sm">{t('notifications.empty')}</p>
               </div>
             ) : (
-              notifications.slice(0, 20).map((notification) => {
+              visibleNotifications.slice(0, 20).map((notification) => {
                 const { icon: Icon, color, bg } = getNotificationIcon(
                   notification.type,
                   notification.data
@@ -258,7 +275,7 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
             )}
           </div>
 
-          {notifications.length > 0 && (
+          {visibleNotifications.length > 0 && (
             <div className="border-t border-gray-200 dark:border-gray-700">
               <button
                 type="button"
