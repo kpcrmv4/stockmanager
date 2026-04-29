@@ -1326,13 +1326,16 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
 
   const canBarConfirm = deposit.status === 'pending_confirm' && user && ['bar', 'manager', 'owner'].includes(user.role);
   const canRejectDeposit = deposit.status === 'pending_confirm' && user && ['bar', 'manager', 'owner'].includes(user.role);
+  // ระหว่าง pending_confirm = ขวดยังไม่ได้รับเข้าระบบ → ทั้ง mark-expired
+  // และ toggle-VIP ไม่ make sense (จะ VIP/หมดอายุของอะไรในเมื่อยังไม่รับฝาก)
+  // จึงตัด pending_confirm ออกจากเงื่อนไขทั้งสอง
   const canApproveWithdrawal = deposit.status === 'pending_withdrawal' && user && ['bar', 'manager', 'owner'].includes(user.role);
   const canWithdraw = deposit.status === 'in_store' && deposit.remaining_qty > 0;
-  const canMarkExpired = (deposit.status === 'in_store' || deposit.status === 'pending_confirm') && !deposit.is_vip;
+  const canMarkExpired = deposit.status === 'in_store' && !deposit.is_vip;
   const canTransfer = deposit.status === 'expired';
   const canTransferToHq = deposit.status === 'expired';
   const canExtendExpiry = deposit.status === 'in_store' && !deposit.is_vip;
-  const canToggleVip = deposit.status === 'in_store' || deposit.status === 'pending_confirm';
+  const canToggleVip = deposit.status === 'in_store';
 
   return (
     <div className="space-y-6">
@@ -1891,9 +1894,10 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           )}
 
           {/* การดำเนินการ — consolidated action card.
-              Staff sees nothing here while status='pending_bar' because their
-              job ended at "send the bottle to bar" — bar takes it from there. */}
-          {user && user.role !== 'customer' && !(user.role === 'staff' && deposit.status === 'pending_bar') && (canBarConfirm || canRejectDeposit || canWithdraw || canMarkExpired || canTransferToHq || canExtendExpiry || canToggleVip || canEditDeposit) && (
+              Staff sees nothing here while status='pending_confirm' because
+              their job ended at "send the bottle to bar" — bar takes it
+              from there. */}
+          {user && user.role !== 'customer' && !(user.role === 'staff' && deposit.status === 'pending_confirm') && (canBarConfirm || canRejectDeposit || canWithdraw || canMarkExpired || canTransferToHq || canExtendExpiry || canToggleVip || canEditDeposit) && (
             <Card padding="none">
               <CardHeader title={t("detail.actions")} />
               <CardContent>
@@ -2003,7 +2007,7 @@ export function DepositDetail({ deposit: initialDeposit, onBack, storeName = '' 
           {/* Print Actions — hidden while still รอยืนยัน since bar hasn't
               finalized the deposit yet, so the receipt/label would print
               an unconfirmed row. */}
-          {deposit.status !== 'pending_bar' && (
+          {deposit.status !== 'pending_confirm' && (
             <Card padding="none">
               <CardHeader title={t("detail.printDocuments")} />
               <CardContent>
