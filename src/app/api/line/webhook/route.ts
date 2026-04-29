@@ -600,6 +600,9 @@ const DEPOSIT_KEYWORD_PATTERNS: RegExp[] = [
   // English — deposit system phrases (case + whitespace insensitive,
   // tolerant of common spelling drift like "alchol", "alchohol")
   /^deposits?$/i,
+  // Explicit "alcohol[ ]deposit[s]" — kept alongside the typo-tolerant
+  // ALCOHOL_WORD pattern below as an unambiguous, easy-to-read entry
+  /^alcohol\s*deposits?$/i,
   new RegExp(`^${ALCOHOL_WORD}\\s*deposits?$`, 'i'),
   /^bottle\s*deposits?$/i,
   /^liquor\s*deposits?$/i,
