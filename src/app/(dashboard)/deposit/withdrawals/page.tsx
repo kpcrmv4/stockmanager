@@ -45,7 +45,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
-import { notifyChatWithdrawalCompleted, notifyChatWithdrawalCompletedAsCard, syncChatActionCardStatus } from '@/lib/chat/bot-client';
+import { notifyChatWithdrawalCompleted, notifyChatWithdrawalCompletedAsCard, notifyChatWithdrawalRequest, syncChatActionCardStatus } from '@/lib/chat/bot-client';
 
 interface Withdrawal {
   id: string;
@@ -484,6 +484,18 @@ export default function WithdrawalsPage() {
     setIsManualSubmitting(true);
     const supabase = createClient();
 
+    // Staff submits a "request" only — the bar still has to confirm
+    // and physically dispense. This mirrors the legacy GAS behaviour
+    // where staff's "เบิกแบบ Manual" button created a pending row that
+    // showed up on bar's "รอเบิก" tab. Bar / manager / owner stay on the
+    // direct-completion path: the row goes straight to status=completed
+    // with bottles consumed and the customer flex push fired.
+    const isStaff = user.role === 'staff';
+    const finalTable = manualWithdrawalType === 'in_store'
+      ? (manualTableNumber.trim() || null)
+      : null;
+    const userName = user.displayName || user.username || 'พนักงาน';
+
     for (const item of withdrawItems) {
       const qty = parseFloat(item.qty);
       const dep = item.deposit;
@@ -493,28 +505,40 @@ export default function WithdrawalsPage() {
       // bottle_id stays linked (used by the list + history to show
       // "ขวด X/N"). For deposits with no bottle picker (legacy or
       // qty-based), fall back to a single row with bottle_id=null.
-      // Table number is meaningful only for in-store withdrawals; for
-      // take-home we explicitly null it out so a stale value never
-      // sneaks onto a take-away row.
-      const finalTable = manualWithdrawalType === 'in_store'
-        ? (manualTableNumber.trim() || null)
-        : null;
-      const baseRow = {
-        deposit_id: dep.id,
-        store_id: currentStoreId,
-        line_user_id: dep.line_user_id,
-        customer_name: dep.customer_name,
-        product_name: dep.product_name,
-        withdrawal_type: manualWithdrawalType,
-        table_number: finalTable,
-        status: 'completed' as const,
-        processed_by: user.id,
-        notes: manualNotes.trim() || null,
-        photo_url: manualPhotoUrl,
-      };
+      const baseRow = isStaff
+        ? {
+            deposit_id: dep.id,
+            store_id: currentStoreId,
+            line_user_id: dep.line_user_id,
+            customer_name: dep.customer_name,
+            product_name: dep.product_name,
+            withdrawal_type: manualWithdrawalType,
+            table_number: finalTable,
+            status: 'pending' as const,
+            // processed_by stays NULL — bar fills it in on confirm.
+            notes: manualNotes.trim() || null,
+            photo_url: manualPhotoUrl,
+          }
+        : {
+            deposit_id: dep.id,
+            store_id: currentStoreId,
+            line_user_id: dep.line_user_id,
+            customer_name: dep.customer_name,
+            product_name: dep.product_name,
+            withdrawal_type: manualWithdrawalType,
+            table_number: finalTable,
+            status: 'completed' as const,
+            processed_by: user.id,
+            notes: manualNotes.trim() || null,
+            photo_url: manualPhotoUrl,
+          };
       const rows = selectedIds.length > 0
-        ? selectedIds.map((bid) => ({ ...baseRow, requested_qty: 1, actual_qty: 1, bottle_id: bid }))
-        : [{ ...baseRow, requested_qty: qty, actual_qty: qty, bottle_id: null }];
+        ? selectedIds.map((bid) => isStaff
+            ? { ...baseRow, requested_qty: 1, bottle_id: bid }
+            : { ...baseRow, requested_qty: 1, actual_qty: 1, bottle_id: bid })
+        : [isStaff
+            ? { ...baseRow, requested_qty: qty, bottle_id: null }
+            : { ...baseRow, requested_qty: qty, actual_qty: qty, bottle_id: null }];
 
       const { error: withdrawalError } = await supabase.from('withdrawals').insert(rows);
 
@@ -524,6 +548,51 @@ export default function WithdrawalsPage() {
         return;
       }
 
+      const bottleLabels = selectedIds.length > 0
+        ? item.bottles
+            .filter((b) => selectedIds.includes(b.id))
+            .map((b) => `${b.bottle_no}/${dep.quantity}`)
+        : undefined;
+
+      if (isStaff) {
+        // Staff path — flag deposit as awaiting bar, post a pending
+        // withdrawal_claim card to chat. No bottles are consumed yet:
+        // bar will mark them off when they handle the request.
+        await supabase
+          .from('deposits')
+          .update({ status: 'pending_withdrawal' })
+          .eq('id', dep.id);
+
+        notifyChatWithdrawalRequest(currentStoreId, {
+          deposit_code: dep.deposit_code,
+          customer_name: dep.customer_name,
+          product_name: dep.product_name,
+          requested_qty: qty,
+          table_number: finalTable,
+          withdrawal_type: manualWithdrawalType,
+          bottle_labels: bottleLabels,
+        });
+
+        await logAudit({
+          store_id: currentStoreId,
+          action_type: AUDIT_ACTIONS.WITHDRAWAL_REQUESTED,
+          table_name: 'withdrawals',
+          record_id: dep.id,
+          new_value: {
+            customer_name: dep.customer_name,
+            product_name: dep.product_name,
+            requested_qty: qty,
+            withdrawal_type: manualWithdrawalType,
+            table_number: finalTable,
+            manual: true,
+            requested_by: userName,
+          },
+          changed_by: user.id,
+        });
+        continue;
+      }
+
+      // Bar / manager / owner path — direct completion (legacy behaviour).
       // Mark selected bottles as consumed (per-bottle tracking).
       if (selectedIds.length > 0) {
         await supabase
@@ -566,7 +635,7 @@ export default function WithdrawalsPage() {
         customer_name: dep.customer_name,
         product_name: dep.product_name,
         actual_qty: qty,
-        processed_by_name: user.displayName || user.username || 'พนักงาน',
+        processed_by_name: userName,
       });
 
       // If a customer/staff had previously requested a withdrawal for
@@ -579,17 +648,12 @@ export default function WithdrawalsPage() {
         actionType: 'withdrawal_claim',
         newStatus: 'completed',
         completedBy: user.id,
-        completedByName: user.displayName || user.username || 'พนักงาน',
+        completedByName: userName,
       });
 
       // Drop a pre-completed action card so the รายการงาน tab keeps a
       // record of this manual withdrawal alongside customer-initiated
       // ones. Includes bottle labels when available.
-      const bottleLabels = selectedIds.length > 0
-        ? item.bottles
-            .filter((b) => selectedIds.includes(b.id))
-            .map((b) => `${b.bottle_no}/${dep.quantity}`)
-        : undefined;
       notifyChatWithdrawalCompletedAsCard(currentStoreId, {
         deposit_code: dep.deposit_code,
         customer_name: dep.customer_name,
@@ -597,7 +661,7 @@ export default function WithdrawalsPage() {
         actual_qty: qty,
         bottle_labels: bottleLabels,
         completed_by: user.id,
-        completed_by_name: user.displayName || user.username || 'พนักงาน',
+        completed_by_name: userName,
       });
 
       // Flex push to the customer's LINE OA (per-store toggle).
@@ -623,13 +687,26 @@ export default function WithdrawalsPage() {
     }
 
     const summary = withdrawItems.map((w) => `${w.deposit.product_name} x${w.qty}`).join(', ');
-    toast({ type: 'success', title: t('withdrawals.manual.successTitle'), message: t('withdrawals.manual.successMessage', { count: withdrawItems.length, summary }) });
+
+    if (isStaff) {
+      toast({
+        type: 'success',
+        title: t('withdrawals.manual.staffRequestTitle'),
+        message: t('withdrawals.manual.staffRequestMessage'),
+      });
+    } else {
+      toast({
+        type: 'success',
+        title: t('withdrawals.manual.successTitle'),
+        message: t('withdrawals.manual.successMessage', { count: withdrawItems.length, summary }),
+      });
+    }
 
     // Notify other staff (single notification for batch)
     notifyStaff({
       storeId: currentStoreId,
       type: 'withdrawal_request',
-      title: t('withdrawals.manual.notifyTitle'),
+      title: isStaff ? t('withdrawals.manual.staffNotifyTitle') : t('withdrawals.manual.notifyTitle'),
       body: t('withdrawals.manual.notifyBody', { count: withdrawItems.length, summary }),
       data: {},
       excludeUserId: user.id,

@@ -1280,6 +1280,9 @@
         "qtyExceedsError": "จำนวนเกินกว่าที่คงเหลือ",
         "successTitle": "เบิกเหล้าสำเร็จ",
         "successMessage": "{count} รายการ: {summary}",
+        "staffRequestTitle": "บันทึกคำขอเบิกแล้ว",
+        "staffRequestMessage": "โปรดแจ้ง Bar และนำเหล้าไปเสิร์ฟลูกค้า",
+        "staffNotifyTitle": "Staff ขอเบิกเหล้า",
         "processError": "ไม่สามารถเบิก {product} ได้",
         "notifyTitle": "เบิกเหล้าแล้ว",
         "notifyBody": "เบิก {count} รายการ: {summary}"

@@ -137,6 +137,7 @@ export function notifyChatWithdrawalRequest(
     requested_qty: number;
     table_number?: string | null;
     notes?: string | null;
+    withdrawal_type?: 'in_store' | 'take_home' | null;
     /** When provided, surfaced in the items field so the bar sees
      *  exactly which bottles to physically pull (e.g. "1/3, 3/3"). */
     bottle_labels?: string[];
@@ -145,6 +146,11 @@ export function notifyChatWithdrawalRequest(
   const bottleSuffix = withdrawal.bottle_labels && withdrawal.bottle_labels.length > 0
     ? ` (${withdrawal.bottle_labels.join(', ')})`
     : '';
+  // Match buildWithdrawalActionCard (server side): emoji-tagged type
+  // label in the note, table number rendered separately as a header
+  // badge by the action-card UI.
+  const isTakeHome = withdrawal.withdrawal_type === 'take_home';
+  const whereNote = isTakeHome ? '🏠 เบิกกลับบ้าน' : '🍷 ดื่มที่ร้าน';
   const meta: ActionCardMetadata = {
     action_type: 'withdrawal_claim',
     reference_id: withdrawal.deposit_code,
@@ -160,9 +166,8 @@ export function notifyChatWithdrawalRequest(
       customer: withdrawal.customer_name,
       items: `${withdrawal.product_name} x${withdrawal.requested_qty}${bottleSuffix}`,
       table_number: withdrawal.table_number || undefined,
-      note: withdrawal.table_number
-        ? `โต๊ะ ${withdrawal.table_number}`
-        : withdrawal.notes || undefined,
+      withdrawal_type: withdrawal.withdrawal_type || undefined,
+      note: whereNote,
     },
   };
 

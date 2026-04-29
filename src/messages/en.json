@@ -1280,6 +1280,9 @@
         "qtyExceedsError": "Quantity exceeds remaining",
         "successTitle": "Withdrawal successful",
         "successMessage": "{count} items: {summary}",
+        "staffRequestTitle": "Withdrawal request submitted",
+        "staffRequestMessage": "Please notify Bar and serve the bottle to the customer",
+        "staffNotifyTitle": "Staff submitted a withdrawal request",
         "processError": "Unable to withdraw {product}",
         "notifyTitle": "Withdrawal completed",
         "notifyBody": "Withdrew {count} items: {summary}"
