@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { LogIn, Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -158,15 +157,9 @@ export default function LoginPage() {
         {isLoading ? t('loggingIn') : t('login')}
       </button>
 
-      {/* Register Link */}
-      <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
-        {t('noAccount')}{' '}
-        <Link
-          href="/register"
-          className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
-        >
-          {t('register')}
-        </Link>
+      {/* Register info — staff must use an invite link */}
+      <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
+        ยังไม่มีบัญชี? ติดต่อ Owner หรือ Manager เพื่อขอลิงก์เชิญ
       </p>
     </form>
   );
