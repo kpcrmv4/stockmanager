@@ -5,6 +5,7 @@
 
 @theme inline {
   --font-sans: var(--font-noto-sans-thai), system-ui, -apple-system, sans-serif;
+  --font-handwriting: var(--font-mali), "Comic Sans MS", cursive;
 }
 
 /* Safe area insets for PWA */

@@ -1,19 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, ArrowDown, ArrowUp, ArrowLeft, ArrowRight } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { cn } from '@/lib/utils/cn';
 
-// First-screen overlay — dark backdrop, white labels with arrows pointing
-// at the three main entry points (deposit/withdraw, chat, profile menu).
-// Inspired by the gogobot-style coachmark the user shared.
-//
-// Anchors live on the actual nav components via `data-tutorial-anchor`
-// — the overlay reads their bounding rects on mount and on resize, then
-// draws a label box near each one. We pick whichever copy is currently
-// visible (mobile bottom-nav vs. desktop sidebar) by checking
-// offsetParent.
+// First-screen coachmark inspired by the gogobot reference. The screen
+// is dimmed by an SVG mask that *cuts out* the three anchor elements
+// (deposit / chat nav, profile button) so they stay readable. Each
+// label is parked in a corner away from anchors, with a curved
+// hand-drawn arrow connecting label → target. Mali handwriting font
+// gives the whole thing a "sticky note" feel rather than a UI dialog.
 
 interface AnchorPos {
   top: number;
@@ -24,20 +21,15 @@ interface AnchorPos {
   centerY: number;
 }
 
-interface AnchorMap {
-  deposit?: AnchorPos;
-  chat?: AnchorPos;
-  profile?: AnchorPos;
-}
+type AnchorName = 'deposit' | 'chat' | 'profile';
+type AnchorMap = Partial<Record<AnchorName, AnchorPos>>;
 
-function findVisibleAnchor(name: string): HTMLElement | null {
+function findVisibleAnchor(name: AnchorName): HTMLElement | null {
   if (typeof document === 'undefined') return null;
   const all = document.querySelectorAll<HTMLElement>(
     `[data-tutorial-anchor="${name}"]`,
   );
   for (const el of all) {
-    // offsetParent === null means display:none / hidden (e.g. the desktop
-    // sidebar on a mobile viewport where it's hidden via CSS).
     if (el.offsetParent !== null) return el;
   }
   return all[0] ?? null;
@@ -63,88 +55,51 @@ function measure(): AnchorMap {
   return result;
 }
 
-interface LabelProps {
-  anchor: AnchorPos;
-  /** Where the label sits relative to the anchor */
-  side: 'top' | 'bottom' | 'left' | 'right';
+interface LabelConfig {
+  anchor: AnchorName;
   title: string;
   body: string;
-  /** Force a specific x in pixels (for the top-right profile case where
-   *  the label needs to sit under the anchor but right-aligned). */
-  fixedRight?: number;
+  /** Where the label box sits within the viewport */
+  pos: { top?: number; bottom?: number; left?: number; right?: number };
+  /** Which corner of the label the arrow leaves from */
+  arrowFrom: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 }
 
-function AnnotationLabel({ anchor, side, title, body, fixedRight }: LabelProps) {
-  // Position the label beside the anchor with a 16px gap. We don't draw
-  // an arrow line — instead the lucide arrow icon points in the right
-  // direction, which is enough at this density.
-  const Arrow =
-    side === 'top'
-      ? ArrowDown
-      : side === 'bottom'
-        ? ArrowUp
-        : side === 'left'
-          ? ArrowRight
-          : ArrowLeft;
+function rectFromPos(
+  pos: LabelConfig['pos'],
+  width: number,
+  height: number,
+  vw: number,
+  vh: number,
+) {
+  const left = pos.left !== undefined ? pos.left : vw - (pos.right ?? 0) - width;
+  const top = pos.top !== undefined ? pos.top : vh - (pos.bottom ?? 0) - height;
+  return { left, top, width, height };
+}
 
-  // Pick a sensible viewport-clamped position.
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 360;
-  const labelMaxWidth = Math.min(220, vw - 40);
+function arrowOrigin(
+  rect: { left: number; top: number; width: number; height: number },
+  side: LabelConfig['arrowFrom'],
+) {
+  const inset = 24;
+  if (side === 'top-right') return { x: rect.left + rect.width - inset, y: rect.top };
+  if (side === 'top-left') return { x: rect.left + inset, y: rect.top };
+  if (side === 'bottom-right')
+    return { x: rect.left + rect.width - inset, y: rect.top + rect.height };
+  return { x: rect.left + inset, y: rect.top + rect.height };
+}
 
-  const style: React.CSSProperties = (() => {
-    const GAP = 16;
-    if (side === 'top') {
-      return {
-        top: anchor.top - GAP,
-        left: Math.max(12, Math.min(vw - labelMaxWidth - 12, anchor.centerX - labelMaxWidth / 2)),
-        transform: 'translateY(-100%)',
-        maxWidth: labelMaxWidth,
-      };
-    }
-    if (side === 'bottom') {
-      return {
-        top: anchor.top + anchor.height + GAP,
-        left: fixedRight !== undefined
-          ? undefined
-          : Math.max(12, Math.min(vw - labelMaxWidth - 12, anchor.centerX - labelMaxWidth / 2)),
-        right: fixedRight,
-        maxWidth: labelMaxWidth,
-      };
-    }
-    if (side === 'left') {
-      return {
-        top: anchor.centerY,
-        left: anchor.left - GAP,
-        transform: 'translate(-100%, -50%)',
-        maxWidth: labelMaxWidth,
-      };
-    }
-    return {
-      top: anchor.centerY,
-      left: anchor.left + anchor.width + GAP,
-      transform: 'translateY(-50%)',
-      maxWidth: labelMaxWidth,
-    };
-  })();
-
-  return (
-    <div
-      className={cn(
-        'pointer-events-none absolute z-[61] flex flex-col items-start gap-1 rounded-lg',
-        'bg-white/95 px-3 py-2 text-gray-900 shadow-xl backdrop-blur-sm',
-        'dark:bg-gray-900/95 dark:text-white',
-      )}
-      style={style}
-    >
-      <div className="flex items-center gap-1.5">
-        <Arrow className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
-        <p className="text-sm font-bold">{title}</p>
-      </div>
-      <p className="text-xs leading-snug text-gray-600 dark:text-gray-300">
-        {body}
-      </p>
-    </div>
-  );
+function curvePath(fromX: number, fromY: number, toX: number, toY: number): string {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  // Control points biased toward the from-side so the line "throws"
+  // outward before homing in on the target — gives the loose, hand-drawn
+  // feel of the gogobot example.
+  const c1x = fromX + dx * 0.15 + (dy > 0 ? 30 : -30);
+  const c1y = fromY + dy * 0.55;
+  const c2x = fromX + dx * 0.6;
+  const c2y = fromY + dy * 0.25;
+  return `M ${fromX} ${fromY} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${toX} ${toY}`;
 }
 
 interface Props {
@@ -154,15 +109,20 @@ interface Props {
 
 export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
   const [anchors, setAnchors] = useState<AnchorMap>({});
+  const [vw, setVw] = useState(0);
+  const [vh, setVh] = useState(0);
 
   useEffect(() => {
     if (!isOpen) return;
     let raf = 0;
     const update = () => {
-      raf = requestAnimationFrame(() => setAnchors(measure()));
+      raf = requestAnimationFrame(() => {
+        setAnchors(measure());
+        setVw(window.innerWidth);
+        setVh(window.innerHeight);
+      });
     };
     update();
-    // Re-measure a few times in case nav components mount late.
     const timers = [setTimeout(update, 100), setTimeout(update, 400)];
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
@@ -174,85 +134,187 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || vw === 0) return null;
+
+  const isNarrow = vw < 768;
+  const labelW = Math.min(220, vw - 40);
+  // Estimated label height — title (~22px) + body 2 lines (~36px) +
+  // padding (~24px). Used only for arrow origin geometry; visual height
+  // is whatever the content needs.
+  const labelH = 80;
+
+  // Mobile: profile label below the status bar at top-right; deposit +
+  // chat labels float above the bottom-nav. Desktop: tighter columns.
+  const labels: LabelConfig[] = [
+    {
+      anchor: 'profile',
+      title: 'โปรไฟล์ของคุณ',
+      body: 'ตั้งค่า เปลี่ยนรหัสผ่าน หรือซ่อนปุ่มสอนการใช้งาน',
+      pos: { top: 70, right: 12 },
+      arrowFrom: 'top-right',
+    },
+    {
+      anchor: 'deposit',
+      title: 'ฝาก / เบิก',
+      body: 'หน้าหลัก — สร้างรายการฝาก รอยืนยัน เบิกของให้ลูกค้า',
+      pos: isNarrow ? { bottom: 130, left: 16 } : { bottom: 40, left: 16 },
+      arrowFrom: 'bottom-left',
+    },
+    {
+      anchor: 'chat',
+      title: 'แชทในร้าน',
+      body: 'ห้องแชทสาขา — รับ Action Card จากบาร์/พนักงาน',
+      pos: isNarrow ? { bottom: 130, right: 16 } : { bottom: 40, right: 16 },
+      arrowFrom: 'bottom-right',
+    },
+  ];
+
+  const visibleLabels = labels.filter((l) => anchors[l.anchor]);
+  const PAD = 8;
 
   return (
     <div
       className="fixed inset-0 z-[60]"
       role="dialog"
       aria-label="ภาพรวมเมนูหลัก"
+      style={{ fontFamily: 'var(--font-handwriting)' }}
     >
-      {/* Dark backdrop — clickable for "tap anywhere to close" */}
+      {/* Mask layer — dims everything except the anchor cutouts so the
+          underlying menu stays visible. */}
+      <svg
+        className="pointer-events-none absolute inset-0 h-full w-full"
+        aria-hidden
+      >
+        <defs>
+          <mask id="tutorial-cutout-mask">
+            <rect width="100%" height="100%" fill="white" />
+            {(['deposit', 'chat', 'profile'] as const).map((name) => {
+              const a = anchors[name];
+              if (!a) return null;
+              return (
+                <rect
+                  key={name}
+                  x={a.left - PAD}
+                  y={a.top - PAD}
+                  width={a.width + PAD * 2}
+                  height={a.height + PAD * 2}
+                  rx={14}
+                  ry={14}
+                  fill="black"
+                />
+              );
+            })}
+          </mask>
+        </defs>
+        <rect
+          width="100%"
+          height="100%"
+          fill="rgba(0, 0, 0, 0.5)"
+          mask="url(#tutorial-cutout-mask)"
+        />
+
+        {/* Glow rings around cutouts */}
+        {(['deposit', 'chat', 'profile'] as const).map((name) => {
+          const a = anchors[name];
+          if (!a) return null;
+          return (
+            <rect
+              key={`ring-${name}`}
+              x={a.left - PAD}
+              y={a.top - PAD}
+              width={a.width + PAD * 2}
+              height={a.height + PAD * 2}
+              rx={14}
+              ry={14}
+              fill="none"
+              stroke="rgb(165, 180, 252)"
+              strokeWidth={3}
+            />
+          );
+        })}
+
+        {/* Curved arrows from each label to its target */}
+        {visibleLabels.map((l) => {
+          const a = anchors[l.anchor]!;
+          const rect = rectFromPos(l.pos, labelW, labelH, vw, vh);
+          const origin = arrowOrigin(rect, l.arrowFrom);
+          // End point is just outside the cutout ring on the closest side
+          const isTop = l.arrowFrom.startsWith('top');
+          const targetY = isTop ? a.top - PAD - 6 : a.top + a.height + PAD + 6;
+          const targetX = a.centerX;
+          const path = curvePath(origin.x, origin.y, targetX, targetY);
+          return (
+            <g key={`arrow-${l.anchor}`}>
+              <path
+                d={path}
+                stroke="white"
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+              {/* Solid dot at the target end */}
+              <circle cx={targetX} cy={targetY} r={4.5} fill="white" />
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Tap-anywhere-to-close layer */}
       <button
         type="button"
         onClick={onClose}
         aria-label="ปิด"
-        className="absolute inset-0 h-full w-full bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 z-[1] h-full w-full cursor-pointer bg-transparent"
       />
 
-      {/* Cutout rings around each anchor — pure visual, no events */}
-      {(['deposit', 'chat', 'profile'] as const).map((name) => {
-        const a = anchors[name];
-        if (!a) return null;
-        const PAD = 6;
-        return (
-          <div
-            key={name}
-            aria-hidden
-            className="pointer-events-none absolute z-[61] rounded-xl ring-4 ring-indigo-300 ring-offset-2 ring-offset-transparent transition-[top,left,width,height] duration-200"
-            style={{
-              top: a.top - PAD,
-              left: a.left - PAD,
-              width: a.width + PAD * 2,
-              height: a.height + PAD * 2,
-            }}
-          />
-        );
-      })}
-
-      {/* Labels */}
-      {anchors.deposit && (
-        <AnnotationLabel
-          anchor={anchors.deposit}
-          side="top"
-          title="ฝาก / เบิก"
-          body="หน้าหลักของระบบ — สร้างรายการฝาก ดูรอยืนยัน เบิกของให้ลูกค้า"
-        />
-      )}
-      {anchors.chat && (
-        <AnnotationLabel
-          anchor={anchors.chat}
-          side="top"
-          title="แชทในร้าน"
-          body="ห้องแชทของแต่ละสาขา — รับ Action Card จากบาร์/พนักงาน"
-        />
-      )}
-      {anchors.profile && (
-        <AnnotationLabel
-          anchor={anchors.profile}
-          side="bottom"
-          title="โปรไฟล์ของคุณ"
-          body="เปลี่ยนรหัสผ่าน ตั้งค่า ซ่อนปุ่มสอนการใช้งาน หรือออกจากระบบ"
-          fixedRight={12}
-        />
-      )}
-
-      {/* Title at top, close button at bottom */}
-      <div className="pointer-events-none absolute inset-x-0 top-12 flex justify-center px-4">
-        <div className="rounded-full bg-white/95 px-4 py-2 shadow-lg dark:bg-gray-900/95">
-          <p className="text-sm font-bold text-gray-900 dark:text-white">
-            ทำความรู้จักเมนูหลัก
+      {/* Title pill — top-left so it never collides with the profile
+          label that sits at top-right. */}
+      <div className="pointer-events-none absolute left-3 top-2 z-[3]">
+        <div className="rounded-full bg-indigo-500 px-3 py-1 shadow-lg">
+          <p
+            className="text-[13px] font-bold text-white"
+            style={{ fontFamily: 'var(--font-handwriting)' }}
+          >
+            ✨ ทำความรู้จักเมนูหลัก
           </p>
         </div>
       </div>
 
-      <div className="absolute inset-x-0 bottom-24 flex justify-center px-4 sm:bottom-12">
+      {/* Labels — pointer-events-none so taps fall through to the
+          close-layer behind them. */}
+      {visibleLabels.map((l) => (
+        <div
+          key={l.anchor}
+          className={cn(
+            'pointer-events-none absolute z-[2] rounded-2xl bg-white px-4 py-3',
+            'shadow-2xl ring-1 ring-indigo-200',
+            'dark:bg-gray-900 dark:ring-indigo-700',
+          )}
+          style={{
+            ...l.pos,
+            width: labelW,
+            fontFamily: 'var(--font-handwriting)',
+          }}
+        >
+          <p className="text-base font-bold leading-tight text-indigo-600 dark:text-indigo-300">
+            {l.title}
+          </p>
+          <p className="mt-1 text-sm leading-snug text-gray-700 dark:text-gray-200">
+            {l.body}
+          </p>
+        </div>
+      ))}
+
+      {/* Continue button — center bottom, above the bottom-nav cutout */}
+      <div className="absolute inset-x-0 bottom-2 z-[3] flex justify-center px-4 sm:bottom-6">
         <Button
           onClick={onClose}
           icon={<X className="h-4 w-4" />}
-          className="min-h-[44px] shadow-2xl"
+          className="min-h-[48px] shadow-2xl"
+          style={{ fontFamily: 'var(--font-handwriting)', fontWeight: 700 }}
         >
-          ปิดและเลือกฟีเจอร์ที่อยากลอง
+          เข้าใจแล้ว — เลือกฟีเจอร์
         </Button>
       </div>
     </div>
