@@ -31,7 +31,27 @@ import {
   UserX,
   Store,
   Mail,
+  KeyRound,
+  Clock,
+  Copy,
 } from 'lucide-react';
+
+function formatLastSignIn(iso: string | null): string {
+  if (!iso) return 'ยังไม่เคยเข้าใช้';
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diff = Math.max(0, now - then);
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'เพิ่งเข้าใช้';
+  if (min < 60) return `${min} นาทีที่แล้ว`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} ชั่วโมงที่แล้ว`;
+  const days = Math.floor(hr / 24);
+  if (days < 30) return `${days} วันที่แล้ว`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} เดือนที่แล้ว`;
+  return `${Math.floor(months / 12)} ปีที่แล้ว`;
+}
 
 interface UserProfile {
   id: string;
@@ -41,6 +61,7 @@ interface UserProfile {
   active: boolean;
   created_at: string;
   line_user_id: string | null;
+  last_sign_in_at: string | null;
   stores: Array<{ store_id: string; store: { store_name: string } }>;
 }
 
@@ -67,6 +88,9 @@ export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [resetTarget, setResetTarget] = useState<UserProfile | null>(null);
+  const [resetResult, setResetResult] = useState<{ username: string; password: string } | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
 
   // Create form
   const [formUsername, setFormUsername] = useState('');
@@ -135,6 +159,25 @@ export default function UsersPage() {
       toast({ type: 'error', title: t('networkError') });
     }
     setIsSubmitting(false);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetTarget) return;
+    setIsResetting(true);
+    try {
+      const res = await fetch(`/api/users/${resetTarget.id}/reset-password`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ type: 'error', title: 'รีเซ็ตรหัสผ่านไม่สำเร็จ', message: data.error });
+        setResetTarget(null);
+      } else {
+        setResetResult({ username: data.username, password: data.password });
+      }
+    } catch {
+      toast({ type: 'error', title: t('networkError') });
+      setResetTarget(null);
+    }
+    setIsResetting(false);
   };
 
   const toggleUserActive = async (userId: string, currentActive: boolean) => {
@@ -239,6 +282,13 @@ export default function UsersPage() {
                         {u.stores.map((s) => s.store?.store_name).join(', ')}
                       </div>
                     )}
+                    <div
+                      className="mt-1 flex items-center gap-1 text-xs text-gray-400"
+                      title={u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : ''}
+                    >
+                      <Clock className="h-3 w-3" />
+                      เข้าใช้: {formatLastSignIn(u.last_sign_in_at)}
+                    </div>
                   </div>
                 </div>
 
@@ -253,6 +303,15 @@ export default function UsersPage() {
                       >
                         <Shield className="h-4 w-4" />
                       </Link>
+                    )}
+                    {u.role !== 'customer' && (
+                      <button
+                        onClick={() => setResetTarget(u)}
+                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-900/20 dark:hover:text-amber-400"
+                        title="รีเซ็ตรหัสผ่าน"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                      </button>
                     )}
                     <button
                       onClick={() => toggleUserActive(u.id, u.active)}
@@ -344,6 +403,84 @@ export default function UsersPage() {
             {t('createUser')}
           </Button>
         </ModalFooter>
+      </Modal>
+
+      {/* Reset Password Modal */}
+      <Modal
+        isOpen={!!resetTarget}
+        onClose={() => {
+          setResetTarget(null);
+          setResetResult(null);
+        }}
+        title={resetResult ? 'รหัสผ่านใหม่' : 'รีเซ็ตรหัสผ่าน'}
+      >
+        {!resetResult ? (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              ต้องการรีเซ็ตรหัสผ่านของ{' '}
+              <span className="font-semibold text-gray-900 dark:text-white">
+                {resetTarget?.display_name || resetTarget?.username}
+              </span>
+              {' '}ใช่ไหม? ระบบจะสร้างรหัสใหม่และแสดงครั้งเดียวเท่านั้น
+            </p>
+            <ModalFooter>
+              <Button
+                variant="outline"
+                onClick={() => setResetTarget(null)}
+                disabled={isResetting}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                onClick={handleResetPassword}
+                isLoading={isResetting}
+                icon={<KeyRound className="h-4 w-4" />}
+              >
+                รีเซ็ต
+              </Button>
+            </ModalFooter>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+              ⚠️ คัดลอกหรือจดรหัสนี้ตอนนี้ — รหัสจะไม่แสดงอีก หลังปิดหน้าต่าง
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">ผู้ใช้</p>
+              <p className="font-mono text-sm font-semibold text-gray-900 dark:text-white">
+                {resetResult.username}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">รหัสผ่านใหม่</p>
+              <div className="mt-1 flex items-center gap-2">
+                <code className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-base font-semibold text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                  {resetResult.password}
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(resetResult.password);
+                    toast({ type: 'success', title: 'คัดลอกแล้ว' });
+                  }}
+                  className="rounded-lg border border-gray-200 p-2 text-gray-500 transition-colors hover:bg-indigo-50 hover:text-indigo-600 dark:border-gray-700 dark:hover:bg-indigo-900/30"
+                  title="คัดลอกรหัส"
+                >
+                  <Copy className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <ModalFooter>
+              <Button
+                onClick={() => {
+                  setResetTarget(null);
+                  setResetResult(null);
+                }}
+              >
+                ปิด
+              </Button>
+            </ModalFooter>
+          </div>
+        )}
       </Modal>
     </div>
   );
