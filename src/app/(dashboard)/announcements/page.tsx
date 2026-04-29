@@ -33,7 +33,6 @@ interface Announcement {
   body: string | null;
   image_url: string | null;
   type: string;
-  target_audience: string;
   start_date: string;
   end_date: string | null;
   send_push: boolean;

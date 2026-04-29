@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
-  const { username, password, displayName, registrationCode } = (await request.json()) as {
+  const { username, password, displayName, token } = (await request.json()) as {
     username: string;
     password: string;
     displayName: string | null;
-    registrationCode: string;
+    token: string;
   };
 
-  if (!username?.trim() || !password || !registrationCode?.trim()) {
+  if (!username?.trim() || !password || !token?.trim()) {
     return NextResponse.json({ error: 'กรุณากรอกข้อมูลให้ครบ' }, { status: 400 });
   }
 
@@ -25,33 +25,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร' }, { status: 400 });
   }
 
-  const serviceClient = createServiceClient();
+  const service = createServiceClient();
 
-  // 1. Verify registration code against store_settings
-  const { data: settings, error: settingsError } = await serviceClient
-    .from('store_settings')
-    .select('store_id, stores:store_id(store_name)')
-    .eq('staff_registration_code', registrationCode.trim())
-    .single();
+  // 1. Verify invitation token
+  const { data: invitation, error: inviteError } = await service
+    .from('staff_invitations')
+    .select('id, store_id, role, active, used_count, store:stores(store_name)')
+    .eq('token', token.trim())
+    .maybeSingle();
 
-  if (settingsError || !settings) {
-    return NextResponse.json({ error: 'รหัสลงทะเบียนไม่ถูกต้อง' }, { status: 400 });
+  if (inviteError || !invitation) {
+    return NextResponse.json({ error: 'ลิงก์เชิญไม่ถูกต้อง' }, { status: 400 });
+  }
+  if (!invitation.active) {
+    return NextResponse.json({ error: 'ลิงก์เชิญถูกปิดใช้งาน' }, { status: 410 });
   }
 
-  const storeId = settings.store_id;
-  // stores is a single object (not array) when using .single() on the parent query
-  const storesData = settings.stores as unknown as { store_name: string } | null;
+  const storeId = invitation.store_id;
+  const role = invitation.role;
+  const storesData = invitation.store as unknown as { store_name: string } | null;
   const storeName = storesData?.store_name || '';
 
-  // 2. Create auth user via admin API (auto-confirms email)
+  // 2. Create auth user
   const email = `${username.trim().toLowerCase()}@stockmanager.app`;
-  const { data: authData, error: authError } = await serviceClient.auth.admin.createUser({
+  const { data: authData, error: authError } = await service.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
     user_metadata: {
       username: username.trim().toLowerCase(),
-      role: 'staff',
+      role,
     },
   });
 
@@ -68,35 +71,40 @@ export async function POST(request: NextRequest) {
 
   const userId = authData.user.id;
 
-  // 3. Update profile (trigger already created it with basic info)
-  await serviceClient
+  // 3. Update profile (trigger created the row with default role='staff')
+  await service
     .from('profiles')
     .update({
       username: username.trim().toLowerCase(),
-      role: 'staff',
+      role,
       display_name: displayName?.trim() || username.trim(),
       active: true,
     })
     .eq('id', userId);
 
   // 4. Assign user to the store
-  await serviceClient.from('user_stores').insert({
-    user_id: userId,
-    store_id: storeId,
-  });
+  await service.from('user_stores').insert({ user_id: userId, store_id: storeId });
 
-  // 5. Audit log
-  await serviceClient.from('audit_logs').insert({
+  // 5. Increment invitation use count
+  await service
+    .from('staff_invitations')
+    .update({ used_count: invitation.used_count + 1 })
+    .eq('id', invitation.id);
+
+  // 6. Audit log
+  await service.from('audit_logs').insert({
     store_id: storeId,
-    action_type: 'STAFF_SELF_REGISTERED',
+    action_type: 'STAFF_INVITED_REGISTERED',
     table_name: 'profiles',
     record_id: userId,
-    new_value: { username: username.trim().toLowerCase(), store_name: storeName },
+    new_value: {
+      username: username.trim().toLowerCase(),
+      role,
+      store_name: storeName,
+      invitation_id: invitation.id,
+    },
     changed_by: userId,
   });
 
-  return NextResponse.json({
-    success: true,
-    storeName,
-  });
+  return NextResponse.json({ success: true, storeName, role });
 }

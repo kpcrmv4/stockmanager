@@ -30,6 +30,7 @@ import {
   UserCheck,
   UserX,
   Store,
+  Mail,
 } from 'lucide-react';
 
 interface UserProfile {
@@ -174,9 +175,16 @@ export default function UsersPage() {
             {t('subtitle')}
           </p>
         </div>
-        <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreateModal(true)}>
-          {t('addUser')}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/users/invitations">
+            <Button variant="outline" icon={<Mail className="h-4 w-4" />}>
+              จัดการลิงก์เชิญ
+            </Button>
+          </Link>
+          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreateModal(true)}>
+            {t('addUser')}
+          </Button>
+        </div>
       </div>
 
       {/* Search */}

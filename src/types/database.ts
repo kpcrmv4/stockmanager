@@ -287,7 +287,6 @@ export interface StoreSettings {
   notify_time_daily: string | null;
   notify_days: string[] | null;
   diff_tolerance: number;
-  staff_registration_code: string | null;
   receipt_settings: Record<string, unknown> | null;
   customer_notify_expiry_enabled: boolean;
   customer_notify_expiry_days: number;

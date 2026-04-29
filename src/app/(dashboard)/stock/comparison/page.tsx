@@ -977,12 +977,7 @@ export default function ComparisonPage() {
                         const diff = day.difference;
                         let cellBg = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
                         if (diff !== null && diff !== 0) {
-                          const absDiff = Math.abs(diff);
-                          if (absDiff > 5) {
-                            cellBg = 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400';
-                          } else {
-                            cellBg = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400';
-                          }
+                          cellBg = 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400';
                         }
                         return (
                           <td key={date} className="px-2 py-2 text-center">
@@ -1005,7 +1000,7 @@ export default function ComparisonPage() {
                               'inline-block rounded-md px-1.5 py-0.5 text-[11px] font-bold',
                               product.latestDelta > 0
                                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
-                                : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400',
+                                : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400',
                             )}
                             title={product.latestDeltaDates ? t('comparison.deltaTooltip', { from: product.latestDeltaDates.from.slice(8, 10), to: product.latestDeltaDates.to.slice(8, 10) }) : ''}
                           >

@@ -48,7 +48,6 @@ export default function EditAnnouncementPage() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [type, setType] = useState('promotion');
-  const [targetAudience, setTargetAudience] = useState('customer');
   const [storeId, setStoreId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -86,7 +85,6 @@ export default function EditAnnouncementPage() {
     setTitle(data.title || '');
     setBody(data.body || '');
     setType(data.type || 'promotion');
-    setTargetAudience(data.target_audience || 'customer');
     setStoreId(data.store_id || '');
     setStartDate(data.start_date ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok' }).format(new Date(data.start_date)) : '');
     setEndDate(data.end_date ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok' }).format(new Date(data.end_date)) : '');
@@ -114,7 +112,7 @@ export default function EditAnnouncementPage() {
         title: title.trim(),
         body: body.trim() || null,
         type,
-        target_audience: targetAudience,
+        target_audience: 'staff',
         store_id: storeId || null,
         start_date: startDate ? toBangkokISO(new Date(startDate + 'T00:00:00+07:00')) : toBangkokISO(),
         end_date: endDate ? toBangkokISO(new Date(endDate + 'T23:59:59+07:00')) : null,
@@ -242,26 +240,15 @@ export default function EditAnnouncementPage() {
                 ]}
               />
               <Select
-                label={t('fieldTargetAudience')}
-                value={targetAudience}
-                onChange={(e) => setTargetAudience(e.target.value)}
+                label={t('fieldBranch')}
+                value={storeId}
+                onChange={(e) => setStoreId(e.target.value)}
                 options={[
-                  { value: 'customer', label: t('targetCustomer') },
-                  { value: 'staff', label: t('targetStaff') },
-                  { value: 'all', label: t('targetAll') },
+                  { value: '', label: t('allBranches') },
+                  ...stores.map((s) => ({ value: s.id, label: s.store_name })),
                 ]}
               />
             </div>
-
-            <Select
-              label={t('fieldBranch')}
-              value={storeId}
-              onChange={(e) => setStoreId(e.target.value)}
-              options={[
-                { value: '', label: t('allBranches') },
-                ...stores.map((s) => ({ value: s.id, label: s.store_name })),
-              ]}
-            />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input

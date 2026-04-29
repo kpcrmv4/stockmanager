@@ -35,7 +35,6 @@ export default function NewAnnouncementPage() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [type, setType] = useState('promotion');
-  const [targetAudience, setTargetAudience] = useState('customer');
   const [storeId, setStoreId] = useState('');
   const [startDate, setStartDate] = useState(todayBangkok());
   const [endDate, setEndDate] = useState('');
@@ -68,7 +67,7 @@ export default function NewAnnouncementPage() {
       title: title.trim(),
       body: body.trim() || null,
       type,
-      target_audience: targetAudience,
+      target_audience: 'staff',
       start_date: toBangkokISO(new Date(startDate + 'T00:00:00+07:00')),
       end_date: endDate ? toBangkokISO(new Date(endDate + 'T23:59:59+07:00')) : null,
       image_url: imageUrl || null,
@@ -136,26 +135,15 @@ export default function NewAnnouncementPage() {
                 ]}
               />
               <Select
-                label={t('fieldTargetAudience')}
-                value={targetAudience}
-                onChange={(e) => setTargetAudience(e.target.value)}
+                label={t('fieldBranch')}
+                value={storeId}
+                onChange={(e) => setStoreId(e.target.value)}
                 options={[
-                  { value: 'customer', label: t('targetCustomer') },
-                  { value: 'staff', label: t('targetStaff') },
-                  { value: 'all', label: t('targetAll') },
+                  { value: '', label: t('allBranches') },
+                  ...stores.map((s) => ({ value: s.id, label: s.store_name })),
                 ]}
               />
             </div>
-
-            <Select
-              label={t('fieldBranch')}
-              value={storeId}
-              onChange={(e) => setStoreId(e.target.value)}
-              options={[
-                { value: '', label: t('allBranches') },
-                ...stores.map((s) => ({ value: s.id, label: s.store_name })),
-              ]}
-            />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input

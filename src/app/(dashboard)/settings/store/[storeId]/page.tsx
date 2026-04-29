@@ -73,7 +73,6 @@ interface StoreSettingsData {
   notify_time_daily: string | null;
   notify_days: string[] | null;
   diff_tolerance: number;
-  staff_registration_code: string | null;
   customer_notify_expiry_enabled: boolean;
   customer_notify_expiry_days: number;
   customer_notify_withdrawal_enabled: boolean;
@@ -90,7 +89,6 @@ const settingsDefaults: StoreSettingsData = {
   notify_time_daily: '09:00',
   notify_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   diff_tolerance: 5,
-  staff_registration_code: null,
   customer_notify_expiry_enabled: true,
   customer_notify_expiry_days: 7,
   customer_notify_withdrawal_enabled: true,
@@ -170,7 +168,6 @@ export default function StoreDetailSettingsPage() {
     'Sun',
   ]);
   const [diffTolerance, setDiffTolerance] = useState('5');
-  const [registrationCode, setRegistrationCode] = useState('');
   const [dailyReminderEnabled, setDailyReminderEnabled] = useState(true);
   const [followUpEnabled, setFollowUpEnabled] = useState(true);
 
@@ -263,7 +260,6 @@ export default function StoreDetailSettingsPage() {
       setNotifyTime(settings.notify_time_daily || '09:00');
       setNotifyDays(settings.notify_days || settingsDefaults.notify_days!);
       setDiffTolerance(String(settings.diff_tolerance ?? 5));
-      setRegistrationCode(settings.staff_registration_code || '');
       setCustomerExpiryEnabled(settings.customer_notify_expiry_enabled ?? true);
       setCustomerExpiryDays(String(settings.customer_notify_expiry_days ?? 7));
       setCustomerWithdrawalEnabled(settings.customer_notify_withdrawal_enabled ?? true);
@@ -571,7 +567,6 @@ export default function StoreDetailSettingsPage() {
           notify_time_daily: notifyTime,
           notify_days: notifyDays,
           diff_tolerance: parseFloat(diffTolerance) || 5,
-          staff_registration_code: registrationCode || null,
           customer_notify_expiry_enabled: customerExpiryEnabled,
           customer_notify_expiry_days: parseInt(customerExpiryDays) || 7,
           customer_notify_withdrawal_enabled: customerWithdrawalEnabled,
@@ -1155,15 +1150,6 @@ export default function StoreDetailSettingsPage() {
             hint={t('storeDetail.diffToleranceHint')}
             min={0}
             max={100}
-          />
-
-          {/* Staff registration code */}
-          <Input
-            label={t('storeDetail.registrationCodeLabel')}
-            value={registrationCode}
-            onChange={(e) => setRegistrationCode(e.target.value)}
-            placeholder={t('storeDetail.registrationCodePlaceholder')}
-            hint={t('storeDetail.registrationCodeHint')}
           />
         </CardContent>
       </Card>
