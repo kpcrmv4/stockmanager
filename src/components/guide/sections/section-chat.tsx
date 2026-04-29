@@ -58,14 +58,20 @@ export function SectionChat() {
 
       <Card>
         <CardTitle icon="📋">สรุปรายวัน (Daily Summary)</CardTitle>
-        <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">Bot ส่งสรุปรายวันอัตโนมัติทุกวัน:</p>
+        <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">Bot ส่งการ์ดสรุปเข้าแชทสาขาอัตโนมัติทุกเช้า มีข้อมูลต่อไปนี้:</p>
         <ul className="mb-3 ml-5 list-disc space-y-1 text-sm text-gray-600 dark:text-gray-300">
-          <li>ยอดฝากวันนี้</li>
-          <li>ยอดเบิกวันนี้</li>
-          <li>งานสำเร็จ/ค้าง</li>
-          <li>Leaderboard พนักงาน (งานสำเร็จสูงสุด)</li>
+          <li><strong>ฝากใหม่วันนี้</strong> — จำนวนรายการฝากที่เข้าระบบ</li>
+          <li><strong>เบิกเสร็จวันนี้</strong> — จำนวนรายการเบิกที่ทำสำเร็จ</li>
+          <li><strong>ฝากค้างในร้าน</strong> — รายการที่ยังเก็บอยู่ทั้งหมด</li>
+          <li><strong>กำลังจะหมดอายุ</strong> — รายการที่จะหมดอายุภายใน 3 วัน</li>
+          <li><strong>รอชี้แจงสต๊อก</strong> — comparison ที่ยังไม่มีคำชี้แจง</li>
+          <li><strong>ยืมค้าง</strong> — รายการยืมที่ยังไม่จบ</li>
+          <li><strong>คืนของยืม</strong> — รายการที่ถึงเวลาคืน (พร้อม preview สินค้า)</li>
         </ul>
-        <ImgPlaceholder icon="📋" name="img-34-daily-summary.png" desc="Daily Summary Bot Message แสดงยอดสรุป + Leaderboard" />
+        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          ⏰ ส่งทุกวันเวลา 06:00 น. (เวลาประเทศไทย) — เปิด/ปิดได้ในตั้งค่าสาขา (chat_bot_daily_summary_enabled)
+        </p>
+        <ImgPlaceholder icon="📋" name="img-34-daily-summary.png" desc="การ์ดสรุปรายวันแสดงยอดฝาก/เบิก/ค้าง + รายการคืนของยืม" />
       </Card>
     </>
   );
