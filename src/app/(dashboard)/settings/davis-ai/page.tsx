@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
@@ -22,7 +23,7 @@ import {
   Loader2,
   ExternalLink,
   ShieldAlert,
-  Link as LinkIcon,
+  Info,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -31,7 +32,6 @@ import {
 
 const SYSTEM_KEYS = {
   BOT_NAME: 'davis_ai.bot_name',
-  LIFF_ID: 'davis_ai.liff_id',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -46,20 +46,17 @@ export default function DavisAiSettingsPage() {
 
   // Form state
   const [botName, setBotName] = useState('DAVIS Ai');
-  const [liffId, setLiffId] = useState('');
 
   // UI state
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [webhookCopied, setWebhookCopied] = useState(false);
-  const [liffUrlCopied, setLiffUrlCopied] = useState(false);
 
   // Derived values
   const webhookUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/api/line/webhook`
       : '';
-  const liffBaseUrl = liffId ? `https://liff.line.me/${liffId}` : '';
 
   // ---------------------------------------------------------------------------
   // Load
@@ -72,7 +69,7 @@ export default function DavisAiSettingsPage() {
     const { data, error } = await supabase
       .from('system_settings')
       .select('key, value')
-      .in('key', [SYSTEM_KEYS.BOT_NAME, SYSTEM_KEYS.LIFF_ID]);
+      .in('key', [SYSTEM_KEYS.BOT_NAME]);
 
     if (error) {
       toast({ type: 'error', title: t('loadError'), message: error.message });
@@ -86,7 +83,6 @@ export default function DavisAiSettingsPage() {
     }
 
     setBotName(map[SYSTEM_KEYS.BOT_NAME] || 'DAVIS Ai');
-    setLiffId(map[SYSTEM_KEYS.LIFF_ID] || '');
     setIsLoading(false);
   }, [t]);
 
@@ -108,7 +104,6 @@ export default function DavisAiSettingsPage() {
 
     const rows = [
       { key: SYSTEM_KEYS.BOT_NAME, value: botName.trim() || 'DAVIS Ai' },
-      { key: SYSTEM_KEYS.LIFF_ID, value: liffId.trim() },
     ];
 
     const { error } = await supabase
@@ -133,17 +128,6 @@ export default function DavisAiSettingsPage() {
       await navigator.clipboard.writeText(webhookUrl);
       setWebhookCopied(true);
       setTimeout(() => setWebhookCopied(false), 2000);
-    } catch {
-      toast({ type: 'error', title: t('copyError') });
-    }
-  };
-
-  const copyLiffUrl = async () => {
-    if (!liffBaseUrl) return;
-    try {
-      await navigator.clipboard.writeText(liffBaseUrl);
-      setLiffUrlCopied(true);
-      setTimeout(() => setLiffUrlCopied(false), 2000);
     } catch {
       toast({ type: 'error', title: t('copyError') });
     }
@@ -194,19 +178,21 @@ export default function DavisAiSettingsPage() {
               {botName || 'DAVIS Ai'}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {t('subtitle')}
+              ตั้งค่าชื่อบอทกลาง + ดู Webhook URL ใช้ร่วมทุกสาขา
             </p>
           </div>
         </div>
       </div>
 
-      {/* Info banner — separate central vs per-store clearly */}
+      {/* Info banner */}
       <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-800/50 dark:bg-indigo-900/20">
         <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
-          {t('bannerTitle')}
+          การตั้งค่านี้ใช้ร่วมกันทุกสาขา
         </p>
         <p className="mt-1 text-xs leading-relaxed text-indigo-700 dark:text-indigo-300">
-          {t('bannerDesc')}
+          ใช้ตั้งค่า <strong>ชื่อบอทกลาง</strong> และดู <strong>Webhook URL</strong> เท่านั้น —
+          ส่วน <strong>LIFF</strong> และ <strong>LINE OA</strong> ของแต่ละสาขาให้ไปตั้งค่าที่หน้าสาขานั้น ๆ แยกกัน
+          เพราะ LINE userId ผูกกับ Provider ต่างกัน
         </p>
       </div>
 
@@ -215,8 +201,8 @@ export default function DavisAiSettingsPage() {
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title={t('identityTitle')}
-          description={t('identityDesc')}
+          title="ตัวตนบอท"
+          description="ชื่อและบุคลิกของบอทกลาง"
           action={
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
               <Bot className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
@@ -225,63 +211,45 @@ export default function DavisAiSettingsPage() {
         />
         <CardContent className="space-y-4">
           <Input
-            label={t('botNameLabel')}
+            label="ชื่อบอท"
             value={botName}
             onChange={(e) => setBotName(e.target.value)}
             placeholder="DAVIS Ai"
-            hint={t('botNameHint')}
+            hint="ชื่อนี้ใช้แสดงในแชทและข้อความอัตโนมัติ"
           />
         </CardContent>
       </Card>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Section 2: Shared LIFF                                             */}
+      {/* Section 2: LIFF — moved to per-store settings                     */}
       {/* ------------------------------------------------------------------ */}
       <Card padding="none">
         <CardHeader
-          title={t('liffTitle')}
-          description={t('liffDesc')}
+          title="LIFF (ตั้งแยกต่อสาขา)"
+          description="LIFF ของแต่ละสาขาให้ไปตั้งที่หน้าสาขานั้น ๆ"
           action={
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
-              <LinkIcon className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-900/20">
+              <Info className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             </div>
           }
         />
-        <CardContent className="space-y-4">
-          <Input
-            label={t('liffIdLabel')}
-            value={liffId}
-            onChange={(e) => setLiffId(e.target.value)}
-            placeholder="1234567890-abcdefgh"
-            hint={t('liffIdHint')}
-          />
-
-          {liffBaseUrl && (
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
-              <p className="mb-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
-                {t('liffBaseUrlLabel')}
-              </p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 truncate rounded bg-white px-2 py-1.5 text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-200">
-                  {liffBaseUrl}
-                </code>
-                <button
-                  onClick={copyLiffUrl}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white transition-colors hover:bg-emerald-700"
-                  title={t('copy')}
-                >
-                  {liffUrlCopied ? (
-                    <Check className="h-4 w-4" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                {t('liffUrlUsage')}
-              </p>
-            </div>
-          )}
+        <CardContent>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800/50 dark:bg-amber-900/20">
+            <p className="font-medium text-amber-900 dark:text-amber-300">
+              ทำไมไม่ใช้ LIFF กลาง?
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+              ถ้าแต่ละสาขามี LINE OA คนละ Provider, LINE จะให้ userId ของ LIFF ตามแต่ Provider ที่สร้าง LIFF — ทำให้ LIFF กลางไม่ตรงกับข้อมูลฝากเดิมของลูกค้าในแต่ละสาขา
+              ระบบจึงให้ตั้ง LIFF ID ต่อสาขา ภายใต้ Provider เดียวกับ LINE OA ของสาขานั้น
+            </p>
+            <Link
+              href="/settings"
+              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-amber-900 underline decoration-dotted underline-offset-2 dark:text-amber-300"
+            >
+              ไปตั้งค่าสาขา
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
         </CardContent>
       </Card>
 

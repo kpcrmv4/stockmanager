@@ -1985,7 +1985,7 @@
     "importDeposits": "Import Deposit Data",
     "importDepositsDesc": "Import deposit data from legacy system (CSV)",
     "davisAiTitle": "DAVIS Ai (Central Bot)",
-    "davisAiDesc": "Configure the shared LIFF, bot identity, and webhook URL (used by every branch)",
+    "davisAiDesc": "Set the central bot name and view the webhook URL (LIFF/LINE OA configured per store)",
     "davisAi": {
       "back": "Back",
       "subtitle": "Central bot identity and shared LIFF configuration",

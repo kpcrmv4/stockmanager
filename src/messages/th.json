@@ -1986,7 +1986,7 @@
     "importDeposits": "นำเข้าข้อมูลฝากเหล้า",
     "importDepositsDesc": "นำเข้าข้อมูลฝากเหล้าจากระบบเดิม (CSV)",
     "davisAiTitle": "DAVIS Ai (บอทกลาง)",
-    "davisAiDesc": "ตั้งค่า LIFF กลาง, ชื่อบอท และ Webhook URL (ใช้ร่วมกันทุกสาขา)",
+    "davisAiDesc": "ตั้งค่าชื่อบอทกลางและดู Webhook URL (LIFF/LINE OA ตั้งแยกต่อสาขา)",
     "davisAi": {
       "back": "กลับ",
       "subtitle": "ตั้งค่าบอทกลางและ LIFF ที่ใช้ร่วมทุกสาขา",
