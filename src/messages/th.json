@@ -207,8 +207,8 @@
       "description": "คู่มือการใช้งานระบบ StockManager"
     },
     "announcements": {
-      "name": "ประกาศ/โปรโมชั่น",
-      "description": "สร้างและจัดการประกาศ"
+      "name": "ประกาศถึงพนักงาน",
+      "description": "สร้างและจัดการประกาศภายใน"
     },
     "users": {
       "name": "จัดการผู้ใช้",

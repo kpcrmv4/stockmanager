@@ -207,8 +207,8 @@
       "description": "StockManager user guide"
     },
     "announcements": {
-      "name": "Announcements",
-      "description": "Create and manage announcements"
+      "name": "Staff Announcements",
+      "description": "Create and manage internal announcements"
     },
     "users": {
       "name": "Manage Users",
