@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { ROLE_HOME_ROUTES } from '@/types/roles';
+import type { UserRole } from '@/types/roles';
 
 export default async function RootPage() {
   const supabase = await createClient();
@@ -7,19 +9,15 @@ export default async function RootPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user) {
-    // Check if customer
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
+  if (!user) redirect('/login');
 
-    if (profile?.role === 'customer') {
-      redirect('/customer');
-    }
-    redirect('/overview');
-  }
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
 
-  redirect('/login');
+  const role = profile?.role as UserRole | undefined;
+  const home = role && ROLE_HOME_ROUTES[role] ? ROLE_HOME_ROUTES[role] : '/overview';
+  redirect(home);
 }

@@ -116,9 +116,9 @@ export function Sidebar({ stores }: SidebarProps) {
         collapsed ? 'w-16' : 'w-64'
       )}
     >
-      {/* โลโก้และชื่อแอป — คลิกกลับหน้า overview */}
+      {/* โลโก้และชื่อแอป — คลิกกลับหน้าหลัก (ตาม role) */}
       <Link
-        href="/overview"
+        href="/"
         className={cn(
           'flex h-16 items-center border-b border-gray-200 px-4 dark:border-gray-800',
           'transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50',

@@ -150,7 +150,7 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
         {/* Drawer Header */}
         <div className="flex h-14 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-800">
           <Link
-            href="/overview"
+            href="/"
             onClick={() => setDrawerOpen(false)}
             className="text-lg font-bold text-gray-900 dark:text-white"
           >
