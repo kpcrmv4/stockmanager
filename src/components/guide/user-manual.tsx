@@ -77,6 +77,21 @@ export function UserManual() {
     [effectiveRole],
   );
 
+  // Renumber sections sequentially per filtered view so the labels read 1,2,3…
+  // instead of 1,2,7,10 (which is confusing when half the sections are hidden).
+  // Sections with original number=null (profile/theme/summary) stay unnumbered.
+  const displayNumbers = useMemo(() => {
+    const map = new Map<string, number>();
+    let n = 0;
+    for (const s of visibleSections) {
+      if (s.number !== null) {
+        n += 1;
+        map.set(s.id, n);
+      }
+    }
+    return map;
+  }, [visibleSections]);
+
   const tocGroups = useMemo(() => {
     const groups: { nameKey: string; items: typeof visibleSections }[] = [];
     let lastGroup = '';
@@ -184,19 +199,20 @@ export function UserManual() {
                     s.roles !== 'all' && s.roles.length === 1
                       ? ROLE_COLOR_CLASSES[s.roles[0]]?.tocNum
                       : undefined;
+                  const num = displayNumbers.get(s.id);
                   return (
                     <button
                       key={s.id}
                       onClick={() => scrollToSection(s.id)}
                       className="flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2 text-left text-sm transition-colors hover:border-gray-200 hover:bg-white dark:hover:border-gray-600 dark:hover:bg-gray-700"
                     >
-                      {s.number && (
+                      {num && (
                         <span
                           className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white ${
                             roleColor ?? 'bg-blue-500'
                           }`}
                         >
-                          {s.number}
+                          {num}
                         </span>
                       )}
                       <span className="font-medium text-gray-700 dark:text-gray-200">{t(s.titleKey)}</span>
@@ -224,7 +240,7 @@ export function UserManual() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  {section.number ? `${section.number}. ` : ''}
+                  {displayNumbers.get(section.id) ? `${displayNumbers.get(section.id)}. ` : ''}
                   {t(section.titleKey)}
                 </h2>
                 <div className="text-sm text-gray-500 dark:text-gray-400">{t(section.descKey)}</div>

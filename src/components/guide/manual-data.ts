@@ -55,7 +55,7 @@ export const manualSections: ManualSection[] = [
     descKey: 'sections.rolesDesc',
     icon: '👥',
     iconBg: 'bg-blue-500',
-    roles: 'all',
+    roles: ['owner', 'manager', 'accountant', 'hq'],
     tocGroupKey: 'tocGroups.systemOverview',
   },
   {
