@@ -305,18 +305,18 @@ export default function UsersPage() {
           description={t('noUsersDesc')}
         />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {filteredUsers.map((u) => (
             <Card key={u.id} padding="none">
-              <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
                   {/* Avatar */}
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
                     {(u.display_name || u.username).charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900 dark:text-white">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
                         {u.display_name || u.username}
                       </p>
                       <Badge variant={roleBadgeVariants[u.role] || 'default'}>
@@ -324,25 +324,25 @@ export default function UsersPage() {
                       </Badge>
                       {!u.active && <Badge variant="danger">{t('disabled')}</Badge>}
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      @{u.username} | {t('createdAt')} {formatThaiDate(u.created_at)}
-                    </p>
-                    {u.stores && u.stores.length > 0 && (
-                      <div className="mt-1 flex items-center gap-1 text-xs text-gray-400">
-                        <Store className="h-3 w-3" />
-                        {u.stores.map((s) => s.store?.store_name).join(', ')}
-                      </div>
-                    )}
                     <div
-                      className="mt-1 flex items-center gap-1 text-xs text-gray-400"
+                      className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400"
                       title={u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : ''}
                     >
-                      <Clock className="h-3 w-3" />
-                      เข้าใช้: {formatLastSignIn(u.last_sign_in_at)}
+                      <span>@{u.username}</span>
+                      {u.stores && u.stores.length > 0 && (
+                        <span className="flex items-center gap-0.5">
+                          <Store className="h-3 w-3" />
+                          {u.stores.map((s) => s.store?.store_name).join(', ')}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-0.5">
+                        <Clock className="h-3 w-3" />
+                        {formatLastSignIn(u.last_sign_in_at)}
+                      </span>
                     </div>
                     {u.username.startsWith('printer-') && (
-                      <p className="mt-1 text-[11px] italic text-amber-600 dark:text-amber-400">
-                        🔒 บัญชีระบบสำหรับเครื่องพิมพ์ — จัดการผ่านหน้าตั้งค่าเครื่องพิมพ์เท่านั้น
+                      <p className="mt-0.5 text-[10px] italic text-amber-600 dark:text-amber-400">
+                        🔒 บัญชีระบบเครื่องพิมพ์ — จัดการผ่านหน้าตั้งค่าเครื่องพิมพ์
                       </p>
                     )}
                   </div>
@@ -350,11 +350,11 @@ export default function UsersPage() {
 
                 {/* Actions */}
                 {u.id !== currentUser?.id && !u.username.startsWith('printer-') && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     {u.role !== 'owner' && u.role !== 'customer' && (
                       <Link
                         href={`/users/${u.id}/permissions`}
-                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400"
+                        className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400"
                         title={t('managePermissions')}
                       >
                         <Shield className="h-4 w-4" />
@@ -363,7 +363,7 @@ export default function UsersPage() {
                     {u.role !== 'customer' && (
                       <button
                         onClick={() => setResetTarget(u)}
-                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-900/20 dark:hover:text-amber-400"
+                        className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-900/20 dark:hover:text-amber-400"
                         title="รีเซ็ตรหัสผ่าน"
                       >
                         <KeyRound className="h-4 w-4" />
@@ -372,7 +372,7 @@ export default function UsersPage() {
                     <button
                       onClick={() => toggleUserActive(u.id, u.active)}
                       className={cn(
-                        'rounded-lg p-2 transition-colors',
+                        'rounded-md p-1.5 transition-colors',
                         u.active
                           ? 'text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20'
                           : 'text-gray-400 hover:bg-emerald-50 hover:text-emerald-500 dark:hover:bg-emerald-900/20'
