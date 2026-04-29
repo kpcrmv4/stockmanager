@@ -255,11 +255,13 @@ export default function DepositPage() {
     if (!currentStoreId) return;
     const loadWorkingHours = async () => {
       const supabase = createClient();
+      // maybeSingle() — store_settings row may not exist yet for a
+      // freshly-onboarded branch. .single() returned 406 in that case.
       const { data } = await supabase
         .from('store_settings')
         .select('print_server_working_hours')
         .eq('store_id', currentStoreId)
-        .single();
+        .maybeSingle();
       const wh = data?.print_server_working_hours as { startHour?: number; endHour?: number } | null;
       if (wh?.startHour != null && wh?.endHour != null) {
         const shift = currentShiftRange(wh.startHour, wh.endHour);
