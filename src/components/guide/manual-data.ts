@@ -245,7 +245,7 @@ export const manualSections: ManualSection[] = [
     descKey: 'sections.summaryDesc',
     icon: '📝',
     iconBg: 'bg-indigo-500',
-    roles: 'all',
+    roles: ['owner', 'manager', 'accountant', 'hq'],
   },
 ];
 
