@@ -229,6 +229,8 @@ export default function WithdrawalsPage() {
   const [withdrawItems, setWithdrawItems] = useState<WithdrawItem[]>([]);
   const [manualNotes, setManualNotes] = useState('');
   const [manualPhotoUrl, setManualPhotoUrl] = useState<string | null>(null);
+  // Required when manualWithdrawalType === 'in_store'.
+  const [manualTableNumber, setManualTableNumber] = useState('');
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
 
   // Withdrawal blocked days
@@ -398,6 +400,7 @@ export default function WithdrawalsPage() {
     setWithdrawItems([]);
     setManualNotes('');
     setManualPhotoUrl(null);
+    setManualTableNumber('');
     setManualWithdrawalType(blockedDayInfo?.blocked ? 'take_home' : 'in_store');
   };
 
@@ -454,6 +457,17 @@ export default function WithdrawalsPage() {
       return;
     }
 
+    // Require a table number when serving in store so bar knows where
+    // to deliver the bottle.
+    if (manualWithdrawalType === 'in_store' && !manualTableNumber.trim()) {
+      toast({
+        type: 'error',
+        title: t('withdrawals.manual.tableLabel'),
+        message: t('withdrawals.manual.tableRequired'),
+      });
+      return;
+    }
+
     // Validate all items
     for (const item of withdrawItems) {
       const q = parseFloat(item.qty);
@@ -479,6 +493,12 @@ export default function WithdrawalsPage() {
       // bottle_id stays linked (used by the list + history to show
       // "ขวด X/N"). For deposits with no bottle picker (legacy or
       // qty-based), fall back to a single row with bottle_id=null.
+      // Table number is meaningful only for in-store withdrawals; for
+      // take-home we explicitly null it out so a stale value never
+      // sneaks onto a take-away row.
+      const finalTable = manualWithdrawalType === 'in_store'
+        ? (manualTableNumber.trim() || null)
+        : null;
       const baseRow = {
         deposit_id: dep.id,
         store_id: currentStoreId,
@@ -486,6 +506,7 @@ export default function WithdrawalsPage() {
         customer_name: dep.customer_name,
         product_name: dep.product_name,
         withdrawal_type: manualWithdrawalType,
+        table_number: finalTable,
         status: 'completed' as const,
         processed_by: user.id,
         notes: manualNotes.trim() || null,
@@ -1582,6 +1603,23 @@ export default function WithdrawalsPage() {
                 </p>
               )}
             </div>
+
+            {/* Table number — required when serving in store so bar
+                knows where to deliver the bottle. */}
+            {manualWithdrawalType === 'in_store' && (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t('withdrawals.manual.tableLabel')}
+                </label>
+                <input
+                  type="text"
+                  value={manualTableNumber}
+                  onChange={(e) => setManualTableNumber(e.target.value)}
+                  placeholder={t('withdrawals.manual.tablePlaceholder')}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                />
+              </div>
+            )}
 
             <PhotoUpload
               value={manualPhotoUrl}
