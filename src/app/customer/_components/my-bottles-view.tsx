@@ -65,7 +65,10 @@ export function MyBottlesView() {
   const [withdrawModal, setWithdrawModal] = useState<{
     deposit: DepositItem;
     selected: Set<string>;
+    withdrawalType: 'in_store' | 'take_home';
+    tableNumber: string;
   } | null>(null);
+  const [tableError, setTableError] = useState<string | null>(null);
 
   const getAuthPayload = useCallback(() => {
     if (mode === 'token') {
@@ -161,6 +164,7 @@ export function MyBottlesView() {
   const handleRequestWithdrawal = async (
     deposit: DepositItem,
     bottleIds?: string[],
+    options?: { withdrawalType: 'in_store' | 'take_home'; tableNumber?: string },
   ) => {
     setRequestingId(deposit.id);
     setError(null);
@@ -174,6 +178,8 @@ export function MyBottlesView() {
           depositId: deposit.id,
           customerName: displayName || 'ลูกค้า',
           bottleIds: bottleIds && bottleIds.length > 0 ? bottleIds : undefined,
+          withdrawalType: options?.withdrawalType,
+          tableNumber: options?.tableNumber,
           token: auth.token || undefined,
           accessToken: auth.accessToken || undefined,
         }),
@@ -198,19 +204,19 @@ export function MyBottlesView() {
   };
 
   /**
-   * Single-bottle deposits go straight through; multi-bottle deposits
-   * open a picker modal so the customer specifies qty + which bottle(s).
+   * Open the withdrawal modal so the customer picks how they'll take
+   * the bottles (in-store / take-home), the table number for in-store,
+   * and — when there are multiple bottles — which specific ones.
    */
   const handleWithdrawClick = (deposit: DepositItem) => {
     const bottles = availableBottles(deposit);
-    if (bottles.length <= 1) {
-      handleRequestWithdrawal(deposit);
-      return;
-    }
     setWithdrawModal({
       deposit,
       selected: new Set(bottles.map((b) => b.id)),
+      withdrawalType: 'in_store',
+      tableNumber: deposit.tableNumber || '',
     });
+    setTableError(null);
   };
 
   // Three buckets:
@@ -604,13 +610,14 @@ export function MyBottlesView() {
         )}
       </section>
 
-      {/* Bottle picker modal — multi-bottle deposits only. Customer
-          taps which bottles to withdraw; submitting fires one
-          withdrawal row per picked bottle so the bar can serve them
-          individually. */}
+      {/* Withdrawal modal — pick how to take the bottle (drink-here vs
+          take-home), the table number for in-store, and which bottle(s)
+          to withdraw if there are multiple. Submitting fires one
+          withdrawal row per picked bottle so the bar can tick them off. */}
       {withdrawModal && (() => {
-        const { deposit, selected } = withdrawModal;
+        const { deposit, selected, withdrawalType, tableNumber } = withdrawModal;
         const bottles = availableBottles(deposit);
+        const isMultiBottle = bottles.length > 1;
         const isRequesting = requestingId === deposit.id;
         const toggle = (id: string) => {
           setWithdrawModal((prev) => {
@@ -621,10 +628,30 @@ export function MyBottlesView() {
             return { ...prev, selected: next };
           });
         };
+        const setType = (type: 'in_store' | 'take_home') => {
+          setWithdrawModal((prev) => (prev ? { ...prev, withdrawalType: type } : prev));
+          setTableError(null);
+        };
+        const setTable = (value: string) => {
+          setWithdrawModal((prev) => (prev ? { ...prev, tableNumber: value } : prev));
+          if (tableError) setTableError(null);
+        };
         const submit = () => {
           const ids = Array.from(selected);
-          if (ids.length === 0) return;
-          handleRequestWithdrawal(deposit, ids);
+          if (isMultiBottle && ids.length === 0) return;
+          if (withdrawalType === 'in_store' && !tableNumber.trim()) {
+            setTableError(t('tableNumberRequired'));
+            return;
+          }
+          handleRequestWithdrawal(
+            deposit,
+            ids.length > 0 ? ids : undefined,
+            {
+              withdrawalType,
+              tableNumber:
+                withdrawalType === 'in_store' ? tableNumber.trim() : undefined,
+            },
+          );
         };
         return (
           <div
@@ -656,19 +683,20 @@ export function MyBottlesView() {
                 </button>
               </div>
 
+              {/* Withdrawal type — drink-here vs take-home */}
               <p className="mb-2 text-[10px] uppercase tracking-wider text-[rgba(248,215,148,0.6)]">
-                {t('bottlesLabel')} ({selected.size}/{bottles.length})
+                {t('withdrawalTypeLabel')}
               </p>
-              <div className="grid grid-cols-3 gap-2">
-                {bottles.map((b) => {
-                  const isSelected = selected.has(b.id);
+              <div className="grid grid-cols-2 gap-2">
+                {(['in_store', 'take_home'] as const).map((type) => {
+                  const isSelected = withdrawalType === type;
                   return (
                     <button
-                      key={b.id}
+                      key={type}
                       type="button"
                       disabled={isRequesting}
-                      onClick={() => toggle(b.id)}
-                      className="flex flex-col items-center gap-0.5 rounded-md border px-2 py-2 text-[11px] transition-colors"
+                      onClick={() => setType(type)}
+                      className="rounded-md border px-3 py-2 text-xs font-semibold transition-colors"
                       style={{
                         borderColor: isSelected
                           ? '#F8D794'
@@ -679,16 +707,77 @@ export function MyBottlesView() {
                         color: isSelected ? '#F8D794' : 'rgba(248,215,148,0.7)',
                       }}
                     >
-                      <span className="font-bold">
-                        #{b.bottleNo}/{deposit.bottles.length}
-                      </span>
-                      <span className="text-[10px]">
-                        {b.remainingPercent}%
-                      </span>
+                      {type === 'in_store'
+                        ? t('withdrawalTypeInStore')
+                        : t('withdrawalTypeTakeHome')}
                     </button>
                   );
                 })}
               </div>
+
+              {/* Table number — required when drinking at the venue */}
+              {withdrawalType === 'in_store' && (
+                <div className="mt-3">
+                  <p className="mb-1.5 text-[10px] uppercase tracking-wider text-[rgba(248,215,148,0.6)]">
+                    {t('tableNumberLabel')}
+                  </p>
+                  <input
+                    type="text"
+                    value={tableNumber}
+                    onChange={(e) => setTable(e.target.value)}
+                    placeholder={t('tableNumberPlaceholder')}
+                    disabled={isRequesting}
+                    className="w-full rounded-md border bg-[rgba(74,16,22,0.65)] px-3 py-2 text-sm text-[#F8D794] placeholder:text-[rgba(248,215,148,0.35)] focus:outline-none"
+                    style={{
+                      borderColor: tableError
+                        ? '#fb7185'
+                        : 'rgba(248,215,148,0.2)',
+                    }}
+                  />
+                  {tableError && (
+                    <p className="mt-1 text-[11px] text-[#fb7185]">{tableError}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Bottle picker — multi-bottle only */}
+              {isMultiBottle && (
+                <>
+                  <p className="mb-2 mt-3 text-[10px] uppercase tracking-wider text-[rgba(248,215,148,0.6)]">
+                    {t('bottlesLabel')} ({selected.size}/{bottles.length})
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {bottles.map((b) => {
+                      const isSelected = selected.has(b.id);
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          disabled={isRequesting}
+                          onClick={() => toggle(b.id)}
+                          className="flex flex-col items-center gap-0.5 rounded-md border px-2 py-2 text-[11px] transition-colors"
+                          style={{
+                            borderColor: isSelected
+                              ? '#F8D794'
+                              : 'rgba(248,215,148,0.2)',
+                            background: isSelected
+                              ? 'rgba(248,215,148,0.18)'
+                              : 'rgba(74,16,22,0.65)',
+                            color: isSelected ? '#F8D794' : 'rgba(248,215,148,0.7)',
+                          }}
+                        >
+                          <span className="font-bold">
+                            #{b.bottleNo}/{deposit.bottles.length}
+                          </span>
+                          <span className="text-[10px]">
+                            {b.remainingPercent}%
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
 
               <div className="mt-4 flex gap-2">
                 <button
@@ -702,7 +791,7 @@ export function MyBottlesView() {
                 <button
                   type="button"
                   onClick={submit}
-                  disabled={isRequesting || selected.size === 0}
+                  disabled={isRequesting || (isMultiBottle && selected.size === 0)}
                   className="customer-btn-withdraw !mt-0 flex-1 disabled:opacity-50"
                 >
                   {isRequesting ? (

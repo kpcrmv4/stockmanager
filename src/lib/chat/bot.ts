@@ -119,7 +119,16 @@ export function buildWithdrawalActionCard(withdrawal: {
   requested_qty: number;
   table_number?: string | null;
   notes?: string | null;
+  withdrawal_type?: 'in_store' | 'take_home' | null;
 }): Omit<SendBotMessageParams, 'storeId'> {
+  // Build a single "where to take" line so bar sees at a glance
+  // whether to walk it to a table or hand it back as take-away. The
+  // table number itself is already rendered as a badge by the
+  // action-card UI, so we only carry the type label in the note to
+  // avoid duplicating "โต๊ะ X" twice on the same card.
+  const isTakeHome = withdrawal.withdrawal_type === 'take_home';
+  const whereNote = isTakeHome ? '🏠 เบิกกลับบ้าน' : '🍷 ดื่มที่ร้าน';
+
   const meta: ActionCardMetadata = {
     action_type: 'withdrawal_claim',
     reference_id: withdrawal.deposit_code,
@@ -135,9 +144,8 @@ export function buildWithdrawalActionCard(withdrawal: {
       customer: withdrawal.customer_name,
       items: `${withdrawal.product_name} x${withdrawal.requested_qty}`,
       table_number: withdrawal.table_number || undefined,
-      note: withdrawal.table_number
-        ? `โต๊ะ ${withdrawal.table_number}`
-        : withdrawal.notes || undefined,
+      withdrawal_type: withdrawal.withdrawal_type || undefined,
+      note: whereNote,
     },
   };
 

@@ -38,6 +38,7 @@ import {
   ShoppingCart,
   ChevronDown,
   Home,
+  MapPin,
   AlertCircle,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -1042,11 +1043,15 @@ export default function WithdrawalsPage() {
                     <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                       {code && <span className="mr-1 font-mono text-gray-400">#{code}</span>}
                       {rep.customer_name} · x{formatNumber(group.totalRequestedQty)} · {formatThaiDateTime(rep.created_at)}
-                      {rep.withdrawal_type === 'take_home' && (
+                      {rep.withdrawal_type === 'take_home' ? (
                         <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                           <Home className="h-2.5 w-2.5" /> {t('withdrawals.takeHome')}
                         </span>
-                      )}
+                      ) : rep.table_number ? (
+                        <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                          <MapPin className="h-2.5 w-2.5" /> โต๊ะ {rep.table_number}
+                        </span>
+                      ) : null}
                     </p>
                     {/* Bottle pills — show one chip per row in the group so
                         bar sees "Bombay x2 (2/3, 3/3)" instead of two cards. */}

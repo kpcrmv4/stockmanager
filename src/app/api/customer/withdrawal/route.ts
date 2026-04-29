@@ -20,13 +20,14 @@ import { isWithdrawalBlocked } from '@/lib/utils/date';
  */
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { depositId, customerName, bottleIds, token, accessToken, withdrawalType } = body as {
+  const { depositId, customerName, bottleIds, token, accessToken, withdrawalType, tableNumber } = body as {
     depositId: string;
     customerName: string;
     bottleIds?: string[];
     token?: string;
     accessToken?: string;
     withdrawalType?: 'in_store' | 'take_home';
+    tableNumber?: string;
   };
 
   if (!depositId) {
@@ -129,6 +130,13 @@ export async function POST(request: NextRequest) {
   // (bottle_id linked); legacy/single-bottle requests fall through to a
   // single row with bottle_id=null and requested_qty=remaining_qty.
   // -----------------------------------------------------------------------
+  // Table number: only meaningful for in-store withdrawals. For take-home
+  // we explicitly null it out so the bar isn't confused by a stale value
+  // copied from the original deposit.
+  const finalTable = wType === 'in_store'
+    ? (tableNumber?.trim() || deposit.table_number || null)
+    : null;
+
   const baseRow = {
     deposit_id: deposit.id,
     store_id: deposit.store_id,
@@ -136,6 +144,7 @@ export async function POST(request: NextRequest) {
     customer_name: customerName || deposit.customer_name || 'ลูกค้า',
     product_name: deposit.product_name,
     withdrawal_type: wType,
+    table_number: finalTable,
     status: 'pending' as const,
   };
   const insertRows = validBottleIds.length > 0
@@ -244,7 +253,11 @@ export async function POST(request: NextRequest) {
       customer_name: customerName || deposit.customer_name || 'ลูกค้า',
       product_name: deposit.product_name,
       requested_qty: requestedQty,
-      table_number: deposit.table_number,
+      // Pass the customer's chosen table for in-store, null for take-home
+      // (don't fall back to the original deposit's table — that may be
+      // hours/days old and irrelevant to the current pickup).
+      table_number: finalTable,
+      withdrawal_type: wType,
     });
     if (bottleLabels && bottleLabels.length > 0) {
       const meta = actionCard.metadata;

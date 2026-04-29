@@ -311,7 +311,13 @@
       "pendingRequestHint": "Staff is on the way to receive your bottles shortly.",
       "requestSubmittedAt": "Submitted at {time}",
       "requestTableLabel": "Table",
-      "requestNotesLabel": "Note"
+      "requestNotesLabel": "Note",
+      "withdrawalTypeLabel": "How will you have it?",
+      "withdrawalTypeInStore": "Drink at venue",
+      "withdrawalTypeTakeHome": "Take home",
+      "tableNumberLabel": "Serve at table",
+      "tableNumberPlaceholder": "e.g. Table 5",
+      "tableNumberRequired": "Please enter a table number"
     },
     "deposit": {
       "title": "Deposit Bottle",

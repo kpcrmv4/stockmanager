@@ -311,7 +311,13 @@
       "pendingRequestHint": "พนักงานกำลังมารับในเร็วๆนี้",
       "requestSubmittedAt": "ส่งเมื่อ {time}",
       "requestTableLabel": "โต๊ะ",
-      "requestNotesLabel": "หมายเหตุ"
+      "requestNotesLabel": "หมายเหตุ",
+      "withdrawalTypeLabel": "รับเหล้าอย่างไร",
+      "withdrawalTypeInStore": "ดื่มที่ร้าน",
+      "withdrawalTypeTakeHome": "เบิกกลับบ้าน",
+      "tableNumberLabel": "เสิร์ฟที่โต๊ะ",
+      "tableNumberPlaceholder": "เช่น โต๊ะ 5",
+      "tableNumberRequired": "กรุณาระบุเลขโต๊ะ"
     },
     "deposit": {
       "title": "ฝากเหล้า",
