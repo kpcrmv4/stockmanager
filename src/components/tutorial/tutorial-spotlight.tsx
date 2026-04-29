@@ -85,7 +85,7 @@ export function TutorialSpotlight() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none fixed z-30 rounded-lg ring-4 ring-indigo-400 ring-offset-2 ring-offset-indigo-100 transition-[top,left,width,height] duration-300 dark:ring-indigo-500 dark:ring-offset-indigo-900/40"
+      className="pointer-events-none fixed z-[55] rounded-lg ring-4 ring-indigo-400 ring-offset-2 ring-offset-indigo-100 transition-[top,left,width,height] duration-300 dark:ring-indigo-500 dark:ring-offset-indigo-900/40"
       style={{
         top: rect.top - PAD,
         left: rect.left - PAD,
