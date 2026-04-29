@@ -1,16 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { cn } from '@/lib/utils/cn';
 
-// First-screen coachmark. SVG-mask cuts out the three anchor elements
-// (deposit / chat nav, profile button) so the dim overlay still shows
-// the icons being talked about. Each label is positioned directly
-// adjacent to its anchor with a directional arrow icon pointing at
-// the target — no cross-screen connector lines, which kept looking
-// like random squiggles.
+// First-screen coachmark. Three labels are pinned to fixed viewport
+// corners so they never overlap each other; clean dashed SVG lines
+// with an arrowhead marker connect each label to its anchor cutout.
+//
+// Layout (mobile): profile label sits below the top-right cutout;
+// chat label sits in the upper-middle right; deposit label sits at
+// the bottom-left next to the deposit nav. The "เข้าใจแล้ว" CTA
+// floats at the vertical center of the dim area where no label lives.
 
 interface AnchorPos {
   top: number;
@@ -55,17 +57,12 @@ function measure(): AnchorMap {
   return result;
 }
 
-function clamp(v: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, v));
-}
-
-type Side = 'above' | 'below' | 'left' | 'right' | 'staggered-above';
-
 interface LabelConfig {
   anchor: AnchorName;
   title: string;
   body: string;
-  side: Side;
+  /** CSS-style absolute position */
+  pos: { top?: number; bottom?: number; left?: number; right?: number };
 }
 
 interface Props {
@@ -73,10 +70,35 @@ interface Props {
   onClose: () => void;
 }
 
+/** Pick the midpoint of whichever rect side is closest to the target. */
+function nearestEdgeMid(
+  rect: { left: number; top: number; width: number; height: number },
+  target: { x: number; y: number },
+): { x: number; y: number } {
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const dx = target.x - cx;
+  const dy = target.y - cy;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return { x: dx > 0 ? rect.left + rect.width : rect.left, y: cy };
+  }
+  return { x: cx, y: dy > 0 ? rect.top + rect.height : rect.top };
+}
+
 export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
   const [anchors, setAnchors] = useState<AnchorMap>({});
   const [vw, setVw] = useState(0);
   const [vh, setVh] = useState(0);
+  // Measured rendered rects of the labels — needed so the connector
+  // lines start exactly at the right edge of each label.
+  const labelRefs = useRef<Record<AnchorName, HTMLDivElement | null>>({
+    deposit: null,
+    chat: null,
+    profile: null,
+  });
+  const [labelRects, setLabelRects] = useState<
+    Partial<Record<AnchorName, DOMRect>>
+  >({});
 
   useEffect(() => {
     if (!isOpen) return;
@@ -86,6 +108,12 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
         setAnchors(measure());
         setVw(window.innerWidth);
         setVh(window.innerHeight);
+        const next: Partial<Record<AnchorName, DOMRect>> = {};
+        for (const name of ['deposit', 'chat', 'profile'] as const) {
+          const el = labelRefs.current[name];
+          if (el) next[name] = el.getBoundingClientRect();
+        }
+        setLabelRects(next);
       });
     };
     update();
@@ -103,79 +131,37 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
   if (!isOpen || vw === 0) return null;
 
   const isNarrow = vw < 768;
-  // On mobile we narrow each label so the deposit + chat labels can sit
-  // side-by-side above the bottom-nav. On desktop the sidebar takes up
-  // the left edge so we can afford a wider label.
-  const labelW = isNarrow ? Math.min(168, (vw - 32) / 2) : 240;
+  const labelW = isNarrow ? Math.min(220, vw - 40) : 240;
 
+  // Three corners chosen so each label gets its own column / row and
+  // the connector lines never cross.
   const labels: LabelConfig[] = [
     {
       anchor: 'profile',
       title: 'โปรไฟล์ของคุณ',
-      body: 'ตั้งค่า เปลี่ยนรหัสผ่าน หรือซ่อนปุ่มสอน',
-      side: 'below',
+      body: 'ตั้งค่า เปลี่ยนรหัสผ่าน หรือซ่อนปุ่มสอนการใช้งาน',
+      pos: { top: 70, right: 12 },
+    },
+    {
+      anchor: 'chat',
+      title: 'แชทในร้าน',
+      body: 'ห้องแชทของแต่ละสาขา — รับ Action Card จากบาร์/พนักงาน',
+      // Upper-middle on the right; line drops down to the chat anchor
+      // in the bottom-nav.
+      pos: isNarrow
+        ? { top: Math.round(vh * 0.32), right: 12 }
+        : { top: 70, right: 280 },
     },
     {
       anchor: 'deposit',
       title: 'ฝาก / เบิก',
-      body: 'หน้าหลัก — ฝาก เบิก รอยืนยัน',
-      side: isNarrow ? 'above' : 'right',
-    },
-    {
-      // On mobile, chat anchor sits next to deposit in the bottom-nav,
-      // so a normal "above" position would put both labels on the same
-      // row and they'd visually crowd each other. Anchor chat to a
-      // viewport-relative spot well above the deposit label instead.
-      anchor: 'chat',
-      title: 'แชทในร้าน',
-      body: 'ห้องแชทสาขา — Action Card',
-      side: isNarrow ? 'staggered-above' : 'right',
+      body: 'หน้าหลัก — สร้างรายการฝาก รอยืนยัน เบิกของให้ลูกค้า',
+      // Just above the deposit nav so the line is short and direct.
+      pos: isNarrow ? { bottom: 100, left: 12 } : { bottom: 32, left: 12 },
     },
   ];
 
-  // Predict each label's bounding box from its anchor + chosen side.
-  // We use this to position the label container; the actual rendered
-  // height is whatever the content needs (we just clamp into the viewport).
-  function positionFor(label: LabelConfig) {
-    const a = anchors[label.anchor];
-    if (!a) return null;
-    const GAP = 14;
-    const labelH = 78; // estimated; only used for clamping
-    let top = 0;
-    let left = 0;
-    if (label.side === 'above') {
-      top = a.top - GAP - labelH;
-      left = a.centerX - labelW / 2;
-    } else if (label.side === 'staggered-above') {
-      // Float ~110px above the anchor's natural "above" slot so two
-      // labels sharing the same horizontal row (e.g. deposit + chat
-      // in the bottom-nav) don't crowd each other.
-      top = a.top - GAP - labelH - 110;
-      left = a.centerX - labelW / 2;
-    } else if (label.side === 'below') {
-      top = a.top + a.height + GAP;
-      left = a.centerX - labelW / 2;
-    } else if (label.side === 'right') {
-      top = a.centerY - labelH / 2;
-      left = a.left + a.width + GAP;
-    } else {
-      top = a.centerY - labelH / 2;
-      left = a.left - GAP - labelW;
-    }
-    // Keep inside the viewport with 8px gutter.
-    left = clamp(left, 8, vw - labelW - 8);
-    top = clamp(top, 60, vh - labelH - 8);
-    return { top, left };
-  }
-
-  const ArrowIcon: Record<Side, typeof ArrowUp> = {
-    above: ArrowDown,
-    'staggered-above': ArrowDown,
-    below: ArrowUp,
-    left: ArrowRight,
-    right: ArrowLeft,
-  };
-
+  const visibleLabels = labels.filter((l) => anchors[l.anchor]);
   const PAD = 8;
 
   return (
@@ -185,7 +171,7 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
       aria-label="ภาพรวมเมนูหลัก"
       style={{ fontFamily: 'var(--font-handwriting)' }}
     >
-      {/* SVG mask — cuts out the anchored elements so they remain visible */}
+      {/* Mask + rings + connector lines all in one SVG layer */}
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"
         aria-hidden
@@ -210,7 +196,20 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
               );
             })}
           </mask>
+          <marker
+            id="tutorial-arrowhead"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="white" />
+          </marker>
         </defs>
+
+        {/* Dim layer with cutouts */}
         <rect
           width="100%"
           height="100%"
@@ -218,7 +217,7 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
           mask="url(#tutorial-cutout-mask)"
         />
 
-        {/* Soft glow rings around each cutout */}
+        {/* Bright glow rings around cutouts */}
         {(['deposit', 'chat', 'profile'] as const).map((name) => {
           const a = anchors[name];
           if (!a) return null;
@@ -237,6 +236,41 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
             />
           );
         })}
+
+        {/* Connector lines — clean dashed straight segments from each
+            label edge to its anchor cutout, with an arrowhead at the
+            target end. We only know the label rect after the first
+            render, so this whole block renders blank on initial mount
+            and fills in once labelRects has been measured. */}
+        {visibleLabels.map((l) => {
+          const a = anchors[l.anchor]!;
+          const lr = labelRects[l.anchor];
+          if (!lr) return null;
+          const target = { x: a.centerX, y: a.centerY };
+          const start = nearestEdgeMid(lr, target);
+          // Stop the line just outside the cutout ring so the arrow
+          // doesn't poke into the icon.
+          const dx = target.x - start.x;
+          const dy = target.y - start.y;
+          const len = Math.max(1, Math.hypot(dx, dy));
+          const PULLBACK = (Math.max(a.width, a.height) / 2) + PAD + 4;
+          const endX = target.x - (dx / len) * PULLBACK;
+          const endY = target.y - (dy / len) * PULLBACK;
+          return (
+            <line
+              key={`line-${l.anchor}`}
+              x1={start.x}
+              y1={start.y}
+              x2={endX}
+              y2={endY}
+              stroke="white"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeDasharray="6 5"
+              markerEnd="url(#tutorial-arrowhead)"
+            />
+          );
+        })}
       </svg>
 
       {/* Tap-anywhere-to-close layer */}
@@ -247,7 +281,7 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
         className="absolute inset-0 z-[1] h-full w-full cursor-pointer bg-transparent"
       />
 
-      {/* Title pill — top-left so it never collides with the profile label */}
+      {/* Title pill — top-left */}
       <div className="pointer-events-none absolute left-3 top-3 z-[3]">
         <div className="rounded-full bg-indigo-500 px-3 py-1.5 shadow-lg">
           <p
@@ -260,40 +294,33 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
       </div>
 
       {/* Labels */}
-      {labels.map((l) => {
-        const pos = positionFor(l);
-        if (!pos) return null;
-        const Arrow = ArrowIcon[l.side];
-        return (
-          <div
-            key={l.anchor}
-            className={cn(
-              'pointer-events-none absolute z-[2] rounded-2xl px-3 py-2.5',
-              'bg-white text-gray-900 shadow-2xl ring-1 ring-indigo-200',
-              'dark:bg-gray-900 dark:text-white dark:ring-indigo-700',
-            )}
-            style={{
-              top: pos.top,
-              left: pos.left,
-              width: labelW,
-              fontFamily: 'var(--font-handwriting)',
-            }}
-          >
-            <div className="flex items-center gap-1.5">
-              <Arrow className="h-4 w-4 shrink-0 text-indigo-500 dark:text-indigo-300" />
-              <p className="text-[15px] font-bold leading-tight text-indigo-600 dark:text-indigo-300">
-                {l.title}
-              </p>
-            </div>
-            <p className="mt-1 text-[13px] leading-snug text-gray-700 dark:text-gray-200">
-              {l.body}
-            </p>
-          </div>
-        );
-      })}
+      {visibleLabels.map((l) => (
+        <div
+          key={l.anchor}
+          ref={(el) => {
+            labelRefs.current[l.anchor] = el;
+          }}
+          className={cn(
+            'pointer-events-none absolute z-[2] rounded-2xl px-3 py-2.5',
+            'bg-white text-gray-900 shadow-2xl ring-1 ring-indigo-200',
+            'dark:bg-gray-900 dark:text-white dark:ring-indigo-700',
+          )}
+          style={{
+            ...l.pos,
+            width: labelW,
+            fontFamily: 'var(--font-handwriting)',
+          }}
+        >
+          <p className="text-[15px] font-bold leading-tight text-indigo-600 dark:text-indigo-300">
+            {l.title}
+          </p>
+          <p className="mt-1 text-[13px] leading-snug text-gray-700 dark:text-gray-200">
+            {l.body}
+          </p>
+        </div>
+      ))}
 
-      {/* Continue button — vertical center of the dim area, away from
-          both the title pill (top) and the bottom-nav cutouts (bottom). */}
+      {/* Continue button — vertical center */}
       <div className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center px-4">
         <Button
           onClick={onClose}
