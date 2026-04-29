@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useTutorialStore } from '@/stores/tutorial-store';
+import { getFlow } from '@/lib/tutorial/steps';
 import {
   Button,
   Card,
@@ -364,6 +365,7 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
   const { currentStoreId } = useAppStore();
   const tutorialActive = useTutorialStore((s) => s.active);
   const tutorialFeature = useTutorialStore((s) => s.feature);
+  const tutorialStepIndex = useTutorialStore((s) => s.stepIndex);
   const tutorialNext = useTutorialStore((s) => s.next);
   const setTutorialDepositCode = useTutorialStore((s) => s.setCreatedDepositCode);
   const isTutorial = tutorialActive && tutorialFeature === 'deposit';
@@ -761,6 +763,64 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
     (it) => it.productName.trim() && parseFloat(it.quantity) > 0
   );
 
+  // -------------------------------------------------------------------------
+  // Tutorial autopilot — when stepIndex changes, apply that step's `fill`
+  // payload to the form state so the user watches the values appear in the
+  // highlighted field. The save step also triggers the actual insert via
+  // handleSubmit; on success the submit handler advances to the final step.
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    if (!isTutorial) return;
+    const flow = getFlow('deposit');
+    const step = flow?.steps[tutorialStepIndex];
+    if (!step) return;
+
+    const f = step.fill;
+    if (f) {
+      if (f.customerName !== undefined) setCustomerName(f.customerName);
+      if (f.customerPhone !== undefined) setCustomerPhone(f.customerPhone);
+      if (f.tableNumber !== undefined) setTableNumber(f.tableNumber);
+      if (f.expiryDays !== undefined) setExpiryDays(f.expiryDays);
+      if (f.notes !== undefined) setNotes(f.notes);
+      if (
+        f.itemProductName !== undefined ||
+        f.itemCategory !== undefined ||
+        f.itemQuantity !== undefined
+      ) {
+        // Pick a real product from the store if we have one loaded; the
+        // user sees a real catalog name instead of the placeholder.
+        const fallbackName = f.itemProductName ?? '';
+        const realProduct = products[0];
+        const productName = realProduct?.product_name ?? fallbackName;
+        const category = realProduct?.category ?? f.itemCategory ?? '';
+        setItems((prev) => {
+          const next = [...prev];
+          const cur = next[0] ?? { ...EMPTY_ITEM };
+          next[0] = {
+            ...cur,
+            productName: f.itemProductName !== undefined ? productName : cur.productName,
+            searchQuery: f.itemProductName !== undefined ? productName : cur.searchQuery,
+            category: f.itemCategory !== undefined || f.itemProductName !== undefined ? category : cur.category,
+            quantity: f.itemQuantity !== undefined ? f.itemQuantity : cur.quantity,
+          };
+          return next;
+        });
+      }
+    }
+
+    if (step.autoSave) {
+      // Tiny delay so the spotlight has a moment on the save button before
+      // the form unmounts on success.
+      const timer = setTimeout(() => {
+        handleSubmit();
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  // handleSubmit is intentionally excluded from deps — it captures form
+  // state but we only need to re-run when the step actually changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTutorial, tutorialStepIndex, products]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -786,7 +846,6 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
       </div>
 
       {/* Customer info */}
-      <div data-tutorial-id="deposit-form-customer">
       <Card padding="none">
         <CardHeader
           title={t("form.customerInfo")}
@@ -795,54 +854,58 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
         <CardContent>
           <div className={cn('space-y-4', isNoDeposit && 'opacity-60')}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <CustomerSearchInput
-                label={t("form.customerName")}
-                value={customerName}
-                onChange={(v) => {
-                  setCustomerName(v);
-                  if (errors.customerName) setErrors((prev) => ({ ...prev, customerName: '' }));
-                }}
-                onSelectCustomer={(c) => {
-                  setCustomerName(c.customer_name);
-                  if (c.customer_phone) setCustomerPhone(c.customer_phone);
-                  if (errors.customerName) setErrors((prev) => ({ ...prev, customerName: '' }));
-                }}
-                placeholder={t("form.searchCustomerPlaceholder")}
-                icon={User}
-                error={errors.customerName}
+              <div data-tutorial-id="tut-customer-name">
+                <CustomerSearchInput
+                  label={t("form.customerName")}
+                  value={customerName}
+                  onChange={(v) => {
+                    setCustomerName(v);
+                    if (errors.customerName) setErrors((prev) => ({ ...prev, customerName: '' }));
+                  }}
+                  onSelectCustomer={(c) => {
+                    setCustomerName(c.customer_name);
+                    if (c.customer_phone) setCustomerPhone(c.customer_phone);
+                    if (errors.customerName) setErrors((prev) => ({ ...prev, customerName: '' }));
+                  }}
+                  placeholder={t("form.searchCustomerPlaceholder")}
+                  icon={User}
+                  error={errors.customerName}
+                  disabled={isNoDeposit}
+                  customers={customers}
+                  matchField="customer_name"
+                />
+              </div>
+              <div data-tutorial-id="tut-customer-phone">
+                <CustomerSearchInput
+                  label={t("form.phone")}
+                  value={customerPhone}
+                  onChange={setCustomerPhone}
+                  onSelectCustomer={(c) => {
+                    setCustomerPhone(c.customer_phone || '');
+                    if (!customerName) setCustomerName(c.customer_name);
+                  }}
+                  placeholder={t("form.searchPhonePlaceholder")}
+                  icon={Phone}
+                  disabled={isNoDeposit}
+                  customers={customers.filter((c) => !!c.customer_phone)}
+                  matchField="customer_phone"
+                />
+              </div>
+            </div>
+            <div data-tutorial-id="tut-table-number">
+              <Input
+                label={t("form.tableNumber")}
+                value={tableNumber}
+                onChange={(e) => setTableNumber(e.target.value)}
+                placeholder={t("form.tablePlaceholder")}
                 disabled={isNoDeposit}
-                customers={customers}
-                matchField="customer_name"
-              />
-              <CustomerSearchInput
-                label={t("form.phone")}
-                value={customerPhone}
-                onChange={setCustomerPhone}
-                onSelectCustomer={(c) => {
-                  setCustomerPhone(c.customer_phone || '');
-                  if (!customerName) setCustomerName(c.customer_name);
-                }}
-                placeholder={t("form.searchPhonePlaceholder")}
-                icon={Phone}
-                disabled={isNoDeposit}
-                customers={customers.filter((c) => !!c.customer_phone)}
-                matchField="customer_phone"
               />
             </div>
-            <Input
-              label={t("form.tableNumber")}
-              value={tableNumber}
-              onChange={(e) => setTableNumber(e.target.value)}
-              placeholder={t("form.tablePlaceholder")}
-              disabled={isNoDeposit}
-            />
           </div>
         </CardContent>
       </Card>
-      </div>
 
       {/* Items */}
-      <div data-tutorial-id="deposit-form-items">
       <Card padding="none">
         <CardHeader
           title={t("form.productList")}
@@ -884,14 +947,16 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
                 </div>
 
                 {/* Product search */}
-                <ProductSearchInput
-                  item={item}
-                  index={idx}
-                  products={products}
-                  onUpdate={updateItem}
-                  onSelectProduct={selectProduct}
-                  error={errors[`item_${idx}_productName`]}
-                />
+                <div {...(idx === 0 ? { 'data-tutorial-id': 'tut-item-product' } : {})}>
+                  <ProductSearchInput
+                    item={item}
+                    index={idx}
+                    products={products}
+                    onUpdate={updateItem}
+                    onSelectProduct={selectProduct}
+                    error={errors[`item_${idx}_productName`]}
+                  />
+                </div>
 
                 {/* Category + Quantity */}
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -902,15 +967,17 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
                     onChange={(e) => updateItem(idx, 'category', e.target.value)}
                     placeholder={t("form.selectCategory")}
                   />
-                  <Input
-                    label={t("form.quantity")}
-                    type="number"
-                    value={item.quantity}
-                    onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
-                    placeholder="1"
-                    hint={t("form.bottleCount")}
-                    error={errors[`item_${idx}_quantity`]}
-                  />
+                  <div {...(idx === 0 ? { 'data-tutorial-id': 'tut-item-quantity' } : {})}>
+                    <Input
+                      label={t("form.quantity")}
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
+                      placeholder="1"
+                      hint={t("form.bottleCount")}
+                      error={errors[`item_${idx}_quantity`]}
+                    />
+                  </div>
                 </div>
 
                 {/* Auto-filled badge */}
@@ -934,10 +1001,8 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
           </div>
         </CardContent>
       </Card>
-      </div>
 
       {/* Storage & Notes */}
-      <div data-tutorial-id="deposit-form-storage">
       <Card padding="none">
         <CardHeader title={t("form.storage")} description={t("form.storageDesc")} />
         <CardContent>
@@ -1032,22 +1097,24 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
                 </div>
 
                 {!isVip && (
-                  <Input
-                    label={t("form.storageDays")}
-                    type="number"
-                    value={expiryDays}
-                    onChange={(e) => {
-                      setExpiryDays(e.target.value);
-                      if (errors.expiryDays) setErrors((prev) => ({ ...prev, expiryDays: '' }));
-                    }}
-                    placeholder="30"
-                    hint={
-                      expiryDays && parseInt(expiryDays) > 0
-                        ? t('form.expiryApprox', { date: formatThaiDate(new Date(Date.now() + parseInt(expiryDays) * 86400000)) })
-                        : t("form.storageDaysHint")
-                    }
-                    error={errors.expiryDays}
-                  />
+                  <div data-tutorial-id="tut-expiry-days">
+                    <Input
+                      label={t("form.storageDays")}
+                      type="number"
+                      value={expiryDays}
+                      onChange={(e) => {
+                        setExpiryDays(e.target.value);
+                        if (errors.expiryDays) setErrors((prev) => ({ ...prev, expiryDays: '' }));
+                      }}
+                      placeholder="30"
+                      hint={
+                        expiryDays && parseInt(expiryDays) > 0
+                          ? t('form.expiryApprox', { date: formatThaiDate(new Date(Date.now() + parseInt(expiryDays) * 86400000)) })
+                          : t("form.storageDaysHint")
+                      }
+                      error={errors.expiryDays}
+                    />
+                  </div>
                 )}
               </>
             )}
@@ -1058,7 +1125,7 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
               placeholder={t("form.notesPlaceholder")}
               rows={3}
             />
-            <div data-tutorial-id="deposit-form-photo">
+            <div data-tutorial-id="tut-photo">
               <PhotoUpload
                 value={receivedPhotoUrl}
                 onChange={(url) => {
@@ -1085,7 +1152,6 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
           </div>
         </CardContent>
       </Card>
-      </div>
 
       {/* Actions */}
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
@@ -1097,7 +1163,7 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
           {t('form.cancel')}
         </Button>
         <Button
-          data-tutorial-id="deposit-form-save"
+          data-tutorial-id="tut-save"
           onClick={handleSubmit}
           isLoading={isSubmitting}
           disabled={!customerName || !allItemsValid}

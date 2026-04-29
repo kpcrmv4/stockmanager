@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
+import { useTutorialStore } from '@/stores/tutorial-store';
 import { currentShiftRange } from '@/lib/utils/date';
 import {
   Button,
@@ -200,6 +201,16 @@ export default function DepositPage() {
       setActiveTab('in_store');
     }
   }, [searchParams]);
+
+  // Tutorial autopilot — when the deposit walkthrough is active, jump
+  // straight into the form so the user only sees the autofill demo.
+  const tutorialActive = useTutorialStore((s) => s.active);
+  const tutorialFeature = useTutorialStore((s) => s.feature);
+  useEffect(() => {
+    if (tutorialActive && tutorialFeature === 'deposit') {
+      setShowNewForm(true);
+    }
+  }, [tutorialActive, tutorialFeature]);
 
   // Handle deep-link to a single deposit: /deposit?id=<uuid>.
   // Used by inbox + notifications. Fetches the row directly so it works
