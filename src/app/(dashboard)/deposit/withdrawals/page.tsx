@@ -1105,55 +1105,47 @@ export default function WithdrawalsPage() {
 
                 {isExpanded && (
                   <div className="p-4 pt-0 sm:p-5 sm:pt-0">
-                    <div className="mb-4 mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
-                      <div>
-                        <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.customerLabel')}</span>
-                        <p className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
-                          <User className="h-3.5 w-3.5 text-gray-400" />
-                          {rep.customer_name}
-                        </p>
+                    {/* Outcome-only grid — every "request" field
+                        (customer / qty / table / date) already lives in
+                        the header above. We only render extras: the
+                        actual quantity that was withdrawn (when it
+                        differs from requested), the qty-vs-bottles
+                        split for multi-bottle requests, and who
+                        processed it. */}
+                    {(group.totalActualQty !== null ||
+                      isMulti ||
+                      rep.processed_by_name) && (
+                      <div className="mb-4 mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+                        {isMulti && (
+                          <div>
+                            <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.requestedQty')}</span>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {formatNumber(group.totalRequestedQty)}
+                              <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                                ({group.rows.length} {t('withdrawals.bottlesUnitShort') || 'ขวด'})
+                              </span>
+                            </p>
+                          </div>
+                        )}
+                        {group.totalActualQty !== null && (
+                          <div>
+                            <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.actualQty')}</span>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {formatNumber(group.totalActualQty)}
+                            </p>
+                          </div>
+                        )}
+                        {rep.processed_by_name && (
+                          <div>
+                            <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.processedBy')}</span>
+                            <p className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
+                              <User className="h-3.5 w-3.5 text-gray-400" />
+                              {rep.processed_by_name}
+                            </p>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.requestedQty')}</span>
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {formatNumber(group.totalRequestedQty)}
-                          {isMulti && (
-                            <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                              ({group.rows.length} {t('withdrawals.bottlesUnitShort') || 'ขวด'})
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      {group.totalActualQty !== null && (
-                        <div>
-                          <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.actualQty')}</span>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {formatNumber(group.totalActualQty)}
-                          </p>
-                        </div>
-                      )}
-                      {rep.table_number && (
-                        <div>
-                          <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.tableLabel')}</span>
-                          <p className="font-medium text-gray-900 dark:text-white">{rep.table_number}</p>
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.dateLabel')}</span>
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {formatThaiDateTime(rep.created_at)}
-                        </p>
-                      </div>
-                      {rep.processed_by_name && (
-                        <div>
-                          <span className="text-gray-500 dark:text-gray-400">{t('withdrawals.processedBy')}</span>
-                          <p className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
-                            <User className="h-3.5 w-3.5 text-gray-400" />
-                            {rep.processed_by_name}
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                    )}
 
                     {rep.photo_url && (
                       <div className="mb-3">
@@ -1172,7 +1164,7 @@ export default function WithdrawalsPage() {
                     )}
 
                     {isPending && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 pt-3">
                         <Button
                           className="min-h-[44px] flex-1"
                           variant="danger"
