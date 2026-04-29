@@ -855,7 +855,7 @@ export default function DepositPage() {
               {t('withdrawButton')}
             </Button>
           </Link>
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowNewForm(true)}>
+          <Button data-tutorial-id="deposit-new-button" icon={<Plus className="h-4 w-4" />} onClick={() => setShowNewForm(true)}>
             {t('newDeposit')}
           </Button>
         </div>

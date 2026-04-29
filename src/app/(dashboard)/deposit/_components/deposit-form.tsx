@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
+import { useTutorialStore } from '@/stores/tutorial-store';
 import {
   Button,
   Card,
@@ -31,6 +32,7 @@ import {
   Phone,
   CheckCircle2,
   AlertCircle,
+  Info,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
@@ -360,6 +362,11 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
   const t = useTranslations('deposit');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
+  const tutorialActive = useTutorialStore((s) => s.active);
+  const tutorialFeature = useTutorialStore((s) => s.feature);
+  const tutorialNext = useTutorialStore((s) => s.next);
+  const setTutorialDepositCode = useTutorialStore((s) => s.setCreatedDepositCode);
+  const isTutorial = tutorialActive && tutorialFeature === 'deposit';
   const isFulfillingRequest = !!pendingDeposit;
 
   // ----- Shared fields ----- (pre-fill from the customer LIFF request when
@@ -497,8 +504,9 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
     }
 
     // Staff must attach a photo of the bottle on a real deposit (we skip
-    // this for "ไม่ฝาก" since there's no physical bottle to photograph).
-    if (isStaff && !isNoDeposit && !receivedPhotoUrl) {
+    // this for "ไม่ฝาก" since there's no physical bottle to photograph,
+    // and for tutorial mode where we don't actually upload anything).
+    if (isStaff && !isNoDeposit && !isTutorial && !receivedPhotoUrl) {
       newErrors.photo = 'กรุณาถ่ายรูปขวดเหล้าก่อนบันทึก';
     }
 
@@ -590,7 +598,11 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
         }
 
         // Otherwise (or additional items in fulfil mode) → INSERT new row.
-        const depositCode = await generateDepositCode(currentStoreId);
+        // Tutorial mode uses a DEMO-prefixed code so the row is easy to
+        // spot in the list, and skips the photo + side-effects entirely.
+        const depositCode = isTutorial
+          ? `DEMO-${Math.random().toString(36).slice(2, 7).toUpperCase()}`
+          : await generateDepositCode(currentStoreId);
         depositCodes.push(depositCode);
 
         const { error } = await supabase.from('deposits').insert({
@@ -617,7 +629,8 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
           notes: isNoDeposit
             ? (notes.trim() ? `[${t('form.noDepositTag')}] ${notes.trim()}` : t('form.noDepositDefaultNote'))
             : (notes.trim() || null),
-          received_photo_url: receivedPhotoUrl || null,
+          received_photo_url: isTutorial ? null : (receivedPhotoUrl || null),
+          is_tutorial: isTutorial,
         });
 
         if (error) {
@@ -630,23 +643,27 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
           return;
         }
 
-        await logAudit({
-          store_id: currentStoreId,
-          action_type: isNoDeposit
-            ? AUDIT_ACTIONS.DEPOSIT_NO_DEPOSIT_CREATED
-            : AUDIT_ACTIONS.DEPOSIT_CREATED,
-          table_name: 'deposits',
-          record_id: depositCode,
-          new_value: {
-            deposit_code: depositCode,
-            customer_name: customerName.trim(),
-            product_name: item.productName.trim(),
-            quantity: qty,
-            category: item.category || null,
-            ...(isNoDeposit && { is_no_deposit: true }),
-          },
-          changed_by: user?.id || null,
-        });
+        // Tutorial rows skip audit log so demo activity doesn't pollute
+        // reports / activity feed.
+        if (!isTutorial) {
+          await logAudit({
+            store_id: currentStoreId,
+            action_type: isNoDeposit
+              ? AUDIT_ACTIONS.DEPOSIT_NO_DEPOSIT_CREATED
+              : AUDIT_ACTIONS.DEPOSIT_CREATED,
+            table_name: 'deposits',
+            record_id: depositCode,
+            new_value: {
+              deposit_code: depositCode,
+              customer_name: customerName.trim(),
+              product_name: item.productName.trim(),
+              quantity: qty,
+              category: item.category || null,
+              ...(isNoDeposit && { is_no_deposit: true }),
+            },
+            changed_by: user?.id || null,
+          });
+        }
       }
 
       const itemsSummary = items
@@ -665,20 +682,25 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
               : t('form.createdDepositMultiple', { count: items.length })),
       });
 
-      notifyStaff({
-        storeId: currentStoreId,
-        type: 'new_deposit',
-        title: isNoDeposit ? t('form.notifyNoDeposit') : t('form.notifyNewDeposit'),
-        body: isNoDeposit
-          ? `${customerName.trim()} ${t('form.notifyNoDepositBody', { items: itemsSummary })}`
-          : `${customerName.trim()} ${t('form.notifyDepositBody', { items: itemsSummary })}`,
-        data: { deposit_code: depositCodes[0] },
-        excludeUserId: user?.id,
-      });
+      // Tutorial mode suppresses every outbound channel — push, in-store
+      // chat action card, and the chat-card status sync below — so a demo
+      // run never leaks to bar / staff phones / LINE OA.
+      if (!isTutorial) {
+        notifyStaff({
+          storeId: currentStoreId,
+          type: 'new_deposit',
+          title: isNoDeposit ? t('form.notifyNoDeposit') : t('form.notifyNewDeposit'),
+          body: isNoDeposit
+            ? `${customerName.trim()} ${t('form.notifyNoDepositBody', { items: itemsSummary })}`
+            : `${customerName.trim()} ${t('form.notifyDepositBody', { items: itemsSummary })}`,
+          data: { deposit_code: depositCodes[0] },
+          excludeUserId: user?.id,
+        });
+      }
 
       // ส่ง Action Card เข้าห้องแชทสาขา (ไม่ส่งสำหรับรายการ "ไม่ฝาก")
       // Staff สร้าง manual → ส่งเป็น "รอบาร์ยืนยัน" ทันที
-      if (!isNoDeposit) {
+      if (!isNoDeposit && !isTutorial) {
         const startIdx = isFulfillingRequest ? 1 : 0;
         // The first item in fulfil-request mode reuses the existing chat
         // action card (transitioned from pending → pending_bar), so we only
@@ -710,10 +732,15 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
         }
       }
 
-      // Staff: pause on a hand-off modal reminding them to deliver the
-      // bottle to bar before the row leaves the screen. Other roles
-      // continue straight back to the list.
-      if (isStaff && !isNoDeposit) {
+      // Tutorial: skip the staff hand-off modal (no real bottle to walk
+      // over) and advance the walkthrough panel to its final step.
+      if (isTutorial) {
+        setTutorialDepositCode(depositCodes[0] ?? null);
+        tutorialNext();
+        onSuccess();
+      } else if (isStaff && !isNoDeposit) {
+        // Staff: pause on a hand-off modal reminding them to deliver the
+        // bottle to bar before the row leaves the screen.
         setSavedDepositCodes(depositCodes);
         setShowSendToBarModal(true);
       } else {
@@ -759,6 +786,7 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
       </div>
 
       {/* Customer info */}
+      <div data-tutorial-id="deposit-form-customer">
       <Card padding="none">
         <CardHeader
           title={t("form.customerInfo")}
@@ -811,8 +839,10 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* Items */}
+      <div data-tutorial-id="deposit-form-items">
       <Card padding="none">
         <CardHeader
           title={t("form.productList")}
@@ -904,8 +934,10 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* Storage & Notes */}
+      <div data-tutorial-id="deposit-form-storage">
       <Card padding="none">
         <CardHeader title={t("form.storage")} description={t("form.storageDesc")} />
         <CardContent>
@@ -1026,7 +1058,7 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
               placeholder={t("form.notesPlaceholder")}
               rows={3}
             />
-            <div>
+            <div data-tutorial-id="deposit-form-photo">
               <PhotoUpload
                 value={receivedPhotoUrl}
                 onChange={(url) => {
@@ -1035,7 +1067,7 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
                 }}
                 folder="deposits"
                 label={t("form.photoLabel")}
-                required={isStaff && !isNoDeposit}
+                required={isStaff && !isNoDeposit && !isTutorial}
               />
               {errors.photo && (
                 <p className="mt-1 flex items-center gap-1 text-xs text-red-500">
@@ -1043,10 +1075,17 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
                   {errors.photo}
                 </p>
               )}
+              {isTutorial && (
+                <p className="mt-1 flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400">
+                  <Info className="h-3.5 w-3.5" />
+                  โหมดทดลอง — ข้ามขั้นถ่ายรูปได้เลย ระบบจะไม่อัพโหลดจริง
+                </p>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* Actions */}
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
@@ -1058,6 +1097,7 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
           {t('form.cancel')}
         </Button>
         <Button
+          data-tutorial-id="deposit-form-save"
           onClick={handleSubmit}
           isLoading={isSubmitting}
           disabled={!customerName || !allItemsValid}
