@@ -12,7 +12,7 @@ export function SectionProfile() {
           <li><strong>ดู Role + ดูเวลา Login ล่าสุด</strong></li>
           <li><strong>เปลี่ยนรหัสผ่าน</strong> — User Menu (มุมขวาบน) → &quot;เปลี่ยนรหัสผ่าน&quot; → <code>/settings/account</code></li>
         </ul>
-        <ImgPlaceholder icon="👤" name="img-44-profile.png" desc="หน้า Profile แสดง Avatar + Name + Notification Toggles" />
+        <ImgPlaceholder icon="👤" name="img-44-profile.png" desc="หน้าโปรไฟล์ แสดงรูป + ชื่อ + ปุ่มเปิด/ปิดการแจ้งเตือน" />
       </Card>
 
       <Card>
@@ -42,8 +42,8 @@ export function SectionTheme() {
     <Card>
       <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">สลับระหว่างโหมดมืดและสว่างได้ตลอดเวลา:</p>
       <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
-        <li><strong>Desktop</strong> — กดไอคอน ☽/☀ ที่ด้านล่าง Sidebar</li>
-        <li><strong>Mobile</strong> — เปิด Drawer Menu แล้วกดปุ่ม Toggle</li>
+        <li><strong>คอมพิวเตอร์</strong> — กดไอคอน ☽/☀ ที่ด้านล่างของแถบเมนูซ้าย</li>
+        <li><strong>มือถือ</strong> — กดปุ่ม ☰ (ขีด 3 ขีด) มุมซ้ายบนเพื่อเปิดเมนู แล้วกดปุ่มสลับโหมด</li>
       </ul>
       <ImgPlaceholder icon="🎨" name="img-45-dark-light-mode.png" desc="เปรียบเทียบ Dark Mode vs Light Mode" />
     </Card>

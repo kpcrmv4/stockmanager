@@ -3,7 +3,7 @@ import { Card, CardTitle, CardSubtitle, MenuItem, TipBox, ImgPlaceholder } from 
 export function SectionAccountant() {
   return (
     <Card>
-      <CardTitle icon="☰">Sidebar Menu — Accountant</CardTitle>
+      <CardTitle icon="☰">เมนูหลักของ Accountant</CardTitle>
 
       <CardSubtitle>📌 หมวด &quot;หลัก&quot;</CardSubtitle>
       <MenuItem icon="📊" iconBg="bg-violet-500" name="ภาพรวม" desc="Dashboard สรุปข้อมูลทุกสาขา" path="/overview" />
@@ -15,7 +15,7 @@ export function SectionAccountant() {
       <CardSubtitle>📈 หมวด &quot;รายงาน&quot;</CardSubtitle>
       <MenuItem icon="📊" iconBg="bg-amber-500" name="รายงาน" desc="รายงานสรุปข้อมูลฝาก/เบิก/สต๊อก ทุกสาขา" path="/reports" />
 
-      <ImgPlaceholder icon="🖥" name="img-20-accountant-sidebar.png" desc="Sidebar ของ Accountant แสดง 2 หมวด (หลัก + รายงาน)" />
+      <ImgPlaceholder icon="🖥" name="img-20-accountant-sidebar.png" desc="แถบเมนูของ Accountant แสดง 2 หมวด (หลัก + รายงาน)" />
 
       <TipBox>
         <strong>💡 หมายเหตุ:</strong> Accountant เข้าถึงข้อมูลทุกสาขาเหมือน Owner แต่เป็นแบบ &quot;อ่านอย่างเดียว&quot; ไม่สามารถแก้ไขข้อมูลได้

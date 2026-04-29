@@ -11,7 +11,7 @@ export function SectionPrint() {
           <li><strong>Thermal Printer 80mm</strong> — รองรับเครื่องพิมพ์ความร้อนทั่วไป</li>
           <li><strong>Print Queue</strong> — คิวพิมพ์อัตโนมัติ Real-time</li>
           <li><strong>Working Hours</strong> — ตั้งช่วงเวลาทำงานของเครื่องพิมพ์ได้</li>
-          <li><strong>Heartbeat</strong> — ส่งสัญญาณทุก 60 วิ → ระบบรู้ว่าเครื่องพิมพ์ออนไลน์ไหม</li>
+          <li><strong>สัญญาณทำงาน</strong> — เครื่องพิมพ์ส่งสถานะให้ระบบทุก 60 วินาที → ระบบรู้ว่าออนไลน์อยู่หรือไม่</li>
         </ul>
       </Card>
 
@@ -28,7 +28,7 @@ export function SectionPrint() {
           <p>เครื่อง PC ที่ต่อกับเครื่องพิมพ์ — Windows + Node.js + PowerShell</p>
         </Step>
         <Step num={4} title="รัน INSTALL.bat → START-PrintServer.bat">
-          <p>เริ่มทำงาน — ระบบจะ poll คิวทุก 10 วิ และส่ง heartbeat ทุก 60 วิ</p>
+          <p>เริ่มทำงาน — โปรแกรมตรวจคิวพิมพ์ทุก 10 วินาที และส่งสถานะกลับให้ระบบทุก 60 วินาที</p>
         </Step>
         <TipBox>
           <strong>🔁 Reset password เครื่องพิมพ์:</strong> กด &quot;Setup Print Server&quot; ซ้ำ → ระบบ reset password ของบัญชีเดิม + ดาวน์โหลด ZIP ใหม่ที่มี config ใหม่
@@ -43,10 +43,10 @@ export function SectionPrint() {
           ดูสถานะเครื่องพิมพ์ของสาขาปัจจุบัน <strong>โดยไม่ต้องเข้าหน้าตั้งค่า</strong> — ไอคอนเครื่องพิมพ์ในทอปบาร์ พร้อมจุดสี:
         </p>
         <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
-          <li>🟢 <strong>เขียว</strong> = ออนไลน์ (heartbeat &lt; 2 นาที)</li>
-          <li>🟡 <strong>เหลือง</strong> = ไม่อัปเดต (heartbeat 2-10 นาที)</li>
-          <li>🔴 <strong>แดง</strong> = ออฟไลน์ (heartbeat &gt; 10 นาที)</li>
-          <li>⚪ <strong>เทา</strong> = ยังไม่เคย heartbeat (เพิ่งติดตั้ง)</li>
+          <li>🟢 <strong>เขียว</strong> = ออนไลน์ (รับสัญญาณภายใน 2 นาทีล่าสุด)</li>
+          <li>🟡 <strong>เหลือง</strong> = ไม่อัปเดต (รับสัญญาณล่าสุด 2-10 นาทีที่แล้ว)</li>
+          <li>🔴 <strong>แดง</strong> = ออฟไลน์ (รับสัญญาณล่าสุดเกิน 10 นาที)</li>
+          <li>⚪ <strong>เทา</strong> = ยังไม่เคยส่งสัญญาณ (เพิ่งติดตั้ง)</li>
         </ul>
         <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
           ระบบ refresh สถานะอัตโนมัติทุก 45 วินาที (ไม่หนัก network)
@@ -55,12 +55,12 @@ export function SectionPrint() {
           <strong>คลิกไอคอน</strong> → เปิด panel แสดง:
         </p>
         <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
-          <li>Heartbeat ล่าสุด, ชื่อเครื่องพิมพ์, จำนวนงานพิมพ์วันนี้, hostname</li>
+          <li>สัญญาณล่าสุด, ชื่อเครื่องพิมพ์, จำนวนงานพิมพ์วันนี้, ชื่อเครื่อง PC ที่ติดตั้ง</li>
           <li><strong>งานล่าสุด 20 รายการ</strong> — เลื่อนดูประวัติได้ พร้อมสถานะ (รอ/กำลังพิมพ์/สำเร็จ/ผิดพลาด)</li>
           <li>ปุ่ม &quot;เปิดหน้าควบคุมเต็ม&quot; → ไป <code>/print-listener</code></li>
         </ul>
         <TipBox>
-          <strong>📱 Mobile:</strong> บนมือถือ panel จะเลื่อนขึ้นจากด้านล่าง (bottom sheet) แทน dropdown
+          <strong>📱 บนมือถือ:</strong> หน้าต่างจะเลื่อนขึ้นจากด้านล่างแทน dropdown
         </TipBox>
       </Card>
 

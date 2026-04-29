@@ -4,11 +4,11 @@ export function SectionHq() {
   return (
     <>
       <Card>
-        <CardTitle icon="☰">Sidebar Menu — HQ</CardTitle>
+        <CardTitle icon="☰">เมนูหลักของ HQ</CardTitle>
         <MenuItem icon="📊" iconBg="bg-violet-500" name="ภาพรวม" desc="Dashboard" path="/overview" />
         <MenuItem icon="💬" iconBg="bg-blue-500" name="แชท" desc="แชทภายใน" path="/chat" />
         <MenuItem icon="🏢" iconBg="bg-teal-500" name="คลังกลาง" desc="รับ/จัดการสินค้าที่โอนมาจากสาขา" path="/hq-warehouse" />
-        <ImgPlaceholder icon="🖥" name="img-21-hq-sidebar.png" desc="Sidebar ของ HQ แสดงเมนูหลัก 3 รายการ" />
+        <ImgPlaceholder icon="🖥" name="img-21-hq-sidebar.png" desc="แถบเมนูของ HQ แสดงเมนูหลัก 3 รายการ" />
       </Card>
 
       <Card>

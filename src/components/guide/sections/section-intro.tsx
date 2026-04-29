@@ -20,24 +20,24 @@ export function SectionIntro() {
       </Card>
 
       <Card>
-        <CardTitle>Layout ของระบบ</CardTitle>
-        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">ระบบมี 2 รูปแบบการแสดงผลตามบทบาท:</p>
+        <CardTitle>หน้าจอของระบบ</CardTitle>
+        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">ระบบมี 2 รูปแบบการแสดงผลตามตำแหน่งงาน:</p>
 
-        <CardSubtitle>🖥 Desktop Layout (Owner, Accountant, Manager, HQ)</CardSubtitle>
+        <CardSubtitle>🖥 หน้าจอคอมพิวเตอร์ (Owner, Accountant, Manager, HQ)</CardSubtitle>
         <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
-          <li><strong>Sidebar ด้านซ้าย</strong> — เมนูหลักแบ่งเป็นหมวดหมู่ ยุบ/ขยายได้</li>
-          <li><strong>Top Bar ด้านบน</strong> — ตัวเลือกสาขา, แจ้งเตือน, โปรไฟล์</li>
-          <li><strong>พื้นที่หลัก</strong> — เนื้อหาหน้าจอหลัก</li>
+          <li><strong>แถบเมนูด้านซ้าย</strong> — เมนูหลักแบ่งเป็นหมวดหมู่ ยุบ/ขยายได้</li>
+          <li><strong>แถบด้านบน</strong> — ตัวเลือกสาขา, แจ้งเตือน, สถานะเครื่องพิมพ์, โปรไฟล์</li>
+          <li><strong>พื้นที่หลัก</strong> — เนื้อหาหน้าจอตรงกลาง</li>
         </ul>
-        <ImgPlaceholder icon="🖥" name="img-02-desktop-layout.png" desc="Desktop Layout แสดง Sidebar + Top Bar + Main Content" />
+        <ImgPlaceholder icon="🖥" name="img-02-desktop-layout.png" desc="หน้าจอคอมพิวเตอร์ แสดงแถบเมนูซ้าย + แถบด้านบน + พื้นที่หลัก" />
 
-        <CardSubtitle>📱 Mobile Layout (Staff, Bar)</CardSubtitle>
+        <CardSubtitle>📱 หน้าจอมือถือ (Staff, Bar)</CardSubtitle>
         <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
-          <li><strong>Top Bar</strong> — ชื่อหน้า + ปุ่ม Hamburger Menu</li>
-          <li><strong>Drawer Menu</strong> — เลื่อนออกจากด้านซ้าย (กดปุ่ม ☰)</li>
-          <li><strong>Bottom Navigation</strong> — 5 ปุ่มด้านล่าง ปุ่มกลางนูนขึ้น</li>
+          <li><strong>แถบด้านบน</strong> — ชื่อหน้า + ปุ่มเมนู ☰ (ขีด 3 ขีดมุมซ้ายบน)</li>
+          <li><strong>เมนูสไลด์</strong> — กดปุ่ม ☰ เพื่อเปิดเมนูจากซ้าย (ออกจากระบบ, สลับโหมด, ฯลฯ)</li>
+          <li><strong>เมนูด้านล่าง</strong> — ปุ่มลัด 3-5 ปุ่ม ปุ่มกลางนูนขึ้น</li>
         </ul>
-        <ImgPlaceholder icon="📱" name="img-03-mobile-layout.png" desc="Mobile Layout แสดง Top Bar + Bottom Navigation 5 ปุ่ม" />
+        <ImgPlaceholder icon="📱" name="img-03-mobile-layout.png" desc="หน้าจอมือถือ แสดงแถบด้านบน + เมนูด้านล่าง" />
       </Card>
     </>
   );

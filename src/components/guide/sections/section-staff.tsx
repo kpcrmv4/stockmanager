@@ -4,7 +4,7 @@ export function SectionStaff() {
   return (
     <>
       <Card>
-        <CardTitle icon="📱">Bottom Navigation — Staff</CardTitle>
+        <CardTitle icon="📱">เมนูด้านล่างของ Staff</CardTitle>
         <BottomNavPreview
           items={[
             { icon: '🍷', label: 'ฝาก/เบิก', color: 'emerald' },
@@ -15,7 +15,7 @@ export function SectionStaff() {
         <TipBox>
           <strong>💡 หน้าแรก Staff:</strong> เมื่อ login จะเข้า <code>/chat</code> โดยตรง — ไม่มีหน้า &quot;ภาพรวม&quot; แยกต่างหาก
         </TipBox>
-        <ImgPlaceholder icon="📱" name="img-17-staff-bottom-nav.png" desc="Bottom Navigation ของ Staff" />
+        <ImgPlaceholder icon="📱" name="img-17-staff-bottom-nav.png" desc="เมนูด้านล่างของ Staff" />
       </Card>
 
       <Card>

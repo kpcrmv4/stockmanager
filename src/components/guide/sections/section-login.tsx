@@ -32,7 +32,7 @@ export function SectionLogin() {
           <p>หน้าจะแสดง &quot;ตำแหน่ง · สาขา&quot; ที่ถูกเชิญมา → กรอก username, password, ชื่อที่แสดง (ทุกฟิลด์บังคับ) → ลงทะเบียน → เข้าสู่ระบบได้ทันที</p>
         </Step>
         <TipBox>
-          <strong>💡 ลิงก์ปิด/เปิดได้:</strong> Owner สามารถ toggle ปิดลิงก์ที่ <code>/users/invitations</code> เพื่อหยุดการลงทะเบียนเข้ามาเพิ่ม
+          <strong>💡 ลิงก์ปิด/เปิดได้:</strong> Owner สามารถกดปุ่มสลับเป็น &quot;ปิด&quot; ที่ <code>/users/invitations</code> เพื่อหยุดการลงทะเบียนเพิ่ม
         </TipBox>
       </Card>
 

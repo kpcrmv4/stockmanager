@@ -4,8 +4,8 @@ export function SectionOwner() {
   return (
     <>
       <Card>
-        <CardTitle icon="☰">Sidebar Menu — Owner</CardTitle>
-        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">Owner เห็นเมนูทั้งหมดใน Sidebar แบ่งเป็น 5 หมวด:</p>
+        <CardTitle icon="☰">เมนูหลักของ Owner</CardTitle>
+        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">Owner เห็นเมนูทั้งหมดในแถบเมนูซ้าย แบ่งเป็น 5 หมวด:</p>
 
         <CardSubtitle>📌 หมวด &quot;หลัก&quot;</CardSubtitle>
         <MenuItem icon="📊" iconBg="bg-violet-500" name="ภาพรวม (Overview)" desc="Dashboard แสดง KPI ทุกสาขา, สรุปยอด, กิจกรรมล่าสุด" path="/overview" />
@@ -35,11 +35,11 @@ export function SectionOwner() {
         <MenuItem icon="✉️" iconBg="bg-indigo-500" name="ลิงก์เชิญพนักงาน" desc="สร้าง/ปิดลิงก์ลงทะเบียน — กำหนดตำแหน่ง+สาขาต่อลิงก์" path="/users/invitations" />
         <MenuItem icon="⚙" iconBg="bg-gray-500" name="ตั้งค่า" desc="ตั้งค่าสาขา, LINE, การแจ้งเตือน" path="/settings" />
 
-        <ImgPlaceholder icon="🖥" name="img-05-owner-sidebar.png" desc="Sidebar ของ Owner แสดงเมนูทั้งหมด 5 หมวด" />
+        <ImgPlaceholder icon="🖥" name="img-05-owner-sidebar.png" desc="แถบเมนูของ Owner แสดงเมนู 5 หมวด" />
       </Card>
 
       <Card>
-        <CardTitle icon="📱">Bottom Navigation — Owner (Mobile View)</CardTitle>
+        <CardTitle icon="📱">เมนูด้านล่างของ Owner (เมื่อใช้บนมือถือ)</CardTitle>
         <BottomNavPreview
           items={[
             { icon: '📋', label: 'สต๊อก', color: 'indigo' },
@@ -50,7 +50,7 @@ export function SectionOwner() {
           ]}
         />
         <TipBox>
-          <strong>💡 หมายเหตุ:</strong> เมนูระบบ (ผู้ใช้/ลิงก์เชิญ/ตั้งค่า/ประกาศ) เข้าผ่าน Drawer Menu (☰) ในมือถือ
+          <strong>💡 หมายเหตุ:</strong> เมนูระบบ (ผู้ใช้/ลิงก์เชิญ/ตั้งค่า/ประกาศ) ในมือถือเข้าโดยกดปุ่ม ☰ (ขีด 3 ขีด) มุมซ้ายบนเพื่อเปิดเมนูสไลด์
         </TipBox>
       </Card>
 
@@ -110,7 +110,7 @@ export function SectionOwner() {
           <p>ผ่าน LINE/SMS/อีเมล — พนักงานเปิดลิงก์ กรอก username/password/ชื่อแสดง → เข้าระบบได้ทันที</p>
         </Step>
         <Step num={4} title="ปิด/ลบลิงก์เมื่อไม่ใช้">
-          <p>Toggle ปิด (ลิงก์ใช้ไม่ได้แต่ยังอยู่) หรือกด 🗑️ ลบทิ้ง</p>
+          <p>กดปุ่มสลับเป็น &quot;ปิด&quot; (ลิงก์ใช้ไม่ได้แต่ยังเก็บไว้) หรือกด 🗑️ ลบทิ้ง</p>
         </Step>
         <TipBox>
           <strong>💡 ตัวเลข &quot;ใช้แล้ว&quot;:</strong> นับจำนวนคนที่ใช้ลิงก์เดียวกัน — ลิงก์เดียวลงทะเบียนได้หลายคน เปิด-ปิดได้เพื่อควบคุม

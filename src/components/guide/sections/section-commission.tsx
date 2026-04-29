@@ -171,7 +171,7 @@ export function SectionCommission() {
           <li><strong>ยกเลิก</strong> — กดไอคอน X &rarr; ใส่เหตุผล &rarr; ยืนยัน</li>
           <li>เมื่อยกเลิก รายการทั้งหมดจะกลับเป็น &quot;ยังไม่จ่าย&quot; สามารถทำจ่ายใหม่ได้</li>
         </ul>
-        <ImgPlaceholder icon="📄" name="img-comm-09-payment-detail.png" desc="Modal รายละเอียดการจ่าย แสดงสลิป + ตารางรายการ" />
+        <ImgPlaceholder icon="📄" name="img-comm-09-payment-detail.png" desc="หน้าต่างรายละเอียดการจ่าย แสดงสลิป + ตารางรายการ" />
 
         <WarnBox>
           <strong>การยกเลิกการจ่าย</strong> จะปลดล็อกรายการทั้งหมดที่ผูกอยู่ &mdash; กลับมาจ่ายใหม่ได้ แต่สลิปเก่าจะถูกเก็บบันทึกไว้ในประวัติ
@@ -200,7 +200,7 @@ export function SectionCommission() {
         <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">จัดการข้อมูล AE (Account Executive):</p>
         <ul className="mb-3 ml-5 list-disc space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
           <li><strong>ค้นหา</strong> — ค้นหาด้วยชื่อ, ชื่อเล่น, เบอร์โทร</li>
-          <li><strong>กรอง</strong> — Toggle แสดง AE ที่ปิดใช้งานแล้ว</li>
+          <li><strong>กรอง</strong> — กดปุ่มสลับเพื่อแสดง/ซ่อน AE ที่ปิดใช้งานแล้ว</li>
           <li><strong>เพิ่ม AE ใหม่</strong> — ชื่อ, ชื่อเล่น, เบอร์โทร, ธนาคาร, เลขบัญชี, ชื่อบัญชี, หมายเหตุ</li>
           <li><strong>แก้ไข</strong> — กดไอคอน Edit เพื่อแก้ข้อมูล + เปิด/ปิดใช้งาน</li>
         </ul>

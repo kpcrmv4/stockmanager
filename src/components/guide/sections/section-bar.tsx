@@ -4,8 +4,8 @@ export function SectionBar() {
   return (
     <>
       <Card>
-        <CardTitle icon="📱">Bottom Navigation — Bar</CardTitle>
-        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">Bar ใช้ Mobile Layout มี Bottom Nav 5 ปุ่ม:</p>
+        <CardTitle icon="📱">เมนูด้านล่างของ Bar</CardTitle>
+        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">Bar ใช้บนมือถือ มีเมนูด้านล่าง 5 ปุ่ม:</p>
         <BottomNavPreview
           items={[
             { icon: '📋', label: 'นับสต๊อก', color: 'indigo' },
@@ -15,7 +15,7 @@ export function SectionBar() {
             { icon: '↔', label: 'โอน', color: 'blue' },
           ]}
         />
-        <ImgPlaceholder icon="📱" name="img-15-bar-bottom-nav.png" desc="Bottom Navigation ของ Bar" />
+        <ImgPlaceholder icon="📱" name="img-15-bar-bottom-nav.png" desc="เมนูด้านล่างของ Bar" />
         <TipBox>
           <strong>💡 หน้าแรก Bar:</strong> เมื่อ login จะเข้า <code>/chat</code> ทันที — ใช้แชทรับงาน Action Card (อนุมัติเบิก, ยืนยันรับสินค้า)
         </TipBox>

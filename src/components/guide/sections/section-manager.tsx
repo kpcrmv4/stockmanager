@@ -4,7 +4,7 @@ export function SectionManager() {
   return (
     <>
       <Card>
-        <CardTitle icon="☰">Sidebar Menu — Manager</CardTitle>
+        <CardTitle icon="☰">เมนูหลักของ Manager</CardTitle>
 
         <CardSubtitle>📌 หมวด &quot;หลัก&quot;</CardSubtitle>
         <MenuItem icon="📊" iconBg="bg-violet-500" name="ภาพรวม (Overview)" desc="Dashboard สรุปข้อมูลสาขาที่ดูแล" path="/overview" />
@@ -24,7 +24,7 @@ export function SectionManager() {
         <MenuItem icon="✉️" iconBg="bg-indigo-500" name="ลิงก์เชิญพนักงาน" desc="สร้างลิงก์ลงทะเบียน — Manager เชิญได้แค่ staff/bar" path="/users/invitations" />
         <MenuItem icon="⚙" iconBg="bg-gray-500" name="ตั้งค่าสาขา" desc="LINE config, แจ้งเตือน, เครื่องพิมพ์" path="/settings" />
 
-        <ImgPlaceholder icon="🖥" name="img-13-manager-sidebar.png" desc="Sidebar ของ Manager" />
+        <ImgPlaceholder icon="🖥" name="img-13-manager-sidebar.png" desc="แถบเมนูของ Manager" />
 
         <TipBox>
           <strong>🔒 ขีดจำกัด Manager:</strong> ลิงก์เชิญสร้างได้แค่ตำแหน่ง staff/bar เท่านั้น (Owner เท่านั้นที่เชิญ accountant/manager/hq ได้)
@@ -32,7 +32,7 @@ export function SectionManager() {
       </Card>
 
       <Card>
-        <CardTitle icon="📱">Bottom Navigation — Manager (Mobile View)</CardTitle>
+        <CardTitle icon="📱">เมนูด้านล่างของ Manager (เมื่อใช้บนมือถือ)</CardTitle>
         <BottomNavPreview
           items={[
             { icon: '📋', label: 'สต๊อก', color: 'indigo' },
