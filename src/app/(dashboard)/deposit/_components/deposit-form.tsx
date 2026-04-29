@@ -4,8 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
-import { useTutorialStore } from '@/stores/tutorial-store';
-import { getFlow } from '@/lib/tutorial/steps';
 import {
   Button,
   Card,
@@ -33,7 +31,6 @@ import {
   Phone,
   CheckCircle2,
   AlertCircle,
-  Info,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
@@ -363,12 +360,6 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
   const t = useTranslations('deposit');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
-  const tutorialActive = useTutorialStore((s) => s.active);
-  const tutorialFeature = useTutorialStore((s) => s.feature);
-  const tutorialStepIndex = useTutorialStore((s) => s.stepIndex);
-  const tutorialNext = useTutorialStore((s) => s.next);
-  const setTutorialDepositCode = useTutorialStore((s) => s.setCreatedDepositCode);
-  const isTutorial = tutorialActive && tutorialFeature === 'deposit';
   const isFulfillingRequest = !!pendingDeposit;
 
   // ----- Shared fields ----- (pre-fill from the customer LIFF request when
@@ -506,9 +497,8 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
     }
 
     // Staff must attach a photo of the bottle on a real deposit (we skip
-    // this for "ไม่ฝาก" since there's no physical bottle to photograph,
-    // and for tutorial mode where we don't actually upload anything).
-    if (isStaff && !isNoDeposit && !isTutorial && !receivedPhotoUrl) {
+    // this for "ไม่ฝาก" since there's no physical bottle to photograph).
+    if (isStaff && !isNoDeposit && !receivedPhotoUrl) {
       newErrors.photo = 'กรุณาถ่ายรูปขวดเหล้าก่อนบันทึก';
     }
 
@@ -600,11 +590,7 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
         }
 
         // Otherwise (or additional items in fulfil mode) → INSERT new row.
-        // Tutorial mode uses a DEMO-prefixed code so the row is easy to
-        // spot in the list, and skips the photo + side-effects entirely.
-        const depositCode = isTutorial
-          ? `DEMO-${Math.random().toString(36).slice(2, 7).toUpperCase()}`
-          : await generateDepositCode(currentStoreId);
+        const depositCode = await generateDepositCode(currentStoreId);
         depositCodes.push(depositCode);
 
         const { error } = await supabase.from('deposits').insert({
@@ -631,8 +617,7 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
           notes: isNoDeposit
             ? (notes.trim() ? `[${t('form.noDepositTag')}] ${notes.trim()}` : t('form.noDepositDefaultNote'))
             : (notes.trim() || null),
-          received_photo_url: isTutorial ? null : (receivedPhotoUrl || null),
-          is_tutorial: isTutorial,
+          received_photo_url: receivedPhotoUrl || null,
         });
 
         if (error) {
@@ -645,27 +630,23 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
           return;
         }
 
-        // Tutorial rows skip audit log so demo activity doesn't pollute
-        // reports / activity feed.
-        if (!isTutorial) {
-          await logAudit({
-            store_id: currentStoreId,
-            action_type: isNoDeposit
-              ? AUDIT_ACTIONS.DEPOSIT_NO_DEPOSIT_CREATED
-              : AUDIT_ACTIONS.DEPOSIT_CREATED,
-            table_name: 'deposits',
-            record_id: depositCode,
-            new_value: {
-              deposit_code: depositCode,
-              customer_name: customerName.trim(),
-              product_name: item.productName.trim(),
-              quantity: qty,
-              category: item.category || null,
-              ...(isNoDeposit && { is_no_deposit: true }),
-            },
-            changed_by: user?.id || null,
-          });
-        }
+        await logAudit({
+          store_id: currentStoreId,
+          action_type: isNoDeposit
+            ? AUDIT_ACTIONS.DEPOSIT_NO_DEPOSIT_CREATED
+            : AUDIT_ACTIONS.DEPOSIT_CREATED,
+          table_name: 'deposits',
+          record_id: depositCode,
+          new_value: {
+            deposit_code: depositCode,
+            customer_name: customerName.trim(),
+            product_name: item.productName.trim(),
+            quantity: qty,
+            category: item.category || null,
+            ...(isNoDeposit && { is_no_deposit: true }),
+          },
+          changed_by: user?.id || null,
+        });
       }
 
       const itemsSummary = items
@@ -684,25 +665,20 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
               : t('form.createdDepositMultiple', { count: items.length })),
       });
 
-      // Tutorial mode suppresses every outbound channel — push, in-store
-      // chat action card, and the chat-card status sync below — so a demo
-      // run never leaks to bar / staff phones / LINE OA.
-      if (!isTutorial) {
-        notifyStaff({
-          storeId: currentStoreId,
-          type: 'new_deposit',
-          title: isNoDeposit ? t('form.notifyNoDeposit') : t('form.notifyNewDeposit'),
-          body: isNoDeposit
-            ? `${customerName.trim()} ${t('form.notifyNoDepositBody', { items: itemsSummary })}`
-            : `${customerName.trim()} ${t('form.notifyDepositBody', { items: itemsSummary })}`,
-          data: { deposit_code: depositCodes[0] },
-          excludeUserId: user?.id,
-        });
-      }
+      notifyStaff({
+        storeId: currentStoreId,
+        type: 'new_deposit',
+        title: isNoDeposit ? t('form.notifyNoDeposit') : t('form.notifyNewDeposit'),
+        body: isNoDeposit
+          ? `${customerName.trim()} ${t('form.notifyNoDepositBody', { items: itemsSummary })}`
+          : `${customerName.trim()} ${t('form.notifyDepositBody', { items: itemsSummary })}`,
+        data: { deposit_code: depositCodes[0] },
+        excludeUserId: user?.id,
+      });
 
       // ส่ง Action Card เข้าห้องแชทสาขา (ไม่ส่งสำหรับรายการ "ไม่ฝาก")
       // Staff สร้าง manual → ส่งเป็น "รอบาร์ยืนยัน" ทันที
-      if (!isNoDeposit && !isTutorial) {
+      if (!isNoDeposit) {
         const startIdx = isFulfillingRequest ? 1 : 0;
         // The first item in fulfil-request mode reuses the existing chat
         // action card (transitioned from pending → pending_bar), so we only
@@ -734,15 +710,10 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
         }
       }
 
-      // Tutorial: skip the staff hand-off modal (no real bottle to walk
-      // over) and advance the walkthrough panel to its final step.
-      if (isTutorial) {
-        setTutorialDepositCode(depositCodes[0] ?? null);
-        tutorialNext();
-        onSuccess();
-      } else if (isStaff && !isNoDeposit) {
-        // Staff: pause on a hand-off modal reminding them to deliver the
-        // bottle to bar before the row leaves the screen.
+      // Staff: pause on a hand-off modal reminding them to deliver the
+      // bottle to bar before the row leaves the screen. Other roles
+      // continue straight back to the list.
+      if (isStaff && !isNoDeposit) {
         setSavedDepositCodes(depositCodes);
         setShowSendToBarModal(true);
       } else {
@@ -762,64 +733,6 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
   const allItemsValid = items.every(
     (it) => it.productName.trim() && parseFloat(it.quantity) > 0
   );
-
-  // -------------------------------------------------------------------------
-  // Tutorial autopilot — when stepIndex changes, apply that step's `fill`
-  // payload to the form state so the user watches the values appear in the
-  // highlighted field. The save step also triggers the actual insert via
-  // handleSubmit; on success the submit handler advances to the final step.
-  // -------------------------------------------------------------------------
-  useEffect(() => {
-    if (!isTutorial) return;
-    const flow = getFlow('deposit');
-    const step = flow?.steps[tutorialStepIndex];
-    if (!step) return;
-
-    const f = step.fill;
-    if (f) {
-      if (f.customerName !== undefined) setCustomerName(f.customerName);
-      if (f.customerPhone !== undefined) setCustomerPhone(f.customerPhone);
-      if (f.tableNumber !== undefined) setTableNumber(f.tableNumber);
-      if (f.expiryDays !== undefined) setExpiryDays(f.expiryDays);
-      if (f.notes !== undefined) setNotes(f.notes);
-      if (
-        f.itemProductName !== undefined ||
-        f.itemCategory !== undefined ||
-        f.itemQuantity !== undefined
-      ) {
-        // Pick a real product from the store if we have one loaded; the
-        // user sees a real catalog name instead of the placeholder.
-        const fallbackName = f.itemProductName ?? '';
-        const realProduct = products[0];
-        const productName = realProduct?.product_name ?? fallbackName;
-        const category = realProduct?.category ?? f.itemCategory ?? '';
-        setItems((prev) => {
-          const next = [...prev];
-          const cur = next[0] ?? { ...EMPTY_ITEM };
-          next[0] = {
-            ...cur,
-            productName: f.itemProductName !== undefined ? productName : cur.productName,
-            searchQuery: f.itemProductName !== undefined ? productName : cur.searchQuery,
-            category: f.itemCategory !== undefined || f.itemProductName !== undefined ? category : cur.category,
-            quantity: f.itemQuantity !== undefined ? f.itemQuantity : cur.quantity,
-          };
-          return next;
-        });
-      }
-    }
-
-    if (step.autoSave) {
-      // Tiny delay so the spotlight has a moment on the save button before
-      // the form unmounts on success.
-      const timer = setTimeout(() => {
-        handleSubmit();
-      }, 600);
-      return () => clearTimeout(timer);
-    }
-  // handleSubmit is intentionally excluded from deps — it captures form
-  // state but we only need to re-run when the step actually changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTutorial, tutorialStepIndex, products]);
 
   return (
     <div className="space-y-6">
@@ -854,53 +767,47 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
         <CardContent>
           <div className={cn('space-y-4', isNoDeposit && 'opacity-60')}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div data-tutorial-id="tut-customer-name">
-                <CustomerSearchInput
-                  label={t("form.customerName")}
-                  value={customerName}
-                  onChange={(v) => {
-                    setCustomerName(v);
-                    if (errors.customerName) setErrors((prev) => ({ ...prev, customerName: '' }));
-                  }}
-                  onSelectCustomer={(c) => {
-                    setCustomerName(c.customer_name);
-                    if (c.customer_phone) setCustomerPhone(c.customer_phone);
-                    if (errors.customerName) setErrors((prev) => ({ ...prev, customerName: '' }));
-                  }}
-                  placeholder={t("form.searchCustomerPlaceholder")}
-                  icon={User}
-                  error={errors.customerName}
-                  disabled={isNoDeposit}
-                  customers={customers}
-                  matchField="customer_name"
-                />
-              </div>
-              <div data-tutorial-id="tut-customer-phone">
-                <CustomerSearchInput
-                  label={t("form.phone")}
-                  value={customerPhone}
-                  onChange={setCustomerPhone}
-                  onSelectCustomer={(c) => {
-                    setCustomerPhone(c.customer_phone || '');
-                    if (!customerName) setCustomerName(c.customer_name);
-                  }}
-                  placeholder={t("form.searchPhonePlaceholder")}
-                  icon={Phone}
-                  disabled={isNoDeposit}
-                  customers={customers.filter((c) => !!c.customer_phone)}
-                  matchField="customer_phone"
-                />
-              </div>
-            </div>
-            <div data-tutorial-id="tut-table-number">
-              <Input
-                label={t("form.tableNumber")}
-                value={tableNumber}
-                onChange={(e) => setTableNumber(e.target.value)}
-                placeholder={t("form.tablePlaceholder")}
+              <CustomerSearchInput
+                label={t("form.customerName")}
+                value={customerName}
+                onChange={(v) => {
+                  setCustomerName(v);
+                  if (errors.customerName) setErrors((prev) => ({ ...prev, customerName: '' }));
+                }}
+                onSelectCustomer={(c) => {
+                  setCustomerName(c.customer_name);
+                  if (c.customer_phone) setCustomerPhone(c.customer_phone);
+                  if (errors.customerName) setErrors((prev) => ({ ...prev, customerName: '' }));
+                }}
+                placeholder={t("form.searchCustomerPlaceholder")}
+                icon={User}
+                error={errors.customerName}
                 disabled={isNoDeposit}
+                customers={customers}
+                matchField="customer_name"
+              />
+              <CustomerSearchInput
+                label={t("form.phone")}
+                value={customerPhone}
+                onChange={setCustomerPhone}
+                onSelectCustomer={(c) => {
+                  setCustomerPhone(c.customer_phone || '');
+                  if (!customerName) setCustomerName(c.customer_name);
+                }}
+                placeholder={t("form.searchPhonePlaceholder")}
+                icon={Phone}
+                disabled={isNoDeposit}
+                customers={customers.filter((c) => !!c.customer_phone)}
+                matchField="customer_phone"
               />
             </div>
+            <Input
+              label={t("form.tableNumber")}
+              value={tableNumber}
+              onChange={(e) => setTableNumber(e.target.value)}
+              placeholder={t("form.tablePlaceholder")}
+              disabled={isNoDeposit}
+            />
           </div>
         </CardContent>
       </Card>
@@ -947,16 +854,14 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
                 </div>
 
                 {/* Product search */}
-                <div {...(idx === 0 ? { 'data-tutorial-id': 'tut-item-product' } : {})}>
-                  <ProductSearchInput
-                    item={item}
-                    index={idx}
-                    products={products}
-                    onUpdate={updateItem}
-                    onSelectProduct={selectProduct}
-                    error={errors[`item_${idx}_productName`]}
-                  />
-                </div>
+                <ProductSearchInput
+                  item={item}
+                  index={idx}
+                  products={products}
+                  onUpdate={updateItem}
+                  onSelectProduct={selectProduct}
+                  error={errors[`item_${idx}_productName`]}
+                />
 
                 {/* Category + Quantity */}
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -967,17 +872,15 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
                     onChange={(e) => updateItem(idx, 'category', e.target.value)}
                     placeholder={t("form.selectCategory")}
                   />
-                  <div {...(idx === 0 ? { 'data-tutorial-id': 'tut-item-quantity' } : {})}>
-                    <Input
-                      label={t("form.quantity")}
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
-                      placeholder="1"
-                      hint={t("form.bottleCount")}
-                      error={errors[`item_${idx}_quantity`]}
-                    />
-                  </div>
+                  <Input
+                    label={t("form.quantity")}
+                    type="number"
+                    value={item.quantity}
+                    onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
+                    placeholder="1"
+                    hint={t("form.bottleCount")}
+                    error={errors[`item_${idx}_quantity`]}
+                  />
                 </div>
 
                 {/* Auto-filled badge */}
@@ -993,7 +896,6 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
             <button
               type="button"
               onClick={addItem}
-              data-tutorial-id="tut-add-item"
               className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm font-medium text-gray-500 transition-colors hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-400 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
             >
               <Plus className="h-4 w-4" />
@@ -1119,7 +1021,7 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
               placeholder={t("form.notesPlaceholder")}
               rows={3}
             />
-            <div data-tutorial-id="tut-photo">
+            <div>
               <PhotoUpload
                 value={receivedPhotoUrl}
                 onChange={(url) => {
@@ -1128,18 +1030,12 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
                 }}
                 folder="deposits"
                 label={t("form.photoLabel")}
-                required={isStaff && !isNoDeposit && !isTutorial}
+                required={isStaff && !isNoDeposit}
               />
               {errors.photo && (
                 <p className="mt-1 flex items-center gap-1 text-xs text-red-500">
                   <AlertCircle className="h-3.5 w-3.5" />
                   {errors.photo}
-                </p>
-              )}
-              {isTutorial && (
-                <p className="mt-1 flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400">
-                  <Info className="h-3.5 w-3.5" />
-                  โหมดทดลอง — ข้ามขั้นถ่ายรูปได้เลย ระบบจะไม่อัพโหลดจริง
                 </p>
               )}
             </div>
@@ -1157,7 +1053,6 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
           {t('form.cancel')}
         </Button>
         <Button
-          data-tutorial-id="tut-save"
           onClick={handleSubmit}
           isLoading={isSubmitting}
           disabled={!customerName || !allItemsValid}

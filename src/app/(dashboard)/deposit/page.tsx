@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
-import { useTutorialStore } from '@/stores/tutorial-store';
 import { currentShiftRange } from '@/lib/utils/date';
 import {
   Button,
@@ -202,15 +201,6 @@ export default function DepositPage() {
     }
   }, [searchParams]);
 
-  // Tutorial autopilot — when the deposit walkthrough is active, jump
-  // straight into the form so the user only sees the autofill demo.
-  const tutorialActive = useTutorialStore((s) => s.active);
-  const tutorialFeature = useTutorialStore((s) => s.feature);
-  useEffect(() => {
-    if (tutorialActive && tutorialFeature === 'deposit') {
-      setShowNewForm(true);
-    }
-  }, [tutorialActive, tutorialFeature]);
 
   // Handle deep-link to a single deposit: /deposit?id=<uuid>.
   // Used by inbox + notifications. Fetches the row directly so it works
@@ -866,7 +856,7 @@ export default function DepositPage() {
               {t('withdrawButton')}
             </Button>
           </Link>
-          <Button data-tutorial-id="deposit-new-button" icon={<Plus className="h-4 w-4" />} onClick={() => setShowNewForm(true)}>
+          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowNewForm(true)}>
             {t('newDeposit')}
           </Button>
         </div>
@@ -877,7 +867,6 @@ export default function DepositPage() {
         <button
           type="button"
           onClick={() => setActiveTab('new_request')}
-          data-tutorial-id="tut-tab-requests"
           className={cn(
             'rounded-xl bg-white p-3 text-left shadow-sm ring-1 ring-gray-200 transition-colors hover:bg-amber-50/40 sm:p-5 dark:bg-gray-800 dark:ring-gray-700 dark:hover:bg-amber-900/10',
             stats.newRequestCount > 0 && 'ring-2 ring-amber-300 dark:ring-amber-700',

@@ -36,7 +36,6 @@ import { TopBar } from './top-bar';
 import { BottomNav } from './bottom-nav';
 import { StoreSwitcher } from './store-switcher';
 import { LanguageSwitcher } from './language-switcher';
-import { TutorialFAB } from '@/components/tutorial/tutorial-fab';
 import type { Store } from '@/types/database';
 import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
@@ -130,7 +129,6 @@ export function MobileLayout({ children, stores }: MobileLayoutProps) {
       </main>
 
       {!isChatRoom && <BottomNav />}
-      <TutorialFAB />
 
       {/* Drawer Overlay */}
       {drawerOpen && (

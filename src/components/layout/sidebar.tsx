@@ -164,20 +164,10 @@ export function Sidebar({ stores }: SidebarProps) {
                 const badgeCount = mod.badge === 'pending_count' && mod.id === 'inbox' ? inboxCount : 0;
                 const showBadge = badgeCount > 0;
 
-                const tutorialAnchor =
-                  mod.href === '/deposit'
-                    ? 'deposit'
-                    : mod.href === '/chat'
-                      ? 'chat'
-                      : undefined;
-                const tutorialId = tutorialAnchor ? `tut-nav-${tutorialAnchor}` : undefined;
-
                 return (
                   <li key={mod.id}>
                     <Link
                       href={mod.href}
-                      data-tutorial-anchor={tutorialAnchor}
-                      data-tutorial-id={tutorialId}
                       title={collapsed ? modName : undefined}
                       className={cn(
                         'relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',

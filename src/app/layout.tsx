@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Noto_Sans_Thai, Mali } from 'next/font/google';
+import { Noto_Sans_Thai } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { ToastContainer } from '@/components/ui/toast';
@@ -9,15 +9,6 @@ import './globals.css';
 const notoSansThai = Noto_Sans_Thai({
   subsets: ['thai', 'latin'],
   variable: '--font-noto-sans-thai',
-  display: 'swap',
-});
-
-// Handwriting Thai font used by the tutorial intro overlay so the
-// coachmark labels look hand-drawn rather than UI-typeset.
-const mali = Mali({
-  subsets: ['thai', 'latin'],
-  weight: ['400', '600', '700'],
-  variable: '--font-mali',
   display: 'swap',
 });
 
@@ -62,7 +53,7 @@ export default async function RootLayout({
         />
       </head>
       <body
-        className={`${notoSansThai.variable} ${mali.variable} font-sans antialiased bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100`}
+        className={`${notoSansThai.variable} font-sans antialiased bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100`}
       >
         <NextIntlClientProvider messages={messages}>
           {children}

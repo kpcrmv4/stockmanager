@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu, ChevronDown, LogOut, User, Settings, Bell, MessageSquare, Download, Check, Share, Plus, X, KeyRound, HelpCircle, EyeOff } from 'lucide-react';
+import { Menu, ChevronDown, LogOut, User, Settings, Bell, MessageSquare, Download, Check, Share, Plus, X, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
 import { useAuthStore } from '@/stores/auth-store';
@@ -12,7 +12,6 @@ import { NotificationCenter } from '@/components/layout/notification-center';
 import { PrinterStatusIndicator } from '@/components/layout/printer-status-indicator';
 import { LanguageSwitcher } from '@/components/layout/language-switcher';
 import { useChatStore } from '@/stores/chat-store';
-import { useTutorialStore } from '@/stores/tutorial-store';
 import { useInstallPWA } from '@/hooks/use-install-pwa';
 import type { Store } from '@/types/database';
 
@@ -37,8 +36,6 @@ export function TopBar({
   const [showIosGuide, setShowIosGuide] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const chatUnread = useChatStore((s) => s.totalUnread);
-  const tutorialHidden = useTutorialStore((s) => s.hidden);
-  const setTutorialHidden = useTutorialStore((s) => s.setHidden);
   const { canInstall, isInstalled, isInstalling, install } = useInstallPWA();
 
   const currentStore = stores.find((s) => s.id === currentStoreId);
@@ -131,7 +128,6 @@ export function TopBar({
           <button
             type="button"
             onClick={() => setUserMenuOpen(!userMenuOpen)}
-            data-tutorial-anchor="profile"
             className={cn(
               'flex items-center gap-2 rounded-lg px-2 py-1.5',
               'hover:bg-gray-100 dark:hover:bg-gray-800',
@@ -221,25 +217,6 @@ export function TopBar({
                 >
                   <Settings className="h-4 w-4" />
                   <span>{t('nav.settings')}</span>
-                </button>
-
-                {/* แสดง/ซ่อน FAB สอนการใช้งาน */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTutorialHidden(!tutorialHidden);
-                    setUserMenuOpen(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
-                  {tutorialHidden ? (
-                    <HelpCircle className="h-4 w-4" />
-                  ) : (
-                    <EyeOff className="h-4 w-4" />
-                  )}
-                  <span>
-                    {tutorialHidden ? 'แสดงปุ่มสอนการใช้งาน' : 'ซ่อนปุ่มสอนการใช้งาน'}
-                  </span>
                 </button>
 
                 {/* ติดตั้งแอป */}

@@ -5,7 +5,6 @@ import { cn } from '@/lib/utils/cn';
 import { useAppStore } from '@/stores/app-store';
 import { Sidebar } from './sidebar';
 import { TopBar } from './top-bar';
-import { TutorialFAB } from '@/components/tutorial/tutorial-fab';
 import type { Store } from '@/types/database';
 
 interface DesktopLayoutProps {
@@ -36,7 +35,6 @@ export function DesktopLayout({ children, stores, pageTitle }: DesktopLayoutProp
           {children}
         </main>
       </div>
-      <TutorialFAB />
     </div>
   );
 }
