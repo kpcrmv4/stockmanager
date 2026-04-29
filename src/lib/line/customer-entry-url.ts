@@ -7,33 +7,36 @@ import { generateCustomerUrl } from '@/lib/auth/customer-token';
  * Returns the URL that LINE messages should point to when the customer taps
  * "open deposit system" in a Flex card.
  *
- * Preference order:
- *   1. Central LIFF URL (`https://liff.line.me/{liffId}?store={storeCode}`)
- *      — scoped to the branch via ?store= so the customer page can show the
- *        correct store name and filter data.
- *      — the LIFF flow handles LINE login + access token natively.
- *   2. Tokenized fallback URL (`/customer?token=xxx&store={storeCode}`)
- *      — used when the central LIFF ID is not configured yet.
- *      — relies on an HMAC-signed customer token.
+ * Multi-provider note: each store may live under its own LINE Developers
+ * Provider (separate Messaging API channel + LINE Login channel + LIFF).
+ * LINE userIds are scoped per Provider, so we must hand the customer the LIFF
+ * that belongs to *their* store's Provider — otherwise liff.getProfile()
+ * returns a userId that doesn't match the deposits table.
  *
- * Both modes end up at `/customer`, and the CustomerProvider picks the right
- * auth path based on the `?token=` vs `?store=` presence.
+ * Preference order (per call):
+ *   1. `stores.liff_id` of the deposit's store (per-Provider LIFF)
+ *   2. `system_settings.davis_ai.liff_id` (legacy global LIFF — fallback)
+ *   3. Tokenized fallback (`/customer?token=…&store=…`) — used when neither
+ *      LIFF id is configured.
  */
 
-/** In-memory cache for the central LIFF ID (refreshed every 5 minutes). */
-let cachedLiffId: { value: string; fetchedAt: number } | null = null;
 const LIFF_CACHE_MS = 5 * 60 * 1000;
 
+/** In-memory cache for the central (legacy) LIFF ID. */
+let cachedCentralLiff: { value: string; fetchedAt: number } | null = null;
+
+/** In-memory cache for per-store LIFF IDs, keyed by store id. */
+const cachedStoreLiff = new Map<string, { value: string; fetchedAt: number }>();
+
 /**
- * Fetch the central `davis_ai.liff_id` from system_settings, with a short
- * in-memory cache to avoid hammering the DB from the webhook hot path.
+ * Fetch the legacy global `davis_ai.liff_id` from system_settings.
+ * Kept as a fallback for stores that haven't set their own LIFF yet.
  */
 export async function getCentralLiffId(): Promise<string> {
   const now = Date.now();
-  if (cachedLiffId && now - cachedLiffId.fetchedAt < LIFF_CACHE_MS) {
-    return cachedLiffId.value;
+  if (cachedCentralLiff && now - cachedCentralLiff.fetchedAt < LIFF_CACHE_MS) {
+    return cachedCentralLiff.value;
   }
-
   try {
     const supabase = createServiceClient();
     const { data } = await supabase
@@ -41,23 +44,59 @@ export async function getCentralLiffId(): Promise<string> {
       .select('value')
       .eq('key', 'davis_ai.liff_id')
       .maybeSingle();
-
     const value = (data?.value as string | null) || '';
-    cachedLiffId = { value, fetchedAt: now };
+    cachedCentralLiff = { value, fetchedAt: now };
     return value;
   } catch {
     return '';
   }
 }
 
-/** Invalidate the cached LIFF ID (call after settings are saved). */
+/**
+ * Resolve the LIFF ID to use for a specific store. Falls back to the central
+ * LIFF if the store hasn't set its own.
+ */
+export async function getStoreLiffId(storeId: string | null | undefined): Promise<string> {
+  if (!storeId) return getCentralLiffId();
+
+  const now = Date.now();
+  const cached = cachedStoreLiff.get(storeId);
+  if (cached && now - cached.fetchedAt < LIFF_CACHE_MS) return cached.value;
+
+  let value = '';
+  try {
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from('stores')
+      .select('liff_id')
+      .eq('id', storeId)
+      .maybeSingle();
+    value = ((data?.liff_id as string | null) || '').trim();
+  } catch {
+    /* ignore — fall through to central */
+  }
+
+  if (!value) value = await getCentralLiffId();
+  cachedStoreLiff.set(storeId, { value, fetchedAt: now });
+  return value;
+}
+
+/** Invalidate the cached central LIFF ID (call after settings are saved). */
 export function invalidateCentralLiffIdCache(): void {
-  cachedLiffId = null;
+  cachedCentralLiff = null;
+}
+
+/** Invalidate the cached LIFF ID for a single store (or all stores if no id). */
+export function invalidateStoreLiffIdCache(storeId?: string): void {
+  if (storeId) cachedStoreLiff.delete(storeId);
+  else cachedStoreLiff.clear();
 }
 
 interface BuildCustomerEntryUrlParams {
   /** LINE user id — required only for the tokenized fallback path */
   lineUserId: string | null;
+  /** Store id — used to look up the store-specific LIFF id (preferred) */
+  storeId?: string | null;
   /** Branch store_code, passed as ?store= so the UI shows the branch name */
   storeCode?: string | null;
   /** Sub-path under /customer (e.g. '', '/history', '/deposit') */
@@ -67,34 +106,26 @@ interface BuildCustomerEntryUrlParams {
 /**
  * Build the URL that a customer should tap to enter the deposit system.
  *
- * If the central LIFF ID is configured, this returns a LIFF deep link with
- * `?store=` appended. Otherwise it falls back to the token URL (which requires
- * a valid lineUserId) and appends `&store=` too so the branch context still
- * flows through.
+ * Resolution: per-store LIFF (via storeId) → central LIFF → tokenized URL.
  */
 export async function buildCustomerEntryUrl(
   params: BuildCustomerEntryUrlParams,
 ): Promise<string> {
-  const { lineUserId, storeCode, path = '' } = params;
-  const liffId = await getCentralLiffId();
+  const { lineUserId, storeId, storeCode, path = '' } = params;
+  const liffId = await getStoreLiffId(storeId ?? null);
 
   // --- Preferred path: LIFF deep link -------------------------------------
   if (liffId) {
     const qs = new URLSearchParams();
     if (storeCode) qs.set('store', storeCode);
     const query = qs.toString();
-    // LIFF supports arbitrary query strings — the customer page will read
-    // ?store= via useSearchParams(). The LIFF app itself ignores it.
     const subPath = path ? `/${path.replace(/^\/+/, '')}` : '';
     return `https://liff.line.me/${liffId}${subPath}${query ? `?${query}` : ''}`;
   }
 
   // --- Fallback: tokenized /customer URL ----------------------------------
   if (!lineUserId) {
-    // No LIFF and no user id — just return the app root so the page can
-    // render the "openFromLine" error state.
-    const base =
-      process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     return `${base}/customer${path || ''}`;
   }
 

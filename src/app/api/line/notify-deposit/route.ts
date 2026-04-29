@@ -138,6 +138,7 @@ export async function POST(request: NextRequest) {
       const { buildCustomerEntryUrl } = await import('@/lib/line/customer-entry-url');
       entryUrl = await buildCustomerEntryUrl({
         lineUserId: deposit.line_user_id,
+        storeId: deposit.store_id,
         storeCode,
       });
     } catch { /* fall through with null */ }

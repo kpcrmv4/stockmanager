@@ -61,6 +61,8 @@ interface StoreData {
   line_channel_secret: string | null;
   /** LINE OA ของสาขา — bot user id (Uxxx…) จะ match กับ webhook destination */
   line_bot_user_id: string | null;
+  /** LIFF ID ของสาขา (ภายใต้ Provider เดียวกับ Messaging API ของสาขานี้) */
+  liff_id: string | null;
   /** กลุ่มแจ้งเตือนสต๊อก (daily reminder, comparison, approval) */
   stock_notify_group_id: string | null;
   /** กลุ่มแจ้งเตือนฝาก/เบิกเหล้า (staff) */
@@ -139,6 +141,7 @@ export default function StoreDetailSettingsPage() {
   const [lineChannelId, setLineChannelId] = useState('');
   const [lineChannelSecret, setLineChannelSecret] = useState('');
   const [lineBotUserId, setLineBotUserId] = useState('');
+  const [storeLiffId, setStoreLiffId] = useState('');
   const [isFetchingBotId, setIsFetchingBotId] = useState(false);
   const [showLineToken, setShowLineToken] = useState(false);
   const [showLineSecret, setShowLineSecret] = useState(false);
@@ -223,7 +226,7 @@ export default function StoreDetailSettingsPage() {
     // Load store info
     const { data: store } = await supabase
       .from('stores')
-      .select('id, store_code, store_name, is_central, line_token, line_channel_id, line_channel_secret, line_bot_user_id, stock_notify_group_id, deposit_notify_group_id, bar_notify_group_id, borrow_notification_roles')
+      .select('id, store_code, store_name, is_central, line_token, line_channel_id, line_channel_secret, line_bot_user_id, liff_id, stock_notify_group_id, deposit_notify_group_id, bar_notify_group_id, borrow_notification_roles')
       .eq('id', storeId)
       .single();
 
@@ -235,6 +238,7 @@ export default function StoreDetailSettingsPage() {
       setLineChannelId(store.line_channel_id || '');
       setLineChannelSecret(store.line_channel_secret || '');
       setLineBotUserId(store.line_bot_user_id || '');
+      setStoreLiffId(store.liff_id || '');
       setStockNotifyGroupId(store.stock_notify_group_id || '');
       setDepositNotifyGroupId(store.deposit_notify_group_id || '');
       setBarNotifyGroupId(store.bar_notify_group_id || '');
@@ -545,6 +549,7 @@ export default function StoreDetailSettingsPage() {
         line_channel_id: lineChannelId.trim() || null,
         line_channel_secret: lineChannelSecret.trim() || null,
         line_bot_user_id: resolvedBotUserId,
+        liff_id: storeLiffId.trim() || null,
         stock_notify_group_id: stockNotifyGroupId || null,
         deposit_notify_group_id: depositNotifyGroupId || null,
         bar_notify_group_id: barNotifyGroupId || null,
@@ -659,9 +664,13 @@ export default function StoreDetailSettingsPage() {
   // LIFF link for this store (central LIFF + ?store={storeCode} param)
   // ---------------------------------------------------------------------------
 
+  // Per-store LIFF takes precedence; fall back to central. This must mirror
+  // server-side logic in lib/line/customer-entry-url.ts.
+  const effectiveLiffId = storeLiffId.trim() || centralLiffId;
+
   const storeLiffUrl =
-    centralLiffId && storeCode
-      ? `https://liff.line.me/${centralLiffId}?store=${encodeURIComponent(storeCode)}`
+    effectiveLiffId && storeCode
+      ? `https://liff.line.me/${effectiveLiffId}?store=${encodeURIComponent(storeCode)}`
       : '';
 
   const copyLiffLink = async () => {
@@ -870,10 +879,24 @@ export default function StoreDetailSettingsPage() {
             </button>
           </div>
 
+          {/* LIFF ID — per-store (under same Provider as Messaging API) */}
+          <div>
+            <Input
+              label="LIFF ID ของสาขานี้ (ไม่บังคับ)"
+              value={storeLiffId}
+              onChange={(e) => setStoreLiffId(e.target.value)}
+              placeholder="เช่น 1234567890-XxXxXxXx"
+              hint="หาก LINE OA ของสาขานี้อยู่คนละ Provider กับสาขาอื่น ต้องสร้าง LIFF ใต้ Provider เดียวกับ Messaging API ของสาขานี้ — แล้วใส่ LIFF ID ที่นี่ ระบบจะใช้ตัวนี้แทน LIFF กลาง"
+            />
+          </div>
+
           {/* LIFF link preview (read-only) */}
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
             <p className="mb-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
-              {t('storeDetail.liffLinkLabel')}
+              {t('storeDetail.liffLinkLabel')}{' '}
+              <span className="ml-1 text-[10px] text-gray-500 dark:text-gray-400">
+                ({storeLiffId.trim() ? 'ใช้ LIFF ของสาขา' : 'ใช้ LIFF กลาง'})
+              </span>
             </p>
             {storeLiffUrl ? (
               <div className="flex items-center gap-2">

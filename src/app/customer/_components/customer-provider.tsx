@@ -86,11 +86,19 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   }
 
   // -------------------------------------------------------------------------
-  // Fetch the central LIFF ID from system_settings
+  // Fetch the LIFF ID — per-store first, fall back to the central one.
+  //
+  // Why per-store: each LINE OA may live under its own LINE Developers
+  // Provider, and LINE userIds are scoped per Provider. Initializing LIFF
+  // with the wrong store's id returns a userId that doesn't match the
+  // deposits.line_user_id stored on this store's webhooks.
   // -------------------------------------------------------------------------
-  async function fetchCentralLiffId(): Promise<string> {
+  async function fetchLiffId(storeCode: string | null): Promise<string> {
     try {
-      const res = await fetch('/api/system-settings/public');
+      const url = storeCode
+        ? `/api/system-settings/public?store=${encodeURIComponent(storeCode)}`
+        : '/api/system-settings/public';
+      const res = await fetch(url);
       if (!res.ok) return '';
       const data = await res.json();
       return (data.liff_id as string) || '';
@@ -148,10 +156,11 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
     }
 
     // -------------------------------------------------------
-    // Mode 2: LIFF mode — fetch central LIFF ID from DB
+    // Mode 2: LIFF mode — fetch the per-store LIFF ID from DB
+    //   (falls back to central LIFF if the store hasn't set one)
     //   → init LIFF → login → verify server-side
     // -------------------------------------------------------
-    const liffId = await fetchCentralLiffId();
+    const liffId = await fetchLiffId(storeCode || null);
 
     if (liffId) {
       try {

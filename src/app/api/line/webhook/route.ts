@@ -421,6 +421,7 @@ async function handleTextMessage(
     if (deposit.line_user_id === userId) {
       const portalUrl = await buildCustomerEntryUrl({
         lineUserId: userId,
+        storeId: deposit.store_id,
         storeCode,
       });
       const flex = depositLinkedFlex({
@@ -520,6 +521,7 @@ async function handleTextMessage(
 
     const entryUrl = await buildCustomerEntryUrl({
       lineUserId: userId,
+      storeId: storeInfo?.id ?? null,
       storeCode: storeInfo?.store_code ?? null,
     });
 
@@ -542,6 +544,7 @@ async function handleTextMessage(
     : '';
   const portalLink = await buildCustomerEntryUrl({
     lineUserId: userId,
+    storeId: storeInfo?.id ?? null,
     storeCode: storeInfo?.store_code ?? null,
   });
 
@@ -763,6 +766,7 @@ async function handlePostback(
     const storeCode = storeRow?.store_code || storeInfo?.store_code || null;
     const portalUrl = await buildCustomerEntryUrl({
       lineUserId: userId,
+      storeId: deposit.store_id ?? storeInfo?.id ?? null,
       storeCode,
     });
 
@@ -838,6 +842,7 @@ async function handlePostback(
 
     const portalUrl = await buildCustomerEntryUrl({
       lineUserId: userId,
+      storeId: storeInfo?.id ?? null,
       storeCode: resolvedStoreCode || storeInfo?.store_code || null,
     });
 
