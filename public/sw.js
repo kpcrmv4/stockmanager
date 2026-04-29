@@ -39,11 +39,17 @@ self.addEventListener('fetch', (event) => {
         // Cache successful responses
         if (response.ok) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)).catch(() => {});
         }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(async () => {
+        // Network failed — try cache, fall through to a 503 if nothing cached
+        // (returning undefined from respondWith breaks the FetchEvent)
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+      })
   );
 });
 

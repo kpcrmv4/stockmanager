@@ -52,6 +52,9 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
     return NextResponse.json({ error: 'Failed to reset password: ' + updErr.message }, { status: 500 });
   }
 
+  // Flag user as needing to change password on next login
+  await service.from('profiles').update({ must_change_password: true }).eq('id', id);
+
   // Audit log (no store_id since this is account-level)
   await service.from('audit_logs').insert({
     action_type: 'PASSWORD_RESET_BY_ADMIN',
