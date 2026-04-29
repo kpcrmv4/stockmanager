@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import crypto from 'crypto';
+
+const DEFAULT_RESET_PASSWORD = '123456';
 
 /**
  * POST /api/users/[id]/reset-password
  *
- * Owner/manager-driven password reset. Generates a fresh random password,
- * applies it via the admin API, and returns it ONCE in the response so the
- * caller can hand it to the user. Audit logged.
+ * Owner/manager-driven password reset. Resets to a fixed default password
+ * (`123456`); the user must change it on next login. Audit logged.
  */
 export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -45,8 +45,7 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
     return NextResponse.json({ error: 'Manager can only reset staff/bar passwords' }, { status: 403 });
   }
 
-  // Generate URL-safe 12-char password
-  const newPassword = crypto.randomBytes(9).toString('base64url').slice(0, 12);
+  const newPassword = DEFAULT_RESET_PASSWORD;
 
   const { error: updErr } = await service.auth.admin.updateUserById(id, { password: newPassword });
   if (updErr) {

@@ -472,8 +472,11 @@ export default function UsersPage() {
               <span className="font-semibold text-gray-900 dark:text-white">
                 {resetTarget?.display_name || resetTarget?.username}
               </span>
-              {' '}ใช่ไหม? ระบบจะสร้างรหัสใหม่และแสดงครั้งเดียวเท่านั้น
+              {' '}ใช่ไหม?
             </p>
+            <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+              รหัสผ่านจะถูกตั้งใหม่เป็น <code className="font-bold">123456</code> — แจ้งให้พนักงานเข้าสู่ระบบและเปลี่ยนรหัสด้วยตัวเองทันที
+            </div>
             <ModalFooter>
               <Button
                 variant="outline"
@@ -487,20 +490,14 @@ export default function UsersPage() {
                 isLoading={isResetting}
                 icon={<KeyRound className="h-4 w-4" />}
               >
-                รีเซ็ต
+                ยืนยันรีเซ็ต
               </Button>
             </ModalFooter>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
-              ⚠️ คัดลอกหรือจดรหัสนี้ตอนนี้ — รหัสจะไม่แสดงอีก หลังปิดหน้าต่าง
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">ผู้ใช้</p>
-              <p className="font-mono text-sm font-semibold text-gray-900 dark:text-white">
-                {resetResult.username}
-              </p>
+            <div className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
+              ✓ รีเซ็ตรหัสผ่านของ <span className="font-semibold">{resetResult.username}</span> เรียบร้อยแล้ว
             </div>
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400">รหัสผ่านใหม่</p>
@@ -519,6 +516,9 @@ export default function UsersPage() {
                   <Copy className="h-4 w-4" />
                 </button>
               </div>
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                ⚠️ แจ้งพนักงานให้เปลี่ยนรหัสด้วยตัวเองทันทีหลังเข้าสู่ระบบ
+              </p>
             </div>
             <ModalFooter>
               <Button
