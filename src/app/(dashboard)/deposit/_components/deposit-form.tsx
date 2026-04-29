@@ -993,6 +993,7 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
             <button
               type="button"
               onClick={addItem}
+              data-tutorial-id="tut-add-item"
               className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm font-medium text-gray-500 transition-colors hover:border-indigo-400 hover:text-indigo-600 dark:border-gray-600 dark:text-gray-400 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
             >
               <Plus className="h-4 w-4" />
@@ -1097,24 +1098,17 @@ export function DepositForm({ onBack, onSuccess, pendingDeposit }: DepositFormPr
                 </div>
 
                 {!isVip && (
-                  <div data-tutorial-id="tut-expiry-days">
-                    <Input
-                      label={t("form.storageDays")}
-                      type="number"
-                      value={expiryDays}
-                      onChange={(e) => {
-                        setExpiryDays(e.target.value);
-                        if (errors.expiryDays) setErrors((prev) => ({ ...prev, expiryDays: '' }));
-                      }}
-                      placeholder="30"
-                      hint={
-                        expiryDays && parseInt(expiryDays) > 0
-                          ? t('form.expiryApprox', { date: formatThaiDate(new Date(Date.now() + parseInt(expiryDays) * 86400000)) })
-                          : t("form.storageDaysHint")
-                      }
-                      error={errors.expiryDays}
-                    />
-                  </div>
+                  <Input
+                    label={t("form.storageDays")}
+                    type="number"
+                    value={expiryDays}
+                    readOnly
+                    placeholder="30"
+                    hint={t('form.expiryApprox', {
+                      date: formatThaiDate(new Date(Date.now() + parseInt(expiryDays) * 86400000)),
+                    })}
+                    className="cursor-not-allowed bg-gray-100 dark:bg-gray-800"
+                  />
                 )}
               </>
             )}

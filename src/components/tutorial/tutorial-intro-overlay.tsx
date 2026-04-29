@@ -59,7 +59,7 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-type Side = 'above' | 'below' | 'left' | 'right';
+type Side = 'above' | 'below' | 'left' | 'right' | 'staggered-above';
 
 interface LabelConfig {
   anchor: AnchorName;
@@ -122,10 +122,14 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
       side: isNarrow ? 'above' : 'right',
     },
     {
+      // On mobile, chat anchor sits next to deposit in the bottom-nav,
+      // so a normal "above" position would put both labels on the same
+      // row and they'd visually crowd each other. Anchor chat to a
+      // viewport-relative spot well above the deposit label instead.
       anchor: 'chat',
       title: 'แชทในร้าน',
       body: 'ห้องแชทสาขา — Action Card',
-      side: isNarrow ? 'above' : 'right',
+      side: isNarrow ? 'staggered-above' : 'right',
     },
   ];
 
@@ -141,6 +145,12 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
     let left = 0;
     if (label.side === 'above') {
       top = a.top - GAP - labelH;
+      left = a.centerX - labelW / 2;
+    } else if (label.side === 'staggered-above') {
+      // Float ~110px above the anchor's natural "above" slot so two
+      // labels sharing the same horizontal row (e.g. deposit + chat
+      // in the bottom-nav) don't crowd each other.
+      top = a.top - GAP - labelH - 110;
       left = a.centerX - labelW / 2;
     } else if (label.side === 'below') {
       top = a.top + a.height + GAP;
@@ -160,6 +170,7 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
 
   const ArrowIcon: Record<Side, typeof ArrowUp> = {
     above: ArrowDown,
+    'staggered-above': ArrowDown,
     below: ArrowUp,
     left: ArrowRight,
     right: ArrowLeft,
@@ -281,12 +292,13 @@ export function TutorialIntroOverlay({ isOpen, onClose }: Props) {
         );
       })}
 
-      {/* Continue button — center bottom */}
-      <div className="absolute inset-x-0 bottom-3 z-[3] flex justify-center px-4 sm:bottom-6">
+      {/* Continue button — vertical center of the dim area, away from
+          both the title pill (top) and the bottom-nav cutouts (bottom). */}
+      <div className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center px-4">
         <Button
           onClick={onClose}
           icon={<X className="h-4 w-4" />}
-          className="min-h-[48px] shadow-2xl"
+          className="pointer-events-auto min-h-[48px] shadow-2xl"
           style={{ fontFamily: 'var(--font-handwriting)', fontWeight: 700 }}
         >
           เข้าใจแล้ว — เลือกฟีเจอร์
