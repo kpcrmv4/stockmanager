@@ -1032,56 +1032,66 @@ export default function WithdrawalsPage() {
                   onClick={!isPending ? () => toggleExpand(group.key) : undefined}
                 >
                   <div className="min-w-0 flex-1">
+                    {/* Top: deposit code as the main heading + status. The
+                        code is what bar / staff actually look for in
+                        receipts and chat — promote it above the product
+                        name. */}
                     <div className="flex items-center gap-2">
-                      <h3 className="truncate font-semibold text-gray-900 dark:text-white">
-                        {rep.product_name}
+                      <h3 className="truncate font-mono text-base font-bold text-gray-900 dark:text-white">
+                        {code ? `#${code}` : '—'}
                       </h3>
                       <Badge variant={statusVariantMap[rep.status] || 'default'}>
                         {WITHDRAWAL_STATUS_LABELS[rep.status] || rep.status}
                       </Badge>
                     </div>
-                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      {code && <span className="mr-1 font-mono text-gray-400">#{code}</span>}
-                      {rep.customer_name} · x{formatNumber(group.totalRequestedQty)} · {formatThaiDateTime(rep.created_at)}
+
+                    {/* Product name + bottle chips + % all on one wrapping
+                        row. Multi-bottle rows render one chip per bottle. */}
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200">
+                      <span className="font-medium">{rep.product_name}</span>
+                      {group.rows.map((row) => {
+                        const ctx = row.bottle_id ? bottleContext.get(row.bottle_id) : null;
+                        if (!ctx) return null;
+                        const showPct = row.status === 'pending' || row.status === 'approved';
+                        const pctClass = ctx.remaining_percent >= 70
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                          : ctx.remaining_percent >= 30
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                            : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300';
+                        return (
+                          <span key={row.id} className="inline-flex items-center gap-1 text-[11px]">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                              <Wine className="h-3 w-3" />
+                              {t('withdrawals.bottleNoLabel', { no: ctx.bottle_no, total: ctx.deposit_quantity })}
+                            </span>
+                            {showPct && (
+                              <span className={cn('inline-block rounded-full px-1.5 py-0.5 font-semibold', pctClass)}>
+                                {ctx.remaining_percent}%
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })}
+                    </div>
+
+                    {/* Customer + qty */}
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {rep.customer_name} · x{formatNumber(group.totalRequestedQty)}
+                    </p>
+
+                    {/* Bottom row: date / time + table or take-home pill */}
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      <span>{formatThaiDateTime(rep.created_at)}</span>
                       {rep.withdrawal_type === 'take_home' ? (
-                        <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                        <span className="inline-flex items-center gap-0.5 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                           <Home className="h-2.5 w-2.5" /> {t('withdrawals.takeHome')}
                         </span>
                       ) : rep.table_number ? (
-                        <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                        <span className="inline-flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                           <MapPin className="h-2.5 w-2.5" /> โต๊ะ {rep.table_number}
                         </span>
                       ) : null}
-                    </p>
-                    {/* Bottle pills — show one chip per row in the group so
-                        bar sees "Bombay x2 (2/3, 3/3)" instead of two cards. */}
-                    {group.rows.some((r) => r.bottle_id) && (
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                        {group.rows.map((row) => {
-                          const ctx = row.bottle_id ? bottleContext.get(row.bottle_id) : null;
-                          if (!ctx) return null;
-                          const showPct = row.status === 'pending' || row.status === 'approved';
-                          const pctClass = ctx.remaining_percent >= 70
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                            : ctx.remaining_percent >= 30
-                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                              : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300';
-                          return (
-                            <span key={row.id} className="inline-flex items-center gap-1 text-[11px]">
-                              <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
-                                <Wine className="h-3 w-3" />
-                                {t('withdrawals.bottleNoLabel', { no: ctx.bottle_no, total: ctx.deposit_quantity })}
-                              </span>
-                              {showPct && (
-                                <span className={cn('inline-block rounded-full px-1.5 py-0.5 font-semibold', pctClass)}>
-                                  {ctx.remaining_percent}%
-                                </span>
-                              )}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
+                    </div>
                   </div>
                   {!isPending && (
                     <ChevronDown
