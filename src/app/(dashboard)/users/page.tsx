@@ -340,11 +340,16 @@ export default function UsersPage() {
                       <Clock className="h-3 w-3" />
                       เข้าใช้: {formatLastSignIn(u.last_sign_in_at)}
                     </div>
+                    {u.username.startsWith('printer-') && (
+                      <p className="mt-1 text-[11px] italic text-amber-600 dark:text-amber-400">
+                        🔒 บัญชีระบบสำหรับเครื่องพิมพ์ — จัดการผ่านหน้าตั้งค่าเครื่องพิมพ์เท่านั้น
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 {/* Actions */}
-                {u.id !== currentUser?.id && (
+                {u.id !== currentUser?.id && !u.username.startsWith('printer-') && (
                   <div className="flex items-center gap-2">
                     {u.role !== 'owner' && u.role !== 'customer' && (
                       <Link
