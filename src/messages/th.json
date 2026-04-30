@@ -1228,6 +1228,7 @@
       "photoAlt": "รูปถ่ายเบิกเหล้า",
       "rejectButton": "ปฏิเสธ",
       "processButton": "ดำเนินการเบิก",
+      "staffWaitForBar": "โปรดรอรับเหล้าจาก Bar เพื่อนำส่งลูกค้า",
       "processTitle": "ดำเนินการเบิกเหล้า",
       "rejectTitle": "ปฏิเสธการเบิกเหล้า",
       "productLabel": "สินค้า",

@@ -1228,6 +1228,7 @@
       "photoAlt": "Withdrawal photo",
       "rejectButton": "Reject",
       "processButton": "Process Withdrawal",
+      "staffWaitForBar": "Please wait for Bar to hand over the bottle so you can serve the customer",
       "processTitle": "Process Withdrawal",
       "rejectTitle": "Reject Withdrawal",
       "productLabel": "Product",
