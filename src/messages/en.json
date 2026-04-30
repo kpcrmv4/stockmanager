@@ -1271,6 +1271,8 @@
         "tablePlaceholder": "e.g. Table 5",
         "tableRequired": "Please enter a table number",
         "photoLabel": "Take photo (optional)",
+        "photoLabelRequired": "Photo of the bottle",
+        "photoRequired": "Please take a photo of the bottle before completing",
         "notesLabel": "Notes",
         "notesPlaceholder": "Additional notes (optional)",
         "backToSearch": "Back to select more",

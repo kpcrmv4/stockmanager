@@ -468,6 +468,18 @@ export default function WithdrawalsPage() {
       return;
     }
 
+    // Bar / manager / owner complete the row immediately, so the
+    // confirmation photo is mandatory. Staff submits a pending request
+    // (no photo step at this stage — Bar takes the photo on approval).
+    if (user.role !== 'staff' && !manualPhotoUrl) {
+      toast({
+        type: 'error',
+        title: t('withdrawals.manual.photoLabelRequired'),
+        message: t('withdrawals.manual.photoRequired'),
+      });
+      return;
+    }
+
     // Validate all items
     for (const item of withdrawItems) {
       const q = parseFloat(item.qty);
@@ -1707,13 +1719,21 @@ export default function WithdrawalsPage() {
               </div>
             )}
 
-            <PhotoUpload
-              value={manualPhotoUrl}
-              onChange={(url) => setManualPhotoUrl(url)}
-              folder="withdrawals"
-              label={t('withdrawals.manual.photoLabel')}
-              compact={true}
-            />
+            {/* Photo upload — Bar+ takes the photo at approval time, so
+                Staff doesn't see this field at all (the row is still
+                pending when staff submits and Bar will photograph it
+                during the approval step). For Bar / manager / owner the
+                row goes straight to completed, so a photo is required. */}
+            {user?.role !== 'staff' && (
+              <PhotoUpload
+                value={manualPhotoUrl}
+                onChange={(url) => setManualPhotoUrl(url)}
+                folder="withdrawals"
+                label={t('withdrawals.manual.photoLabelRequired')}
+                required
+                compact={true}
+              />
+            )}
 
             <Textarea
               label={t('withdrawals.manual.notesLabel')}

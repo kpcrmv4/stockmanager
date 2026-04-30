@@ -1271,6 +1271,8 @@
         "tablePlaceholder": "เช่น โต๊ะ 5",
         "tableRequired": "กรุณาระบุเลขโต๊ะ",
         "photoLabel": "ถ่ายรูปประกอบ (ไม่บังคับ)",
+        "photoLabelRequired": "ถ่ายรูปขวดเหล้า",
+        "photoRequired": "กรุณาถ่ายรูปขวดเหล้าก่อนยืนยันเบิก",
         "notesLabel": "หมายเหตุ",
         "notesPlaceholder": "หมายเหตุเพิ่มเติม (ไม่บังคับ)",
         "backToSearch": "กลับเลือกเพิ่ม",
