@@ -155,9 +155,8 @@ export default function StoreDetailSettingsPage() {
   // Staff notification settings
   const [borrowNotificationRoles, setBorrowNotificationRoles] = useState<string[]>(['owner', 'manager']);
 
-  // Central LIFF ID (read-only — from system_settings)
-  const [centralLiffId, setCentralLiffId] = useState('');
   const [liffLinkCopied, setLiffLinkCopied] = useState(false);
+  const [liffEndpointCopied, setLiffEndpointCopied] = useState(false);
 
   // Stock settings
   const [notifyTime, setNotifyTime] = useState('09:00');
@@ -244,14 +243,6 @@ export default function StoreDetailSettingsPage() {
       setBarNotifyGroupId(store.bar_notify_group_id || '');
       setBorrowNotificationRoles(store.borrow_notification_roles || ['owner', 'manager']);
     }
-
-    // Load central LIFF ID (from system_settings)
-    const { data: sysRows } = await supabase
-      .from('system_settings')
-      .select('key, value')
-      .eq('key', 'davis_ai.liff_id')
-      .single();
-    setCentralLiffId((sysRows?.value as string) || '');
 
     // Load store settings
     const { data: settings } = await supabase
@@ -661,17 +652,33 @@ export default function StoreDetailSettingsPage() {
   };
 
   // ---------------------------------------------------------------------------
-  // LIFF link for this store (central LIFF + ?store={storeCode} param)
+  // LIFF link for this store — every branch needs its own LIFF under the
+  // same Provider as its Messaging API channel; the link is composed
+  // here so settings can show + copy the deep link to share with staff.
   // ---------------------------------------------------------------------------
 
-  // Per-store LIFF takes precedence; fall back to central. This must mirror
-  // server-side logic in lib/line/customer-entry-url.ts.
-  const effectiveLiffId = storeLiffId.trim() || centralLiffId;
+  const effectiveLiffId = storeLiffId.trim();
 
   const storeLiffUrl =
     effectiveLiffId && storeCode
       ? `https://liff.line.me/${effectiveLiffId}?store=${encodeURIComponent(storeCode)}`
       : '';
+
+  // The Endpoint URL value the user pastes into LINE Developer Console
+  // when creating the LIFF app. Always the same path on whatever host
+  // is currently serving this UI (works for prod, preview, and local).
+  const liffEndpointUrl =
+    typeof window !== 'undefined' ? `${window.location.origin}/customer` : '/customer';
+
+  const copyLiffEndpoint = async () => {
+    try {
+      await navigator.clipboard.writeText(liffEndpointUrl);
+      setLiffEndpointCopied(true);
+      setTimeout(() => setLiffEndpointCopied(false), 2000);
+    } catch {
+      toast({ type: 'error', title: t('storeDetail.copyError') });
+    }
+  };
 
   const copyLiffLink = async () => {
     if (!storeLiffUrl) return;
@@ -879,24 +886,49 @@ export default function StoreDetailSettingsPage() {
             </button>
           </div>
 
+          {/* LIFF Endpoint URL — copy-only field. The user pastes this
+              into LINE Developer Console when creating the LIFF app. */}
+          <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 dark:border-indigo-700/50 dark:bg-indigo-900/10">
+            <p className="mb-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
+              {t('storeDetail.liffEndpointLabel')}
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 truncate rounded bg-white px-2 py-1.5 text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                {liffEndpointUrl}
+              </code>
+              <button
+                type="button"
+                onClick={copyLiffEndpoint}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white transition-colors hover:bg-indigo-700"
+                title={t('storeDetail.copy')}
+              >
+                {liffEndpointCopied ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {t('storeDetail.liffEndpointHint')}
+            </p>
+          </div>
+
           {/* LIFF ID — per-store (under same Provider as Messaging API) */}
           <div>
             <Input
-              label="LIFF ID ของสาขานี้ (ไม่บังคับ)"
+              label="LIFF ID ของสาขานี้"
               value={storeLiffId}
               onChange={(e) => setStoreLiffId(e.target.value)}
               placeholder="เช่น 1234567890-XxXxXxXx"
-              hint="หาก LINE OA ของสาขานี้อยู่คนละ Provider กับสาขาอื่น ต้องสร้าง LIFF ใต้ Provider เดียวกับ Messaging API ของสาขานี้ — แล้วใส่ LIFF ID ที่นี่ ระบบจะใช้ตัวนี้แทน LIFF กลาง"
+              hint="สร้าง LIFF app ใต้ Provider เดียวกับ Messaging API ของสาขานี้ ใช้ Endpoint URL ด้านบน แล้วคัดลอก LIFF ID มาวางที่นี่"
             />
           </div>
 
           {/* LIFF link preview (read-only) */}
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
             <p className="mb-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
-              {t('storeDetail.liffLinkLabel')}{' '}
-              <span className="ml-1 text-[10px] text-gray-500 dark:text-gray-400">
-                ({storeLiffId.trim() ? 'ใช้ LIFF ของสาขา' : 'ใช้ LIFF กลาง'})
-              </span>
+              {t('storeDetail.liffLinkLabel')}
             </p>
             {storeLiffUrl ? (
               <div className="flex items-center gap-2">
@@ -918,13 +950,7 @@ export default function StoreDetailSettingsPage() {
               </div>
             ) : (
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                {t('storeDetail.liffLinkMissing')}{' '}
-                <Link
-                  href="/settings/davis-ai"
-                  className="font-medium underline decoration-dotted"
-                >
-                  {t('storeDetail.lineOaBannerLink')}
-                </Link>
+                {t('storeDetail.liffLinkMissing')}
               </p>
             )}
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
