@@ -665,10 +665,17 @@ export default function StoreDetailSettingsPage() {
       : '';
 
   // The Endpoint URL value the user pastes into LINE Developer Console
-  // when creating the LIFF app. Always the same path on whatever host
-  // is currently serving this UI (works for prod, preview, and local).
-  const liffEndpointUrl =
-    typeof window !== 'undefined' ? `${window.location.origin}/customer` : '/customer';
+  // when creating the LIFF app. Anchored to NEXT_PUBLIC_APP_URL so the
+  // value is the *canonical* production host even when the admin is
+  // looking at the page via a preview deployment URL or a different
+  // admin sub-domain. Falls back to window.location.origin only when
+  // the env isn't set (local dev).
+  const publicAppUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+  const liffEndpointUrl = publicAppUrl
+    ? `${publicAppUrl}/customer`
+    : typeof window !== 'undefined'
+      ? `${window.location.origin}/customer`
+      : '/customer';
 
   const copyLiffEndpoint = async () => {
     try {
