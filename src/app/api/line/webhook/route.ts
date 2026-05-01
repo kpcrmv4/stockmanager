@@ -227,10 +227,11 @@ export async function POST(request: NextRequest) {
 
   const channelSecret = secretStore?.line_channel_secret || '';
 
-  if (!channelSecret) {
+  if (!secretStore) {
+    // No store row matches this destination at all — true 404
     console.warn(
       `[LINE webhook ${reqId}] No store found for destination="${destination}". ` +
-        'ตั้งค่า Bot User ID + Channel Secret ใน ตั้งค่า → สาขา → [ชื่อสาขา] → LINE OA',
+        'ตั้งค่า Bot User ID ใน ตั้งค่า → สาขา → [ชื่อสาขา] → LINE OA',
     );
     return NextResponse.json(
       { error: 'Store not configured for this LINE channel' },
@@ -238,7 +239,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!verifySignature(body, signature, channelSecret)) {
+  if (!channelSecret) {
+    // Store exists but channel_secret not yet pasted — run UNVERIFIED so the
+    // LINE Console "Verify" button passes during migration. As soon as the
+    // secret is set in /settings/store/{id} the next request flips to the
+    // verified path automatically.
+    console.warn(
+      `[LINE webhook ${reqId}] UNVERIFIED MODE: channel_secret missing for ` +
+        `destination="${destination}". Add Channel Secret in /settings/store/{id} to enable signature verification.`,
+    );
+  } else if (!verifySignature(body, signature, channelSecret)) {
     return NextResponse.json(
       { error: 'Invalid signature' },
       { status: 403 },
@@ -537,27 +547,11 @@ async function handleTextMessage(
   }
 
   // -----------------------------------------------------------------------
-  // Default: Help message + Customer portal link
+  // Default: silent — don't reply to text that doesn't match any keyword
+  // (per product decision: only respond to deposit codes + configured
+  // keywords + group-id command, otherwise stay quiet)
   // -----------------------------------------------------------------------
-  const storeSuffix = storeInfo
-    ? `\n\n📍 สาขา: ${storeInfo.store_name}`
-    : '';
-  const portalLink = await buildCustomerEntryUrl({
-    lineUserId: userId,
-    storeId: storeInfo?.id ?? null,
-    storeCode: storeInfo?.store_code ?? null,
-  });
-
-  await replyMessage(
-    event.replyToken,
-    [
-      {
-        type: 'text',
-        text: `📋 StockManager\n\n• พิมพ์รหัสฝาก (DEP-xxxxx) เพื่อตรวจสอบสถานะ\n• พิมพ์ "ฝากเหล้า" เพื่อเปิดระบบฝากเหล้า\n\n🔗 เปิดหน้าลูกค้า: ${portalLink}${storeSuffix}`,
-      },
-    ],
-    botToken,
-  );
+  return;
 }
 
 // ---------------------------------------------------------------------------
