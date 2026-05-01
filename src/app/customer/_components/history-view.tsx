@@ -42,7 +42,7 @@ export function HistoryView() {
   const [isLoading, setIsLoading] = useState(true);
   const hasLoadedRef = useRef(false);
   const t = useTranslations('customer.history');
-  const { lineUserId, isLoading: authLoading } = useCustomerAuth();
+  const { lineUserId, isLoading: authLoading, store } = useCustomerAuth();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
 
@@ -67,9 +67,13 @@ export function HistoryView() {
         ? { label: t('depositCancelledByCustomer'), tone: 'badge-red' }
         : { label: t('depositCancelledByStaff'), tone: 'badge-red' };
     }
-    if (status === 'expired') return { label: t('depositExpired'), tone: 'badge-amber' };
+    // From the customer's perspective, an HQ transfer is functionally
+    // the same as expiry — the bottle is no longer at the store they
+    // can withdraw from. Collapse both into the same "expired" badge so
+    // the LIFF view doesn't expose internal logistics ("โอนคลังกลาง").
+    if (status === 'expired' || status === 'transferred_out')
+      return { label: t('depositExpired'), tone: 'badge-amber' };
     if (status === 'withdrawn') return { label: t('depositWithdrawn'), tone: 'badge-green' };
-    if (status === 'transferred_out') return { label: t('depositTransferred'), tone: 'badge-blue' };
     return null;
   };
 
@@ -91,16 +95,30 @@ export function HistoryView() {
             ? sessionStorage.getItem('liff_access_token')
             : null;
 
+        // Scope to the store the customer arrived from (LIFF URL ?store=CODE
+        // or resolved store id). Without this the LIFF history would show
+        // every branch's deposits for the same LINE user — confusing and
+        // wrong: the customer is only "at" one store via this entry point.
+        const storeQs = store.id
+          ? `&storeId=${encodeURIComponent(store.id)}`
+          : store.code
+          ? `&storeCode=${encodeURIComponent(store.code)}`
+          : '';
+
         let res: Response | null = null;
         if (token) {
           res = await fetch(
-            `/api/customer/history?token=${encodeURIComponent(token)}`,
+            `/api/customer/history?token=${encodeURIComponent(token)}${storeQs}`,
           );
         } else if (accessToken) {
           res = await fetch('/api/customer/history', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ accessToken }),
+            body: JSON.stringify({
+              accessToken,
+              storeId: store.id ?? null,
+              storeCode: store.code ?? null,
+            }),
           });
         }
 
@@ -158,7 +176,7 @@ export function HistoryView() {
     } = await supabase.auth.getUser();
 
     if (user) {
-      const { data: deposits } = await supabase
+      let depositsQ = supabase
         .from('deposits')
         .select(
           'id, deposit_code, product_name, quantity, status, notes, created_at, store:stores(store_name)',
@@ -166,6 +184,8 @@ export function HistoryView() {
         .eq('customer_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
+      if (store.id) depositsQ = depositsQ.eq('store_id', store.id);
+      const { data: deposits } = await depositsQ;
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -175,12 +195,14 @@ export function HistoryView() {
 
       let withdrawals: Array<Record<string, unknown>> = [];
       if (profile?.line_user_id) {
-        const { data } = await supabase
+        let wdQ = supabase
           .from('withdrawals')
           .select('id, product_name, requested_qty, actual_qty, status, created_at, deposit:deposits(deposit_code, quantity), bottle:deposit_bottles(bottle_no)')
           .eq('line_user_id', profile.line_user_id)
           .order('created_at', { ascending: false })
           .limit(50);
+        if (store.id) wdQ = wdQ.eq('store_id', store.id);
+        const { data } = await wdQ;
         if (data) withdrawals = data;
       }
 
@@ -221,7 +243,7 @@ export function HistoryView() {
     }
 
     setIsLoading(false);
-  }, [lineUserId, token]);
+  }, [lineUserId, token, store.id, store.code]);
 
   useEffect(() => {
     if (lineUserId) {
