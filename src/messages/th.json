@@ -393,7 +393,7 @@
       "statusApproved": "อนุมัติแล้ว",
       "statusCompleted": "สำเร็จ",
       "statusRejected": "ปฏิเสธ",
-      "depositCancelledByCustomer": "คุณยกเลิกเอง",
+      "depositCancelledByCustomer": "ลูกค้ายกเลิก",
       "depositCancelledByStaff": "ร้านยกเลิก",
       "depositExpired": "หมดอายุ",
       "depositWithdrawn": "เบิกครบ",

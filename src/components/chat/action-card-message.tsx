@@ -157,7 +157,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
     : false;
   const isClaimed = meta.status === 'claimed' && !isTimedOut;
   const isCompleted = meta.status === 'completed';
-  const isCancelled = meta.status === 'cancelled' || meta.status === 'rejected';
+  const isCancelled = (meta.status as string) === 'cancelled' || (meta.status as string) === 'rejected';
   const isPending = meta.status === 'pending' || isTimedOut;
   const isPendingBar = meta.status === 'pending_bar';
   const isClaimedByMe = meta.claimed_by === currentUserId && !isTimedOut;
