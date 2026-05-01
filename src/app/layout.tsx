@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Noto_Sans_Thai } from 'next/font/google';
+import { Noto_Sans_Thai, Playpen_Sans_Thai } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { ToastContainer } from '@/components/ui/toast';
@@ -9,6 +9,12 @@ import './globals.css';
 const notoSansThai = Noto_Sans_Thai({
   subsets: ['thai', 'latin'],
   variable: '--font-noto-sans-thai',
+  display: 'swap',
+});
+
+const playpenSansThai = Playpen_Sans_Thai({
+  subsets: ['thai', 'latin'],
+  variable: '--font-playpen-thai',
   display: 'swap',
 });
 
@@ -53,7 +59,7 @@ export default async function RootLayout({
         />
       </head>
       <body
-        className={`${notoSansThai.variable} font-sans antialiased bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100`}
+        className={`${notoSansThai.variable} ${playpenSansThai.variable} font-sans antialiased bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100`}
       >
         <NextIntlClientProvider messages={messages}>
           {children}

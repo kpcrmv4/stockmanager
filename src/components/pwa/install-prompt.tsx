@@ -46,6 +46,9 @@ export function InstallPrompt() {
   const handleDismiss = () => {
     localStorage.setItem(DISMISSED_KEY, Date.now().toString());
     setIsOpen(false);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('pwa-flow-done'));
+    }
   };
 
   const handleInstall = async () => {

@@ -264,6 +264,54 @@
     "iosAddStep": "Scroll down and tap {icon} Add to Home Screen",
     "iosConfirmStep": "Tap Add to install the app to your home screen"
   },
+  "userGuide": {
+    "headerTitle": "User Guide",
+    "headerSubtitle": "Step {current} of {total}",
+    "understood": "Got it",
+    "next": "Next",
+    "prev": "Back",
+    "gotIt": "Got it — let's start",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "confirmTitle": "Close the guide?",
+    "confirmMessage": "This window will not be shown again. Are you sure you want to close?",
+    "welcomeNote": "This system helps you manage stock, customer deposits/withdrawals, and team communication — tap Next to see each main screen.",
+    "step1": {
+      "label": "Start",
+      "title": "Welcome to the new system",
+      "desc": "This short guide will walk you through the main screens you'll use daily so you can get started quickly."
+    },
+    "step2": {
+      "label": "Overview",
+      "title": "System overview",
+      "desc": "The home screen shows your store's key info — remaining customer deposits, pending tasks, and quick links to other parts of the system."
+    },
+    "step3": {
+      "label": "Chat",
+      "title": "Chat for team communication and notifications",
+      "desc": "Use chat to talk with teammates and receive real-time alerts — deposit/withdrawal requests, stock transfers, and announcements from managers."
+    },
+    "step4": {
+      "label": "Deposit menu",
+      "title": "Deposit / Withdraw screen",
+      "desc": "The main hub for managing customer bottle deposits — create a new deposit, accept LINE requests, or withdraw a bottle for a customer."
+    },
+    "step5": {
+      "label": "Manual deposit",
+      "title": "Create a manual deposit",
+      "desc": "When a customer drops off a bottle in person, tap New deposit, pick the product, enter the customer's name and phone, then confirm — the system issues a deposit code automatically."
+    },
+    "step6": {
+      "label": "LINE deposit",
+      "title": "Accept a deposit submitted via LINE",
+      "desc": "Customers can submit deposit requests through the LINE OA. Staff just open the incoming request, verify the bottle, and confirm — the record is saved instantly."
+    },
+    "step7": {
+      "label": "Withdraw",
+      "title": "Withdraw a bottle for a customer",
+      "desc": "When a customer comes to withdraw, search by deposit code or phone, pick the bottle, verify with the customer, and confirm — stock is updated automatically."
+    }
+  },
   "language": {
     "th": "ไทย",
     "en": "English",
