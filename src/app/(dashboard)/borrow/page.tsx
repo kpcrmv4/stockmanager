@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useRealtime } from '@/hooks/use-realtime';
+import { useActionCardClaims } from '@/hooks/use-action-card-claims';
 import {
   Button,
   Badge,
@@ -42,6 +43,7 @@ import {
   LayoutGrid,
   LayoutList,
   Columns as ColumnsIcon,
+  Hand,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -707,6 +709,14 @@ function BorrowDetailSheet({
 }) {
   const { user } = useAuthStore();
   const config = getVisualStatus(borrow, currentStoreId, t);
+  // Live map of who has claimed which borrow.id in chat. Both
+  // `borrow_approve` and `borrow_return_confirm` cards live in the
+  // lender's chat (to_store_id), keyed by borrow id, so we subscribe
+  // there. When the current user is on the borrower side this map
+  // stays empty (different room) and the buttons aren't gated.
+  const chatClaims = useActionCardClaims(borrow.to_store_id);
+  const claim = chatClaims.get(borrow.id);
+  const claimedInChat = !!claim;
 
   const [isActing, setIsActing] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -1142,7 +1152,14 @@ function BorrowDetailSheet({
                 </div>
               </div>
 
-              {!showRejectInput ? (
+              {claimedInChat ? (
+                <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                  <Hand className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    {(claim?.claimedByName || 'พนักงาน')} กำลังดำเนินการในแชท
+                  </span>
+                </div>
+              ) : !showRejectInput ? (
                 <div className="flex gap-3">
                   <Button
                     className="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-500 dark:hover:bg-emerald-600"
@@ -1334,32 +1351,41 @@ function BorrowDetailSheet({
 
               {/* Lender side — confirm receipt with photo */}
               {isLenderSide && (
-                <div className="space-y-3">
-                  <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
-                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                    <span>{t('returnReceiptReminder', { store: borrow.from_store_name || '' })}</span>
+                claimedInChat ? (
+                  <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                    <Hand className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      {(claim?.claimedByName || 'พนักงาน')} กำลังดำเนินการในแชท
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
-                    <Camera className="h-4 w-4 shrink-0" />
-                    <span>{t('returnReceiptPhotoDesc')}</span>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <span>{t('returnReceiptReminder', { store: borrow.from_store_name || '' })}</span>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-700 dark:bg-teal-900/20 dark:text-teal-400">
+                      <Camera className="h-4 w-4 shrink-0" />
+                      <span>{t('returnReceiptPhotoDesc')}</span>
+                    </div>
+                    <PhotoUpload
+                      value={returnReceiptPhoto}
+                      onChange={setReturnReceiptPhoto}
+                      folder="borrows/return-receipt"
+                      label={t('returnReceiptPhotoLabel')}
+                      compact
+                    />
+                    <Button
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+                      icon={<CheckCircle2 className="h-4 w-4" />}
+                      onClick={handleConfirmReturnReceipt}
+                      isLoading={isActing}
+                      disabled={!returnReceiptPhoto}
+                    >
+                      {t('confirmReturnReceipt')}
+                    </Button>
                   </div>
-                  <PhotoUpload
-                    value={returnReceiptPhoto}
-                    onChange={setReturnReceiptPhoto}
-                    folder="borrows/return-receipt"
-                    label={t('returnReceiptPhotoLabel')}
-                    compact
-                  />
-                  <Button
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-500 dark:hover:bg-emerald-600"
-                    icon={<CheckCircle2 className="h-4 w-4" />}
-                    onClick={handleConfirmReturnReceipt}
-                    isLoading={isActing}
-                    disabled={!returnReceiptPhoto}
-                  >
-                    {t('confirmReturnReceipt')}
-                  </Button>
-                </div>
+                )
               )}
 
               {/* Borrower side — waiting for lender to confirm receipt */}

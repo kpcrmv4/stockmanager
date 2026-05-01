@@ -64,27 +64,54 @@ export function useActionCardClaims(
       for (const msg of messages || []) {
         const meta = msg.metadata as Record<string, unknown> | null;
         if (!meta) continue;
-        const refId = meta.reference_id as string | undefined;
+        // Most action cards key on `reference_id`. The transfer card
+        // schema is older and stores its key as `transfer_code` at the
+        // top level of metadata — fall back to that so transfer_receive
+        // races at /hq-warehouse can be detected here too.
+        const actionType = meta.action_type as string | undefined;
+        const refId =
+          (meta.reference_id as string | undefined) ||
+          (actionType === 'transfer_receive'
+            ? (meta.transfer_code as string | undefined)
+            : undefined);
+        // Transfer cards use a different status vocabulary
+        // ('pending'|'received'|'rejected'|'partial'). For the
+        // page-side lock we treat anything still claimable (i.e. not
+        // received/rejected) the same as 'claimed'.
         const status = meta.status as string | undefined;
         if (!refId) continue;
-        // Only "actively claimed" states block other actors. Completed,
-        // rejected, cancelled, expired, and plain pending don't.
-        if (status !== 'claimed' && status !== 'pending_bar') continue;
+        const isTransfer = actionType === 'transfer_receive';
+        const isStandardClaim = status === 'claimed' || status === 'pending_bar';
+        // Transfer cards don't surface a 'claimed' status — instead
+        // they expose `received_by` once a HQ user starts receiving.
+        // Mirror that by treating pending+received_by as a claim.
+        const transferReceivingBy = isTransfer
+          ? (meta.received_by as string | null | undefined)
+          : null;
+        const isTransferClaim =
+          isTransfer && status === 'pending' && !!transferReceivingBy;
+        if (!isStandardClaim && !isTransferClaim) continue;
 
         // Skip timed-out claims — those have semantically reflowed back
         // to "pending" even though the DB row hasn't been rewritten yet.
         const claimedAt = meta.claimed_at as string | null | undefined;
         const timeout = meta.timeout_minutes as number | null | undefined;
-        if (status === 'claimed' && claimedAt && timeout && timeout > 0) {
+        if (isStandardClaim && status === 'claimed' && claimedAt && timeout && timeout > 0) {
           const deadline = new Date(claimedAt).getTime() + timeout * 60 * 1000;
           if (now > deadline) continue;
         }
 
         map.set(refId, {
-          claimedBy: (meta.claimed_by as string) || '',
-          claimedByName: (meta.claimed_by_name as string) || '',
-          actionType: (meta.action_type as string) || '',
-          status: status as 'claimed' | 'pending_bar',
+          claimedBy:
+            (meta.claimed_by as string) ||
+            (isTransfer ? (meta.received_by as string) || '' : ''),
+          claimedByName:
+            (meta.claimed_by_name as string) ||
+            (isTransfer ? (meta.received_by_name as string) || '' : ''),
+          actionType: actionType || '',
+          // Map transfer claim into the existing 'claimed' bucket so
+          // consumers don't need to special-case it.
+          status: (isStandardClaim ? (status as 'claimed' | 'pending_bar') : 'claimed'),
           barStep: meta._bar_step === true,
           claimedAt: claimedAt ?? null,
           timeoutMinutes: timeout ?? null,

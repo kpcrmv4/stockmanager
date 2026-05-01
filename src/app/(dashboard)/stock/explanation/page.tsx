@@ -12,6 +12,7 @@ import { formatThaiDate, formatNumber, formatPercent } from '@/lib/utils/format'
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyOwners } from '@/lib/notifications/client';
 import { notifyChatExplanationSubmitted } from '@/lib/chat/bot-client';
+import { useActionCardClaims } from '@/hooks/use-action-card-claims';
 import type { Comparison } from '@/types/database';
 import {
   ArrowLeft,
@@ -27,6 +28,7 @@ import {
   Clock,
   MessageSquare,
   Inbox,
+  Hand,
 } from 'lucide-react';
 
 type ViewFilter = 'pending' | 'explained';
@@ -48,6 +50,11 @@ export default function ExplanationPage() {
     );
   }
   const { currentStoreId } = useAppStore();
+  // Live map of who has claimed which comp_date in chat. Lets us
+  // hide the per-row Submit + batch Submit buttons + show the
+  // claimer's name when someone else is acting on the same date
+  // through the stock_explain chat card.
+  const chatClaims = useActionCardClaims(currentStoreId);
   const [loading, setLoading] = useState(true);
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
   const [explanations, setExplanations] = useState<Record<string, string>>({});
@@ -231,7 +238,7 @@ export default function ExplanationPage() {
 
   const handleSubmitAll = async () => {
     const itemsToSubmit = pendingItems.filter(
-      (c) => explanations[c.id]?.trim()
+      (c) => explanations[c.id]?.trim() && !chatClaims.get(c.comp_date)
     );
 
     if (itemsToSubmit.length === 0) {
@@ -327,8 +334,10 @@ export default function ExplanationPage() {
     }
   };
 
+  // Exclude items whose comp_date is being claimed in chat — those
+  // rows are locked and can't participate in the batch submit.
   const filledCount = pendingItems.filter(
-    (c) => explanations[c.id]?.trim()
+    (c) => explanations[c.id]?.trim() && !chatClaims.get(c.comp_date)
   ).length;
 
   if (loading) {
@@ -432,6 +441,12 @@ export default function ExplanationPage() {
                   : TrendingDown;
             const isOverTolerance =
               item.diff_percent !== null && Math.abs(item.diff_percent) > 5;
+            // Cross-check: chat-side stock_explain card uses comp_date
+            // as reference_id. If someone has claimed it there for
+            // this date, lock submission here so the same explanation
+            // is not double-handled.
+            const claim = chatClaims.get(item.comp_date);
+            const claimedInChat = !!claim;
 
             return (
               <div
@@ -526,33 +541,42 @@ export default function ExplanationPage() {
                 {/* Explanation Input / Display */}
                 <div className="mt-3">
                   {isPending ? (
-                    <div className="space-y-2">
-                      <textarea
-                        rows={2}
-                        placeholder={t('explanation.explanationPlaceholder')}
-                        value={explanation}
-                        onChange={(e) =>
-                          handleExplanationChange(item.id, e.target.value)
-                        }
-                        className={cn(
-                          'w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-colors',
-                          'placeholder:text-gray-400',
-                          'focus:ring-2 focus:ring-offset-0',
-                          'dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500',
-                          'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500/20 dark:border-gray-600 dark:focus:border-indigo-400'
-                        )}
-                      />
-                      <Button
-                        size="sm"
-                        icon={<Send className="h-3.5 w-3.5" />}
-                        isLoading={isSubmitting}
-                        disabled={!explanation.trim()}
-                        onClick={() => handleSubmitSingle(item.id)}
-                        className="w-full"
-                      >
-                        {t('explanation.submitExplanation')}
-                      </Button>
-                    </div>
+                    claimedInChat ? (
+                      <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                        <Hand className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          {(claim?.claimedByName || 'พนักงาน')} กำลังดำเนินการในแชท
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <textarea
+                          rows={2}
+                          placeholder={t('explanation.explanationPlaceholder')}
+                          value={explanation}
+                          onChange={(e) =>
+                            handleExplanationChange(item.id, e.target.value)
+                          }
+                          className={cn(
+                            'w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-colors',
+                            'placeholder:text-gray-400',
+                            'focus:ring-2 focus:ring-offset-0',
+                            'dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500',
+                            'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500/20 dark:border-gray-600 dark:focus:border-indigo-400'
+                          )}
+                        />
+                        <Button
+                          size="sm"
+                          icon={<Send className="h-3.5 w-3.5" />}
+                          isLoading={isSubmitting}
+                          disabled={!explanation.trim()}
+                          onClick={() => handleSubmitSingle(item.id)}
+                          className="w-full"
+                        >
+                          {t('explanation.submitExplanation')}
+                        </Button>
+                      </div>
+                    )
                   ) : (
                     <div className="rounded-lg bg-blue-50 px-3 py-2 dark:bg-blue-900/20">
                       <div className="flex items-start gap-2">

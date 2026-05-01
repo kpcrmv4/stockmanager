@@ -12,6 +12,7 @@ import { formatThaiDate, formatNumber, formatPercent } from '@/lib/utils/format'
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { sendNotification } from '@/lib/notifications/client';
 import { notifyChatApprovalResult, maybeCompleteStockApproveCard } from '@/lib/chat/bot-client';
+import { useActionCardClaims } from '@/hooks/use-action-card-claims';
 import type { Comparison } from '@/types/database';
 import {
   ArrowLeft,
@@ -28,6 +29,7 @@ import {
   CheckCheck,
   Inbox,
   RefreshCw,
+  Hand,
 } from 'lucide-react';
 
 type ViewFilter = 'explained' | 'approved' | 'rejected';
@@ -50,6 +52,11 @@ export default function ApprovalPage() {
     );
   }
 
+  // Live map of who has claimed which comp_date in chat. Lets us
+  // hide the per-row Approve/Reject + batch buttons + show the
+  // claimer's name when someone else is acting on the same date
+  // through the stock_approve chat card.
+  const chatClaims = useActionCardClaims(currentStoreId);
   const [loading, setLoading] = useState(true);
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -382,6 +389,21 @@ export default function ApprovalPage() {
       });
       return;
     }
+    // Skip rows whose comp_date is being claimed in chat — can't
+    // batch-process locked items.
+    const lockedIds = new Set<string>();
+    for (const id of selectedIds) {
+      const c = comparisons.find((x) => x.id === id);
+      if (c && chatClaims.get(c.comp_date)) lockedIds.add(id);
+    }
+    if (lockedIds.size > 0) {
+      toast({
+        type: 'warning',
+        title: t('approval.noSelection'),
+        message: 'มีบางรายการกำลังถูกดำเนินการในแชท',
+      });
+      return;
+    }
 
     setBatchProcessing(true);
     try {
@@ -489,6 +511,21 @@ export default function ApprovalPage() {
         type: 'warning',
         title: t('approval.noSelection'),
         message: t('approval.noSelectionRejectMsg'),
+      });
+      return;
+    }
+    // Same as batch approve: refuse if any selected row is being
+    // claimed in chat.
+    const lockedRejectIds = new Set<string>();
+    for (const id of selectedIds) {
+      const c = comparisons.find((x) => x.id === id);
+      if (c && chatClaims.get(c.comp_date)) lockedRejectIds.add(id);
+    }
+    if (lockedRejectIds.size > 0) {
+      toast({
+        type: 'warning',
+        title: t('approval.noSelection'),
+        message: 'มีบางรายการกำลังถูกดำเนินการในแชท',
       });
       return;
     }
@@ -748,6 +785,12 @@ export default function ApprovalPage() {
                   : TrendingDown;
             const isOverTolerance =
               item.diff_percent !== null && Math.abs(item.diff_percent) > 5;
+            // Cross-check: chat-side stock_approve card uses comp_date
+            // as reference_id. If someone has claimed it there for
+            // this date, lock approve/reject buttons here so the same
+            // task is not double-handled.
+            const claim = chatClaims.get(item.comp_date);
+            const claimedInChat = !!claim;
 
             return (
               <div
@@ -882,51 +925,60 @@ export default function ApprovalPage() {
 
                     {/* Owner Notes & Actions (for explained items) */}
                     {isExplained && (
-                      <div className="mt-3 space-y-2">
-                        <input
-                          type="text"
-                          placeholder={t('approval.ownerNotesPlaceholder')}
-                          value={ownerNotes[item.id] || ''}
-                          onChange={(e) =>
-                            handleNotesChange(item.id, e.target.value)
-                          }
-                          className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:placeholder:text-gray-500"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleApprove(item.id)}
-                            disabled={isProcessing}
-                            className={cn(
-                              'flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white transition-colors',
-                              'hover:bg-emerald-700 active:bg-emerald-800',
-                              'disabled:cursor-not-allowed disabled:opacity-60'
-                            )}
-                          >
-                            {isProcessing ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <CheckCircle className="h-4 w-4" />
-                            )}
-                            {t('approval.approved')}
-                          </button>
-                          <button
-                            onClick={() => handleReject(item.id)}
-                            disabled={isProcessing}
-                            className={cn(
-                              'flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white transition-colors',
-                              'hover:bg-red-700 active:bg-red-800',
-                              'disabled:cursor-not-allowed disabled:opacity-60'
-                            )}
-                          >
-                            {isProcessing ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <XCircle className="h-4 w-4" />
-                            )}
-                            {t('approval.rejected')}
-                          </button>
+                      claimedInChat ? (
+                        <div className="mt-3 flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                          <Hand className="h-3.5 w-3.5 shrink-0" />
+                          <span>
+                            {(claim?.claimedByName || 'พนักงาน')} กำลังดำเนินการในแชท
+                          </span>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="mt-3 space-y-2">
+                          <input
+                            type="text"
+                            placeholder={t('approval.ownerNotesPlaceholder')}
+                            value={ownerNotes[item.id] || ''}
+                            onChange={(e) =>
+                              handleNotesChange(item.id, e.target.value)
+                            }
+                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:placeholder:text-gray-500"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleApprove(item.id)}
+                              disabled={isProcessing}
+                              className={cn(
+                                'flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white transition-colors',
+                                'hover:bg-emerald-700 active:bg-emerald-800',
+                                'disabled:cursor-not-allowed disabled:opacity-60'
+                              )}
+                            >
+                              {isProcessing ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4" />
+                              )}
+                              {t('approval.approved')}
+                            </button>
+                            <button
+                              onClick={() => handleReject(item.id)}
+                              disabled={isProcessing}
+                              className={cn(
+                                'flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white transition-colors',
+                                'hover:bg-red-700 active:bg-red-800',
+                                'disabled:cursor-not-allowed disabled:opacity-60'
+                              )}
+                            >
+                              {isProcessing ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <XCircle className="h-4 w-4" />
+                              )}
+                              {t('approval.rejected')}
+                            </button>
+                          </div>
+                        </div>
+                      )
                     )}
 
                     {/* Owner Notes Display (for processed items) */}

@@ -46,6 +46,8 @@ import { useTranslations } from 'next-intl';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { notifyStaff } from '@/lib/notifications/client';
 import { notifyChatWithdrawalCompleted, notifyChatWithdrawalCompletedAsCard, notifyChatWithdrawalRequest, syncChatActionCardStatus } from '@/lib/chat/bot-client';
+import { useActionCardClaims } from '@/hooks/use-action-card-claims';
+import { Hand } from 'lucide-react';
 
 interface Withdrawal {
   id: string;
@@ -185,6 +187,10 @@ export default function WithdrawalsPage() {
   const t = useTranslations('deposit');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
+  // Live map of who has claimed which deposit_code in chat. Lets us
+  // hide the Process/Reject buttons + show the claimer's name when
+  // someone else is already acting on the row from the chat side.
+  const chatClaims = useActionCardClaims(currentStoreId);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   // Land on the pending tab so the bar staff sees actionable rows
   // first; completed/rejected stays one tap away.
@@ -1130,6 +1136,12 @@ export default function WithdrawalsPage() {
             const isExpanded = isPending || expandedIds.has(group.key);
             const code = depositCodeMap.get(rep.deposit_id);
             const isMulti = group.rows.length > 1;
+            // Cross-check: chat-side withdrawal_claim card uses
+            // deposit_code as reference_id. If someone has it claimed
+            // there, lock the buttons here so the same task is not
+            // double-processed.
+            const claim = code ? chatClaims.get(code) : undefined;
+            const claimedInChat = !!claim;
 
             return (
               <Card key={group.key} padding="none">
@@ -1275,31 +1287,40 @@ export default function WithdrawalsPage() {
 
                     {isPending && (
                       <div className="pt-3">
-                        {user?.role === 'staff' && (
+                        {user?.role === 'staff' && !claimedInChat && (
                           <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
                             {t('withdrawals.staffWaitForBar')}
                           </p>
                         )}
-                        <div className="flex gap-2">
-                          <Button
-                            className="min-h-[44px] flex-1"
-                            variant="danger"
-                            icon={<XCircle className="h-4 w-4" />}
-                            onClick={() => openProcessModal(group, 'reject')}
-                          >
-                            {t('withdrawals.rejectButton')}
-                          </Button>
-                          {user?.role !== 'staff' && (
+                        {claimedInChat ? (
+                          <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                            <Hand className="h-3.5 w-3.5 shrink-0" />
+                            <span>
+                              {(claim?.claimedByName || 'พนักงาน')} กำลังดำเนินการในแชท
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
                             <Button
                               className="min-h-[44px] flex-1"
-                              variant="primary"
-                              icon={<CheckCircle2 className="h-4 w-4" />}
-                              onClick={() => openProcessModal(group, 'complete')}
+                              variant="danger"
+                              icon={<XCircle className="h-4 w-4" />}
+                              onClick={() => openProcessModal(group, 'reject')}
                             >
-                              {t('withdrawals.processButton')}
+                              {t('withdrawals.rejectButton')}
                             </Button>
-                          )}
-                        </div>
+                            {user?.role !== 'staff' && (
+                              <Button
+                                className="min-h-[44px] flex-1"
+                                variant="primary"
+                                icon={<CheckCircle2 className="h-4 w-4" />}
+                                onClick={() => openProcessModal(group, 'complete')}
+                              >
+                                {t('withdrawals.processButton')}
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

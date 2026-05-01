@@ -1198,7 +1198,7 @@
       "statusApproved": "อนุมัติแล้ว",
       "statusRejected": "ปฏิเสธ",
       "claimedInChat": "กำลังดำเนินการในแชท",
-      "claimedByInChat": "{name} กำลังดำเนินการในแชท — ปุ่มถูกล็อกเพื่อกันชน",
+      "claimedByInChat": "{name} กำลังดำเนินการในแชท",
       "someone": "พนักงาน",
       "tableLabel": "โต๊ะ",
       "awaitingDetails": "รอระบุรายละเอียด",

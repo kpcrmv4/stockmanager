@@ -1198,7 +1198,7 @@
       "statusApproved": "Approved",
       "statusRejected": "Rejected",
       "claimedInChat": "Being handled in chat",
-      "claimedByInChat": "{name} is handling this in chat — buttons locked to avoid conflict",
+      "claimedByInChat": "{name} is handling this in chat",
       "someone": "Someone",
       "tableLabel": "Table",
       "awaitingDetails": "Awaiting details",

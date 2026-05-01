@@ -23,6 +23,7 @@ import { sendNotification } from '@/lib/notifications/client';
 import { notifyChatDepositConfirmed, syncChatActionCardStatus } from '@/lib/chat/bot-client';
 import { TableCardGrid, type TableCardItem } from '@/components/deposit/table-card-grid';
 import { useRealtime } from '@/hooks/use-realtime';
+import { useActionCardClaims } from '@/hooks/use-action-card-claims';
 import { cn } from '@/lib/utils/cn';
 import { useTranslations } from 'next-intl';
 import {
@@ -42,6 +43,7 @@ import {
   MapPin,
   LayoutGrid,
   List,
+  Hand,
 } from 'lucide-react';
 import { StockCountBanner } from '@/components/stock/stock-count-banner';
 import { ExpiredDepositsBanner } from '@/components/deposit/expired-deposits-banner';
@@ -156,6 +158,10 @@ export default function BarApprovalPage() {
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
   const t = useTranslations('barApproval');
+  // Live map of who has claimed which deposit_code in chat. Lets us
+  // hide the Confirm/Reject buttons + show the claimer's name when
+  // someone else is already acting on the row from the chat side.
+  const chatClaims = useActionCardClaims(currentStoreId);
 
   const [activeTab, setActiveTab] = useState<TabType>('deposit');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -771,6 +777,17 @@ export default function BarApprovalPage() {
     if (item.type === 'deposit') {
       const deposit = deposits.find((d) => d.id === item.id);
       if (deposit) {
+        // Block opening the confirm modal when the chat side has
+        // already claimed this deposit — same lock as the list view.
+        const claim = chatClaims.get(deposit.deposit_code);
+        if (claim) {
+          toast({
+            type: 'warning',
+            title: t('error'),
+            message: `${claim.claimedByName || 'พนักงาน'} กำลังดำเนินการในแชท`,
+          });
+          return;
+        }
         const initBottles: Record<number, number | ''> = {};
         for (let n = 1; n <= Math.max(1, Math.floor(deposit.quantity)); n++) {
           initBottles[n] = 100;
@@ -780,6 +797,16 @@ export default function BarApprovalPage() {
     } else {
       const withdrawal = withdrawals.find((w) => w.id === item.id);
       if (withdrawal) {
+        const depositCode = withdrawal.deposits?.deposit_code;
+        const claim = depositCode ? chatClaims.get(depositCode) : undefined;
+        if (claim) {
+          toast({
+            type: 'warning',
+            title: t('error'),
+            message: `${claim.claimedByName || 'พนักงาน'} กำลังดำเนินการในแชท`,
+          });
+          return;
+        }
         setCompleteWithdrawal({
           withdrawal,
           actualQty: String(withdrawal.requested_qty ?? 1),
@@ -788,7 +815,7 @@ export default function BarApprovalPage() {
         });
       }
     }
-  }, [deposits, withdrawals]);
+  }, [deposits, withdrawals, chatClaims, t]);
 
   // -----------------------------------------------------------------------
   // Counts
@@ -969,6 +996,11 @@ export default function BarApprovalPage() {
             deposits.map((deposit) => {
               const staffName =
                 deposit.received_by_profile?.display_name || t('unspecifiedStaff');
+              // Cross-check: if someone is already acting on this
+              // deposit through the chat action card, lock the page
+              // buttons so we don't double-claim.
+              const claim = chatClaims.get(deposit.deposit_code);
+              const claimedInChat = !!claim;
 
               return (
                 <Card key={deposit.id} padding="none">
@@ -1074,40 +1106,49 @@ export default function BarApprovalPage() {
                     )}
 
                     {/* Action buttons */}
-                    <div className="flex gap-2">
-                      <Button
-                        className="min-h-[44px] flex-1"
-                        variant="primary"
-                        icon={<CheckCircle className="h-4 w-4" />}
-                        onClick={() => {
-                          const initBottles: Record<number, number | ''> = {};
-                          for (let n = 1; n <= Math.max(1, Math.floor(deposit.quantity)); n++) {
-                            initBottles[n] = 100;
+                    {claimedInChat ? (
+                      <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                        <Hand className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          {(claim?.claimedByName || 'พนักงาน')} กำลังดำเนินการในแชท
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button
+                          className="min-h-[44px] flex-1"
+                          variant="primary"
+                          icon={<CheckCircle className="h-4 w-4" />}
+                          onClick={() => {
+                            const initBottles: Record<number, number | ''> = {};
+                            for (let n = 1; n <= Math.max(1, Math.floor(deposit.quantity)); n++) {
+                              initBottles[n] = 100;
+                            }
+                            setConfirmDeposit({
+                              deposit,
+                              photoUrl: null,
+                              notes: '',
+                              bottlePercents: initBottles,
+                            });
+                          }}
+                        >
+                          {t('confirmReceive')}
+                        </Button>
+                        <Button
+                          className="min-h-[44px] flex-1"
+                          variant="danger"
+                          icon={<XCircle className="h-4 w-4" />}
+                          onClick={() =>
+                            setRejectDeposit({
+                              deposit,
+                              reason: '',
+                            })
                           }
-                          setConfirmDeposit({
-                            deposit,
-                            photoUrl: null,
-                            notes: '',
-                            bottlePercents: initBottles,
-                          });
-                        }}
-                      >
-                        {t('confirmReceive')}
-                      </Button>
-                      <Button
-                        className="min-h-[44px] flex-1"
-                        variant="danger"
-                        icon={<XCircle className="h-4 w-4" />}
-                        onClick={() =>
-                          setRejectDeposit({
-                            deposit,
-                            reason: '',
-                          })
-                        }
-                      >
-                        {t('rejectBtn')}
-                      </Button>
-                    </div>
+                        >
+                          {t('rejectBtn')}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </Card>
               );
@@ -1130,6 +1171,11 @@ export default function BarApprovalPage() {
               const depositCode = withdrawal.deposits?.deposit_code;
               const statusVariant: 'warning' | 'info' =
                 withdrawal.status === 'pending' ? 'warning' : 'info';
+              // Cross-check: chat-side withdrawal_claim card uses
+              // deposit_code as reference_id. If someone has it claimed
+              // there, lock the buttons here.
+              const wClaim = depositCode ? chatClaims.get(depositCode) : undefined;
+              const wClaimedInChat = !!wClaim;
 
               return (
                 <Card key={withdrawal.id} padding="none">
@@ -1182,36 +1228,45 @@ export default function BarApprovalPage() {
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex gap-2">
-                      <Button
-                        className="min-h-[44px] flex-1"
-                        variant="primary"
-                        icon={<CheckCircle className="h-4 w-4" />}
-                        onClick={() =>
-                          setCompleteWithdrawal({
-                            withdrawal,
-                            actualQty: String(withdrawal.requested_qty ?? 1),
-                            photoUrl: null,
-                            notes: '',
-                          })
-                        }
-                      >
-                        {t('processBtn')}
-                      </Button>
-                      <Button
-                        className="min-h-[44px] flex-1"
-                        variant="danger"
-                        icon={<XCircle className="h-4 w-4" />}
-                        onClick={() =>
-                          setRejectWithdrawal({
-                            withdrawal,
-                            reason: '',
-                          })
-                        }
-                      >
-                        {t('rejectBtn')}
-                      </Button>
-                    </div>
+                    {wClaimedInChat ? (
+                      <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                        <Hand className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          {(wClaim?.claimedByName || 'พนักงาน')} กำลังดำเนินการในแชท
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button
+                          className="min-h-[44px] flex-1"
+                          variant="primary"
+                          icon={<CheckCircle className="h-4 w-4" />}
+                          onClick={() =>
+                            setCompleteWithdrawal({
+                              withdrawal,
+                              actualQty: String(withdrawal.requested_qty ?? 1),
+                              photoUrl: null,
+                              notes: '',
+                            })
+                          }
+                        >
+                          {t('processBtn')}
+                        </Button>
+                        <Button
+                          className="min-h-[44px] flex-1"
+                          variant="danger"
+                          icon={<XCircle className="h-4 w-4" />}
+                          onClick={() =>
+                            setRejectWithdrawal({
+                              withdrawal,
+                              reason: '',
+                            })
+                          }
+                        >
+                          {t('rejectBtn')}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </Card>
               );

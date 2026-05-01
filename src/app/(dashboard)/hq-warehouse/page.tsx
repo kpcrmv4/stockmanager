@@ -21,12 +21,14 @@ import {
   Image as ImageIcon,
   LayoutGrid,
   List,
+  Hand,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils/cn';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/auth-store';
 import { useRealtime } from '@/hooks/use-realtime';
+import { useActionCardClaims } from '@/hooks/use-action-card-claims';
 import { formatThaiDateTime } from '@/lib/utils/format';
 import { todayBangkok, startOfTodayBangkokISO, daysAgoBangkokISO } from '@/lib/utils/date';
 import { PhotoUpload } from '@/components/ui/photo-upload';
@@ -185,6 +187,12 @@ export default function HqWarehousePage() {
     () => centralStores.map((s) => s.id),
     [centralStores]
   );
+  // Live map of who has claimed which transfer_code in chat. Transfer
+  // cards live in the central store's chat room (the receiving HQ
+  // chat). When there are multiple central stores we subscribe to the
+  // first — typical setups have exactly one HQ. The hook handles the
+  // transfer_code → reference_id fallback internally.
+  const chatClaims = useActionCardClaims(centralStoreIds[0] || null);
 
   // Non-central stores for branch summary
   const branchStores = useMemo(
@@ -1191,19 +1199,47 @@ export default function HqWarehousePage() {
                         </button>
 
                         {/* Batch-level receive all button */}
-                        <div className="border-t border-yellow-100 bg-yellow-50/50 px-4 py-2 dark:border-yellow-900/30 dark:bg-yellow-900/10">
-                          <button
-                            onClick={() => openBatchConfirmModal(batch)}
-                            className="w-full rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 py-2.5 text-sm font-bold text-white shadow-md transition hover:from-green-600 hover:to-emerald-700"
-                          >
-                            <Check className="mr-1 inline h-4 w-4" /> {t('receiveAll', { count: batch.items.length })}
-                          </button>
-                        </div>
+                        {(() => {
+                          // Cross-check: chat-side transfer_receive card
+                          // is keyed by transfer_code (the batch). If
+                          // someone has it claimed there, lock the
+                          // batch-level button so HQ users on this
+                          // page don't double-receive.
+                          const batchClaim = chatClaims.get(batch.transfer_code);
+                          if (batchClaim) {
+                            return (
+                              <div className="border-t border-yellow-100 bg-yellow-50/50 px-4 py-2 dark:border-yellow-900/30 dark:bg-yellow-900/10">
+                                <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                                  <Hand className="h-3.5 w-3.5 shrink-0" />
+                                  <span>
+                                    {(batchClaim.claimedByName || 'พนักงาน')} กำลังดำเนินการในแชท
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="border-t border-yellow-100 bg-yellow-50/50 px-4 py-2 dark:border-yellow-900/30 dark:bg-yellow-900/10">
+                              <button
+                                onClick={() => openBatchConfirmModal(batch)}
+                                className="w-full rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 py-2.5 text-sm font-bold text-white shadow-md transition hover:from-green-600 hover:to-emerald-700"
+                              >
+                                <Check className="mr-1 inline h-4 w-4" /> {t('receiveAll', { count: batch.items.length })}
+                              </button>
+                            </div>
+                          );
+                        })()}
 
                         {/* Batch Transfer Cards */}
                         {isExpanded && (
                           <div className="space-y-3 p-3">
-                            {batch.items.map((transfer) => (
+                            {batch.items.map((transfer) => {
+                              // Per-item button gate uses the same
+                              // batch-level claim — every item in the
+                              // batch shares the same chat card.
+                              const itemClaim = chatClaims.get(transfer.transfer_code);
+                              const itemClaimedInChat = !!itemClaim;
+                              return (
                               <div key={transfer.id} className="rounded-xl border-l-4 border-yellow-500 bg-gray-50 dark:bg-gray-800">
                                 <div className="p-4">
                                   <div className="mb-3 flex items-start justify-between">
@@ -1238,7 +1274,25 @@ export default function HqWarehousePage() {
                                     </div>
                                   )}
 
-                                  {/* Actions */}
+                                  {/* Actions — keep "view detail" but
+                                      lock receive/reject when the
+                                      chat card is being handled. */}
+                                  {itemClaimedInChat ? (
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => { setSelectedTransfer(transfer); setShowDetailModal(true); }}
+                                        className="flex-1 rounded-lg bg-blue-100 py-2.5 text-sm font-medium text-blue-700 transition hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400"
+                                      >
+                                        <Eye className="mr-1 inline h-4 w-4" /> {t('viewDetail')}
+                                      </button>
+                                      <div className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                                        <Hand className="h-3.5 w-3.5 shrink-0" />
+                                        <span className="truncate">
+                                          {(itemClaim?.claimedByName || 'พนักงาน')} กำลังดำเนินการในแชท
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ) : (
                                   <div className="flex gap-2">
                                     <button
                                       onClick={() => { setSelectedTransfer(transfer); setShowDetailModal(true); }}
@@ -1259,6 +1313,7 @@ export default function HqWarehousePage() {
                                       <X className="h-4 w-4" />
                                     </button>
                                   </div>
+                                  )}
                                 </div>
                               </div>
                             ))}
