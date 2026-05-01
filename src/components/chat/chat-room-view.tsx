@@ -332,6 +332,28 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
     }).length;
   }, [messages, user?.role]);
 
+  // Count my in-progress claims for the "งานของฉัน" tab badge.
+  // Matches the "กำลังทำ" sub-tab on MyTasksBoard: claimed by me,
+  // status='claimed', not yet completed and not timed-out. We don't
+  // count completed cards since those don't need attention anymore.
+  const myTasksCount = useMemo(() => {
+    if (!user?.id) return 0;
+    const now = Date.now();
+    return messages.filter((m) => {
+      if (m.type !== 'action_card' || !m.metadata) return false;
+      const meta = m.metadata as import('@/types/chat').ActionCardMetadata;
+      if (meta.claimed_by !== user.id) return false;
+      if (meta.status !== 'claimed') return false;
+      // Drop timed-out claims — they reflow into "รอรับ" and aren't
+      // really in-progress anymore from this user's perspective.
+      if (meta.claimed_at && meta.timeout_minutes && meta.timeout_minutes > 0) {
+        const deadline = new Date(meta.claimed_at).getTime() + meta.timeout_minutes * 60 * 1000;
+        if (now > deadline) return false;
+      }
+      return true;
+    }).length;
+  }, [messages, user?.id]);
+
   // Filter messages by date for chat tab
   const filteredMessages = useMemo(() => {
     if (chatDateFilter === 'all') return messages;
@@ -456,7 +478,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
             {([
               { key: 'chat' as const, icon: MessageSquare, label: 'แชท' },
               { key: 'tasks' as const, icon: ClipboardList, label: 'รายการงาน', badge: pendingActionCount },
-              { key: 'my-tasks' as const, icon: UserCircle, label: 'งานของฉัน' },
+              { key: 'my-tasks' as const, icon: UserCircle, label: 'งานของฉัน', badge: myTasksCount },
             ]).map((tab) => (
               <button
                 key={tab.key}
