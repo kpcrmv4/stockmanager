@@ -30,9 +30,17 @@ export function useStore() {
       setStores(storeList);
 
       // Wait for persist hydration before auto-selecting; otherwise the
-      // persisted choice gets overwritten with stores[0].
-      if (_hasHydrated && storeList.length > 0 && !currentStoreId) {
-        setCurrentStoreId(storeList[0].id);
+      // persisted choice gets overwritten with stores[0]. Also reset when
+      // the persisted id is no longer in the user's allowed stores (e.g.
+      // they signed out and signed back in as a single-store staff that
+      // doesn't have access to the previously-selected branch).
+      if (_hasHydrated && storeList.length > 0) {
+        const stillValid =
+          currentStoreId !== null &&
+          storeList.some((s) => s.id === currentStoreId);
+        if (!stillValid) {
+          setCurrentStoreId(storeList[0].id);
+        }
       }
 
       setIsLoading(false);

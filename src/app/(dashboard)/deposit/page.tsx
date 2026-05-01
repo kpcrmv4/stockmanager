@@ -146,7 +146,8 @@ export default function DepositPage() {
   // Date range filter (default: กะทำงานปัจจุบัน based on working hours 12:00-06:00)
   const [dateFrom, setDateFrom] = useState(() => currentShiftRange().from);
   const [dateTo, setDateTo] = useState(() => currentShiftRange().to);
-  const [dateFilterEnabled, setDateFilterEnabled] = useState(true);
+  // Default off so historical/imported data is visible without first toggling
+  const [dateFilterEnabled, setDateFilterEnabled] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<Deposit | null>(null);
 
@@ -200,7 +201,6 @@ export default function DepositPage() {
       setActiveTab('in_store');
     }
   }, [searchParams]);
-
 
   // Handle deep-link to a single deposit: /deposit?id=<uuid>.
   // Used by inbox + notifications. Fetches the row directly so it works
