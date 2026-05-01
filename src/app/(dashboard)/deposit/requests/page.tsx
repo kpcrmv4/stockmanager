@@ -26,11 +26,13 @@ import {
   Clock,
   MessageSquare,
   ArrowLeft,
+  Hand,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/audit';
 import { syncChatActionCardStatus } from '@/lib/chat/bot-client';
+import { useActionCardClaims } from '@/hooks/use-action-card-claims';
 import { DepositForm } from '../_components/deposit-form';
 
 /**
@@ -76,6 +78,10 @@ export default function DepositRequestsPage() {
   const t = useTranslations('deposit');
   const { user } = useAuthStore();
   const { currentStoreId } = useAppStore();
+  // Live map of who has claimed which deposit_code in chat. Lets us
+  // hide the Approve/Reject buttons + show the claimer's name when
+  // someone else is already acting on the row from the chat side.
+  const chatClaims = useActionCardClaims(currentStoreId);
   const [requests, setRequests] = useState<DepositRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -307,6 +313,12 @@ export default function DepositRequestsPage() {
               <div className="space-y-3">
                 {pendingRequests.map((request) => {
                   const needsDetails = !request.product_name || request.quantity == null || request.quantity <= 0;
+                  // Cross-check: if someone is already acting on this
+                  // deposit through the chat action card, lock the page
+                  // buttons so we don't double-claim. The hook keeps
+                  // this map live via realtime on chat_messages.
+                  const claim = chatClaims.get(request.deposit_code);
+                  const claimedInChat = !!claim;
                   return (
                   <Card key={request.id} padding="none">
                     <div className="p-4 sm:p-5">
@@ -324,7 +336,9 @@ export default function DepositRequestsPage() {
                             </p>
                           )}
                         </div>
-                        <Badge variant="warning">{t('requests.pendingReview')}</Badge>
+                        <Badge variant={claimedInChat ? 'info' : 'warning'}>
+                          {claimedInChat ? t('requests.claimedInChat') : t('requests.pendingReview')}
+                        </Badge>
                       </div>
 
                       <div className="mb-4 space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
@@ -376,24 +390,35 @@ export default function DepositRequestsPage() {
                         )}
                       </div>
 
-                      <div className="flex gap-2">
-                        <Button
-                          className="min-h-[44px] flex-1"
-                          variant="primary"
-                          icon={<CheckCircle2 className="h-4 w-4" />}
-                          onClick={() => openApprove(request)}
-                        >
-                          {t('requests.approve')}
-                        </Button>
-                        <Button
-                          className="min-h-[44px] flex-1"
-                          variant="danger"
-                          icon={<XCircle className="h-4 w-4" />}
-                          onClick={() => openReject(request)}
-                        >
-                          {t('requests.reject')}
-                        </Button>
-                      </div>
+                      {claimedInChat ? (
+                        <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                          <Hand className="h-3.5 w-3.5 shrink-0" />
+                          <span>
+                            {t('requests.claimedByInChat', {
+                              name: claim?.claimedByName || t('requests.someone'),
+                            })}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button
+                            className="min-h-[44px] flex-1"
+                            variant="primary"
+                            icon={<CheckCircle2 className="h-4 w-4" />}
+                            onClick={() => openApprove(request)}
+                          >
+                            {t('requests.approve')}
+                          </Button>
+                          <Button
+                            className="min-h-[44px] flex-1"
+                            variant="danger"
+                            icon={<XCircle className="h-4 w-4" />}
+                            onClick={() => openReject(request)}
+                          >
+                            {t('requests.reject')}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </Card>
                   );
