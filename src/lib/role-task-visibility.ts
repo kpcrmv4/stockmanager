@@ -51,15 +51,17 @@ export function isActionTypeVisibleToRole(
 
   // Staff special-case for deposit_claim: customer-LIFF deposits stay
   // pending until staff "receives" them (fills product + qty + photo),
-  // and that step belongs to staff. After staff submits, the card
-  // flips to pending_bar, which is bar's job — staff doesn't need to
-  // see it anymore. So:
-  //   - filter-chip visibility (status undefined): yes, staff sees the
-  //     "ฝากเหล้า" filter so they can find their queue
-  //   - per-card visibility (status passed): only the pending row
+  // and that step belongs to staff. The lifecycle is:
+  //   pending  → staff claims it
+  //   claimed  → staff is filling the inline form
+  //   (submit) → flips to pending_bar (bar's task, hide from staff)
+  //   completed → bar verified
+  // So staff sees every status EXCEPT pending_bar. The filter-chip
+  // call (status undefined) keeps "ฝากเหล้า" visible so staff can
+  // narrow down the list.
   if (role === 'staff' && actionType === 'deposit_claim') {
     if (status === undefined || status === null) return true;
-    return status === 'pending';
+    return status !== 'pending_bar';
   }
 
   const actors = ACTION_TYPE_ACTORS[actionType as ActionCardType];
