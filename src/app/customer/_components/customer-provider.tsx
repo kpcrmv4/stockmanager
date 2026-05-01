@@ -50,7 +50,25 @@ export function useCustomerAuth() {
 export function CustomerProvider({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
-  const storeCode = searchParams.get('store');
+
+  // LIFF redirects `liff.line.me/{id}?store=BCR` to the endpoint URL with the
+  // original query string folded into a single `liff.state` param (URL-encoded,
+  // typically starts with `?`). The LIFF SDK rewrites the URL after init, but
+  // we need the store code BEFORE init so we can fetch the right LIFF id from
+  // the DB. Extract it manually here.
+  let storeCode = searchParams.get('store');
+  if (!storeCode) {
+    const liffState = searchParams.get('liff.state');
+    if (liffState) {
+      try {
+        const qs = liffState.startsWith('?') ? liffState.slice(1) : liffState;
+        storeCode = new URLSearchParams(qs).get('store');
+      } catch {
+        /* ignore — leave storeCode null */
+      }
+    }
+  }
+
   const t = useTranslations('customer.provider');
 
   const [auth, setAuth] = useState<CustomerAuth>({
