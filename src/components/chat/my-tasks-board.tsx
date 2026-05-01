@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import {
   Hand,
   CheckCircle,
+  XCircle,
   Clock,
   Inbox,
   Wine,
@@ -27,7 +28,19 @@ interface MyTasksBoardProps {
   currentUserRole?: string;
 }
 
-type SubTab = 'claimed' | 'completed';
+type SubTab = 'claimed' | 'completed' | 'cancelled';
+
+// A row stored as status='completed' but with summary.rejected=true
+// is the legacy way the chat reject path stamped a cancellation.
+// Treat it as cancelled here so it lands in the right pile.
+function isCancelledMeta(meta: Record<string, unknown>): boolean {
+  if (meta.status === 'cancelled' || meta.status === 'rejected') return true;
+  if (meta.status === 'completed') {
+    const summary = meta.summary as Record<string, unknown> | undefined;
+    if (summary?.rejected) return true;
+  }
+  return false;
+}
 
 const TYPE_CONFIG: Record<string, { icon: typeof Wine; label: string }> = {
   deposit_claim: { icon: Wine, label: 'ฝากเหล้า' },
@@ -130,11 +143,24 @@ export function MyTasksBoard({ roomId, storeId, currentUserId, currentUserName, 
   const completedCards = useMemo(() => {
     return myCards.filter((msg) => {
       const meta = msg.metadata as unknown as Record<string, unknown>;
+      if (isCancelledMeta(meta)) return false;
       return meta.status === 'completed' || meta.status === 'received';
     });
   }, [myCards]);
 
-  const displayCards = subTab === 'claimed' ? claimedCards : completedCards;
+  const cancelledCards = useMemo(() => {
+    return myCards.filter((msg) => {
+      const meta = msg.metadata as unknown as Record<string, unknown>;
+      return isCancelledMeta(meta);
+    });
+  }, [myCards]);
+
+  const displayCards =
+    subTab === 'claimed'
+      ? claimedCards
+      : subTab === 'completed'
+      ? completedCards
+      : cancelledCards;
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F0EFF5] dark:bg-gray-900">
@@ -182,6 +208,23 @@ export function MyTasksBoard({ roomId, storeId, currentUserId, currentUserName, 
             </span>
           )}
         </button>
+        <button
+          onClick={() => setSubTab('cancelled')}
+          className={cn(
+            'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors',
+            subTab === 'cancelled'
+              ? 'border-b-2 border-red-500 text-red-600 dark:text-red-400'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          )}
+        >
+          <XCircle className="h-3.5 w-3.5" />
+          ยกเลิก
+          {cancelledCards.length > 0 && (
+            <span className="min-w-[18px] rounded-full bg-red-500 px-1 text-center text-[10px] font-bold text-white">
+              {cancelledCards.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Cards list */}
@@ -192,7 +235,9 @@ export function MyTasksBoard({ roomId, storeId, currentUserId, currentUserName, 
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
               {subTab === 'claimed'
                 ? 'ไม่มีงานที่กำลังทำ'
-                : 'ยังไม่มีงานที่เสร็จในกะนี้'}
+                : subTab === 'completed'
+                ? 'ยังไม่มีงานที่เสร็จในกะนี้'
+                : 'ไม่มีงานที่ถูกยกเลิกในกะนี้'}
             </p>
           </div>
         ) : (
@@ -226,10 +271,10 @@ export function MyTasksBoard({ roomId, storeId, currentUserId, currentUserName, 
         )}
 
         {/* Summary */}
-        {(claimedCards.length > 0 || completedCards.length > 0) && (
+        {(claimedCards.length > 0 || completedCards.length > 0 || cancelledCards.length > 0) && (
           <div className="mt-4 rounded-xl bg-white p-3 shadow-sm dark:bg-gray-800">
             <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">สรุปกะนี้</p>
-            <div className="mt-2 flex items-center gap-4">
+            <div className="mt-2 flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-1.5">
                 <Hand className="h-3.5 w-3.5 text-blue-500" />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{claimedCards.length}</span>
@@ -239,6 +284,11 @@ export function MyTasksBoard({ roomId, storeId, currentUserId, currentUserName, 
                 <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{completedCards.length}</span>
                 <span className="text-xs text-gray-500">เสร็จแล้ว</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <XCircle className="h-3.5 w-3.5 text-red-500" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{cancelledCards.length}</span>
+                <span className="text-xs text-gray-500">ยกเลิก</span>
               </div>
             </div>
           </div>

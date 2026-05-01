@@ -117,13 +117,14 @@ const statusVariantMap: Record<string, 'default' | 'success' | 'warning' | 'dang
 
 // 'new_request' is a UI tab that maps to status='pending_staff' (LIFF customer
 // requests waiting for staff to physically receive the bottle).
-const DEPOSIT_TAB_IDS = ['all', 'new_request', 'in_store', 'pending_confirm', 'expired', 'transfer_pending', 'vip'] as const;
+const DEPOSIT_TAB_IDS = ['all', 'new_request', 'in_store', 'pending_confirm', 'expired', 'cancelled', 'transfer_pending', 'vip'] as const;
 const DEPOSIT_TAB_KEYS: Record<string, string> = {
   all: 'tabs.all',
   new_request: 'tabs.newRequest',
   in_store: 'tabs.inStore',
   pending_confirm: 'tabs.pendingConfirm',
   expired: 'tabs.expired',
+  cancelled: 'tabs.cancelled',
   transfer_pending: 'tabs.transferPending',
   vip: 'tabs.vip',
 };
@@ -187,6 +188,7 @@ export default function DepositPage() {
     pendingCount: 0,
     newRequestCount: 0,
     expiredCount: 0,
+    cancelledCount: 0,
     vipCount: 0,
     transferPendingCount: 0,
     pendingWithdrawalCount: 0,
@@ -292,6 +294,7 @@ export default function DepositPage() {
       { count: pendingCount },
       { count: newRequestCount },
       { count: expiredCount },
+      { count: cancelledCount },
       { count: vipCount },
       { count: transferPendingCount },
       { count: pendingWithdrawalCount },
@@ -300,6 +303,7 @@ export default function DepositPage() {
       withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'pending_confirm')),
       withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'pending_staff')),
       withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'expired')),
+      withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'cancelled')),
       withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('is_vip', true)),
       withDateFilter(supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('store_id', storeId).eq('status', 'transfer_pending')),
       withDateFilter(supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('store_id', storeId).in('status', ['pending', 'approved'])),
@@ -310,6 +314,7 @@ export default function DepositPage() {
       pendingCount: pendingCount || 0,
       newRequestCount: newRequestCount || 0,
       expiredCount: expiredCount || 0,
+      cancelledCount: cancelledCount || 0,
       vipCount: vipCount || 0,
       transferPendingCount: transferPendingCount || 0,
       pendingWithdrawalCount: pendingWithdrawalCount || 0,
@@ -476,7 +481,7 @@ export default function DepositPage() {
     setIsLoadingMore(true);
     const supabase = createClient();
 
-    const inactiveStatuses = ['withdrawn', 'transferred_out'];
+    const inactiveStatuses = ['withdrawn', 'transferred_out', 'cancelled'];
     const { data, error } = await supabase
       .from('deposits')
       .select('*')
@@ -744,6 +749,7 @@ export default function DepositPage() {
   useEffect(() => {
     const needsInactive =
       activeTab === 'all' ||
+      activeTab === 'cancelled' ||
       (activeTab === 'vip' && vipStatusFilter === 'retired');
     if (needsInactive && hasMore && loadedInactiveCount === 0 && !isLoadingMore) {
       loadInactiveDeposits(0);
@@ -838,6 +844,7 @@ export default function DepositPage() {
     if (tab.id === 'in_store') return { ...tab, count: stats.activeCount };
     if (tab.id === 'pending_confirm') return { ...tab, count: stats.pendingCount };
     if (tab.id === 'expired') return { ...tab, count: stats.expiredCount };
+    if (tab.id === 'cancelled') return { ...tab, count: stats.cancelledCount };
     if (tab.id === 'transfer_pending') return { ...tab, count: stats.transferPendingCount };
     if (tab.id === 'vip') return { ...tab, count: stats.vipCount };
     return tab;

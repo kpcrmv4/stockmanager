@@ -1106,6 +1106,7 @@
       "inStore": "In Store",
       "pendingConfirm": "Pending Confirm",
       "expired": "Expired",
+      "cancelled": "Cancelled",
       "transferPending": "Pending HQ Transfer",
       "vip": "VIP"
     },

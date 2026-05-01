@@ -933,10 +933,11 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
     setLoading(true);
     try {
       const supabase = createClient();
+      const cancelStamp = new Date().toISOString();
       const newMeta: ActionCardMetadata = {
         ...meta,
         status: 'completed',
-        completed_at: new Date().toISOString(),
+        completed_at: cancelStamp,
         claimed_by: currentUserId,
         claimed_by_name: currentUserName,
         completion_notes: 'ยกเลิกรายการ',
@@ -944,6 +945,9 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           ...meta.summary,
           rejected: true,
           rejected_by: currentUserName,
+          cancelled_at: cancelStamp,
+          cancelled_by_role: 'staff',
+          cancelled_by_name: currentUserName,
         },
       };
 
@@ -1024,8 +1028,40 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           // Non-blocking
         }
       } else if (meta.action_type === 'deposit_claim' && meta.reference_table === 'deposits' && meta.reference_id) {
-        // Reject deposit → restore to pending_confirm or mark accordingly
-        // (ยกเลิกรายการฝากเหล้า — doesn't delete, just cancels the action card)
+        // Cancel a deposit request from chat: mark the source deposit
+        // row as cancelled and push a Flex back to the customer so they
+        // see the rejection in LIFF (mirrors the requests-page reject).
+        try {
+          const { data: deposit } = await supabase
+            .from('deposits')
+            .select('id, status, notes')
+            .eq('deposit_code', meta.reference_id)
+            .single();
+
+          if (deposit && deposit.status !== 'cancelled') {
+            await supabase
+              .from('deposits')
+              .update({
+                status: 'cancelled',
+                notes: deposit.notes
+                  ? `${deposit.notes} | ยกเลิกจากแชทโดย ${currentUserName}`
+                  : `ยกเลิกจากแชทโดย ${currentUserName}`,
+              })
+              .eq('id', deposit.id);
+
+            fetch('/api/line/notify-deposit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'rejected',
+                deposit_id: deposit.id,
+                reason: `Staff ยกเลิกคำขอฝาก (โดย ${currentUserName})`,
+              }),
+            }).catch(() => {});
+          }
+        } catch {
+          // Non-blocking — chat card already reflects the cancel.
+        }
       }
 
       setShowRejectConfirm(false);

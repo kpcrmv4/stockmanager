@@ -9,6 +9,7 @@ import {
   Truck,
   Clock,
   CheckCircle,
+  XCircle,
   Hand,
   AlertTriangle,
   Filter,
@@ -32,7 +33,7 @@ interface TransactionBoardProps {
   currentUserRole?: string;
 }
 
-type FilterStatus = 'all' | 'active' | 'pending' | 'pending_bar' | 'claimed' | 'completed';
+type FilterStatus = 'all' | 'active' | 'pending' | 'pending_bar' | 'claimed' | 'completed' | 'cancelled';
 
 /**
  * Normalize status across ActionCard and Transfer metadata into
@@ -86,6 +87,7 @@ const STATUS_CONFIG: Record<string, { icon: typeof Clock; label: string; color: 
   pending: { icon: Clock, label: 'รอรับ', color: 'text-amber-500' },
   claimed: { icon: Hand, label: 'กำลังทำ', color: 'text-blue-500' },
   completed: { icon: CheckCircle, label: 'เสร็จแล้ว', color: 'text-emerald-500' },
+  cancelled: { icon: XCircle, label: 'ยกเลิก', color: 'text-red-500' },
   expired: { icon: AlertTriangle, label: 'หมดเวลา', color: 'text-red-500' },
 };
 
@@ -144,10 +146,10 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
         } else if (filterStatus === 'pending_bar') {
           if (normalized !== 'pending_bar') return false;
         } else if (filterStatus === 'completed') {
-          // The "เสร็จ" pill bundles both successful completions and
-          // terminal cancellations — both are "off the to-do list" from
-          // the user's perspective, even if they read very differently.
-          if (normalized !== 'completed' && normalized !== 'cancelled') return false;
+          // Only true completions — cancelled has its own pill now.
+          if (normalized !== 'completed') return false;
+        } else if (filterStatus === 'cancelled') {
+          if (normalized !== 'cancelled') return false;
         } else {
           if (normalized !== filterStatus) return false;
         }
@@ -192,7 +194,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
 
   // Stats (normalized across all card types)
   const stats = useMemo(() => {
-    const s = { pending: 0, pending_bar: 0, claimed: 0, completed: 0, total: 0 };
+    const s = { pending: 0, pending_bar: 0, claimed: 0, completed: 0, cancelled: 0, total: 0 };
     for (const msg of actionCards) {
       const normalized = getNormalizedStatus(msg.metadata as unknown as Record<string, unknown>);
       s.total++;
@@ -200,6 +202,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
       else if (normalized === 'pending_bar') s.pending_bar++;
       else if (normalized === 'claimed') s.claimed++;
       else if (normalized === 'completed') s.completed++;
+      else if (normalized === 'cancelled') s.cancelled++;
     }
     return s;
   }, [actionCards]);
@@ -223,6 +226,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
         <StatBadge icon={Clock} label="รอรับ" count={stats.pending + stats.pending_bar} color="amber" active={filterStatus === 'pending'} onClick={() => setFilterStatus(filterStatus === 'pending' ? 'active' : 'pending')} />
         <StatBadge icon={Hand} label="กำลังทำ" count={stats.claimed} color="blue" active={filterStatus === 'claimed'} onClick={() => setFilterStatus(filterStatus === 'claimed' ? 'active' : 'claimed')} />
         <StatBadge icon={CheckCircle} label="เสร็จ" count={stats.completed} color="emerald" active={filterStatus === 'completed'} onClick={() => setFilterStatus(filterStatus === 'completed' ? 'active' : 'completed')} />
+        <StatBadge icon={XCircle} label="ยกเลิก" count={stats.cancelled} color="red" active={filterStatus === 'cancelled'} onClick={() => setFilterStatus(filterStatus === 'cancelled' ? 'active' : 'cancelled')} />
         <div className="ml-auto" />
         <button
           type="button"

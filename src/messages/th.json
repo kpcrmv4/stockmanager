@@ -1106,6 +1106,7 @@
       "inStore": "ในร้าน",
       "pendingConfirm": "รอยืนยัน",
       "expired": "หมดอายุ",
+      "cancelled": "ยกเลิก",
       "transferPending": "รอนำส่ง HQ",
       "vip": "VIP"
     },

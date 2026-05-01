@@ -258,6 +258,16 @@
   color: var(--accent-light);
   border-color: rgba(124, 58, 237, 0.3);
 }
+.customer-status-badge.badge-red {
+  background: rgba(220, 38, 38, 0.18);
+  color: #FCA5A5;
+  border-color: rgba(220, 38, 38, 0.4);
+}
+.customer-status-badge.badge-amber {
+  background: rgba(245, 158, 11, 0.18);
+  color: #FCD34D;
+  border-color: rgba(245, 158, 11, 0.4);
+}
 .customer-pending-badge {
   background: linear-gradient(135deg, #F8D794 0%, #EFEACD 100%);
   color: #64090C;

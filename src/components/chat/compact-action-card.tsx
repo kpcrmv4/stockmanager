@@ -56,8 +56,17 @@ const STATUS_ICON: Record<string, { icon: typeof Clock; className: string; label
  */
 function extractCardInfo(meta: Record<string, unknown>) {
   const actionType = (meta.action_type as string) || 'generic';
-  const status = (meta.status as string) || 'pending';
+  let status = (meta.status as string) || 'pending';
   const priority = (meta.priority as string) || 'normal';
+
+  // A card that finished via the "ยกเลิกแล้ว" path is stored as
+  // status='completed' with summary.rejected=true (legacy completion
+  // form). Treat it as cancelled in the chat list so the row reads
+  // "ยกเลิก HH:MM" instead of "เสร็จ HH:MM".
+  const summaryMaybe = meta.summary as Record<string, unknown> | undefined;
+  if (status === 'completed' && summaryMaybe?.rejected) {
+    status = 'cancelled';
+  }
 
   // Transfer card
   if (actionType === 'transfer_receive') {
@@ -135,7 +144,31 @@ export const CompactActionCard = memo(function CompactActionCard({ message }: Co
   const statusInfo = STATUS_ICON[info.status] || STATUS_ICON.pending;
   const StatusIcon = statusInfo.icon;
 
-  const time = new Date(message.created_at).toLocaleTimeString('th-TH', {
+  // Show the time of the last status transition, not the row's
+  // creation time. Otherwise a card cancelled an hour after it came in
+  // displays the deposit-creation timestamp and looks like the cancel
+  // happened in the past.
+  const eventAtRaw = (() => {
+    const m = meta as Record<string, unknown>;
+    if (info.status === 'cancelled') {
+      const summary = m.summary as Record<string, unknown> | undefined;
+      const cancelledAt = (summary?.cancelled_at as string | undefined)
+        ?? (m.cancelled_at as string | undefined)
+        ?? (m.completed_at as string | undefined)
+        ?? (m.updated_at as string | undefined);
+      if (cancelledAt) return cancelledAt;
+    }
+    if (info.status === 'completed') {
+      const completedAt = m.completed_at as string | undefined;
+      if (completedAt) return completedAt;
+    }
+    if (info.status === 'claimed') {
+      const claimedAt = m.claimed_at as string | undefined;
+      if (claimedAt) return claimedAt;
+    }
+    return message.created_at;
+  })();
+  const time = new Date(eventAtRaw).toLocaleTimeString('th-TH', {
     hour: '2-digit',
     minute: '2-digit',
   });
