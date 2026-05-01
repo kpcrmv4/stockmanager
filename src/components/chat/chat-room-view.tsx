@@ -326,6 +326,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
       return isActionTypeVisibleToRole(
         meta.action_type as string | undefined,
         user?.role as UserRole | undefined,
+        meta.status as string | undefined,
       );
     }).length;
   }, [messages, user?.role]);

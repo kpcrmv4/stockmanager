@@ -115,6 +115,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
       return isActionTypeVisibleToRole(
         meta.action_type as string,
         currentUserRole as UserRole | undefined,
+        meta.status as string | undefined,
       );
     });
   }, [messages, currentUserRole]);
@@ -226,10 +227,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
         </button>
       </div>
 
-      {/* Type filter chips — only show types the role is scoped to.
-          Owner / manager / accountant / hq see all; staff / bar are
-          narrowed to deposit + withdrawal so the chip row stops
-          listing stock/borrow/transfer they have no role in. */}
+      {/* Type filter chips */}
       <div className="flex items-center gap-1.5 overflow-x-auto px-3 py-2">
         <FilterChip label="ทั้งหมด" active={filterType === 'all'} onClick={() => setFilterType('all')} />
         {Object.entries(TYPE_CONFIG)

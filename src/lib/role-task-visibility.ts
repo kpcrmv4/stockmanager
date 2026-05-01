@@ -43,10 +43,25 @@ const ACTION_TYPE_ACTORS: Record<ActionCardType, readonly UserRole[]> = {
 export function isActionTypeVisibleToRole(
   actionType: string | undefined | null,
   role: UserRole | undefined | null,
+  status?: string | null,
 ): boolean {
   if (!role) return true;
   // Owner sees everything regardless of the actor list.
   if (role === 'owner') return true;
+
+  // Staff special-case for deposit_claim: customer-LIFF deposits stay
+  // pending until staff "receives" them (fills product + qty + photo),
+  // and that step belongs to staff. After staff submits, the card
+  // flips to pending_bar, which is bar's job — staff doesn't need to
+  // see it anymore. So:
+  //   - filter-chip visibility (status undefined): yes, staff sees the
+  //     "ฝากเหล้า" filter so they can find their queue
+  //   - per-card visibility (status passed): only the pending row
+  if (role === 'staff' && actionType === 'deposit_claim') {
+    if (status === undefined || status === null) return true;
+    return status === 'pending';
+  }
+
   const actors = ACTION_TYPE_ACTORS[actionType as ActionCardType];
   // Unknown / generic types fall through to visible — don't accidentally
   // hide future action types we haven't classified yet.
