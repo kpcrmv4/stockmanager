@@ -69,6 +69,8 @@ export function MyBottlesView() {
     tableNumber: string;
   } | null>(null);
   const [tableError, setTableError] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<DepositItem | null>(null);
 
   const getAuthPayload = useCallback(() => {
     if (mode === 'token') {
@@ -204,6 +206,42 @@ export function MyBottlesView() {
   };
 
   /**
+   * Cancel a pending_staff deposit request the customer just submitted via
+   * LIFF. Only allowed before staff has started receiving (status flips to
+   * pending_confirm). Server-side double-checks the state, ownership, and
+   * notifies the branch chat.
+   */
+  const handleCancelRequest = async (deposit: DepositItem) => {
+    setCancellingId(deposit.id);
+    setError(null);
+    try {
+      const auth = getAuthPayload();
+      const res = await fetch('/api/customer/cancel-deposit-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          depositId: deposit.id,
+          token: auth.token || undefined,
+          accessToken: auth.accessToken || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Cancel failed');
+      }
+      // Drop from list — the cancelled row no longer belongs in any active
+      // bucket. A reload would also work but the optimistic remove keeps
+      // the UI snappy on slow networks.
+      setDeposits((prev) => prev.filter((d) => d.id !== deposit.id));
+      setCancelTarget(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('cancelError'));
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  /**
    * Open the withdrawal modal so the customer picks how they'll take
    * the bottles (in-store / take-home), the table number for in-store,
    * and — when there are multiple bottles — which specific ones.
@@ -324,7 +362,10 @@ export function MyBottlesView() {
                     <p className="customer-item-name truncate">
                       {d.productName || t('pendingRequestUnnamed')}
                     </p>
-                    <p className="mt-0.5 text-[10px] text-[rgba(248,215,148,0.55)]">
+                    <span className="customer-item-code mt-1 inline-block">
+                      {d.code}
+                    </span>
+                    <p className="mt-1 text-[10px] text-[rgba(248,215,148,0.55)]">
                       {t('requestSubmittedAt', {
                         time: new Date(d.depositDate).toLocaleTimeString(undefined, {
                           hour: '2-digit',
@@ -364,6 +405,21 @@ export function MyBottlesView() {
                 <p className="mt-2 text-[10px] leading-snug text-[rgba(248,215,148,0.55)]">
                   {t('pendingRequestHint')}
                 </p>
+
+                {/* Self-cancel — only valid while staff hasn't started receiving */}
+                <button
+                  type="button"
+                  onClick={() => setCancelTarget(d)}
+                  disabled={cancellingId === d.id}
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[rgba(248,215,148,0.25)] bg-transparent px-3 py-2 text-[11px] font-semibold text-[rgba(248,215,148,0.85)] transition hover:bg-[rgba(248,215,148,0.08)] disabled:opacity-50"
+                >
+                  {cancellingId === d.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <X className="h-3 w-3" />
+                  )}
+                  <span>{t('cancelRequestButton')}</span>
+                </button>
               </div>
             ))}
           </div>
@@ -614,6 +670,49 @@ export function MyBottlesView() {
           take-home), the table number for in-store, and which bottle(s)
           to withdraw if there are multiple. Submitting fires one
           withdrawal row per picked bottle so the bar can tick them off. */}
+      {/* Cancel-request confirmation — keeps the destructive action one
+          tap away from the customer's reach. We don't take a reason; the
+          server-side audit log captures who/when. */}
+      {cancelTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => cancellingId !== cancelTarget.id && setCancelTarget(null)}
+        >
+          <div
+            className="mx-4 w-full max-w-sm rounded-2xl border border-[rgba(248,215,148,0.2)] bg-[#1a0808] p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-bold text-[#F8D794]">
+              {t('cancelConfirmTitle')}
+            </h3>
+            <p className="mt-2 text-[12px] leading-relaxed text-[rgba(248,215,148,0.7)]">
+              {t('cancelConfirmBody', { code: cancelTarget.code })}
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setCancelTarget(null)}
+                disabled={cancellingId === cancelTarget.id}
+                className="flex-1 rounded-lg border border-[rgba(248,215,148,0.25)] py-2 text-[12px] font-semibold text-[rgba(248,215,148,0.85)] disabled:opacity-50"
+              >
+                {t('cancelDismiss')}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCancelRequest(cancelTarget)}
+                disabled={cancellingId === cancelTarget.id}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#7f1d1d] py-2 text-[12px] font-semibold text-[#F8D794] disabled:opacity-50"
+              >
+                {cancellingId === cancelTarget.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                {t('cancelConfirmAction')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {withdrawModal && (() => {
         const { deposit, selected, withdrawalType, tableNumber } = withdrawModal;
         const bottles = availableBottles(deposit);
