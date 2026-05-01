@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { ChevronLeft, ChevronRight, X, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Sparkles, CheckCircle2, Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 const STORAGE_KEY = 'user-guide-completed-v1';
@@ -66,6 +66,7 @@ export function UserGuide() {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
 
   useEffect(() => {
     if (localStorage.getItem(STORAGE_KEY)) return;
@@ -179,8 +180,13 @@ export function UserGuide() {
           </p>
 
           {current.image ? (
-            <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 shadow-md dark:border-gray-700 dark:bg-gray-800">
-              <div className="relative aspect-[4/3] w-full sm:aspect-[16/10]">
+            <div className="group relative mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 shadow-md dark:border-gray-700 dark:bg-gray-800">
+              <button
+                type="button"
+                onClick={() => setZoomed(true)}
+                aria-label={t('userGuide.zoom')}
+                className="relative block aspect-[3/4] w-full sm:aspect-[16/10]"
+              >
                 <Image
                   src={current.image}
                   alt={t(current.titleKey)}
@@ -190,7 +196,11 @@ export function UserGuide() {
                   sizes="(max-width: 768px) 100vw, 768px"
                   priority={step <= 1}
                 />
-              </div>
+                <span className="pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-semibold text-white shadow-md backdrop-blur-sm">
+                  <Maximize2 className="h-3.5 w-3.5" />
+                  {t('userGuide.zoom')}
+                </span>
+              </button>
             </div>
           ) : (
             <div className="mt-8 flex flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 px-6 py-12 dark:from-indigo-900/20 dark:to-purple-900/20">
@@ -255,6 +265,32 @@ export function UserGuide() {
           )}
         </div>
       </footer>
+
+      {/* Zoomed image viewer */}
+      {zoomed && current.image && (
+        <button
+          type="button"
+          onClick={() => setZoomed(false)}
+          aria-label={t('userGuide.zoomClose')}
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/95 p-2"
+        >
+          <span className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-md backdrop-blur-md">
+            <X className="h-4 w-4" />
+            {t('userGuide.zoomClose')}
+          </span>
+          <div className="relative h-full w-full">
+            <Image
+              src={current.image}
+              alt={t(current.titleKey)}
+              fill
+              unoptimized
+              className="object-contain"
+              sizes="100vw"
+              priority
+            />
+          </div>
+        </button>
+      )}
 
       {/* Confirm-close dialog */}
       {confirmClose && (

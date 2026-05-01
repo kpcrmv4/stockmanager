@@ -275,6 +275,8 @@
     "confirm": "Confirm",
     "confirmTitle": "Close the guide?",
     "confirmMessage": "This window will not be shown again. Are you sure you want to close?",
+    "zoom": "Zoom",
+    "zoomClose": "Close zoom",
     "welcomeNote": "This system helps you manage stock, customer deposits/withdrawals, and team communication — tap Next to see each main screen.",
     "step1": {
       "label": "Start",
