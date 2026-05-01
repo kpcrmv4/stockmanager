@@ -79,6 +79,7 @@ function extractCardInfo(meta: Record<string, unknown>) {
   const a = meta as unknown as ActionCardMetadata;
   const summary = a.summary as Record<string, unknown> | undefined;
   const fromCustomer = summary?.from_customer === true;
+  const tableNumber = (summary?.table_number as string | number | undefined) ?? null;
   const summaryParts: string[] = [];
   // Deposit_claim chat cards intentionally skip the deposit code prefix —
   // the bartender's eye is on customer name + items, the code lives on
@@ -88,7 +89,16 @@ function extractCardInfo(meta: Record<string, unknown>) {
     summaryParts.push(`#${a.reference_id.slice(-8)}`);
   }
   if (a.summary?.customer) summaryParts.push(a.summary.customer);
-  if (a.summary?.items) summaryParts.push(a.summary.items);
+  // For customer-LIFF deposit_claim the `items` slot is the placeholder
+  // "รอ Staff รับและระบุรายละเอียด" since product details aren't filled
+  // yet — that's noisy in the compact card. If we have a table number,
+  // show "โต๊ะ X" instead so the bartender knows where to walk.
+  const isFromCustomerDeposit = actionType === 'deposit_claim' && fromCustomer;
+  if (isFromCustomerDeposit && tableNumber !== null && tableNumber !== '') {
+    summaryParts.push(`โต๊ะ ${tableNumber}`);
+  } else if (a.summary?.items) {
+    summaryParts.push(a.summary.items);
+  }
   return {
     actionType,
     status,
