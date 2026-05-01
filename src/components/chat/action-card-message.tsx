@@ -49,6 +49,14 @@ interface ActionCardMessageProps {
   roomId: string;
   storeId: string | null;
   onStatusChange?: (action?: 'claim' | 'release' | 'complete' | 'reject') => void;
+  /**
+   * When true the card renders in read-only "board" mode: no claim
+   * button, no inline fill form, no bar-confirm form. Used by
+   * TransactionBoard (รายการงาน) so a card claimed by someone else
+   * doesn't expose action UI to spectators. Action UI stays available
+   * in MyTasksBoard (งานของฉัน) where the user is the claimer.
+   */
+  hideActions?: boolean;
 }
 
 interface ProductOption {
@@ -107,7 +115,7 @@ const PRIORITY_STYLES: Record<string, string> = {
   low: 'border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50',
 };
 
-export const ActionCardMessage = memo(function ActionCardMessage({ message, currentUserId, currentUserName, currentUserRole, roomId, storeId, onStatusChange }: ActionCardMessageProps) {
+export const ActionCardMessage = memo(function ActionCardMessage({ message, currentUserId, currentUserName, currentUserRole, roomId, storeId, onStatusChange, hideActions = false }: ActionCardMessageProps) {
   const [loading, setLoading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   // Per-bottle % readings the bar enters at confirm time. Slot count
@@ -1475,7 +1483,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             )}
 
             {/* Pending — claim button */}
-            {isPending && (
+            {!hideActions && isPending && (
               <Button
                 size="sm"
                 variant="primary"
@@ -1654,7 +1662,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                     {meta.claimed_by_name} กำลังทำ
                   </span>
                 </div>
-                {isClaimedByMe && (
+                {!hideActions && isClaimedByMe && (
                   <>
                     {completeDisabledReason && (
                       <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-900/20">
@@ -1713,7 +1721,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                 ========================================== */}
 
             {/* Pending — withdrawal: เฉพาะ bar/manager/owner, อื่นๆ: ทุก role */}
-            {isPending && (
+            {!hideActions && isPending && (
               <div className="space-y-2">
                 {isTimedOut && (
                   <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-900/20">
@@ -1762,7 +1770,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             )}
 
             {/* Pending Bar — เฉพาะ bar/manager/owner กดรับได้ */}
-            {isPendingBar && !isClaimed && (
+            {!hideActions && isPendingBar && !isClaimed && (
               <div className="space-y-2">
                 {typeof meta.summary.received_by === 'string' && (
                   <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 dark:bg-blue-900/20">
@@ -1831,7 +1839,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                   )}
                 </div>
 
-                {isClaimedByMe && (() => {
+                {!hideActions && isClaimedByMe && (() => {
                   const isBarStep = !!(meta as ActionCardMetadata & { _bar_step?: boolean })._bar_step;
                   const isFromCustomer = isDepositCard && !isBarStep
                     && (meta.summary as Record<string, unknown> | undefined)?.from_customer === true;

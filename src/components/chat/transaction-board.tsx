@@ -398,6 +398,8 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
                           currentUserRole={currentUserRole}
                           roomId={roomId}
                           storeId={storeId}
+                          hideActions
+
                           onStatusChange={(action) => {
                             // Auto-switch tabs to follow the work: claim
                             // jumps to "กำลังทำ", release returns to
