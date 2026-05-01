@@ -77,8 +77,16 @@ function extractCardInfo(meta: Record<string, unknown>) {
 
   // Regular action card
   const a = meta as unknown as ActionCardMetadata;
+  const summary = a.summary as Record<string, unknown> | undefined;
+  const fromCustomer = summary?.from_customer === true;
   const summaryParts: string[] = [];
-  if (a.reference_id) summaryParts.push(`#${a.reference_id.slice(-8)}`);
+  // Deposit_claim chat cards intentionally skip the deposit code prefix —
+  // the bartender's eye is on customer name + items, the code lives on
+  // the full card if they need it. Other action types still show the
+  // short ref so users can spot duplicate notifications quickly.
+  if (a.reference_id && actionType !== 'deposit_claim') {
+    summaryParts.push(`#${a.reference_id.slice(-8)}`);
+  }
   if (a.summary?.customer) summaryParts.push(a.summary.customer);
   if (a.summary?.items) summaryParts.push(a.summary.items);
   return {
@@ -88,6 +96,7 @@ function extractCardInfo(meta: Record<string, unknown>) {
     summaryText: summaryParts.join(' · ') || '',
     assigneeName: a.claimed_by_name || null,
     isAssigned: status === 'claimed',
+    fromCustomer,
   };
 }
 
@@ -103,6 +112,14 @@ export const CompactActionCard = memo(function CompactActionCard({ message }: Co
 
   const info = extractCardInfo(meta);
   const config = TYPE_CONFIG[info.actionType] || TYPE_CONFIG.generic;
+  // Customer-submitted deposits should read as "waiting to receive from
+  // customer" rather than the generic "ฝากเหล้า" — staff scanning the
+  // chat tab can tell at a glance which cards are LIFF-originated and
+  // which were created manually by another staff member.
+  const cardLabel =
+    info.actionType === 'deposit_claim' && info.fromCustomer
+      ? 'รอรับจากลูกค้า'
+      : config.label;
   const Icon = config.icon;
   const statusInfo = STATUS_ICON[info.status] || STATUS_ICON.pending;
   const StatusIcon = statusInfo.icon;
@@ -150,7 +167,7 @@ export const CompactActionCard = memo(function CompactActionCard({ message }: Co
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className={cn('text-xs font-semibold', `text-${config.color}-700 dark:text-${config.color}-400`)}>
-            {config.label}
+            {cardLabel}
           </span>
           {isUrgent && (
             <span className="rounded bg-red-500 px-1 text-[9px] font-bold text-white">ด่วน</span>

@@ -1203,7 +1203,13 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           )}
           <Icon className={cn('h-4 w-4', `text-${config.color}-600 dark:text-${config.color}-400`)} />
           <span className="text-xs font-bold text-gray-900 dark:text-white">
-            {isPendingBar ? 'รอบาร์ยืนยัน' : isPending && isDepositCard ? 'รอ Staff รับ' : config.label}
+            {isPendingBar
+              ? 'รอบาร์ยืนยัน'
+              : isPending && isDepositCard
+                ? isFromCustomerDeposit
+                  ? 'รอรับจากลูกค้า'
+                  : 'รอ Staff รับ'
+                : config.label}
           </span>
           <span className="text-xs text-gray-400">
             {typeof meta.summary.code === 'string' && meta.summary.code
