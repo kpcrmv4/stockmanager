@@ -44,6 +44,7 @@ export function isActionTypeVisibleToRole(
   actionType: string | undefined | null,
   role: UserRole | undefined | null,
   status?: string | null,
+  barStep?: boolean | null,
 ): boolean {
   if (!role) return true;
   // Owner sees everything regardless of the actor list.
@@ -52,16 +53,21 @@ export function isActionTypeVisibleToRole(
   // Staff special-case for deposit_claim: customer-LIFF deposits stay
   // pending until staff "receives" them (fills product + qty + photo),
   // and that step belongs to staff. The lifecycle is:
-  //   pending  → staff claims it
-  //   claimed  → staff is filling the inline form
-  //   (submit) → flips to pending_bar (bar's task, hide from staff)
-  //   completed → bar verified
-  // So staff sees every status EXCEPT pending_bar. The filter-chip
-  // call (status undefined) keeps "ฝากเหล้า" visible so staff can
-  // narrow down the list.
+  //   pending             → staff claims it
+  //   claimed (staff)     → staff is filling the inline form
+  //   (submit) → pending_bar           ← bar's task, hide from staff
+  //   claimed + _bar_step → bar verifying ← still bar's task, hide
+  //   completed           → done
+  // The filter-chip call (status undefined) keeps "ฝากเหล้า" visible
+  // so staff can narrow the list.
   if (role === 'staff' && actionType === 'deposit_claim') {
     if (status === undefined || status === null) return true;
-    return status !== 'pending_bar';
+    if (status === 'pending_bar') return false;
+    // bar's claim of the pending_bar step shows up as status='claimed'
+    // but with _bar_step=true on the metadata. We hide that branch
+    // from staff too — they handed the work off, no longer their job.
+    if (status === 'claimed' && barStep === true) return false;
+    return true;
   }
 
   const actors = ACTION_TYPE_ACTORS[actionType as ActionCardType];

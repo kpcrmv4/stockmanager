@@ -116,6 +116,7 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
         meta.action_type as string,
         currentUserRole as UserRole | undefined,
         meta.status as string | undefined,
+        meta._bar_step as boolean | undefined,
       );
     });
   }, [messages, currentUserRole]);

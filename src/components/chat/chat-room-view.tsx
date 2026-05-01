@@ -327,6 +327,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
         meta.action_type as string | undefined,
         user?.role as UserRole | undefined,
         meta.status as string | undefined,
+        (meta as Record<string, unknown>)._bar_step as boolean | undefined,
       );
     }).length;
   }, [messages, user?.role]);
