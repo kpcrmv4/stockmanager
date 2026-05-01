@@ -122,6 +122,34 @@ export default function DepositRequestsPage() {
     loadRequests();
   }, [loadRequests]);
 
+  // Realtime: refetch the queue when a deposit row in this store
+  // changes — covers customer LIFF submits (insert), staff approvals
+  // (update → pending_confirm), and customer self-cancels (update →
+  // cancelled). Filtered by store_id and cleaned up on store change /
+  // unmount so we don't accumulate channels.
+  useEffect(() => {
+    if (!currentStoreId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`deposit-requests-${currentStoreId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'deposits',
+          filter: `store_id=eq.${currentStoreId}`,
+        },
+        () => {
+          loadRequests();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentStoreId, loadRequests]);
+
   const openApprove = (request: DepositRequest) => {
     // Approve uses the full DepositForm component (rendered inline) so
     // staff get the same product autocomplete + category picker + multi-item

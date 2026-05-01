@@ -509,6 +509,33 @@ export default function DepositPage() {
     loadStats(supabase, currentStoreId, dateFilterEnabled, dateFrom, dateTo);
   }, [currentStoreId, dateFilterEnabled, dateFrom, dateTo, loadStats]);
 
+  // Realtime: refetch the list + stats whenever any deposit row in this
+  // store changes. Filtered by store_id so we don't get traffic from
+  // other branches; one channel per store, torn down on currentStoreId
+  // change or unmount so we don't leak connections.
+  useEffect(() => {
+    if (!currentStoreId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`deposit-page-${currentStoreId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'deposits',
+          filter: `store_id=eq.${currentStoreId}`,
+        },
+        () => {
+          loadDeposits();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentStoreId, loadDeposits]);
+
   // Clear batch selection when tab changes, load transfer batches when needed
   useEffect(() => {
     setBatchSelectedIds(new Set());

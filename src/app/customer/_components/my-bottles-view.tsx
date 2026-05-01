@@ -127,6 +127,41 @@ export function MyBottlesView() {
     else if (!authLoading) setIsLoading(false);
   }, [lineUserId, authLoading, loadDeposits]);
 
+  // Auto-refresh while the LIFF tab is in the foreground.
+  //
+  // The customer doesn't have a Supabase auth session, so postgres_changes
+  // realtime is blocked by RLS for them. Polling /api/customer/deposits
+  // every 20s + an immediate refetch on tab-focus gives them the same
+  // "things just update" feel without breaking the auth model.
+  //
+  // We pause when the tab is hidden (visibilitychange handler does the
+  // gating) so a phone in the customer's pocket doesn't keep hammering
+  // the API for nothing.
+  useEffect(() => {
+    if (!lineUserId) return;
+    let cancelled = false;
+    const POLL_MS = 20_000;
+
+    const interval = setInterval(() => {
+      if (!cancelled && document.visibilityState === 'visible') {
+        loadDeposits();
+      }
+    }, POLL_MS);
+
+    const onVisibility = () => {
+      if (!cancelled && document.visibilityState === 'visible') {
+        loadDeposits();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [lineUserId, loadDeposits]);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function mapDeposits(raw: any[]): DepositItem[] {
     return raw.map((d) => {
