@@ -240,6 +240,9 @@ export function syncChatActionCardStatus(params: {
   newStatus: string;
   completedBy?: string;
   completedByName?: string;
+  /** Patch merged into metadata.summary — used to attribute a
+   *  cancellation to the right actor + carry the reason. */
+  summaryUpdates?: Record<string, unknown>;
 }): void {
   fetch('/api/chat/sync-action-card', {
     method: 'POST',
@@ -251,6 +254,7 @@ export function syncChatActionCardStatus(params: {
       new_status: params.newStatus,
       completed_by: params.completedBy,
       completed_by_name: params.completedByName,
+      summary_updates: params.summaryUpdates,
     }),
   }).catch((err) => console.error('[Chat Bot Client] syncChatActionCardStatus failed:', err));
 }

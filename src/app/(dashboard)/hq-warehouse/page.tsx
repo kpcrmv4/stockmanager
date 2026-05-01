@@ -1316,7 +1316,8 @@ export default function HqWarehousePage() {
                                   )}
                                 </div>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>

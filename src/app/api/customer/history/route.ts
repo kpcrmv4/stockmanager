@@ -16,7 +16,7 @@ import { createServiceClient } from '@/lib/supabase/server';
  */
 
 const DEPOSIT_SELECT =
-  'id, deposit_code, product_name, quantity, remaining_qty, status, created_at, store_id, store:stores(store_name)';
+  'id, deposit_code, product_name, quantity, remaining_qty, status, notes, created_at, store_id, store:stores(store_name)';
 
 // Pull deposit_code + the parent deposit's total quantity (for "2/3"
 // labels) and the targeted bottle_no when the withdrawal was bottle-

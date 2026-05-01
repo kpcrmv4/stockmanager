@@ -195,10 +195,38 @@ export default function DepositRequestsPage() {
         storeId: currentStoreId,
         referenceId: selectedRequest.deposit_code,
         actionType: 'deposit_claim',
-        newStatus: 'completed',
+        // Was 'completed', which made the chat card render "เสร็จ" —
+        // wrong: a reject is a cancel, not a completion. Now stamp it
+        // 'cancelled' and pass the actor + reason so the chat UI can
+        // show "ยกเลิกโดย {staff name}: {reason}".
+        newStatus: 'cancelled',
         completedBy: user.id,
         completedByName: user.username || user.id,
+        summaryUpdates: {
+          cancelled_by_role: 'staff',
+          cancelled_by_name: user.username || user.id,
+          cancellation_reason: rejectNotes || null,
+        },
       });
+
+      // Push a Flex back to the customer's LINE OA so they know their
+      // submission was rejected + see the staff-provided reason.
+      // Uses the same notify-deposit endpoint the bar-confirm flow
+      // uses, with type='rejected'. Best-effort; a network blip
+      // shouldn't block the audit log or the toast.
+      try {
+        await fetch('/api/line/notify-deposit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'rejected',
+            deposit_id: selectedRequest.id,
+            reason: rejectNotes || 'Staff ยกเลิกคำขอฝาก',
+          }),
+        });
+      } catch (err) {
+        console.error('[deposit/requests] notify customer failed:', err);
+      }
 
       await logAudit({
         store_id: currentStoreId,

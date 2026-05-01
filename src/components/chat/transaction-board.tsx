@@ -44,7 +44,7 @@ type FilterStatus = 'all' | 'active' | 'pending' | 'pending_bar' | 'claimed' | '
  * claim/release call (handleAction in action-card-message.tsx) flips it
  * back to pending and clears claimed_by atomically.
  */
-function getNormalizedStatus(meta: Record<string, unknown>): 'pending' | 'pending_bar' | 'claimed' | 'completed' | 'other' {
+function getNormalizedStatus(meta: Record<string, unknown>): 'pending' | 'pending_bar' | 'claimed' | 'completed' | 'cancelled' | 'other' {
   const status = meta.status as string;
   if (status === 'pending' || status === 'pending_approval') return 'pending';
   if (status === 'pending_bar') return 'pending_bar';
@@ -59,10 +59,14 @@ function getNormalizedStatus(meta: Record<string, unknown>): 'pending' | 'pendin
   }
   if (status === 'completed' || status === 'received') {
     const summary = meta.summary as Record<string, unknown> | undefined;
-    if (summary?.rejected) return 'other';
+    if (summary?.rejected) return 'cancelled';
     return 'completed';
   }
-  if (status === 'rejected' || status === 'expired' || status === 'cancelled' || status === 'partial') return 'other';
+  // Cancelled / rejected get their own bucket so the board can show
+  // them under "เสร็จ" (terminal states) with the right red label,
+  // distinct from green-tinted "completed".
+  if (status === 'cancelled' || status === 'rejected') return 'cancelled';
+  if (status === 'expired' || status === 'partial') return 'other';
   return 'other';
 }
 type FilterType = 'all' | 'deposit_claim' | 'withdrawal_claim' | 'stock_explain' | 'stock_supplementary' | 'stock_approve' | 'borrow_approve' | 'transfer_receive';
@@ -139,6 +143,11 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
           if (normalized !== 'pending' && normalized !== 'pending_bar') return false;
         } else if (filterStatus === 'pending_bar') {
           if (normalized !== 'pending_bar') return false;
+        } else if (filterStatus === 'completed') {
+          // The "เสร็จ" pill bundles both successful completions and
+          // terminal cancellations — both are "off the to-do list" from
+          // the user's perspective, even if they read very differently.
+          if (normalized !== 'completed' && normalized !== 'cancelled') return false;
         } else {
           if (normalized !== filterStatus) return false;
         }

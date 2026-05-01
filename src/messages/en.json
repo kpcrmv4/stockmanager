@@ -392,7 +392,12 @@
       "statusPending": "Pending",
       "statusApproved": "Approved",
       "statusCompleted": "Completed",
-      "statusRejected": "Rejected"
+      "statusRejected": "Rejected",
+      "depositCancelledByCustomer": "You cancelled",
+      "depositCancelledByStaff": "Cancelled by store",
+      "depositExpired": "Expired",
+      "depositWithdrawn": "Fully withdrawn",
+      "depositTransferred": "Sent to HQ"
     },
     "promotions": {
       "title": "Promotions",

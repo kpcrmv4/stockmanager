@@ -26,6 +26,11 @@ interface HistoryItem {
    *  in the row so the customer can correlate the two sides. */
   deposit_code?: string;
   store_name?: string;
+  /** Deposit-only: notes string lets us detect who cancelled — staff
+   *  rejects append "ปฏิเสธ" / "ปฏิเสธโดย Staff", customer cancels via
+   *  LIFF append "ลูกค้ายกเลิกผ่าน LIFF". Used to label the cancel
+   *  badge correctly in the history row. */
+  notes?: string | null;
   /** Withdrawal-only: the bottle slot the row targeted (1..N). Together
    *  with bottle_total it renders as "ขวดที่ 2/3". */
   bottle_no?: number | null;
@@ -46,6 +51,26 @@ export function HistoryView() {
     approved: { label: t('statusApproved'), tone: 'badge-green' },
     completed: { label: t('statusCompleted'), tone: 'badge-green' },
     rejected: { label: t('statusRejected'), tone: 'badge-red' },
+  };
+
+  // Customer-facing outcome chip for deposits. The interesting one is
+  // 'cancelled' — it's the only state where we want to surface WHO
+  // cancelled (staff vs customer) so the customer doesn't think their
+  // request just vanished. Other terminal states use neutral labels.
+  const getDepositStatus = (
+    status: string,
+    notes: string | null,
+  ): { label: string; tone: string } | null => {
+    if (status === 'cancelled') {
+      const byCustomer = !!notes && /ลูกค้ายกเลิก/i.test(notes);
+      return byCustomer
+        ? { label: t('depositCancelledByCustomer'), tone: 'badge-red' }
+        : { label: t('depositCancelledByStaff'), tone: 'badge-red' };
+    }
+    if (status === 'expired') return { label: t('depositExpired'), tone: 'badge-amber' };
+    if (status === 'withdrawn') return { label: t('depositWithdrawn'), tone: 'badge-green' };
+    if (status === 'transferred_out') return { label: t('depositTransferred'), tone: 'badge-blue' };
+    return null;
   };
 
   const loadHistory = useCallback(async () => {
@@ -93,6 +118,7 @@ export function HistoryView() {
               created_at: d.created_at as string,
               deposit_code: d.deposit_code as string,
               store_name: (d.store as { store_name: string } | null)?.store_name,
+              notes: (d.notes as string) ?? null,
             })),
             ...withdrawalRows.map((w) => {
               const dep = w.deposit as { deposit_code?: string; quantity?: number } | null;
@@ -135,7 +161,7 @@ export function HistoryView() {
       const { data: deposits } = await supabase
         .from('deposits')
         .select(
-          'id, deposit_code, product_name, quantity, status, created_at, store:stores(store_name)',
+          'id, deposit_code, product_name, quantity, status, notes, created_at, store:stores(store_name)',
         )
         .eq('customer_id', user.id)
         .order('created_at', { ascending: false })
@@ -168,6 +194,7 @@ export function HistoryView() {
           created_at: d.created_at as string,
           deposit_code: d.deposit_code as string,
           store_name: (d.store as { store_name: string })?.store_name,
+          notes: (d.notes as string) ?? null,
         })),
         ...withdrawals.map((w) => {
           const dep = w.deposit as { deposit_code?: string; quantity?: number } | null;
@@ -233,6 +260,10 @@ export function HistoryView() {
         <div className="space-y-2">
           {history.map((item) => {
             const wStatus = withdrawalStatusMap[item.status];
+            const dStatus =
+              item.type === 'deposit'
+                ? getDepositStatus(item.status, item.notes ?? null)
+                : null;
             const typeLabel = item.type === 'deposit' ? t('deposit') : t('withdraw');
             return (
               <div
@@ -266,11 +297,19 @@ export function HistoryView() {
                       >
                         {typeLabel}
                       </span>
-                      {/* Outcome chip only on withdrawals (deposits don't
-                          carry a meaningful customer-facing status here). */}
+                      {/* Outcome chip — withdrawals show their lifecycle
+                          state; deposits show terminal states (cancelled
+                          /expired/withdrawn/transferred) so the customer
+                          can tell at a glance what happened to a row,
+                          including WHO cancelled when applicable. */}
                       {item.type === 'withdrawal' && wStatus && (
                         <span className={`customer-status-badge shrink-0 ${wStatus.tone}`}>
                           {wStatus.label}
+                        </span>
+                      )}
+                      {item.type === 'deposit' && dStatus && (
+                        <span className={`customer-status-badge shrink-0 ${dStatus.tone}`}>
+                          {dStatus.label}
                         </span>
                       )}
                     </div>

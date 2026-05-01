@@ -128,10 +128,20 @@ export async function POST(request: NextRequest) {
 
       if (target) {
         const oldMeta = target.metadata as Record<string, unknown>;
+        const oldSummary = (oldMeta.summary as Record<string, unknown> | undefined) || {};
         const updatedMeta = {
           ...oldMeta,
           status: 'cancelled',
           completed_at: new Date().toISOString(),
+          // Attribute the cancel to the customer so the chat card can
+          // render "ลูกค้ายกเลิกเอง" instead of (mis-)attributing it to
+          // the staff who happened to claim it earlier.
+          summary: {
+            ...oldSummary,
+            cancelled_by_role: 'customer',
+            cancelled_by_name: deposit.customer_name || 'ลูกค้า',
+            cancellation_reason: null,
+          },
         };
         await supabase
           .from('chat_messages')

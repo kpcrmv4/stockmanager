@@ -392,7 +392,12 @@
       "statusPending": "รอดำเนินการ",
       "statusApproved": "อนุมัติแล้ว",
       "statusCompleted": "สำเร็จ",
-      "statusRejected": "ปฏิเสธ"
+      "statusRejected": "ปฏิเสธ",
+      "depositCancelledByCustomer": "คุณยกเลิกเอง",
+      "depositCancelledByStaff": "ร้านยกเลิก",
+      "depositExpired": "หมดอายุ",
+      "depositWithdrawn": "เบิกครบ",
+      "depositTransferred": "โอนไปคลังกลาง"
     },
     "promotions": {
       "title": "โปรโมชั่น",

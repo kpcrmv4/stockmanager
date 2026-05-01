@@ -157,6 +157,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
     : false;
   const isClaimed = meta.status === 'claimed' && !isTimedOut;
   const isCompleted = meta.status === 'completed';
+  const isCancelled = meta.status === 'cancelled' || meta.status === 'rejected';
   const isPending = meta.status === 'pending' || isTimedOut;
   const isPendingBar = meta.status === 'pending_bar';
   const isClaimedByMe = meta.claimed_by === currentUserId && !isTimedOut;
@@ -1212,13 +1213,15 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
           )}
           <Icon className={cn('h-4 w-4', `text-${config.color}-600 dark:text-${config.color}-400`)} />
           <span className="text-xs font-bold text-gray-900 dark:text-white">
-            {isPendingBar
-              ? 'รอบาร์ยืนยัน'
-              : isPending && isDepositCard
-                ? isFromCustomerDeposit
-                  ? 'รอรับจากลูกค้า'
-                  : 'รอ Staff รับ'
-                : config.label}
+            {isCancelled
+              ? 'ยกเลิก'
+              : isPendingBar
+                ? 'รอบาร์ยืนยัน'
+                : isPending && isDepositCard
+                  ? isFromCustomerDeposit
+                    ? 'รอรับจากลูกค้า'
+                    : 'รอ Staff รับ'
+                  : config.label}
           </span>
           <span className="text-xs text-gray-400">
             {typeof meta.summary.code === 'string' && meta.summary.code
@@ -2122,6 +2125,36 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                 })()}
               </div>
             )}
+
+            {/* Cancelled / rejected — show who cancelled + reason. Distinct
+                from "completed" so the chat doesn't read as "เสร็จ" for
+                rows that were never actually fulfilled. */}
+            {isCancelled && (() => {
+              const summary = (meta.summary as Record<string, unknown> | undefined) || {};
+              const role = summary.cancelled_by_role as string | undefined;
+              const name = (summary.cancelled_by_name as string) || (meta.claimed_by_name as string) || '';
+              const reason = summary.cancellation_reason as string | undefined;
+              const byCustomer = role === 'customer';
+              const headerLabel = byCustomer ? 'ลูกค้ายกเลิกเอง' : 'ยกเลิกแล้ว';
+              return (
+                <div className="space-y-2 rounded-lg bg-red-50 px-3 py-2 dark:bg-red-900/20">
+                  <div className="flex items-center gap-2">
+                    <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                    <span className="text-xs font-medium text-red-700 dark:text-red-300">
+                      {headerLabel}
+                    </span>
+                    {!byCustomer && name && (
+                      <span className="text-xs text-red-500/70">โดย {name}</span>
+                    )}
+                  </div>
+                  {reason && (
+                    <p className="pl-6 text-[11px] text-red-600/80 dark:text-red-400/80">
+                      เหตุผล: {reason}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Completed — compact by default, expand on tap */}
             {isCompleted && (

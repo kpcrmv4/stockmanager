@@ -29,13 +29,25 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { store_id, reference_id, action_type, new_status, completed_by, completed_by_name } = body as {
+    const {
+      store_id,
+      reference_id,
+      action_type,
+      new_status,
+      completed_by,
+      completed_by_name,
+      summary_updates,
+    } = body as {
       store_id: string;
       reference_id: string;
       action_type: string;
       new_status: string;
       completed_by?: string;
       completed_by_name?: string;
+      /** Optional patch merged into metadata.summary — used to record
+       *  cancellation info (cancelled_by_role, cancellation_reason) so
+       *  the chat card can show "ยกเลิกโดย Staff: เหตุผล" etc. */
+      summary_updates?: Record<string, unknown>;
     };
 
     if (!store_id || !reference_id || !action_type || !new_status) {
@@ -89,13 +101,22 @@ export async function POST(request: Request) {
 
     // 3. Update the action card metadata
     const oldMeta = targetMessage.metadata as Record<string, unknown>;
+    const oldSummary = (oldMeta.summary as Record<string, unknown> | undefined) || {};
+    const isTerminal = ['completed', 'cancelled', 'rejected'].includes(new_status);
     const updatedMeta = {
       ...oldMeta,
       status: new_status,
-      ...(new_status === 'completed' && {
+      ...(isTerminal && {
         completed_at: new Date().toISOString(),
+        // For "completed" we attribute to the claimer (who finished it).
+        // For cancelled/rejected we still want claimed_by_name to point
+        // at the actor — completed_by here is the user who clicked
+        // reject/cancel, regardless of whether they were the claimer.
         claimed_by: completed_by || oldMeta.claimed_by,
         claimed_by_name: completed_by_name || oldMeta.claimed_by_name,
+      }),
+      ...(summary_updates && {
+        summary: { ...oldSummary, ...summary_updates },
       }),
     };
 
