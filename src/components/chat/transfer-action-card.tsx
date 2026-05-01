@@ -39,6 +39,8 @@ interface TransferActionCardProps {
   currentUserId: string;
   currentUserName: string;
   roomId: string;
+  /** Read-only board mode — hides receive/reject UI; matches ActionCardMessage. */
+  hideActions?: boolean;
 }
 
 const PRIORITY_STYLES: Record<string, string> = {
@@ -52,6 +54,7 @@ export const TransferActionCard = memo(function TransferActionCard({
   currentUserId,
   currentUserName,
   roomId,
+  hideActions = false,
 }: TransferActionCardProps) {
   const meta = message.metadata as TransferCardMetadata | null;
   const { updateMessage } = useChatStore();
@@ -335,7 +338,7 @@ export const TransferActionCard = memo(function TransferActionCard({
         {/* ==========================================
             STATUS: PENDING — ปุ่มยืนยันรับ / ปฏิเสธ
             ========================================== */}
-        {isPending && !showRejectForm && (
+        {!hideActions && isPending && !showRejectForm && (
           <div className="space-y-2">
             <PhotoUpload
               value={photoUrl}
@@ -384,7 +387,7 @@ export const TransferActionCard = memo(function TransferActionCard({
         {/* ==========================================
             REJECT FORM
             ========================================== */}
-        {isPending && showRejectForm && (
+        {!hideActions && isPending && showRejectForm && (
           <div className="space-y-2">
             <div className="rounded-lg bg-red-50 px-3 py-2 dark:bg-red-900/20">
               <p className="text-xs font-medium text-red-700 dark:text-red-300">

@@ -145,6 +145,7 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
         currentUserId={currentUserId}
         currentUserName={currentUserName}
         roomId={roomId}
+        hideActions={hideActions}
       />
     );
   }
