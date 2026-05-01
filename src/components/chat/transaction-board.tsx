@@ -87,6 +87,7 @@ const STATUS_CONFIG: Record<string, { icon: typeof Clock; label: string; color: 
 
 export function TransactionBoard({ roomId, storeId, currentUserId, currentUserName, currentUserRole }: TransactionBoardProps) {
   const messages = useChatStore((s) => s.messages);
+  const setActiveTab = useChatStore((s) => s.setActiveTab);
   // Default to "active" (not-yet-done) so the board opens to actionable
   // work — pending + pending_bar + claimed. Completed tasks are still
   // reachable via the เสร็จ pill or the show-all toggle.
@@ -402,12 +403,18 @@ export function TransactionBoard({ roomId, storeId, currentUserId, currentUserNa
                           hideActions
 
                           onStatusChange={(action) => {
-                            // Auto-switch tabs to follow the work: claim
-                            // jumps to "กำลังทำ", release returns to
-                            // "รอรับ", complete/reject lands on "เสร็จ".
+                            // After claiming on the (read-only) board,
+                            // jump to "งานของฉัน" — that's where the
+                            // claimer sees the inline fill form. The
+                            // board itself only renders status, never
+                            // the work UI, so staying here would leave
+                            // the user staring at a card they just
+                            // claimed with no form.
                             if (action === 'claim') {
-                              setFilterStatus('claimed');
-                            } else if (action === 'release') {
+                              setActiveTab('my-tasks');
+                              return;
+                            }
+                            if (action === 'release') {
                               setFilterStatus('pending');
                             } else if (action === 'complete' || action === 'reject') {
                               setFilterStatus('completed');

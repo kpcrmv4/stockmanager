@@ -1483,8 +1483,9 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
               </Button>
             )}
 
-            {/* Pending — claim button */}
-            {!hideActions && isPending && (
+            {/* Pending — claim button (always visible: this is the entry
+                point to claim work, even on the read-only board) */}
+            {isPending && (
               <Button
                 size="sm"
                 variant="primary"
@@ -1721,8 +1722,10 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
                 GENERIC ACTION CARD UI (deposit, withdrawal, stock)
                 ========================================== */}
 
-            {/* Pending — withdrawal: เฉพาะ bar/manager/owner, อื่นๆ: ทุก role */}
-            {!hideActions && isPending && (
+            {/* Pending — withdrawal: เฉพาะ bar/manager/owner, อื่นๆ: ทุก role.
+                Always rendered (even on the board) — this is how users
+                claim a task. Only the post-claim work UI is gated. */}
+            {isPending && (
               <div className="space-y-2">
                 {isTimedOut && (
                   <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-900/20">
@@ -1771,7 +1774,9 @@ export const ActionCardMessage = memo(function ActionCardMessage({ message, curr
             )}
 
             {/* Pending Bar — เฉพาะ bar/manager/owner กดรับได้ */}
-            {!hideActions && isPendingBar && !isClaimed && (
+            {/* Bar's pending_bar claim — also a claim entry point, keep
+                visible on the board so bar can grab from รอรับ. */}
+            {isPendingBar && !isClaimed && (
               <div className="space-y-2">
                 {typeof meta.summary.received_by === 'string' && (
                   <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 dark:bg-blue-900/20">

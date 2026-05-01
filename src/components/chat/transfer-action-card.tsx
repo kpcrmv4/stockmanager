@@ -337,8 +337,11 @@ export const TransferActionCard = memo(function TransferActionCard({
 
         {/* ==========================================
             STATUS: PENDING — ปุ่มยืนยันรับ / ปฏิเสธ
+            Transfers are single-step (no claim → work distinction),
+            so we keep the receive form visible on the board too —
+            otherwise HQ has no way to receive from chat at all.
             ========================================== */}
-        {!hideActions && isPending && !showRejectForm && (
+        {isPending && !showRejectForm && (
           <div className="space-y-2">
             <PhotoUpload
               value={photoUrl}
@@ -387,7 +390,7 @@ export const TransferActionCard = memo(function TransferActionCard({
         {/* ==========================================
             REJECT FORM
             ========================================== */}
-        {!hideActions && isPending && showRejectForm && (
+        {isPending && showRejectForm && (
           <div className="space-y-2">
             <div className="rounded-lg bg-red-50 px-3 py-2 dark:bg-red-900/20">
               <p className="text-xs font-medium text-red-700 dark:text-red-300">
