@@ -3,8 +3,6 @@ marp: true
 theme: default
 size: 16:9
 paginate: true
-header: 'ระบบจัดการครัว · LULU'
-footer: 'Trakarnta · 2026-05-03'
 style: |
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;700;800&display=swap');
   section {
@@ -360,7 +358,7 @@ Food Cost %
 
 <div>
 
-**🌅 เช้า — คุณป้อม (ผจก. สาขา 24BLVD)**
+**🌅 เช้า — คุณป้อม (ผจก. สาขา Amore)**
 - เปิดแอป → ดูสต๊อก → Bean Sprouts ใกล้หมด
 - กด **"เบิกจากครัวกลาง"** ขอ 10 กก.
 - LINE แจ้งเตือนครัวกลางทันที
@@ -453,13 +451,11 @@ Food Cost %
 <div class="card" style="text-align:center;">
 <h3>💰 ราคารวม</h3>
 <p class="big" style="color:#c2410c;">฿50,000</p>
-<p>ครอบคลุมทั้ง 6 ระยะ พร้อมนำเข้าข้อมูลตั้งต้นจาก Excel</p>
 </div>
 
 <div class="card" style="text-align:center;">
 <h3>📅 ระยะเวลาส่งมอบ</h3>
 <p class="big" style="color:#c2410c;">2 เดือน</p>
-<p>ใช้งานเป็นระยะ ๆ ได้ — ไม่ต้องรอครบ</p>
 </div>
 
 </div>
@@ -467,7 +463,7 @@ Food Cost %
 <div class="card" style="margin-top:24px;">
 <h3>💳 เงื่อนไขการชำระ</h3>
 
-| งวด | จำนวน | เมื่อไหร่ |
+| งวด | จำนวน | ช่วงเวลา |
 |---|---|---|
 | **มัดจำ** | ฿20,000 | เริ่มงาน |
 | **งวดสุดท้าย** | ฿30,000 | ส่งมอบครบ |
