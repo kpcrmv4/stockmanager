@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { Wine, Package, Warehouse, AlertTriangle, BarChart3, Repeat, ArrowRight } from 'lucide-react';
+import { Wine, Clock, Beer, AlertTriangle, BarChart3, Repeat, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
 
@@ -16,11 +16,15 @@ export interface BorrowReturnItem {
 export interface DailySummaryData {
   type: 'daily_summary';
   date_label: string;
-  new_deposits: number;
-  withdrawals_today: number;
-  active_deposits: number;
+  // 4 main metrics shown in the grid
+  customer_requests?: number; // status='pending_staff' (LINE customer requests not yet claimed)
+  pending_bar?: number;       // status='pending_bar' (staff filed, waiting bar confirm)
+  new_deposits: number;       // created in bar-day AND status='in_store' (already accepted)
   expiring_soon: number;
   expiring_days: number;
+  // Legacy fields kept so older summary cards already in chat history still render
+  withdrawals_today?: number;
+  active_deposits?: number;
   pending_explanations?: number;
   active_borrows?: number;
   /**
@@ -37,44 +41,40 @@ interface DailySummaryCardProps {
 
 const STAT_CARDS = [
   {
+    key: 'customer_requests' as const,
+    label: 'คำขอใหม่',
+    sublabel: 'จากลูกค้า',
+    icon: Clock,
+    iconBg: 'bg-rose-500',
+    textColor: 'text-rose-700 dark:text-rose-400',
+    numberColor: 'text-rose-600 dark:text-rose-300',
+  },
+  {
+    key: 'pending_bar' as const,
+    label: 'รอ Bar ยืนยัน',
+    sublabel: null,
+    icon: Beer,
+    iconBg: 'bg-amber-500',
+    textColor: 'text-amber-700 dark:text-amber-400',
+    numberColor: 'text-amber-600 dark:text-amber-300',
+  },
+  {
     key: 'new_deposits' as const,
     label: 'ฝากใหม่วันนี้',
+    sublabel: 'รับแล้ว',
     icon: Wine,
-    gradient: 'from-emerald-500 to-emerald-600',
-    bgLight: 'bg-emerald-50 dark:bg-emerald-900/20',
     iconBg: 'bg-emerald-500',
     textColor: 'text-emerald-700 dark:text-emerald-400',
     numberColor: 'text-emerald-600 dark:text-emerald-300',
   },
   {
-    key: 'withdrawals_today' as const,
-    label: 'เบิกวันนี้',
-    icon: Package,
-    gradient: 'from-blue-500 to-blue-600',
-    bgLight: 'bg-blue-50 dark:bg-blue-900/20',
-    iconBg: 'bg-blue-500',
-    textColor: 'text-blue-700 dark:text-blue-400',
-    numberColor: 'text-blue-600 dark:text-blue-300',
-  },
-  {
-    key: 'active_deposits' as const,
-    label: 'ฝากในร้านทั้งหมด',
-    icon: Warehouse,
-    gradient: 'from-violet-500 to-violet-600',
-    bgLight: 'bg-violet-50 dark:bg-violet-900/20',
-    iconBg: 'bg-violet-500',
-    textColor: 'text-violet-700 dark:text-violet-400',
-    numberColor: 'text-violet-600 dark:text-violet-300',
-  },
-  {
     key: 'expiring_soon' as const,
     label: 'ใกล้หมดอายุ',
+    sublabel: null, // dynamic — uses expiring_days
     icon: AlertTriangle,
-    gradient: 'from-amber-500 to-orange-500',
-    bgLight: 'bg-amber-50 dark:bg-amber-900/20',
-    iconBg: 'bg-amber-500',
-    textColor: 'text-amber-700 dark:text-amber-400',
-    numberColor: 'text-amber-600 dark:text-amber-300',
+    iconBg: 'bg-orange-500',
+    textColor: 'text-orange-700 dark:text-orange-400',
+    numberColor: 'text-orange-600 dark:text-orange-300',
   },
 ];
 
@@ -100,9 +100,10 @@ export const DailySummaryCard = memo(function DailySummaryCard({ data, time }: D
         <div className="grid grid-cols-2 gap-px bg-gray-200 dark:bg-gray-700">
           {STAT_CARDS.map((card) => {
             const Icon = card.icon;
-            const value = data[card.key];
+            const value = (data[card.key] ?? 0) as number;
             const isWarning = card.key === 'expiring_soon' && value > 0;
-            const sublabel = card.key === 'expiring_soon' ? `>${data.expiring_days} วัน` : null;
+            const sublabel =
+              card.key === 'expiring_soon' ? `>${data.expiring_days} วัน` : card.sublabel;
 
             return (
               <div

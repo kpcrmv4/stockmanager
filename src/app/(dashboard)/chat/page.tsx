@@ -170,6 +170,9 @@ function getMessagePreview(msg: typeof undefined extends never ? never : ReturnT
       return `${prefix}ส่งรูปภาพ`;
     case 'action_card': {
       const meta = msg.metadata as Record<string, unknown> | null;
+      // Synthetic last_message from badge broadcast has no metadata —
+      // the bot text in `content` is informative enough, fall back to it.
+      if (!meta) return msg.content || 'งาน';
       const status = meta?.status as string;
       const actionType = meta?.action_type as string;
       const summary = meta?.summary as Record<string, unknown> | undefined;

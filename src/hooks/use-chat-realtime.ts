@@ -65,6 +65,15 @@ export function useChatRealtime(roomId: string | null) {
           removePinnedMessage(data.message_id);
         }
       })
+      .on('broadcast', { event: 'reaction_changed' }, (payload) => {
+        const data = payload.payload as ChatBroadcastPayload;
+        if (!data.message_id || !data.reactions) return;
+        // Pull current state via getState so we don't re-subscribe on every render
+        const current = useChatStore.getState().messages.find((m) => m.id === data.message_id);
+        if (current) {
+          updateMessage({ ...current, reactions: data.reactions });
+        }
+      })
       .on('presence', { event: 'sync' }, () => {
         // Presence sync — สามารถใช้สำหรับ typing indicator
       })
@@ -88,7 +97,7 @@ export function useChatRealtime(roomId: string | null) {
  */
 export function useChatBadge() {
   const { user } = useAuthStore();
-  const { activeRoomId, incrementUnread } = useChatStore();
+  const { activeRoomId, incrementUnread, applyBadgeToRoomList } = useChatStore();
   const { playMessageSound, playMentionSound, playTaskSound } = useChatSound();
 
   useEffect(() => {
@@ -100,6 +109,16 @@ export function useChatBadge() {
       .channel(`chat:badge:${user.id}`)
       .on('broadcast', { event: 'new_message_badge' }, (payload) => {
         const data = payload.payload as UnreadBadgePayload;
+
+        // Patch the chat list (last_message preview / time / sort) in real
+        // time. Skip when viewing the room itself — the per-room channel's
+        // `new_message` handler already updates last_message with the full
+        // message (including rich action_card metadata), and we don't want
+        // to overwrite that with the slimmer badge synthetic.
+        if (data.room_id !== activeRoomId) {
+          applyBadgeToRoomList(data);
+        }
+
         // ไม่ increment ถ้ากำลังดูห้องนั้นอยู่
         if (data.room_id !== activeRoomId && data.sender_id !== user.id) {
           incrementUnread(data.room_id);
@@ -129,7 +148,7 @@ export function useChatBadge() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, activeRoomId, incrementUnread, playMessageSound, playMentionSound, playTaskSound]);
+  }, [user, activeRoomId, incrementUnread, applyBadgeToRoomList, playMessageSound, playMentionSound, playTaskSound]);
 }
 
 // ==========================================

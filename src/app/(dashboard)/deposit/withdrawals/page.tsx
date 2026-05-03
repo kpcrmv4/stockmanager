@@ -130,9 +130,10 @@ function groupWithdrawals(
     // Bucket completed/rejected by minute so re-uses of the same deposit
     // (e.g. customer empties bottles 2+3 today, then comes back next week
     // for bottle 1) don't merge across separate transactions.
+    const stamp = typeof w.created_at === 'string' ? w.created_at.slice(0, 16) : '';
     const bucket = w.status === 'pending' || w.status === 'approved'
       ? 'pending'
-      : `${w.status}_${w.created_at.slice(0, 16)}`; // 'YYYY-MM-DDTHH:mm'
+      : `${w.status}_${stamp}`; // 'YYYY-MM-DDTHH:mm'
     const key = `${w.deposit_id}__${bucket}`;
     let g = map.get(key);
     if (!g) {

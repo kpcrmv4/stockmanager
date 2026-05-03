@@ -69,13 +69,21 @@ export async function GET(request: NextRequest) {
       }
 
       // Fetch all stats in parallel
-      const [depositsResult, withdrawalsResult, comparisonsResult, borrowsResult, borrowReturnsResult] =
-        await Promise.all([
-          // Deposits created yesterday
+      const [
+        depositsResult,
+        withdrawalsResult,
+        comparisonsResult,
+        borrowsResult,
+        borrowReturnsResult,
+        customerRequestsResult,
+        pendingBarResult,
+      ] = await Promise.all([
+          // Deposits accepted (status='in_store') AND created in this bar day
           supabase
             .from('deposits')
-            .select('id, status', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
             .eq('store_id', store.id)
+            .eq('status', 'in_store')
             .gte('created_at', startUTC)
             .lte('created_at', endUTC),
 
@@ -114,12 +122,30 @@ export async function GET(request: NextRequest) {
             .in('status', ['completed', 'pos_adjusting', 'return_pending'])
             .order('created_at', { ascending: false })
             .limit(20),
+
+          // Customer LINE requests sitting unclaimed (status='pending_staff').
+          // Snapshot count regardless of date — if a request is still pending
+          // from yesterday, it's still relevant work for today.
+          supabase
+            .from('deposits')
+            .select('id', { count: 'exact', head: true })
+            .eq('store_id', store.id)
+            .eq('status', 'pending_staff'),
+
+          // Deposits awaiting bar confirmation (snapshot, all dates).
+          supabase
+            .from('deposits')
+            .select('id', { count: 'exact', head: true })
+            .eq('store_id', store.id)
+            .eq('status', 'pending_bar'),
         ]);
 
       const newDeposits = depositsResult.count ?? 0;
       const completedWithdrawals = withdrawalsResult.count ?? 0;
       const pendingExplanations = comparisonsResult.count ?? 0;
       const activeBorrows = borrowsResult.count ?? 0;
+      const customerRequests = customerRequestsResult.count ?? 0;
+      const pendingBar = pendingBarResult.count ?? 0;
 
       // Build borrow_returns preview list
       type LenderRow = { store_name?: string };
@@ -182,26 +208,35 @@ export async function GET(request: NextRequest) {
 
       // Skip if nothing to report
       if (
+        customerRequests === 0 &&
+        pendingBar === 0 &&
         newDeposits === 0 &&
+        expiringSoon === 0 &&
         completedWithdrawals === 0 &&
         pendingExplanations === 0 &&
         activeBorrows === 0 &&
-        activeDeposits === 0 &&
         borrowReturns.length === 0
       ) {
         results.push({ store: store.store_name, sent: false });
         continue;
       }
 
-      // Build summary card with structured metadata
+      // Build summary card with structured metadata.
+      // The 4 main metrics rendered in the grid are:
+      //   customer_requests, pending_bar, new_deposits, expiring_soon.
+      // The legacy fields (withdrawals_today, active_deposits) are kept
+      // here so older code paths and any future extra-info footer can
+      // still surface them without another query.
       const summaryData = {
         type: 'daily_summary' as const,
         date_label: dateLabel,
+        customer_requests: customerRequests,
+        pending_bar: pendingBar,
         new_deposits: newDeposits,
-        withdrawals_today: completedWithdrawals,
-        active_deposits: activeDeposits,
         expiring_soon: expiringSoon,
         expiring_days: 3,
+        withdrawals_today: completedWithdrawals,
+        active_deposits: activeDeposits,
         pending_explanations: pendingExplanations,
         active_borrows: activeBorrows,
         borrow_returns: borrowReturns,

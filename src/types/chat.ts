@@ -33,7 +33,7 @@ export interface ChatMessage {
   sender_id: string | null;
   type: ChatMessageType;
   content: string | null;
-  metadata: ActionCardMetadata | TransferCardMetadata | ReplyMetadata | MentionMetadata | null;
+  metadata: ActionCardMetadata | TransferCardMetadata | ReplyMetadata | MentionMetadata | AlbumCardMetadata | null;
   created_at: string;
   archived_at: string | null;
   // joined
@@ -44,6 +44,21 @@ export interface ChatMessage {
     avatar_url: string | null;
     role: string;
   } | null;
+  reactions?: ReactionSummary[];
+}
+
+export interface ReactionSummary {
+  emoji: string;
+  count: number;
+  users: string[]; // user_ids
+}
+
+export interface ChatMessageReaction {
+  id: string;
+  message_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
 }
 
 export interface ChatMember {
@@ -129,6 +144,55 @@ export interface MentionMetadata {
   }>;
 }
 
+// system message that announces album activity in the chat feed
+export interface AlbumCardMetadata {
+  kind: 'album_created' | 'album_upload' | 'album_remove';
+  album_id: string;
+  album_name: string;
+  cover_url?: string | null;
+  // person who triggered this activity (uploader / remover / creator)
+  actor_name?: string;
+  /** @deprecated kept for backward compat with already-stored messages */
+  uploaded_by_name?: string;
+  photo_count?: number;
+}
+
+// ==========================================
+// Albums (shared photo folders per chat room)
+// ==========================================
+export interface ChatAlbum {
+  id: string;
+  room_id: string;
+  name: string;
+  description: string | null;
+  cover_url: string | null;
+  created_by: string | null;
+  created_at: string;
+  archived_at: string | null;
+  // joined
+  photo_count?: number;
+  creator?: {
+    id: string;
+    display_name: string | null;
+    username: string;
+  } | null;
+}
+
+export interface ChatAlbumPhoto {
+  id: string;
+  album_id: string;
+  url: string;
+  caption: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+  // joined
+  uploader?: {
+    id: string;
+    display_name: string | null;
+    username: string;
+  } | null;
+}
+
 export interface PinnedSummary {
   pending_count: number;
   in_progress_count: number;
@@ -138,13 +202,21 @@ export interface PinnedSummary {
 
 // Broadcast event payloads
 export interface ChatBroadcastPayload {
-  type: 'new_message' | 'message_updated' | 'typing' | 'read' | 'message_pinned' | 'message_unpinned';
+  type:
+    | 'new_message'
+    | 'message_updated'
+    | 'typing'
+    | 'read'
+    | 'message_pinned'
+    | 'message_unpinned'
+    | 'reaction_changed';
   message?: ChatMessage;
   user_id?: string;
   user_name?: string;
   room_id?: string;
   pinned_message?: ChatPinnedMessage;
   message_id?: string;
+  reactions?: ReactionSummary[];
 }
 
 export interface UnreadBadgePayload {

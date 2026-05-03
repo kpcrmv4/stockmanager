@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useChatStore } from '@/stores/chat-store';
 import { sendChatMessage, sendChatImageMessage } from '@/hooks/use-chat-realtime';
 import { notifyStaff } from '@/lib/notifications/client';
-import { Send, Image as ImageIcon, X, Loader2, Reply } from 'lucide-react';
+import { Send, Plus, Camera, ImageIcon, FolderPlus, X, Loader2, Reply } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import type { ChatMessage, MentionMetadata, ReplyMetadata } from '@/types/chat';
 
@@ -14,6 +14,8 @@ interface ChatInputProps {
   roomId: string;
   replyTo?: ChatMessage | null;
   onClearReply?: () => void;
+  /** Open the albums panel directly into the create-album form */
+  onCreateAlbum?: () => void;
 }
 
 interface MemberOption {
@@ -22,7 +24,7 @@ interface MemberOption {
   display_name: string | null;
 }
 
-export function ChatInput({ roomId, replyTo, onClearReply }: ChatInputProps) {
+export function ChatInput({ roomId, replyTo, onClearReply, onCreateAlbum }: ChatInputProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -30,10 +32,24 @@ export function ChatInput({ roomId, replyTo, onClearReply }: ChatInputProps) {
   const [members, setMembers] = useState<MemberOption[]>([]);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
   const { user } = useAuthStore();
   const addMessage = useChatStore((s) => s.addMessage);
+
+  // Close attach menu on outside click
+  useEffect(() => {
+    if (!showAttachMenu) return;
+    const handler = (e: PointerEvent | MouseEvent) => {
+      if (attachMenuRef.current?.contains(e.target as Node)) return;
+      setShowAttachMenu(false);
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [showAttachMenu]);
 
   // Focus input when reply is set
   useEffect(() => {
@@ -249,12 +265,29 @@ export function ChatInput({ roomId, replyTo, onClearReply }: ChatInputProps) {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // Reset both inputs so picking the same file twice still triggers change
+    if (cameraRef.current) cameraRef.current.value = '';
+    if (galleryRef.current) galleryRef.current.value = '';
     if (!file) return;
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
     if (!validTypes.includes(file.type) || file.size > 10 * 1024 * 1024) return;
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
-    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const openCamera = () => {
+    setShowAttachMenu(false);
+    cameraRef.current?.click();
+  };
+
+  const openGallery = () => {
+    setShowAttachMenu(false);
+    galleryRef.current?.click();
+  };
+
+  const openCreateAlbum = () => {
+    setShowAttachMenu(false);
+    onCreateAlbum?.();
   };
 
   const clearImage = () => {
@@ -342,20 +375,81 @@ export function ChatInput({ roomId, replyTo, onClearReply }: ChatInputProps) {
       )}
 
       <div className="flex items-end gap-2 px-3 py-2">
-        {/* Image button */}
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={sending}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-        >
-          <ImageIcon className="h-5 w-5" />
-        </button>
+        {/* Attachment button + popover menu */}
+        <div className="relative shrink-0" ref={attachMenuRef}>
+          <button
+            onClick={() => setShowAttachMenu((v) => !v)}
+            disabled={sending}
+            className={cn(
+              'flex h-10 w-10 items-center justify-center rounded-xl transition-all',
+              showAttachMenu
+                ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300'
+                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300',
+            )}
+            title="แนบรูป"
+            aria-haspopup="menu"
+            aria-expanded={showAttachMenu}
+          >
+            <Plus
+              className={cn(
+                'h-5 w-5 transition-transform',
+                showAttachMenu && 'rotate-45',
+              )}
+            />
+          </button>
 
+          {showAttachMenu && (
+            <div
+              className="absolute bottom-full left-0 z-30 mb-2 w-48 origin-bottom-left animate-in fade-in zoom-in-95 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+              role="menu"
+            >
+              <button
+                onClick={openCamera}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+                role="menuitem"
+              >
+                <Camera className="h-4 w-4 text-emerald-500" />
+                ถ่ายรูป
+              </button>
+              <button
+                onClick={openGallery}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+                role="menuitem"
+              >
+                <ImageIcon className="h-4 w-4 text-blue-500" />
+                เลือกรูปในเครื่อง
+              </button>
+              {onCreateAlbum && (
+                <>
+                  <div className="my-1 h-px bg-gray-100 dark:bg-gray-700" />
+                  <button
+                    onClick={openCreateAlbum}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+                    role="menuitem"
+                  >
+                    <FolderPlus className="h-4 w-4 text-indigo-500" />
+                    สร้างอัลบั้ม
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Hidden file inputs — one for camera, one for gallery, so we
+            can offer both choices on mobile (capture vs no capture). */}
         <input
-          ref={fileRef}
+          ref={cameraRef}
           type="file"
           accept="image/jpeg,image/png,image/webp,image/heic"
           capture="environment"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+        <input
+          ref={galleryRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/heic"
           onChange={handleFileSelect}
           className="hidden"
         />

@@ -21,16 +21,25 @@ const thaiShortDateFormatter = new Intl.DateTimeFormat('th-TH', {
   timeZone: 'Asia/Bangkok',
 });
 
-export function formatThaiDate(date: string | Date): string {
-  return thaiDateFormatter.format(new Date(date));
+export function formatThaiDate(date: string | Date | null | undefined): string {
+  if (!date) return '—';
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return '—';
+  return thaiDateFormatter.format(d);
 }
 
-export function formatThaiDateTime(date: string | Date): string {
-  return thaiDateTimeFormatter.format(new Date(date));
+export function formatThaiDateTime(date: string | Date | null | undefined): string {
+  if (!date) return '—';
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return '—';
+  return thaiDateTimeFormatter.format(d);
 }
 
-export function formatThaiShortDate(date: string | Date): string {
-  return thaiShortDateFormatter.format(new Date(date));
+export function formatThaiShortDate(date: string | Date | null | undefined): string {
+  if (!date) return '—';
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return '—';
+  return thaiShortDateFormatter.format(d);
 }
 
 export function formatNumber(num: number, decimals = 0): string {

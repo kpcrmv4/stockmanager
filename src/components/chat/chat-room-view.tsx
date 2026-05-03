@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import { createClient } from '@/lib/supabase/client';
 import { broadcastToChannel } from '@/lib/supabase/broadcast';
 import { useChatMessages } from '@/hooks/use-chat-messages';
 import { useChatRealtime } from '@/hooks/use-chat-realtime';
+import { useChatReactions, useToggleReaction, QUICK_REACTIONS } from '@/hooks/use-chat-reactions';
 import { useChatStore } from '@/stores/chat-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { ChatMessageBubble } from './chat-message-bubble';
@@ -15,7 +17,11 @@ import { ChatRoomSettings } from './chat-room-settings';
 import { TransactionBoard } from './transaction-board';
 import { MyTasksBoard } from './my-tasks-board';
 import { CompactActionCard } from './compact-action-card';
-import { ArrowLeft, Loader2, Settings, Volume2, VolumeX, Pin, Reply, MessageSquare, ClipboardList, UserCircle, Users, ChevronLeft, CalendarDays } from 'lucide-react';
+import { ImageLightbox, type LightboxImage } from './image-lightbox';
+import { ChatSearchPanel } from './chat-search-panel';
+import { ChatGalleryPanel } from './chat-gallery-panel';
+import { ChatAlbumsPanel } from './chat-albums-panel';
+import { Loader2, Settings, Volume2, VolumeX, Pin, Reply, MessageSquare, ClipboardList, UserCircle, Users, ChevronLeft, CalendarDays, Search, Image as ImageLucide, FolderOpen, Smile, MoreVertical } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { ChatNotificationToggle } from './chat-notification-toggle';
 import { isActionTypeVisibleToRole } from '@/lib/role-task-visibility';
@@ -40,6 +46,7 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const setPinnedMessages = useChatStore((s) => s.setPinnedMessages);
   const addPinnedMessage = useChatStore((s) => s.addPinnedMessage);
   const removePinnedMessage = useChatStore((s) => s.removePinnedMessage);
+  const scrollToBottomNonce = useChatStore((s) => s.scrollToBottomNonce);
   const { messages, hasMore, isLoadingMessages, loadMore } = useChatMessages(roomId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -51,6 +58,58 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Overlay panels
+  const [showSearch, setShowSearch] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);
+  const [showAlbums, setShowAlbums] = useState(false);
+  const [pendingAlbumId, setPendingAlbumId] = useState<string | null>(null);
+
+  // Image lightbox
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  // Header overflow menu (kebab) — keeps the top bar from wrapping on phones.
+  // Rendered via portal so it floats above sibling stacking contexts like
+  // the date-filter strip's backdrop-blur, which otherwise covers it.
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState<{ top: number; right: number } | null>(null);
+  const moreMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const moreMenuPanelRef = useRef<HTMLDivElement>(null);
+  const showMoreMenu = moreMenuAnchor !== null;
+  const closeMoreMenu = useCallback(() => setMoreMenuAnchor(null), []);
+  const toggleMoreMenu = useCallback(() => {
+    const btn = moreMenuBtnRef.current;
+    if (!btn) return;
+    if (moreMenuAnchor) {
+      setMoreMenuAnchor(null);
+      return;
+    }
+    const rect = btn.getBoundingClientRect();
+    setMoreMenuAnchor({
+      top: rect.bottom + 8,
+      right: Math.max(8, window.innerWidth - rect.right),
+    });
+  }, [moreMenuAnchor]);
+
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const handler = (e: PointerEvent | MouseEvent) => {
+      const target = e.target as Node;
+      if (moreMenuPanelRef.current?.contains(target)) return;
+      if (moreMenuBtnRef.current?.contains(target)) return;
+      closeMoreMenu();
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [showMoreMenu, closeMoreMenu]);
+
+  // Albums panel can open directly into create-mode (when triggered from
+  // the chat-input attachment menu). State lives here because the panel
+  // is owned by the room view.
+  const [albumPanelStartCreating, setAlbumPanelStartCreating] = useState(false);
+
+  // Reactions
+  useChatReactions(roomId);
+  const toggleReaction = useToggleReaction();
 
   // Chat date filter with localStorage persistence
   const [chatDateFilter, setChatDateFilter] = useState<'all' | 'today' | 'yesterday'>(() => {
@@ -151,6 +210,17 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
       toastTimerRef.current = setTimeout(() => setShowNewMessageToast(false), 3000);
     }
   }, [messages, user?.id]);
+
+  // Force scroll-to-bottom when explicitly requested (e.g. user posted an
+  // album action via the album panel — system messages have sender_id=null
+  // so the standard "is it own?" check above doesn't fire).
+  useEffect(() => {
+    if (scrollToBottomNonce === 0) return;
+    const id = requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [scrollToBottomNonce]);
 
   // Cleanup toast timer
   useEffect(() => {
@@ -276,6 +346,49 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
     setContextMenu(null);
   }, []);
 
+  // ----- Image gallery flat list (for lightbox prev/next within thread) -----
+  const imageMessages = useMemo(
+    () => messages.filter((m) => m.type === 'image' && m.content),
+    [messages],
+  );
+
+  const imageGalleryForLightbox: LightboxImage[] = useMemo(
+    () =>
+      imageMessages.map((m) => ({
+        url: m.content || '',
+        sender: m.sender?.display_name || m.sender?.username || null,
+        timestamp: new Date(m.created_at).toLocaleString('th-TH', {
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      })),
+    [imageMessages],
+  );
+
+  const handleOpenImage = useCallback(
+    (messageId: string) => {
+      const idx = imageMessages.findIndex((m) => m.id === messageId);
+      if (idx >= 0) setLightboxIndex(idx);
+    },
+    [imageMessages],
+  );
+
+  // Reaction click on a pill below bubble (toggle)
+  const handleReactionClick = useCallback(
+    (messageId: string, emoji: string) => {
+      toggleReaction(messageId, emoji);
+    },
+    [toggleReaction],
+  );
+
+  // Album card tap → open albums panel deep-linked to album id
+  const handleOpenAlbum = useCallback((albumId: string) => {
+    setPendingAlbumId(albumId);
+    setShowAlbums(true);
+  }, []);
+
   // Tap handler for messages — show context menu with quote/pin options
   const handleMessageTap = useCallback(
     (msg: ChatMessage, e: React.MouseEvent | React.TouchEvent) => {
@@ -391,15 +504,28 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
   const isPinnedMessage = (messageId: string) =>
     pinnedMessages.some((p) => p.message_id === messageId);
 
-  // Scroll to a specific message (used by pinned banner)
+  // Scroll to a specific message (used by pinned banner / reply quote tap / search picks)
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const handleScrollToMessage = useCallback((messageId: string) => {
+    // Close any open overlays so the chat is visible
+    setShowSearch(false);
     const el = document.getElementById(`msg-${messageId}`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setHighlightId(messageId);
       setTimeout(() => setHighlightId(null), 1500);
+      return;
     }
+    // Message not in view (probably older + paginated out) — fall back to date filter all
+    setChatDateFilter('all');
+    requestAnimationFrame(() => {
+      const el2 = document.getElementById(`msg-${messageId}`);
+      if (el2) {
+        el2.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightId(messageId);
+        setTimeout(() => setHighlightId(null), 1500);
+      }
+    });
   }, []);
 
   return (
@@ -438,8 +564,9 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
             <h2 className="truncate text-sm font-bold leading-tight text-white sm:text-base">
               {roomName}
             </h2>
-            <div className="mt-0.5 flex items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-white/70 backdrop-blur-sm dark:bg-white/5 sm:text-[11px]">
+            {/* Hide subtype pill on phones — saves a row of vertical space */}
+            <div className="mt-0.5 hidden items-center gap-1.5 sm:flex">
+              <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-white/10 px-1.5 py-0.5 text-[11px] font-medium text-white/70 backdrop-blur-sm dark:bg-white/5">
                 {room?.type === 'store' ? (
                   <><Users className="h-2.5 w-2.5" /> แชทสาขา</>
                 ) : 'แชท'}
@@ -447,8 +574,15 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
             </div>
           </div>
 
-          {/* Action buttons group */}
+          {/* Action buttons — primary stays visible, secondary goes into kebab */}
           <div className="flex items-center gap-0.5 rounded-xl bg-white/8 p-0.5 backdrop-blur-sm dark:bg-white/5 sm:gap-1 sm:p-1">
+            <button
+              onClick={() => setShowSearch(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 transition-all hover:bg-white/10 hover:text-white sm:h-9 sm:w-9"
+              title="ค้นหาในห้อง"
+            >
+              <Search className="h-4 w-4" />
+            </button>
             <ChatNotificationToggle />
             <button
               onClick={handleToggleMute}
@@ -456,18 +590,29 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
                 'flex h-8 w-8 items-center justify-center rounded-lg transition-all sm:h-9 sm:w-9',
                 isMuted
                   ? 'bg-white/10 text-white/40'
-                  : 'text-white/70 hover:bg-white/10 hover:text-white'
+                  : 'text-white/70 hover:bg-white/10 hover:text-white',
               )}
               title={isMuted ? 'เปิดเสียง' : 'ปิดเสียง'}
             >
               {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             </button>
+
+            {/* Overflow / "more" menu — gallery, albums, settings.
+                The dropdown itself is rendered via portal further below. */}
             <button
-              onClick={() => setShowSettings(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 transition-all hover:bg-white/10 hover:text-white sm:h-9 sm:w-9"
-              title="ตั้งค่า"
+              ref={moreMenuBtnRef}
+              onClick={toggleMoreMenu}
+              className={cn(
+                'flex h-8 w-8 items-center justify-center rounded-lg transition-all sm:h-9 sm:w-9',
+                showMoreMenu
+                  ? 'bg-white/15 text-white'
+                  : 'text-white/70 hover:bg-white/10 hover:text-white',
+              )}
+              title="เพิ่มเติม"
+              aria-haspopup="menu"
+              aria-expanded={showMoreMenu}
             >
-              <Settings className="h-4 w-4" />
+              <MoreVertical className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -618,6 +763,10 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
                       message={msg}
                       isOwn={msg.sender_id === user?.id}
                       showSender={showSender}
+                      onImageClick={handleOpenImage}
+                      onReplyTap={handleScrollToMessage}
+                      onReactionClick={handleReactionClick}
+                      onAlbumOpen={handleOpenAlbum}
                     />
                   </div>
                 )}
@@ -640,22 +789,52 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
       </div>
 
       {/* Input */}
-      <ChatInput roomId={roomId} replyTo={replyTo} onClearReply={() => setReplyTo(null)} />
+      <ChatInput
+        roomId={roomId}
+        replyTo={replyTo}
+        onClearReply={() => setReplyTo(null)}
+        onCreateAlbum={() => {
+          setAlbumPanelStartCreating(true);
+          setShowAlbums(true);
+        }}
+      />
       </>
       )}
 
-      {/* Context menu for quote/pin */}
+      {/* Context menu for emoji react / quote / pin */}
       {contextMenu && (
         <div
           ref={contextMenuRef}
           className="fixed z-50 animate-in fade-in zoom-in-95 rounded-xl border border-gray-200 bg-white py-1 shadow-xl dark:border-gray-700 dark:bg-gray-800"
           style={{
-            left: Math.min(contextMenu.x, window.innerWidth - 180),
-            top: Math.min(contextMenu.y, window.innerHeight - 100),
+            left: Math.min(contextMenu.x, window.innerWidth - 240),
+            top: Math.min(contextMenu.y, window.innerHeight - 160),
           }}
           onClick={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
         >
+          {/* Emoji quick-react row */}
+          <div className="flex items-center gap-1 border-b border-gray-100 px-2 py-1.5 dark:border-gray-700">
+            <Smile className="ml-1 h-3.5 w-3.5 text-gray-400" />
+            {QUICK_REACTIONS.map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => {
+                  toggleReaction(contextMenu.messageId, emoji);
+                  setContextMenu(null);
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  toggleReaction(contextMenu.messageId, emoji);
+                  setContextMenu(null);
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-lg transition-all hover:bg-gray-100 active:scale-110 dark:hover:bg-gray-700"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+
           {/* Quote/Reply — for everyone */}
           <button
             onTouchEnd={(e) => {
@@ -696,12 +875,103 @@ export function ChatRoomView({ roomId }: ChatRoomViewProps) {
         </div>
       )}
 
+      {/* Image lightbox (fullscreen viewer) */}
+      {lightboxIndex !== null && (
+        <ImageLightbox
+          images={imageGalleryForLightbox}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
+
+      {/* Search panel — mounted only while open so internal state resets */}
+      {showSearch && (
+        <ChatSearchPanel
+          roomId={roomId}
+          onClose={() => setShowSearch(false)}
+          onPick={(messageId) => {
+            setShowSearch(false);
+            handleScrollToMessage(messageId);
+          }}
+        />
+      )}
+
+      {/* Image gallery panel */}
+      {showGallery && (
+        <ChatGalleryPanel roomId={roomId} onClose={() => setShowGallery(false)} />
+      )}
+
+      {/* Albums panel */}
+      {showAlbums && (
+        <ChatAlbumsPanel
+          roomId={roomId}
+          onClose={() => {
+            setShowAlbums(false);
+            setPendingAlbumId(null);
+            setAlbumPanelStartCreating(false);
+          }}
+          initialAlbumId={pendingAlbumId}
+          onConsumeInitial={() => setPendingAlbumId(null)}
+          initialCreating={albumPanelStartCreating}
+          onConsumeInitialCreating={() => setAlbumPanelStartCreating(false)}
+        />
+      )}
+
       {/* Room settings */}
       <ChatRoomSettings
         roomId={roomId}
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
       />
+
+      {/* Header overflow menu — portaled so it always stacks above the
+          chat content (the date filter's backdrop-blur was painting over
+          a non-portaled dropdown). */}
+      {showMoreMenu && moreMenuAnchor && typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={moreMenuPanelRef}
+            className="fixed z-[60] w-52 origin-top-right animate-in fade-in zoom-in-95 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+            style={{ top: moreMenuAnchor.top, right: moreMenuAnchor.right }}
+            role="menu"
+          >
+            <button
+              onClick={() => {
+                closeMoreMenu();
+                setShowGallery(true);
+              }}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+              role="menuitem"
+            >
+              <ImageLucide className="h-4 w-4 text-indigo-500" />
+              คลังรูปภาพ
+            </button>
+            <button
+              onClick={() => {
+                closeMoreMenu();
+                setShowAlbums(true);
+              }}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+              role="menuitem"
+            >
+              <FolderOpen className="h-4 w-4 text-indigo-500" />
+              อัลบั้ม
+            </button>
+            <div className="my-1 h-px bg-gray-100 dark:bg-gray-700" />
+            <button
+              onClick={() => {
+                closeMoreMenu();
+                setShowSettings(true);
+              }}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+              role="menuitem"
+            >
+              <Settings className="h-4 w-4 text-indigo-500" />
+              ตั้งค่าห้อง
+            </button>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
